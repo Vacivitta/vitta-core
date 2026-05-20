@@ -1,15 +1,18 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import type { LeadKanban, LeadStage, Profile } from '@/types/database'
-import { STAGE_ORDER, STAGE_LABELS } from '@/types/database'
+import Link from 'next/link'
+import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import LeadModal from '@/components/leads/LeadModal'
+import QuickLeadForm from '@/components/leads/QuickLeadForm'
+import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   initialLeads: LeadKanban[]
+  funnels: FunnelWithStages[]
   profiles: Profile[]
   currentUser: Profile
 }
@@ -19,48 +22,73 @@ interface Filters {
   responsavel_id: string
   cidade: string
   profissao: string
-  stage: string
+  stage_id: string
 }
 
-export default function FunilClient({ initialLeads, profiles, currentUser }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
-  const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
-  const [modalLead, setModalLead] = useState<LeadKanban | null | undefined>(undefined) // undefined = closed
-  const [defaultStage, setDefaultStage] = useState<LeadStage>('lead')
-  const [filters, setFilters] = useState<Filters>({ search: '', responsavel_id: '', cidade: '', profissao: '', stage: '' })
-  const [showFilters, setShowFilters] = useState(false)
+  const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funnels[0]?.id ?? '')
+  const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
+  const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
+  const [showArchived, setShowArchived]   = useState(false)
+  const [filters, setFilters]             = useState<Filters>({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '' })
+  const [showFilters, setShowFilters]     = useState(false)
+
+  const selectedFunnel = funnels.find(f => f.id === selectedFunnelId) ?? funnels[0]
 
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
+      if (l.funnel_id !== selectedFunnelId) return false
       if (filters.search) {
         const q = filters.search.toLowerCase()
         const fullName = `${l.nome} ${l.sobrenome ?? ''}`.toLowerCase()
         if (!fullName.includes(q) && !l.profissao?.toLowerCase().includes(q) && !l.cidade?.toLowerCase().includes(q)) return false
       }
       if (filters.responsavel_id && l.responsavel_id !== filters.responsavel_id) return false
-      if (filters.cidade && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase())) return false
+      if (filters.cidade    && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase()))       return false
       if (filters.profissao && !l.profissao?.toLowerCase().includes(filters.profissao.toLowerCase())) return false
-      if (filters.stage && l.stage !== filters.stage) return false
+      if (filters.stage_id  && l.stage_id !== filters.stage_id)                                        return false
       return true
     })
-  }, [leads, filters])
+  }, [leads, selectedFunnelId, filters])
 
   const activeFiltersCount = Object.values(filters).filter(Boolean).length
+
+  const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
+  const totalVendidos = leads.filter(l => l.funnel_id === selectedFunnelId && l.stage_ordem === Math.max(...(selectedFunnel?.stages.map(s => s.ordem) ?? [0])) - 1).length
+
+  async function reloadLeads() {
+    const { data } = await supabase
+      .from('leads_kanban')
+      .select('*')
+      .order('stage_ordem')
+      .order('ordem')
+      .order('created_at')
+    if (data) setLeads(data as LeadKanban[])
+  }
 
   function handleLeadClick(lead: LeadKanban) {
     setModalLead(lead)
   }
 
-  function handleAddLead(stage: LeadStage) {
-    setDefaultStage(stage)
-    setModalLead(null) // null = new lead
+  function handleAddLead(stage: FunnelStage) {
+    setQuickFormStage(stage)
   }
 
-  async function handleSaved() {
-    const { data } = await supabase.from('leads_kanban').select('*').order('ordem').order('created_at')
-    if (data) setLeads(data as LeadKanban[])
+  async function handleQuickCreated(lead: Lead, openFull: boolean) {
+    await reloadLeads()
+    setQuickFormStage(null)
+    if (openFull) {
+      const { data } = await supabase
+        .from('leads_kanban')
+        .select('*')
+        .eq('id', lead.id)
+        .single()
+      if (data) setModalLead(data as LeadKanban)
+    }
   }
 
   async function handleLogout() {
@@ -68,8 +96,13 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
     router.push('/login')
   }
 
-  const totalLeads = leads.length
-  const totalVendidos = leads.filter(l => l.stage === 'vendido').length
+  if (!selectedFunnel) {
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-500 text-sm">
+        Nenhum funil ativo. Configure funis no painel do Supabase.
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -77,10 +110,28 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-base font-bold text-gray-900">Vitta Core</h1>
+
+          {/* Seletor de funil */}
+          {funnels.length > 1 && (
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-0.5">
+              {funnels.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setSelectedFunnelId(f.id)}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-medium ${
+                    f.id === selectedFunnelId
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {f.nome}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="hidden sm:flex items-center gap-2 text-xs text-gray-400">
             <span>{totalLeads} leads</span>
-            <span>·</span>
-            <span className="text-emerald-600 font-medium">{totalVendidos} vendidos</span>
           </div>
         </div>
 
@@ -99,7 +150,7 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
             />
           </div>
 
-          {/* Filters toggle */}
+          {/* Filtros */}
           <button
             onClick={() => setShowFilters(v => !v)}
             className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl border transition-colors ${
@@ -119,9 +170,21 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
             )}
           </button>
 
-          {/* New lead */}
+          {/* Arquivados */}
           <button
-            onClick={() => handleAddLead('lead')}
+            onClick={() => setShowArchived(true)}
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+            title="Ver leads arquivados"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            <span className="hidden sm:inline">Arquivados</span>
+          </button>
+
+          {/* Novo lead */}
+          <button
+            onClick={() => handleAddLead(selectedFunnel.stages[0])}
             className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,8 +193,20 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
             Novo lead
           </button>
 
-          {/* User menu */}
-          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-gray-200">
+          {/* Configurações */}
+          <Link
+            href="/configuracoes/funis"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl p-1.5 transition-colors"
+            title="Configurar funis"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </Link>
+
+          {/* Usuário */}
+          <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200">
             <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
               <span className="text-xs font-bold text-blue-600">{currentUser?.full_name?.[0]?.toUpperCase()}</span>
             </div>
@@ -142,7 +217,7 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
         </div>
       </header>
 
-      {/* Filters bar */}
+      {/* Barra de filtros */}
       {showFilters && (
         <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap">
           <select
@@ -171,17 +246,17 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
           />
 
           <select
-            value={filters.stage}
-            onChange={e => setFilters(f => ({ ...f, stage: e.target.value }))}
+            value={filters.stage_id}
+            onChange={e => setFilters(f => ({ ...f, stage_id: e.target.value }))}
             className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="">Todas etapas</option>
-            {STAGE_ORDER.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+            {selectedFunnel.stages.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
 
           {activeFiltersCount > 0 && (
             <button
-              onClick={() => setFilters({ search: '', responsavel_id: '', cidade: '', profissao: '', stage: '' })}
+              onClick={() => setFilters({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '' })}
               className="text-xs text-red-500 hover:text-red-700 transition-colors"
             >
               Limpar filtros
@@ -194,20 +269,45 @@ export default function FunilClient({ initialLeads, profiles, currentUser }: Pro
       <main className="flex-1 overflow-auto p-4">
         <KanbanBoard
           initialLeads={filteredLeads}
+          stages={selectedFunnel.stages}
           onLeadClick={handleLeadClick}
           onAddLead={handleAddLead}
         />
       </main>
 
-      {/* Modal */}
+      {/* Painel de arquivados */}
+      {showArchived && (
+        <ArchivedLeadsPanel
+          funnels={funnels}
+          selectedFunnelId={selectedFunnelId}
+          onOpenLead={lead => { setShowArchived(false); setModalLead(lead) }}
+          onClose={() => setShowArchived(false)}
+        />
+      )}
+
+      {/* Quick lead form */}
+      {quickFormStage && (
+        <QuickLeadForm
+          defaultStage={quickFormStage}
+          funnels={funnels}
+          profiles={profiles}
+          currentUser={currentUser}
+          onClose={() => setQuickFormStage(null)}
+          onCreated={handleQuickCreated}
+        />
+      )}
+
+      {/* Lead modal (existing leads) */}
       {modalLead !== undefined && (
         <LeadModal
           lead={modalLead}
-          defaultStage={defaultStage}
+          defaultStageId={selectedFunnel.stages[0]?.id}
+          funnel={selectedFunnel}
+          allFunnels={funnels}
           profiles={profiles}
           currentUser={currentUser}
           onClose={() => setModalLead(undefined)}
-          onSaved={handleSaved}
+          onSaved={reloadLeads}
         />
       )}
     </div>

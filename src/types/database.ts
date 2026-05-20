@@ -1,12 +1,3 @@
-export type LeadStage =
-  | 'lead'
-  | 'lead_em_interacao'
-  | 'reuniao'
-  | 'negociacao'
-  | 'followup_proposta'
-  | 'vendido'
-  | 'perdido'
-
 export type ContactRole =
   | 'proprietario'
   | 'secretaria'
@@ -21,6 +12,33 @@ export interface Profile {
   created_at: string
 }
 
+// ---- Funis ----------------------------------------------------------------
+
+export interface Funnel {
+  id: string
+  nome: string
+  descricao: string | null
+  ativo: boolean
+  ordem: number
+  created_at: string
+}
+
+export interface FunnelStage {
+  id: string
+  funnel_id: string
+  nome: string
+  cor: string
+  ordem: number
+  alerta_horas: number | null
+  created_at: string
+}
+
+export interface FunnelWithStages extends Funnel {
+  stages: FunnelStage[]
+}
+
+// ---- Leads ----------------------------------------------------------------
+
 export interface Lead {
   id: string
   nome: string
@@ -33,11 +51,14 @@ export interface Lead {
   site: string | null
   email: string | null
   telefone: string | null
-  stage: LeadStage
+  origem: string | null
+  funnel_id: string
+  stage_id: string
   responsavel_id: string | null
   arquivado: boolean
   motivo_perda: string | null
   ordem: number
+  stage_changed_at: string
   created_at: string
   updated_at: string
 }
@@ -45,19 +66,27 @@ export interface Lead {
 export interface LeadKanban extends Lead {
   responsavel_nome: string | null
   responsavel_avatar: string | null
+  stage_nome: string | null
+  stage_cor: string | null
+  stage_ordem: number | null
+  funnel_nome: string | null
   valor_proposta: number | null
   modelo: string | null
   valor_negociado: number | null
+  stage_alerta_horas: number | null
   tarefas_pendentes: number
   total_notas: number
   total_contatos: number
 }
+
+// ---- Relacionamentos -------------------------------------------------------
 
 export interface LeadContact {
   id: string
   lead_id: string
   nome: string
   telefone: string | null
+  email: string | null
   cargo: ContactRole
   observacao: string | null
   created_at: string
@@ -69,6 +98,7 @@ export interface LeadNote {
   conteudo: string
   autor_id: string | null
   created_at: string
+  editado_em: string | null
   autor?: Profile
 }
 
@@ -107,30 +137,32 @@ export interface LeadResponsibleHistory {
   trocado_por?: Profile
 }
 
-export const STAGE_LABELS: Record<LeadStage, string> = {
-  lead: 'Lead',
-  lead_em_interacao: 'Em Interação',
-  reuniao: 'Reunião',
-  negociacao: 'Negociação',
-  followup_proposta: 'Follow-up',
-  vendido: 'Vendido',
-  perdido: 'Perdido',
-}
-
-export const STAGE_ORDER: LeadStage[] = [
-  'lead',
-  'lead_em_interacao',
-  'reuniao',
-  'negociacao',
-  'followup_proposta',
-  'vendido',
-  'perdido',
-]
+// ---- Constantes estáticas --------------------------------------------------
 
 export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
   proprietario: 'Proprietário',
-  secretaria: 'Secretária',
-  financeiro: 'Financeiro',
-  socio: 'Sócio',
-  outro: 'Outro',
+  secretaria:   'Secretária',
+  financeiro:   'Financeiro',
+  socio:        'Sócio',
+  outro:        'Outro',
 }
+
+export const ARCHIVE_REASONS = [
+  'Sem orçamento',
+  'Escolheu concorrente',
+  'Sem interesse',
+  'Sem contato',
+  'Timing ruim',
+  'Outro',
+] as const
+
+export type ArchiveReason = typeof ARCHIVE_REASONS[number]
+
+export const ORIGEM_OPTIONS = [
+  'Orgânico',
+  'Tráfego Pago',
+  'Indicação',
+  'Evento',
+  'WhatsApp',
+  'Outro',
+] as const

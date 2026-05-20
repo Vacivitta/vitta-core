@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useOptimistic } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -13,35 +13,47 @@ import {
   closestCorners,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { LeadKanban, LeadStage } from '@/types/database'
-import { STAGE_ORDER } from '@/types/database'
+import type { LeadKanban, FunnelStage } from '@/types/database'
 import { moveLeadStage, reorderLeads } from '@/lib/leads'
 import KanbanColumn from './KanbanColumn'
 import LeadCard from './LeadCard'
 
 interface Props {
   initialLeads: LeadKanban[]
+  stages: FunnelStage[]
   onLeadClick: (lead: LeadKanban) => void
-  onAddLead: (stage: LeadStage) => void
+  onAddLead: (stage: FunnelStage) => void
 }
 
-function groupByStage(leads: LeadKanban[]): Record<LeadStage, LeadKanban[]> {
-  const groups = {} as Record<LeadStage, LeadKanban[]>
-  for (const stage of STAGE_ORDER) groups[stage] = []
-  for (const lead of leads) groups[lead.stage].push(lead)
+function groupByStage(leads: LeadKanban[], stages: FunnelStage[]): Record<string, LeadKanban[]> {
+  const groups: Record<string, LeadKanban[]> = {}
+  for (const s of stages) groups[s.id] = []
+  for (const lead of leads) {
+    if (groups[lead.stage_id] !== undefined) groups[lead.stage_id].push(lead)
+  }
   return groups
 }
 
-export default function KanbanBoard({ initialLeads, onLeadClick, onAddLead }: Props) {
+export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeId === null) setLeads(initialLeads)
+  }, [initialLeads]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  const grouped = groupByStage(leads)
+  const stageIds = new Set(stages.map(s => s.id))
+  const grouped  = groupByStage(leads, stages)
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null
+
+  function resolveStageId(overId: string): string | undefined {
+    if (stageIds.has(overId)) return overId
+    return leads.find(l => l.id === overId)?.stage_id
+  }
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
     setActiveId(active.id as string)
@@ -49,17 +61,15 @@ export default function KanbanBoard({ initialLeads, onLeadClick, onAddLead }: Pr
 
   const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
     if (!over) return
-    const activeStage = leads.find(l => l.id === active.id)?.stage
-    const overStage = (STAGE_ORDER.includes(over.id as LeadStage)
-      ? over.id
-      : leads.find(l => l.id === over.id)?.stage) as LeadStage | undefined
-
-    if (!activeStage || !overStage || activeStage === overStage) return
+    const currentStage = leads.find(l => l.id === active.id)?.stage_id
+    const targetStage  = resolveStageId(over.id as string)
+    if (!currentStage || !targetStage || currentStage === targetStage) return
 
     setLeads(prev =>
-      prev.map(l => (l.id === active.id ? { ...l, stage: overStage } : l))
+      prev.map(l => l.id === active.id ? { ...l, stage_id: targetStage } : l)
     )
-  }, [leads])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, stageIds])
 
   const handleDragEnd = useCallback(async ({ active, over }: DragEndEvent) => {
     setActiveId(null)
@@ -68,19 +78,17 @@ export default function KanbanBoard({ initialLeads, onLeadClick, onAddLead }: Pr
     const lead = leads.find(l => l.id === active.id)
     if (!lead) return
 
-    const overStage = (STAGE_ORDER.includes(over.id as LeadStage)
-      ? over.id
-      : leads.find(l => l.id === over.id)?.stage) as LeadStage | undefined
-
-    const targetStage = overStage ?? lead.stage
-    const columnLeads = leads.filter(l => l.stage === targetStage)
+    const targetStageId = resolveStageId(over.id as string) ?? lead.stage_id
+    const columnLeads   = leads.filter(l => l.stage_id === targetStageId)
 
     let newLeads = [...leads]
 
-    if (lead.stage !== targetStage) {
-      newLeads = newLeads.map(l => (l.id === lead.id ? { ...l, stage: targetStage } : l))
-      await moveLeadStage(lead.id, targetStage, columnLeads.length)
+    if (lead.stage_id !== targetStageId) {
+      // Movido para outra coluna
+      newLeads = newLeads.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l)
+      await moveLeadStage(lead.id, targetStageId, columnLeads.length)
     } else if (over.id !== active.id) {
+      // Reordenado na mesma coluna
       const oldIndex = columnLeads.findIndex(l => l.id === active.id)
       const newIndex = columnLeads.findIndex(l => l.id === over.id)
       const reordered = arrayMove(columnLeads, oldIndex, newIndex).map((l, i) => ({ ...l, ordem: i }))
@@ -89,7 +97,8 @@ export default function KanbanBoard({ initialLeads, onLeadClick, onAddLead }: Pr
     }
 
     setLeads(newLeads)
-  }, [leads])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, stageIds])
 
   return (
     <DndContext
@@ -99,12 +108,12 @@ export default function KanbanBoard({ initialLeads, onLeadClick, onAddLead }: Pr
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4 px-1 h-full">
-        {STAGE_ORDER.map(stage => (
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 px-2 sm:px-1 h-full snap-x snap-mandatory sm:snap-none">
+        {stages.map(stage => (
           <KanbanColumn
-            key={stage}
+            key={stage.id}
             stage={stage}
-            leads={grouped[stage]}
+            leads={grouped[stage.id] ?? []}
             onLeadClick={onLeadClick}
             onAddLead={onAddLead}
           />

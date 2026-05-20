@@ -21,12 +21,19 @@ export default function LeadCard({ lead, onClick }: Props) {
     transition,
   }
 
+  const hoursInStage = lead.stage_changed_at
+    ? Math.floor((Date.now() - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
+    : 0
+  const isOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-pointer select-none ${
-        isDragging ? 'opacity-50 shadow-lg ring-2 ring-blue-400' : ''
+      className={`bg-white rounded-lg border shadow-sm hover:shadow-md transition-all cursor-pointer select-none ${
+        isDragging  ? 'opacity-50 shadow-lg ring-2 ring-blue-400' :
+        isOverdue   ? 'border-red-300 ring-1 ring-red-100' :
+                      'border-gray-200 hover:border-gray-300'
       }`}
       onClick={onClick}
       {...attributes}
@@ -45,10 +52,22 @@ export default function LeadCard({ lead, onClick }: Props) {
           </p>
         )}
 
-        {/* Valor negociado (etapa negociação+) */}
-        {lead.valor_negociado != null && (
+        {/* Alerta de tempo na etapa */}
+        {isOverdue && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded-full mt-1">
+            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {hoursInStage}h na etapa
+          </span>
+        )}
+
+        {/* Badge de valor — exibe quando proposta preenchida */}
+        {(lead.valor_proposta != null || lead.valor_negociado != null) && (
           <p className="text-xs font-semibold text-emerald-600 mt-1">
-            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_negociado)}
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+              lead.valor_negociado ?? lead.valor_proposta ?? 0
+            )}
           </p>
         )}
 

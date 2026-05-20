@@ -2,49 +2,45 @@
 
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import type { LeadKanban, LeadStage } from '@/types/database'
-import { STAGE_LABELS } from '@/types/database'
+import type { LeadKanban, FunnelStage } from '@/types/database'
 import LeadCard from './LeadCard'
 
-const STAGE_COLORS: Record<LeadStage, string> = {
-  lead:               'border-t-slate-400',
-  lead_em_interacao:  'border-t-blue-400',
-  reuniao:            'border-t-violet-400',
-  negociacao:         'border-t-amber-400',
-  followup_proposta:  'border-t-orange-400',
-  vendido:            'border-t-emerald-500',
-  perdido:            'border-t-red-400',
-}
-
-const STAGE_COUNT_COLORS: Record<LeadStage, string> = {
-  lead:               'bg-slate-100 text-slate-600',
-  lead_em_interacao:  'bg-blue-100 text-blue-700',
-  reuniao:            'bg-violet-100 text-violet-700',
-  negociacao:         'bg-amber-100 text-amber-700',
-  followup_proposta:  'bg-orange-100 text-orange-700',
-  vendido:            'bg-emerald-100 text-emerald-700',
-  perdido:            'bg-red-100 text-red-700',
-}
-
 interface Props {
-  stage: LeadStage
+  stage: FunnelStage
   leads: LeadKanban[]
   onLeadClick: (lead: LeadKanban) => void
-  onAddLead: (stage: LeadStage) => void
+  onAddLead: (stage: FunnelStage) => void
 }
 
+const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 })
+
 export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }: Props) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage })
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id })
+
+  const headerStyle = { borderTopColor: stage.cor }
+  const countStyle  = { backgroundColor: `${stage.cor}22`, color: stage.cor }
+
+  const totalValue = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? 0), 0)
 
   return (
-    <div className="flex flex-col w-72 shrink-0">
+    <div className="flex flex-col w-[82vw] sm:w-72 shrink-0 snap-start">
       {/* Header */}
-      <div className={`bg-white rounded-t-xl border border-b-0 border-gray-200 border-t-4 ${STAGE_COLORS[stage]} px-3 py-2.5 flex items-center justify-between`}>
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm text-gray-800">{STAGE_LABELS[stage]}</span>
-          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${STAGE_COUNT_COLORS[stage]}`}>
-            {leads.length}
-          </span>
+      <div
+        className="bg-white rounded-t-xl border border-b-0 border-gray-200 border-t-4 px-3 py-2.5 flex items-center justify-between"
+        style={headerStyle}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm text-gray-800 truncate">{stage.nome}</span>
+              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0" style={countStyle}>
+                {leads.length}
+              </span>
+            </div>
+            {totalValue > 0 && (
+              <p className="text-[11px] text-gray-400 font-medium leading-tight">{fmt.format(totalValue)}</p>
+            )}
+          </div>
         </div>
         <button
           onClick={() => onAddLead(stage)}
