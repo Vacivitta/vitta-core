@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type {
@@ -27,7 +28,7 @@ interface Props {
 
 type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Ligações' | 'Proposta'
 const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Ligações', 'Proposta']
-const DISABLED_TABS = new Set<Tab>(['Atendimento', 'Ligações', 'Proposta'])
+const DISABLED_TABS = new Set<Tab>(['Ligações', 'Proposta'])
 
 type TimelineItem =
   | { kind: 'note'; id: string; ts: string; note: LeadNote }
@@ -45,6 +46,7 @@ function LeadDrawer({
 }: Props & { lead: LeadKanban }) {
   const isArchived = lead.arquivado === true
   const supabase   = createClient()
+  const router     = useRouter()
 
   // ── Animation ──────────────────────────────────────────────────────────────
   const [visible, setVisible] = useState(false)
@@ -53,6 +55,12 @@ function LeadDrawer({
   function handleClose() {
     setVisible(false)
     setTimeout(onClose, 280)
+  }
+
+  function handleOpenAtendimento() {
+    const numero = lead.telefone?.replace(/\D/g, '') ?? ''
+    setVisible(false)
+    setTimeout(() => { onClose(); router.push(`/atendimento?numero=${numero}`) }, 280)
   }
 
   // ── Edit mode ──────────────────────────────────────────────────────────────
@@ -572,13 +580,19 @@ function LeadDrawer({
           <div className="flex border-b border-gray-100 px-4 shrink-0 overflow-x-auto">
             {TABS.map(t => {
               const disabled = DISABLED_TABS.has(t)
+              const isAtendimento = t === 'Atendimento'
+              function handleTabClick() {
+                if (disabled) return
+                if (isAtendimento && lead.telefone) { handleOpenAtendimento(); return }
+                setTab(t)
+              }
               return (
                 <button
                   key={t}
-                  onClick={() => !disabled && setTab(t)}
+                  onClick={handleTabClick}
                   disabled={disabled}
                   title={disabled ? 'Em breve' : undefined}
-                  className={`text-sm py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors -mb-px ${
+                  className={`text-sm py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors -mb-px flex items-center gap-1.5 ${
                     disabled
                       ? 'border-transparent text-gray-300 cursor-not-allowed'
                       : tab === t
@@ -586,6 +600,11 @@ function LeadDrawer({
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
                 >
+                  {isAtendimento && (
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  )}
                   {t}
                   {t === 'Tarefas' && pendingTasks > 0 && (
                     <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-600 rounded-full px-1.5 py-0.5 font-semibold">{pendingTasks}</span>
@@ -747,7 +766,7 @@ function LeadDrawer({
 
                 {tasks.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Nenhuma tarefa ainda</p>}
 
-                {tasks.map(task => {
+                {tasks.map((task) => {
                   const overdue = !task.concluida && task.data_limite && new Date(task.data_limite) < new Date()
                   return (
                     <div key={task.id} className={`group flex items-start gap-3 p-3 rounded-xl border transition-colors ${task.concluida ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'}`}>
@@ -780,6 +799,27 @@ function LeadDrawer({
                     </div>
                   )
                 })}
+              </div>
+            )}
+
+            {/* ═══ ATENDIMENTO (no-phone fallback) ═══ */}
+            {tab === 'Atendimento' && !lead.telefone && (
+              <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Telefone não cadastrado</p>
+                  <p className="text-xs text-gray-400 mt-1">Cadastre um telefone para acessar o atendimento</p>
+                </div>
+                <button
+                  onClick={() => { setTab('Histórico'); setEditing(true) }}
+                  className="text-sm px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+                >
+                  Editar dados
+                </button>
               </div>
             )}
           </div>

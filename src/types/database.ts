@@ -9,6 +9,18 @@ export interface Profile {
   id: string
   full_name: string
   avatar_url: string | null
+  role: 'gestor' | 'operador'
+  created_at: string
+}
+
+// ---- Chat interno ----------------------------------------------------------
+
+export interface InternalMessage {
+  id: string
+  de_id: string
+  para_id: string
+  conteudo: string
+  lido: boolean
   created_at: string
 }
 

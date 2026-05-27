@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import LeadModal from '@/components/leads/LeadModal'
@@ -26,7 +24,6 @@ interface Filters {
 }
 
 export default function FunilClient({ initialLeads, funnels, profiles, currentUser }: Props) {
-  const router = useRouter()
   const supabase = createClient()
 
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
@@ -34,7 +31,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
   const [showArchived, setShowArchived]   = useState(false)
-  const [filters, setFilters]             = useState<Filters>({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '' })
+  const [filters, setFilters]             = useState<Filters>({
+    search:         '',
+    responsavel_id: currentUser.role === 'gestor' ? '' : currentUser.id,
+    cidade:         '',
+    profissao:      '',
+    stage_id:       '',
+  })
   const [showFilters, setShowFilters]     = useState(false)
 
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId) ?? funnels[0]
@@ -91,28 +94,21 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     }
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
   if (!selectedFunnel) {
     return (
-      <div className="flex items-center justify-center h-screen text-gray-500 text-sm">
+      <div className="flex items-center justify-center flex-1 text-gray-500 text-sm">
         Nenhum funil ativo. Configure funis no painel do Supabase.
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* Top bar */}
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <h1 className="text-base font-bold text-gray-900">Vitta Core</h1>
-
           {/* Seletor de funil */}
-          {funnels.length > 1 && (
+          {funnels.length > 1 ? (
             <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-0.5">
               {funnels.map(f => (
                 <button
@@ -128,11 +124,11 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
                 </button>
               ))}
             </div>
+          ) : (
+            <span className="text-sm font-semibold text-gray-800">{selectedFunnel.nome}</span>
           )}
 
-          <div className="hidden sm:flex items-center gap-2 text-xs text-gray-400">
-            <span>{totalLeads} leads</span>
-          </div>
+          <span className="hidden sm:block text-xs text-gray-400">{totalLeads} leads</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -192,42 +188,22 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             </svg>
             Novo lead
           </button>
-
-          {/* Configurações */}
-          <Link
-            href="/configuracoes/funis"
-            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl p-1.5 transition-colors"
-            title="Configurar funis"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </Link>
-
-          {/* Usuário */}
-          <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200">
-            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-              <span className="text-xs font-bold text-blue-600">{currentUser?.full_name?.[0]?.toUpperCase()}</span>
-            </div>
-            <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block">
-              Sair
-            </button>
-          </div>
         </div>
       </header>
 
       {/* Barra de filtros */}
       {showFilters && (
         <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap">
-          <select
-            value={filters.responsavel_id}
-            onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}
-            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="">Todos responsáveis</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
+          {currentUser.role === 'gestor' && (
+            <select
+              value={filters.responsavel_id}
+              onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}
+              className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Todos responsáveis</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+          )}
 
           <input
             type="text"
