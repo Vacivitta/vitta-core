@@ -34,6 +34,29 @@ export default function ClientesClient({ initialClients, units }: Props) {
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [dupWarning, setDupWarning] = useState<ClientWithLead | null>(null)
+
+  // Detecta duplicatas: clientes com mesmo nome+telefone ou mesmo nome+email
+  const duplicateGroups = useMemo(() => {
+    const groups: ClientWithLead[][] = []
+    const seen = new Set<string>()
+    for (const c of clients) {
+      if (seen.has(c.id)) continue
+      const matches = clients.filter(x =>
+        x.id !== c.id && (
+          (c.telefone && x.telefone && c.telefone.replace(/\D/g,'') === x.telefone.replace(/\D/g,'')) ||
+          (c.email    && x.email    && c.email.toLowerCase() === x.email.toLowerCase()) ||
+          (c.cpf      && x.cpf      && c.cpf.replace(/\D/g,'') === x.cpf.replace(/\D/g,''))
+        )
+      )
+      if (matches.length > 0) {
+        const group = [c, ...matches]
+        group.forEach(x => seen.add(x.id))
+        groups.push(group)
+      }
+    }
+    return groups
+  }, [clients])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -69,8 +92,23 @@ export default function ClientesClient({ initialClients, units }: Props) {
     setModal('edit')
   }
 
-  async function handleSave() {
+  async function handleSave(force = false) {
     if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
+
+    // Verificação de duplicata antes de criar (não se for edição ou se já confirmou)
+    if (modal === 'create' && !force) {
+      const tel = form.telefone.replace(/\D/g, '')
+      const email = form.email.trim().toLowerCase()
+      const cpf = form.cpf.replace(/\D/g, '')
+      const potential = clients.find(c =>
+        (tel   && c.telefone && c.telefone.replace(/\D/g,'') === tel)   ||
+        (email && c.email    && c.email.toLowerCase()         === email) ||
+        (cpf   && c.cpf      && c.cpf.replace(/\D/g,'')       === cpf)
+      )
+      if (potential) { setDupWarning(potential); return }
+    }
+
+    setDupWarning(null)
     setSaving(true)
     setError('')
 
@@ -90,7 +128,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
         const { data, error: err } = await supabase
           .from('clients')
           .insert({ ...payload, unit_id: unitId })
-          .select('*, lead:leads(id,nome,sobrenome)')
+          .select('*, lead:leads!lead_id(id, nome, sobrenome)')
           .single()
         if (err) throw err
         setClients(prev => [data as ClientWithLead, ...prev])
@@ -99,7 +137,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
           .from('clients')
           .update(payload)
           .eq('id', selected.id)
-          .select('*, lead:leads(id,nome,sobrenome)')
+          .select('*, lead:leads!lead_id(id, nome, sobrenome)')
           .single()
         if (err) throw err
         setClients(prev => prev.map(c => c.id === selected.id ? data as ClientWithLead : c))
@@ -158,6 +196,34 @@ export default function ClientesClient({ initialClients, units }: Props) {
           />
         </div>
       </div>
+
+      {/* Banner de duplicatas detectadas */}
+      {duplicateGroups.length > 0 && (
+        <div className="mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800">
+              {duplicateGroups.length} grupo{duplicateGroups.length !== 1 ? 's' : ''} de possíveis clientes duplicados
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {duplicateGroups.map((group, i) => (
+                <li key={i} className="text-xs text-amber-700">
+                  {group.map(c => `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`).join(' · ')}
+                  {group[0].telefone && <span className="text-amber-500 ml-1">({group[0].telefone})</span>}
+                  <button
+                    onClick={() => handleDelete(group[group.length - 1].id)}
+                    className="ml-2 underline hover:no-underline text-amber-600"
+                  >
+                    Remover duplicata
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
@@ -255,6 +321,46 @@ export default function ClientesClient({ initialClients, units }: Props) {
           </table>
         )}
       </div>
+
+      {/* Modal confirmação de duplicata */}
+      {dupWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Possível duplicata detectada</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Já existe um cliente com dados similares:
+                </p>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-700">
+              <p className="font-medium">{dupWarning.nome}{dupWarning.sobrenome ? ` ${dupWarning.sobrenome}` : ''}</p>
+              {dupWarning.telefone && <p className="text-xs text-gray-500">{dupWarning.telefone}</p>}
+              {dupWarning.email    && <p className="text-xs text-gray-500">{dupWarning.email}</p>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDupWarning(null)}
+                className="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { setDupWarning(null); void handleSave(true) }}
+                className="flex-1 px-4 py-2 text-sm bg-amber-500 text-white font-medium rounded-xl hover:bg-amber-600 transition-colors"
+              >
+                Criar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal create/edit */}
       {modal && (
