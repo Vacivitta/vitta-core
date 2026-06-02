@@ -7,14 +7,17 @@ export default async function ClientesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: clients }, { data: profiles }, { data: units }] = await Promise.all([
+  const [{ data: clients, error: clientsError }, { data: profiles }, { data: units }] = await Promise.all([
     supabase
       .from('clients')
-      .select('*, lead:leads(id,nome,sobrenome,funnel_id,stage_id)')
+      // !lead_id: hint explícito para resolver join bidirecional (clients↔leads)
+      .select('*, lead:leads!lead_id(id, nome, sobrenome)')
       .order('criado_em', { ascending: false }),
     supabase.from('profiles').select('id, full_name').order('full_name'),
     supabase.from('units').select('id, nome').eq('ativo', true),
   ])
+
+  if (clientsError) console.error('[ClientesPage] erro ao buscar clientes:', clientsError)
 
   return (
     <ClientesClient
