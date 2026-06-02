@@ -1,0 +1,319 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { useProfile } from '@/hooks/useProfile'
+import type { Client, Unit } from '@/types/database'
+
+interface Profile { id: string; full_name: string }
+interface LeadRef  { id: string; nome: string; sobrenome: string | null }
+interface ClientWithLead extends Client { lead?: LeadRef | null }
+
+interface Props {
+  initialClients: ClientWithLead[]
+  profiles:       Profile[]
+  units:          Pick<Unit, 'id' | 'nome'>[]
+}
+
+const EMPTY_FORM = {
+  nome: '', sobrenome: '', telefone: '', email: '',
+  cpf: '', data_nascimento: '', observacoes: '',
+}
+
+export default function ClientesClient({ initialClients, units }: Props) {
+  const supabase  = createClient()
+  const { profile } = useProfile()
+
+  const [clients,  setClients]  = useState<ClientWithLead[]>(initialClients)
+  const [search,   setSearch]   = useState('')
+  const [modal,    setModal]    = useState<'create' | 'edit' | null>(null)
+  const [selected, setSelected] = useState<ClientWithLead | null>(null)
+  const [form,     setForm]     = useState({ ...EMPTY_FORM })
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    if (!q) return clients
+    return clients.filter(c =>
+      c.nome.toLowerCase().includes(q) ||
+      (c.sobrenome ?? '').toLowerCase().includes(q) ||
+      (c.telefone  ?? '').includes(q) ||
+      (c.email     ?? '').toLowerCase().includes(q) ||
+      (c.cpf       ?? '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+    )
+  }, [clients, search])
+
+  function openCreate() {
+    setForm({ ...EMPTY_FORM })
+    setSelected(null)
+    setError('')
+    setModal('create')
+  }
+
+  function openEdit(c: ClientWithLead) {
+    setForm({
+      nome:            c.nome,
+      sobrenome:       c.sobrenome       ?? '',
+      telefone:        c.telefone        ?? '',
+      email:           c.email           ?? '',
+      cpf:             c.cpf             ?? '',
+      data_nascimento: c.data_nascimento ?? '',
+      observacoes:     c.observacoes     ?? '',
+    })
+    setSelected(c)
+    setError('')
+    setModal('edit')
+  }
+
+  async function handleSave() {
+    if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
+    setSaving(true)
+    setError('')
+
+    const payload = {
+      nome:            form.nome.trim(),
+      sobrenome:       form.sobrenome.trim()       || null,
+      telefone:        form.telefone.trim()        || null,
+      email:           form.email.trim()           || null,
+      cpf:             form.cpf.trim()             || null,
+      data_nascimento: form.data_nascimento        || null,
+      observacoes:     form.observacoes.trim()     || null,
+    }
+
+    try {
+      if (modal === 'create') {
+        const unitId = units[0]?.id ?? profile?.unit_id
+        const { data, error: err } = await supabase
+          .from('clients')
+          .insert({ ...payload, unit_id: unitId })
+          .select('*, lead:leads(id,nome,sobrenome)')
+          .single()
+        if (err) throw err
+        setClients(prev => [data as ClientWithLead, ...prev])
+      } else if (selected) {
+        const { data, error: err } = await supabase
+          .from('clients')
+          .update(payload)
+          .eq('id', selected.id)
+          .select('*, lead:leads(id,nome,sobrenome)')
+          .single()
+        if (err) throw err
+        setClients(prev => prev.map(c => c.id === selected.id ? data as ClientWithLead : c))
+      }
+      setModal(null)
+    } catch {
+      setError('Erro ao salvar. Tente novamente.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setDeleting(id)
+    await supabase.from('clients').delete().eq('id', id)
+    setClients(prev => prev.filter(c => c.id !== id))
+    setDeleting(null)
+  }
+
+  function fmt(v: string | null) {
+    if (!v) return '—'
+    try { return format(new Date(v), 'dd/MM/yyyy', { locale: ptBR }) } catch { return v }
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Clientes</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Novo cliente
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative mt-3">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Buscar por nome, telefone, e-mail ou CPF..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+            <svg className="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <p className="text-sm">{search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado ainda'}</p>
+            {!search && (
+              <button onClick={openCreate} className="mt-3 text-sm text-blue-500 hover:underline">
+                Cadastrar primeiro cliente
+              </button>
+            )}
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <tr>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nome</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefone</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">E-mail</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">CPF</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Origem</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cadastro</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {filtered.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-semibold text-blue-600">{c.nome[0].toUpperCase()}</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{c.nome}{c.sobrenome ? ` ${c.sobrenome}` : ''}</p>
+                        {c.observacoes && (
+                          <p className="text-xs text-gray-400 truncate max-w-xs">{c.observacoes}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{c.telefone ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.email ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.cpf ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    {c.lead ? (
+                      <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                        Lead convertido
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Direto</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(c.criado_em)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Editar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        disabled={deleting === c.id}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                        title="Excluir"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Modal create/edit */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-semibold text-gray-900">
+                {modal === 'create' ? 'Novo cliente' : 'Editar cliente'}
+              </h2>
+              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nome *" value={form.nome} onChange={v => setForm(f => ({ ...f, nome: v }))} />
+                <Field label="Sobrenome" value={form.sobrenome} onChange={v => setForm(f => ({ ...f, sobrenome: v }))} />
+                <Field label="Telefone" value={form.telefone} onChange={v => setForm(f => ({ ...f, telefone: v }))} />
+                <Field label="E-mail" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
+                <Field label="CPF" value={form.cpf} onChange={v => setForm(f => ({ ...f, cpf: v }))} placeholder="000.000.000-00" />
+                <Field label="Data de nascimento" value={form.data_nascimento} onChange={v => setForm(f => ({ ...f, data_nascimento: v }))} type="date" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
+                <textarea
+                  value={form.observacoes}
+                  onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+              {error && <p className="text-xs text-red-500">{error}</p>}
+            </div>
+
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              >
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Field({ label, value, onChange, type = 'text', placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+  )
+}

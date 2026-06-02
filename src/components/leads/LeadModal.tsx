@@ -28,9 +28,9 @@ interface Props {
   onSaved: () => void
 }
 
-type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Ligações' | 'Orçamentos'
-const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Ligações', 'Orçamentos']
-const DISABLED_TABS = new Set<Tab>(['Ligações'])
+type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
+const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Orçamentos']
+const DISABLED_TABS = new Set<Tab>([])
 
 interface LeadQuote {
   id:              string

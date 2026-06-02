@@ -57,6 +57,17 @@ const NAV_ITEMS: NavItem[] = [
   },
 ]
 
+const CLIENTES_ITEM: NavItem = {
+  href: '/clientes',
+  label: 'Clientes',
+  icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+}
+
 const CATALOGO_ITEM: NavItem = {
   href: '/produtos',
   label: 'Catálogo',
@@ -174,6 +185,9 @@ export default function AppSidebar() {
           <NavLink key={item.href} item={item} collapsed={collapsed} active={isActive(item.href)} />
         ))}
 
+        {/* Clientes */}
+        <NavLink item={CLIENTES_ITEM} collapsed={collapsed} active={isActive(CLIENTES_ITEM.href)} />
+
         {/* Catálogo de vacinas */}
         <NavLink item={CATALOGO_ITEM} collapsed={collapsed} active={isActive(CATALOGO_ITEM.href)} />
 
@@ -223,6 +237,24 @@ export default function AppSidebar() {
 
         {/* Notificações */}
         <NotificationBell collapsed={collapsed} />
+
+        {/* Equipe (usuários + unidades) — gestors only */}
+        {isGestor && (
+          <NavLink
+            item={{
+              href: '/configuracoes/equipe',
+              label: 'Equipe',
+              icon: (
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              ),
+            }}
+            collapsed={collapsed}
+            active={isActive('/configuracoes/equipe')}
+          />
+        )}
 
         {/* Automações — gestors only */}
         {isGestor && (
