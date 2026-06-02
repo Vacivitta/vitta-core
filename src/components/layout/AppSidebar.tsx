@@ -90,19 +90,6 @@ const ORCAMENTOS_ITEM: NavItem = {
   ),
 }
 
-const BOTTOM_ITEMS: NavItem[] = [
-  {
-    href: '/configuracoes/funis',
-    label: 'Configurações',
-    icon: (
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  },
-]
 
 const SUPERVISAO_ITEM: NavItem = {
   href: '/supervisao',
@@ -134,13 +121,23 @@ function NavLink({ item, collapsed, active }: { item: NavItem; collapsed: boolea
   )
 }
 
+const CONFIG_HREFS = [
+  '/configuracoes/funis',
+  '/configuracoes/templates',
+  '/configuracoes/equipe',
+  '/configuracoes/automacoes',
+]
+
 export default function AppSidebar() {
   const pathname   = usePathname()
   const router     = useRouter()
   const supabase   = createClient()
   const { profile, perfil, isGestor } = useProfile()
 
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed,   setCollapsed]   = useState(false)
+  const [configOpen,  setConfigOpen]  = useState(() =>
+    CONFIG_HREFS.some(h => pathname.startsWith(h))
+  )
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -213,66 +210,118 @@ export default function AppSidebar() {
 
       {/* Bottom section */}
       <div className="px-2 pb-3 space-y-0.5 border-t border-gray-100 pt-2 shrink-0">
-        {BOTTOM_ITEMS.map(item => (
-          <NavLink key={item.href} item={item} collapsed={collapsed} active={isActive(item.href)} />
-        ))}
-
-        {/* Templates PDF — gestors only */}
-        {isGestor && (
-          <NavLink
-            item={{
-              href: '/configuracoes/templates',
-              label: 'Templates PDF',
-              icon: (
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              ),
-            }}
-            collapsed={collapsed}
-            active={isActive('/configuracoes/templates')}
-          />
-        )}
 
         {/* Notificações */}
         <NotificationBell collapsed={collapsed} />
 
-        {/* Equipe (usuários + unidades) — gestors only */}
-        {isGestor && (
-          <NavLink
-            item={{
-              href: '/configuracoes/equipe',
-              label: 'Equipe',
-              icon: (
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        {/* Configurações — expansível com sub-itens */}
+        <div>
+          <button
+            onClick={() => !collapsed && setConfigOpen(v => !v)}
+            title={collapsed ? 'Configurações' : undefined}
+            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors text-sm font-medium ${
+              CONFIG_HREFS.some(h => isActive(h))
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left truncate">Configurações</span>
+                <svg
+                  className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${configOpen ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              ),
-            }}
-            collapsed={collapsed}
-            active={isActive('/configuracoes/equipe')}
-          />
-        )}
+              </>
+            )}
+          </button>
 
-        {/* Automações — gestors only */}
-        {isGestor && (
-          <NavLink
-            item={{
-              href: '/configuracoes/automacoes',
-              label: 'Automações',
-              icon: (
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Sub-itens — visíveis quando expandido ou sidebar colapsada (tooltip) */}
+          {(configOpen || collapsed) && (
+            <div className={`space-y-0.5 ${collapsed ? '' : 'ml-3 pl-2.5 border-l border-gray-200 mt-0.5'}`}>
+              {/* Funis — todos */}
+              <Link
+                href="/configuracoes/funis"
+                title={collapsed ? 'Funis' : undefined}
+                className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
+                  isActive('/configuracoes/funis')
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                }`}
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-              ),
-            }}
-            collapsed={collapsed}
-            active={isActive('/configuracoes/automacoes')}
-          />
-        )}
+                {!collapsed && <span className="truncate">Funis</span>}
+              </Link>
+
+              {/* Templates PDF — gestores */}
+              {isGestor && (
+                <Link
+                  href="/configuracoes/templates"
+                  title={collapsed ? 'Templates PDF' : undefined}
+                  className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
+                    isActive('/configuracoes/templates')
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                  }`}
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {!collapsed && <span className="truncate">Templates PDF</span>}
+                </Link>
+              )}
+
+              {/* Equipe — gestores */}
+              {isGestor && (
+                <Link
+                  href="/configuracoes/equipe"
+                  title={collapsed ? 'Equipe' : undefined}
+                  className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
+                    isActive('/configuracoes/equipe')
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                  }`}
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  {!collapsed && <span className="truncate">Equipe</span>}
+                </Link>
+              )}
+
+              {/* Automações — gestores */}
+              {isGestor && (
+                <Link
+                  href="/configuracoes/automacoes"
+                  title={collapsed ? 'Automações' : undefined}
+                  className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
+                    isActive('/configuracoes/automacoes')
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                  }`}
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                      d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {!collapsed && <span className="truncate">Automações</span>}
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* User + logout */}
         <div className={`flex items-center mt-1 ${collapsed ? 'justify-center' : 'gap-2 px-2.5 py-2'}`}>
