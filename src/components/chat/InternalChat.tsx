@@ -245,7 +245,7 @@ export default function InternalChat() {
               ) : (
                 profiles.map(p => {
                   const unread = unreadByContact[p.id] ?? 0
-                  const isGestor = p.role === 'gestor'
+                  const isGestor = p.perfil !== 'atendente'
                   return (
                     <button
                       key={p.id}

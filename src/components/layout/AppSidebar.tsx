@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/hooks/useProfile'
+import { PERFIL_LABELS } from '@/types/database'
+import NotificationBell from './NotificationBell'
 
 interface NavItem {
   href: string
@@ -13,6 +15,16 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  {
+    href: '/dashboard',
+    label: 'Dashboard',
+    icon: (
+      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
   {
     href: '/funil',
     label: 'Funil',
@@ -44,6 +56,28 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
 ]
+
+const CATALOGO_ITEM: NavItem = {
+  href: '/produtos',
+  label: 'Catálogo',
+  icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+    </svg>
+  ),
+}
+
+const ORCAMENTOS_ITEM: NavItem = {
+  href: '/orcamento',
+  label: 'Orçamentos',
+  icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
+}
 
 const BOTTOM_ITEMS: NavItem[] = [
   {
@@ -93,7 +127,7 @@ export default function AppSidebar() {
   const pathname   = usePathname()
   const router     = useRouter()
   const supabase   = createClient()
-  const { profile, isGestor } = useProfile()
+  const { profile, perfil, isGestor } = useProfile()
 
   const [collapsed, setCollapsed] = useState(false)
 
@@ -102,11 +136,12 @@ export default function AppSidebar() {
     router.push('/login')
   }
 
-  const isActive  = (href: string) => pathname.startsWith(href)
-  const userName  = profile?.full_name ?? ''
-  const initial   = userName ? userName[0].toUpperCase() : '?'
-  const roleColor = isGestor ? 'bg-purple-100' : 'bg-blue-100'
-  const roleText  = isGestor ? 'text-purple-600' : 'text-blue-600'
+  const isActive   = (href: string) => pathname.startsWith(href)
+  const userName   = profile?.full_name ?? ''
+  const initial    = userName ? userName[0].toUpperCase() : '?'
+  const roleColor  = isGestor ? 'bg-purple-100' : 'bg-blue-100'
+  const roleText   = isGestor ? 'text-purple-600' : 'text-blue-600'
+  const perfilLabel = perfil ? PERFIL_LABELS[perfil] : null
 
   return (
     <aside
@@ -139,6 +174,12 @@ export default function AppSidebar() {
           <NavLink key={item.href} item={item} collapsed={collapsed} active={isActive(item.href)} />
         ))}
 
+        {/* Catálogo de vacinas */}
+        <NavLink item={CATALOGO_ITEM} collapsed={collapsed} active={isActive(CATALOGO_ITEM.href)} />
+
+        {/* Orçamentos */}
+        <NavLink item={ORCAMENTOS_ITEM} collapsed={collapsed} active={isActive(ORCAMENTOS_ITEM.href)} />
+
         {/* Supervisão — gestors only */}
         {isGestor && (
           <Link
@@ -162,6 +203,45 @@ export default function AppSidebar() {
           <NavLink key={item.href} item={item} collapsed={collapsed} active={isActive(item.href)} />
         ))}
 
+        {/* Templates PDF — gestors only */}
+        {isGestor && (
+          <NavLink
+            item={{
+              href: '/configuracoes/templates',
+              label: 'Templates PDF',
+              icon: (
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              ),
+            }}
+            collapsed={collapsed}
+            active={isActive('/configuracoes/templates')}
+          />
+        )}
+
+        {/* Notificações */}
+        <NotificationBell collapsed={collapsed} />
+
+        {/* Automações — gestors only */}
+        {isGestor && (
+          <NavLink
+            item={{
+              href: '/configuracoes/automacoes',
+              label: 'Automações',
+              icon: (
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              ),
+            }}
+            collapsed={collapsed}
+            active={isActive('/configuracoes/automacoes')}
+          />
+        )}
+
         {/* User + logout */}
         <div className={`flex items-center mt-1 ${collapsed ? 'justify-center' : 'gap-2 px-2.5 py-2'}`}>
           <div
@@ -174,9 +254,9 @@ export default function AppSidebar() {
             <>
               <div className="flex-1 min-w-0">
                 <span className="text-xs text-gray-700 truncate block">{userName || 'Usuário'}</span>
-                {profile?.role && (
+                {perfilLabel && (
                   <span className={`text-[10px] font-medium ${isGestor ? 'text-purple-500' : 'text-emerald-500'}`}>
-                    {isGestor ? 'Gestor' : 'Operador'}
+                    {perfilLabel}
                   </span>
                 )}
               </div>

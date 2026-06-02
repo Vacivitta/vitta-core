@@ -73,7 +73,7 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
   const [currentDate,       setCurrentDate]       = useState(new Date())
   const [tasks,             setTasks]             = useState<TaskWithLead[]>(initialTasks)
   const [filterResponsavel, setFilterResponsavel] = useState(
-    currentUser.role === 'gestor' ? '' : currentUser.id
+    currentUser.perfil !== 'atendente' ? '' : currentUser.id
   )
   const [selectedTask,      setSelectedTask]      = useState<TaskWithLead | null>(null)
   const [showNewForm,       setShowNewForm]       = useState(false)
@@ -174,7 +174,7 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
         <span className="text-sm font-semibold text-gray-800 capitalize flex-1 min-w-0 truncate">{headerTitle()}</span>
 
         {/* Responsável filter — gestors only */}
-        {currentUser.role === 'gestor' && (
+        {currentUser.perfil !== 'atendente' && (
           <select
             value={filterResponsavel}
             onChange={e => setFilterResponsavel(e.target.value)}

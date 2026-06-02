@@ -66,6 +66,8 @@ export default function QuickLeadForm({
         funnel_id:      form.funnel_id,
         stage_id:       form.stage_id,
         responsavel_id: form.responsavel_id    || null,
+        unit_id:        currentUser.unit_id,
+        client_id:      null,
       })
       onCreated(lead, openFull)
     } catch {

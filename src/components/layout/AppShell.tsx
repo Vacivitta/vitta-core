@@ -6,7 +6,7 @@ import TaskReminder from '@/components/agenda/TaskReminder'
 import InternalChat from '@/components/chat/InternalChat'
 import { ProfileProvider } from '@/context/ProfileContext'
 
-const PUBLIC_PATHS = ['/login']
+const PUBLIC_PATHS = ['/login', '/orcamento/ver/']
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

@@ -7,9 +7,11 @@ import { ptBR } from 'date-fns/locale'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
+  QuoteStatus, LeadStageHistory,
 } from '@/types/database'
 import {
   CONTACT_ROLE_LABELS, ARCHIVE_REASONS, ORIGEM_OPTIONS,
+  QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS,
   type ArchiveReason,
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
@@ -26,14 +28,30 @@ interface Props {
   onSaved: () => void
 }
 
-type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Ligações' | 'Proposta'
-const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Ligações', 'Proposta']
-const DISABLED_TABS = new Set<Tab>(['Ligações', 'Proposta'])
+type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Ligações' | 'Orçamentos'
+const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Ligações', 'Orçamentos']
+const DISABLED_TABS = new Set<Tab>(['Ligações'])
+
+interface LeadQuote {
+  id:              string
+  numero:          number | null
+  status:          QuoteStatus
+  total_calculado: number | null
+  criado_em:       string
+  token_publico:   string
+}
+
+interface LeadStageHistoryWithDetails extends LeadStageHistory {
+  de_stage:   { nome: string; cor: string } | null
+  para_stage: { nome: string; cor: string } | null
+  movido_por_profile: { full_name: string } | null
+}
 
 type TimelineItem =
-  | { kind: 'note'; id: string; ts: string; note: LeadNote }
-  | { kind: 'task'; id: string; ts: string; task: LeadTask }
-  | { kind: 'resp'; id: string; ts: string; history: LeadResponsibleHistory }
+  | { kind: 'note';  id: string; ts: string; note: LeadNote }
+  | { kind: 'task';  id: string; ts: string; task: LeadTask }
+  | { kind: 'resp';  id: string; ts: string; history: LeadResponsibleHistory }
+  | { kind: 'stage'; id: string; ts: string; stageHistory: LeadStageHistoryWithDetails }
 
 // Wrapper — never violates hook rules
 export default function LeadModal(props: Props) {
@@ -101,11 +119,29 @@ function LeadDrawer({
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('Histórico')
 
+  useEffect(() => {
+    if (tab !== 'Orçamentos' || quotesLoaded) return
+    supabase
+      .from('quotes')
+      .select('id, numero, status, total_calculado, criado_em, token_publico')
+      .eq('lead_id', lead.id)
+      .order('criado_em', { ascending: false })
+      .then(({ data }) => {
+        if (data) setQuotes(data as LeadQuote[])
+        setQuotesLoaded(true)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
   // ── Remote data ────────────────────────────────────────────────────────────
-  const [contacts,    setContacts]    = useState<LeadContact[]>([])
-  const [notes,       setNotes]       = useState<LeadNote[]>([])
-  const [tasks,       setTasks]       = useState<LeadTask[]>([])
-  const [respHistory, setRespHistory] = useState<LeadResponsibleHistory[]>([])
+  const [contacts,      setContacts]      = useState<LeadContact[]>([])
+  const [notes,         setNotes]         = useState<LeadNote[]>([])
+  const [tasks,         setTasks]         = useState<LeadTask[]>([])
+  const [respHistory,   setRespHistory]   = useState<LeadResponsibleHistory[]>([])
+  const [stageHistory,  setStageHistory]  = useState<LeadStageHistoryWithDetails[]>([])
+  const [quotes,      setQuotes]      = useState<LeadQuote[]>([])
+  const [quotesLoaded, setQuotesLoaded] = useState(false)
+  const [copiedQuoteId, setCopiedQuoteId] = useState<string | null>(null)
 
   useEffect(() => {
     const id = lead.id
@@ -119,7 +155,15 @@ function LeadDrawer({
     void supabase.from('lead_responsible_history').select('*').eq('lead_id', id)
       .order('created_at', { ascending: false })
       .then(({ data }) => { if (data) setRespHistory(data as LeadResponsibleHistory[]) })
-    supabase.from('lead_negotiation').select('*').eq('lead_id', id).single()
+    void supabase
+      .from('lead_stage_history')
+      .select('*, de_stage:funnel_stages!de_stage_id(nome,cor), para_stage:funnel_stages!para_stage_id(nome,cor), movido_por_profile:profiles!movido_por(full_name)')
+      .eq('lead_id', id)
+      .order('criado_em', { ascending: false })
+      .then(({ data }) => {
+        if (data) setStageHistory(data as LeadStageHistoryWithDetails[])
+      })
+    supabase.from('lead_negotiation').select('*').eq('lead_id', id).maybeSingle()
       .then(({ data }) => {
         if (data) setNegotiation({
           valor_proposta:  data.valor_proposta?.toString()  ?? '',
@@ -131,7 +175,7 @@ function LeadDrawer({
 
   // ── Contact CRUD ───────────────────────────────────────────────────────────
   const [addingContact,     setAddingContact]     = useState(false)
-  const [newContact,        setNewContact]        = useState<Omit<LeadContact, 'id' | 'lead_id' | 'created_at'>>({ nome: '', telefone: '', email: '', cargo: 'outro', observacao: '' })
+  const [newContact,        setNewContact]        = useState<Omit<LeadContact, 'id' | 'lead_id' | 'created_at'>>({ nome: '', telefone: '', email: '', cargo: 'outro', observacao: '', unit_id: null })
   const [editingContactId,  setEditingContactId]  = useState<string | null>(null)
   const [editContactDraft,  setEditContactDraft]  = useState<Partial<LeadContact>>({})
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
@@ -142,7 +186,7 @@ function LeadDrawer({
     if (data) {
       setContacts(prev => [...prev, data as LeadContact])
       setAddingContact(false)
-      setNewContact({ nome: '', telefone: '', email: '', cargo: 'outro', observacao: '' })
+      setNewContact({ nome: '', telefone: '', email: '', cargo: 'outro', observacao: '', unit_id: null })
     }
   }
   async function saveContactEdit() {
@@ -216,7 +260,21 @@ function LeadDrawer({
     if (!form.nome.trim()) return
     setSaving(true)
     try {
+      const previousStageId = lead.stage_id
       await updateLead(lead.id, { ...form, responsavel_id: form.responsavel_id || null })
+
+      // Registrar mudança de stage via SECURITY DEFINER (bypassa RLS)
+      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: form.stage_id })
+      if (previousStageId && form.stage_id && previousStageId !== form.stage_id) {
+        const { error: rpcErr } = await supabase.rpc('record_stage_history', {
+          p_lead_id:    lead.id,
+          p_de_stage:   previousStageId,
+          p_para_stage: form.stage_id,
+          p_movido_por: currentUser.id,
+        })
+        if (rpcErr) console.error('[modal handleSave] record_stage_history falhou:', rpcErr)
+        else        console.log('[modal handleSave] histórico registrado')
+      }
       if (negotiation.valor_proposta || negotiation.modelo || negotiation.valor_negociado) {
         await supabase.from('lead_negotiation').upsert({
           lead_id:         lead.id,
@@ -228,6 +286,77 @@ function LeadDrawer({
       onSaved()
       setEditing(false)
     } finally { setSaving(false) }
+  }
+
+  // ── Convert to client ──────────────────────────────────────────────────────
+  const [clientId,     setClientId]  = useState<string | null>(lead.client_id)
+  const [converting,   setConverting] = useState(false)
+  const [convertError, setConvertError] = useState('')
+
+  // Verifica no banco ao abrir — garante que dado stale do pai não engane o estado
+  useEffect(() => {
+    if (clientId) return
+    supabase
+      .from('clients')
+      .select('id')
+      .eq('lead_id', lead.id)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setClientId(data.id) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id])
+
+  async function handleConvert() {
+    if (clientId || converting) return
+    const unitId = lead.unit_id ?? currentUser.unit_id
+    if (!unitId) { setConvertError('Unidade não encontrada. Verifique seu perfil.'); return }
+
+    setConverting(true)
+    setConvertError('')
+    try {
+      // Guard: checar se já existe cliente para este lead
+      const { data: existing } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .maybeSingle()
+
+      if (existing) {
+        // Já existe — só atualizar o ponteiro no lead
+        await supabase.from('leads').update({ client_id: existing.id }).eq('id', lead.id)
+        setClientId(existing.id)
+        onSaved()
+        return
+      }
+
+      const { data: client, error: clientErr } = await supabase
+        .from('clients')
+        .insert({
+          unit_id:   unitId,
+          lead_id:   lead.id,
+          nome:      lead.nome,
+          sobrenome: lead.sobrenome ?? null,
+          telefone:  lead.telefone ?? null,
+          email:     lead.email    ?? null,
+        })
+        .select('id')
+        .single()
+
+      if (clientErr || !client) throw new Error(clientErr?.message ?? 'Falha ao criar cliente')
+
+      const { error: leadErr } = await supabase
+        .from('leads')
+        .update({ client_id: client.id })
+        .eq('id', lead.id)
+
+      if (leadErr) throw new Error(leadErr.message)
+
+      setClientId(client.id)
+      onSaved()
+    } catch (err) {
+      setConvertError(err instanceof Error ? err.message : 'Erro ao converter. Tente novamente.')
+    } finally {
+      setConverting(false)
+    }
   }
 
   // ── Archive ────────────────────────────────────────────────────────────────
@@ -251,9 +380,10 @@ function LeadDrawer({
 
   // ── Timeline ───────────────────────────────────────────────────────────────
   const timeline: TimelineItem[] = [
-    ...notes.map(n  => ({ kind: 'note' as const, id: n.id, ts: n.created_at, note: n })),
+    ...notes.map(n  => ({ kind: 'note'  as const, id: n.id, ts: n.created_at,  note: n })),
     ...tasks.filter(t => t.concluida).map(t => ({ kind: 'task' as const, id: t.id, ts: t.updated_at, task: t })),
-    ...respHistory.map(h => ({ kind: 'resp' as const, id: h.id, ts: h.created_at, history: h })),
+    ...respHistory.map(h  => ({ kind: 'resp'  as const, id: h.id,  ts: h.created_at,  history: h })),
+    ...stageHistory.map(h => ({ kind: 'stage' as const, id: h.id,  ts: h.criado_em,   stageHistory: h })),
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -521,6 +651,31 @@ function LeadDrawer({
               </div>
             </div>
 
+            {/* ── Converter em cliente ── */}
+            {!isArchived && (
+              <div className="pt-2 border-t border-gray-200">
+                {clientId ? (
+                  <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-emerald-600 font-medium">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Convertido em cliente
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <button
+                      onClick={handleConvert}
+                      disabled={converting}
+                      className="w-full py-2 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 font-medium transition-colors disabled:opacity-50"
+                    >
+                      {converting ? 'Convertendo...' : 'Converter em cliente'}
+                    </button>
+                    {convertError && <p className="text-[11px] text-red-500 text-center">{convertError}</p>}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── Archive / Restore ── */}
             <div className="pt-2 border-t border-gray-200">
               {isArchived ? (
@@ -609,6 +764,9 @@ function LeadDrawer({
                   {t === 'Tarefas' && pendingTasks > 0 && (
                     <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-600 rounded-full px-1.5 py-0.5 font-semibold">{pendingTasks}</span>
                   )}
+                  {t === 'Orçamentos' && quotes.length > 0 && (
+                    <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-600 rounded-full px-1.5 py-0.5 font-semibold">{quotes.length}</span>
+                  )}
                   {t === 'Anotações' && notes.length > 0 && (
                     <span className="ml-1.5 text-[10px] bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-semibold">{notes.length}</span>
                   )}
@@ -629,7 +787,9 @@ function LeadDrawer({
                 {timeline.map(item => (
                   <div key={`${item.kind}-${item.id}`} className="flex gap-3">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                      item.kind === 'note' ? 'bg-blue-100' : item.kind === 'task' ? 'bg-emerald-100' : 'bg-purple-100'
+                      item.kind === 'note'  ? 'bg-blue-100'   :
+                      item.kind === 'task'  ? 'bg-emerald-100':
+                      item.kind === 'stage' ? 'bg-indigo-100' : 'bg-purple-100'
                     }`}>
                       {item.kind === 'note' && (
                         <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
@@ -639,6 +799,9 @@ function LeadDrawer({
                       )}
                       {item.kind === 'resp' && (
                         <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      )}
+                      {item.kind === 'stage' && (
+                        <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -668,6 +831,34 @@ function LeadDrawer({
                           </p>
                         </div>
                       )}
+                      {item.kind === 'stage' && (() => {
+                        const h       = item.stageHistory
+                        const de      = h.de_stage
+                        const para    = h.para_stage
+                        const quemStr = h.movido_por_profile?.full_name ?? 'Automação'
+                        return (
+                          <div className="bg-indigo-50 rounded-xl border border-indigo-100 px-3 py-2.5">
+                            <p className="text-xs text-gray-500 mb-1.5">{quemStr} moveu o lead</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {de ? (
+                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600">
+                                  {de.nome}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 italic">entrada</span>
+                              )}
+                              <svg className="w-3 h-3 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                              </svg>
+                              {para && (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: para.cor || '#6366f1' }}>
+                                  {para.nome}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })()}
                       <p className="text-[11px] text-gray-400 mt-1">
                         {format(new Date(item.ts), "d MMM 'às' HH:mm", { locale: ptBR })}
                       </p>
@@ -801,6 +992,110 @@ function LeadDrawer({
                 })}
               </div>
             )}
+
+            {/* ═══ ORÇAMENTOS ═══ */}
+            {tab === 'Orçamentos' && (() => {
+              const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+              async function handleCopyLink(q: LeadQuote) {
+                const url = `${window.location.origin}/orcamento/ver/${q.token_publico}`
+                if (q.status === 'rascunho') {
+                  await fetch('/api/orcamento/respond', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: q.token_publico, status: 'enviado' }),
+                  })
+                  setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, status: 'enviado' as QuoteStatus } : x))
+                }
+                await navigator.clipboard.writeText(url)
+                setCopiedQuoteId(q.id)
+                setTimeout(() => setCopiedQuoteId(null), 2000)
+              }
+
+              return (
+                <div className="space-y-3">
+                  {/* Botão novo orçamento */}
+                  <a
+                    href="/orcamento"
+                    className="flex items-center justify-center gap-1.5 w-full py-2.5 text-sm font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Novo orçamento
+                  </a>
+
+                  {!quotesLoaded && (
+                    <p className="text-xs text-gray-400 text-center py-8">Carregando...</p>
+                  )}
+
+                  {quotesLoaded && quotes.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-gray-500">Nenhum orçamento ainda</p>
+                    </div>
+                  )}
+
+                  {quotesLoaded && quotes.map(q => (
+                    <div key={q.id} className="border border-gray-200 rounded-xl p-3.5 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-mono font-semibold text-gray-500">
+                            #{String(q.numero ?? 0).padStart(4, '0')}
+                          </span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${QUOTE_STATUS_COLORS[q.status]}`}>
+                            {QUOTE_STATUS_LABELS[q.status]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-gray-900">
+                            {q.total_calculado != null ? fmtBRL.format(q.total_calculado) : '—'}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(q.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Copiar link */}
+                        <button
+                          onClick={() => handleCopyLink(q)}
+                          title={copiedQuoteId === q.id ? 'Copiado!' : 'Copiar link do paciente'}
+                          className={`p-1.5 rounded-lg transition-colors ${copiedQuoteId === q.id ? 'text-emerald-600 bg-emerald-50' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        >
+                          {copiedQuoteId === q.id ? (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                        </button>
+                        {/* Editar */}
+                        <a
+                          href="/orcamento"
+                          title="Editar orçamento"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
 
             {/* ═══ ATENDIMENTO (no-phone fallback) ═══ */}
             {tab === 'Atendimento' && !lead.telefone && (

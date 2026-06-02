@@ -1,19 +1,23 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect } from 'react'
-import type { Profile } from '@/types/database'
+import type { Profile, UserPerfil } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 
 interface ProfileContextValue {
-  profile: Profile | null
-  isGestor: boolean
-  loading: boolean
+  profile:    Profile | null
+  perfil:     UserPerfil | null
+  isGestor:   boolean   // true para qualquer perfil com gestão (não-atendente)
+  isAdmin:    boolean
+  loading:    boolean
 }
 
 const ProfileContext = createContext<ProfileContextValue>({
-  profile: null,
+  profile:  null,
+  perfil:   null,
   isGestor: false,
-  loading: true,
+  isAdmin:  false,
+  loading:  true,
 })
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
@@ -30,8 +34,12 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const perfil   = profile?.perfil ?? null
+  const isGestor = perfil !== null && perfil !== 'atendente'
+  const isAdmin  = perfil === 'admin'
+
   return (
-    <ProfileContext.Provider value={{ profile, isGestor: profile?.role === 'gestor', loading }}>
+    <ProfileContext.Provider value={{ profile, perfil, isGestor, isAdmin, loading }}>
       {children}
     </ProfileContext.Provider>
   )

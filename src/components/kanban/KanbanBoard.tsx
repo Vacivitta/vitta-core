@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -37,6 +37,9 @@ function groupByStage(leads: LeadKanban[], stages: FunnelStage[]): Record<string
 export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
+  // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
+  // independente de quantas re-renders o handleDragOver disparar.
+  const dragOriginStageRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (activeId === null) setLeads(initialLeads)
@@ -56,8 +59,11 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
   }
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    setActiveId(active.id as string)
-  }, [])
+    const id = active.id as string
+    setActiveId(id)
+    dragOriginStageRef.current = leads.find(l => l.id === id)?.stage_id ?? null
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads])
 
   const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
     if (!over) return
@@ -72,8 +78,11 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
   }, [leads, stageIds])
 
   const handleDragEnd = useCallback(async ({ active, over }: DragEndEvent) => {
+    console.log('[kanban dragEnd INICIO]', { activeId: active.id, overId: over?.id })
     setActiveId(null)
-    if (!over) return
+    const originStage = dragOriginStageRef.current
+    dragOriginStageRef.current = null
+    if (!over) { console.log('[kanban dragEnd] sem alvo'); return }
 
     const lead = leads.find(l => l.id === active.id)
     if (!lead) return
@@ -83,10 +92,13 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
 
     let newLeads = [...leads]
 
-    if (lead.stage_id !== targetStageId) {
+    console.log('[kanban dragEnd]', { leadId: lead.id, originStage, targetStageId })
+
+    // Compara com o stage ORIGINAL (antes das atualizações otimistas do handleDragOver)
+    if (originStage && originStage !== targetStageId) {
       // Movido para outra coluna
       newLeads = newLeads.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l)
-      await moveLeadStage(lead.id, targetStageId, columnLeads.length)
+      await moveLeadStage(lead.id, targetStageId, columnLeads.length, originStage)
     } else if (over.id !== active.id) {
       // Reordenado na mesma coluna
       const oldIndex = columnLeads.findIndex(l => l.id === active.id)

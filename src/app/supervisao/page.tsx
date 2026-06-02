@@ -19,7 +19,7 @@ export default async function SupervisaoPage() {
     supabase.from('profiles').select('*').order('full_name'),
   ])
 
-  if (profileData?.role !== 'gestor') redirect('/funil')
+  if (profileData?.perfil === 'atendente') redirect('/funil')
 
   return (
     <SupervisaoClient

@@ -72,13 +72,43 @@ export async function archiveLead(id: string, motivo_perda: string): Promise<voi
   if (error) throw error
 }
 
-export async function moveLeadStage(id: string, stage_id: string, ordem: number): Promise<void> {
+export async function moveLeadStage(
+  id: string, stage_id: string, ordem: number, de_stage_id?: string
+): Promise<void> {
   const supabase = createClient()
+
+  console.log('[moveLeadStage] chamado:', { id, stage_id, de_stage_id })
+
   const { error } = await supabase
     .from('leads')
     .update({ stage_id, ordem })
     .eq('id', id)
-  if (error) throw error
+  if (error) {
+    console.error('[moveLeadStage] UPDATE falhou:', error)
+    throw error
+  }
+  console.log('[moveLeadStage] UPDATE ok')
+
+  if (!de_stage_id) {
+    console.warn('[moveLeadStage] de_stage_id ausente — histórico não registrado')
+    return
+  }
+  if (de_stage_id === stage_id) {
+    console.log('[moveLeadStage] stage não mudou — sem histórico')
+    return
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  console.log('[moveLeadStage] user:', user?.id)
+
+  const { error: rpcErr } = await supabase.rpc('record_stage_history', {
+    p_lead_id:    id,
+    p_de_stage:   de_stage_id,
+    p_para_stage: stage_id,
+    p_movido_por: user?.id ?? null,
+  })
+  if (rpcErr) console.error('[moveLeadStage] record_stage_history falhou:', rpcErr)
+  else        console.log('[moveLeadStage] histórico registrado')
 }
 
 export async function reorderLeads(updates: { id: string; ordem: number }[]): Promise<void> {

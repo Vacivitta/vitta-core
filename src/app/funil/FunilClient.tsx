@@ -33,7 +33,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [showArchived, setShowArchived]   = useState(false)
   const [filters, setFilters]             = useState<Filters>({
     search:         '',
-    responsavel_id: currentUser.role === 'gestor' ? '' : currentUser.id,
+    responsavel_id: currentUser.perfil !== 'atendente' ? '' : currentUser.id,
     cidade:         '',
     profissao:      '',
     stage_id:       '',
@@ -194,7 +194,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       {/* Barra de filtros */}
       {showFilters && (
         <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap">
-          {currentUser.role === 'gestor' && (
+          {currentUser.perfil !== 'atendente' && (
             <select
               value={filters.responsavel_id}
               onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}

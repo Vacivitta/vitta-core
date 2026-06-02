@@ -1,0 +1,203 @@
+'use client'
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useProfile } from '@/context/ProfileContext'
+import type { Notification } from '@/types/database'
+
+const fmtTime = (iso: string) => {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = (now.getTime() - d.getTime()) / 1000
+  if (diff < 60)    return 'agora'
+  if (diff < 3600)  return `${Math.floor(diff / 60)}min`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+interface Toast {
+  id:    string
+  title: string
+  body:  string | null
+}
+
+interface Props {
+  collapsed: boolean
+}
+
+export default function NotificationBell({ collapsed }: Props) {
+  const { profile } = useProfile()
+  const supabase    = createClient()
+
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [open,          setOpen]          = useState(false)
+  const [toasts,        setToasts]        = useState<Toast[]>([])
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const unread = notifications.filter(n => !n.lida).length
+
+  // ── Carregar notificações ──────────────────────────────────────────────────
+  const load = useCallback(async () => {
+    if (!profile) return
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('criado_em', { ascending: false })
+      .limit(30)
+    if (data) setNotifications(data as Notification[])
+  }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { load() }, [load])
+
+  // ── Realtime: escutar novos INSERTs ───────────────────────────────────────
+  useEffect(() => {
+    if (!profile) return
+
+    const channel = supabase
+      .channel('notifications-live')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        (payload) => {
+          const n = payload.new as Notification
+          // Verificar se é para este usuário ou para toda a unidade
+          const isOwn  = n.user_id === profile.id
+          const isUnit = n.user_id === null && n.unit_id === profile.unit_id
+          if (!isOwn && !isUnit) return
+
+          setNotifications(prev => [n, ...prev])
+          setToasts(prev => [...prev, { id: n.id, title: n.title, body: n.body }])
+          setTimeout(() => setToasts(prev => prev.filter(t => t.id !== n.id)), 5000)
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fechar dropdown ao clicar fora ────────────────────────────────────────
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  // ── Marcar como lida ──────────────────────────────────────────────────────
+  async function markRead(id: string) {
+    await supabase.from('notifications').update({ lida: true }).eq('id', id)
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
+  }
+
+  async function markAllRead() {
+    const ids = notifications.filter(n => !n.lida).map(n => n.id)
+    if (ids.length === 0) return
+    await supabase.from('notifications').update({ lida: true }).in('id', ids)
+    setNotifications(prev => prev.map(n => ({ ...n, lida: true })))
+  }
+
+  if (!profile) return null
+
+  return (
+    <>
+      {/* ── Sino ──────────────────────────────────────────────────────────── */}
+      <div ref={dropdownRef} className="relative">
+        <button
+          onClick={() => setOpen(v => !v)}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors text-left ${
+            open ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+          }`}
+        >
+          <div className="relative shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            {unread > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </div>
+          {!collapsed && (
+            <span className="text-sm font-medium flex-1">Notificações</span>
+          )}
+        </button>
+
+        {/* ── Dropdown ──────────────────────────────────────────────────── */}
+        {open && (
+          <div className={`absolute ${collapsed ? 'left-12' : 'left-0 right-0'} bottom-full mb-1 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 w-80 overflow-hidden`}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-900">Notificações</span>
+              {unread > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                >
+                  Marcar todas como lidas
+                </button>
+              )}
+            </div>
+
+            {/* Lista */}
+            <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+              {notifications.length === 0 && (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-gray-400">Nenhuma notificação</p>
+                </div>
+              )}
+              {notifications.map(n => (
+                <button
+                  key={n.id}
+                  onClick={() => markRead(n.id)}
+                  className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${!n.lida ? 'bg-blue-50/50' : ''}`}
+                >
+                  <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm ${
+                    n.type === 'quote_aceito'   ? 'bg-emerald-100' :
+                    n.type === 'quote_recusado' ? 'bg-red-100'     : 'bg-gray-100'
+                  }`}>
+                    {n.type === 'quote_aceito' ? '✅' : n.type === 'quote_recusado' ? '❌' : '🔔'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${!n.lida ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                      {n.title}
+                    </p>
+                    {n.body && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{n.body}</p>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-1">{fmtTime(n.criado_em)}</p>
+                  </div>
+                  {!n.lida && (
+                    <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Toasts ────────────────────────────────────────────────────────── */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className="pointer-events-auto bg-white border border-gray-200 rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 w-72 animate-slide-up"
+          >
+            <span className="text-lg shrink-0">
+              {t.title.startsWith('✅') ? '✅' : '❌'}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">{t.title.replace(/^[✅❌]\s*/, '')}</p>
+              {t.body && <p className="text-xs text-gray-500 mt-0.5 truncate">{t.body}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
