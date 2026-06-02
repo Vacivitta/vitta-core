@@ -6,7 +6,11 @@ import type { QuoteRow, PatientOption } from './OrcamentosClient'
 
 export const metadata = { title: 'Orçamentos — Vitta Core' }
 
-export default async function OrcamentosPage() {
+export default async function OrcamentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lead_id?: string; client_id?: string; quote_id?: string }>
+}) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -19,6 +23,11 @@ export default async function OrcamentosPage() {
     .single()
 
   if (!profileData) redirect('/login')
+
+  const params = await searchParams
+  const initialLeadId   = params.lead_id   ?? null
+  const initialClientId = params.client_id ?? null
+  const initialQuoteId  = params.quote_id  ?? null
 
   const [
     { data: quotesData },
@@ -45,6 +54,9 @@ export default async function OrcamentosPage() {
       templates={(templatesData ?? []) as QuoteTemplate[]}
       leads={(leadsData ?? []) as PatientOption[]}
       clients={(clientsData ?? []) as PatientOption[]}
+      initialLeadId={initialLeadId}
+      initialClientId={initialClientId}
+      initialQuoteId={initialQuoteId}
     />
   )
 }

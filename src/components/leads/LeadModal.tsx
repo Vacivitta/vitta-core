@@ -121,10 +121,14 @@ function LeadDrawer({
 
   useEffect(() => {
     if (tab !== 'Orçamentos' || quotesLoaded) return
+    // Busca por lead_id e, se já convertido, também por client_id
+    const filter = clientId
+      ? `lead_id.eq.${lead.id},client_id.eq.${clientId}`
+      : `lead_id.eq.${lead.id}`
     supabase
       .from('quotes')
       .select('id, numero, status, total_calculado, criado_em, token_publico')
-      .eq('lead_id', lead.id)
+      .or(filter)
       .order('criado_em', { ascending: false })
       .then(({ data }) => {
         if (data) setQuotes(data as LeadQuote[])
@@ -1014,9 +1018,9 @@ function LeadDrawer({
 
               return (
                 <div className="space-y-3">
-                  {/* Botão novo orçamento */}
+                  {/* Botão novo orçamento — pré-seleciona lead ou cliente */}
                   <a
-                    href="/orcamento"
+                    href={clientId ? `/orcamento?client_id=${clientId}` : `/orcamento?lead_id=${lead.id}`}
                     className="flex items-center justify-center gap-1.5 w-full py-2.5 text-sm font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 transition-colors"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1081,7 +1085,7 @@ function LeadDrawer({
                         </button>
                         {/* Editar */}
                         <a
-                          href="/orcamento"
+                          href={`/orcamento?quote_id=${q.id}`}
                           title="Editar orçamento"
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
