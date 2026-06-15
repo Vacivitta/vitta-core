@@ -16,7 +16,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ProfileProvider>
-      <div className="flex h-screen overflow-hidden bg-gray-100">
+      <div className="flex h-screen overflow-hidden" style={{ background: 'var(--color-bg-app)' }}>
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {children}

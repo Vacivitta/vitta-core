@@ -8,365 +8,360 @@ import { useProfile } from '@/hooks/useProfile'
 import { PERFIL_LABELS } from '@/types/database'
 import NotificationBell from './NotificationBell'
 
+// ── Ícones Lucide (stroke 2, 18px) ───────────────────────────────────────────
+
+const IcoDashboard = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>
+    <rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+  </svg>
+)
+
+const IcoFunil = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <path d="M8 7v7M12 7v10M16 7v4"/>
+  </svg>
+)
+
+const IcoAtendimento = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+)
+
+const IcoAgenda = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2"/>
+    <path d="M16 2v4M8 2v4M3 10h18"/>
+  </svg>
+)
+
+const IcoClientes = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="8" r="3.2"/>
+    <path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M21 20a5 5 0 0 0-4-4.9"/>
+  </svg>
+)
+
+const IcoCatalogo = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 2v6.5L4.2 17a2 2 0 0 0 1.8 3h12a2 2 0 0 0 1.8-3L15 8.5V2M8 2h8M7 14h10"/>
+  </svg>
+)
+
+const IcoOrcamento = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <path d="M14 2v6h6M8 13h8M8 17h5"/>
+  </svg>
+)
+
+const IcoSupervisao = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+)
+
+const IcoSettings = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+)
+
+const IcoChevronDown = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9"/>
+  </svg>
+)
+
+const IcoLogout = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+    <polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+)
+
+// Sub-ícones configurações
+const IcoFunis = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+  </svg>
+)
+const IcoTemplates = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+  </svg>
+)
+const IcoEquipe = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+)
+const IcoAutomacoes = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+)
+
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+
 interface NavItem {
-  href: string
+  href:  string
   label: string
-  icon: React.ReactNode
+  icon:  React.ReactNode
 }
+
+// ── Itens de navegação principal ──────────────────────────────────────────────
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    href: '/dashboard',
-    label: 'Dashboard',
-    icon: (
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/funil',
-    label: 'Funil',
-    icon: (
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-      </svg>
-    ),
-  },
-  {
-    href: '/atendimento',
-    label: 'Atendimento',
-    icon: (
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/agenda',
-    label: 'Agenda',
-    icon: (
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    ),
-  },
+  { href: '/dashboard',  label: 'Dashboard',   icon: <IcoDashboard /> },
+  { href: '/funil',      label: 'Funil',        icon: <IcoFunil /> },
+  { href: '/atendimento',label: 'Atendimento',  icon: <IcoAtendimento /> },
+  { href: '/agenda',     label: 'Agenda',       icon: <IcoAgenda /> },
+  { href: '/clientes',   label: 'Clientes',     icon: <IcoClientes /> },
+  { href: '/produtos',   label: 'Catálogo',     icon: <IcoCatalogo /> },
+  { href: '/orcamento',  label: 'Orçamentos',   icon: <IcoOrcamento /> },
 ]
 
-const CLIENTES_ITEM: NavItem = {
-  href: '/clientes',
-  label: 'Clientes',
-  icon: (
-    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-}
+const CONFIG_ITEMS = [
+  { href: '/configuracoes/funis',      label: 'Funis',         icon: <IcoFunis />,      gestorOnly: false },
+  { href: '/configuracoes/templates',  label: 'Templates PDF', icon: <IcoTemplates />,  gestorOnly: true  },
+  { href: '/configuracoes/equipe',     label: 'Equipe',        icon: <IcoEquipe />,     gestorOnly: true  },
+  { href: '/configuracoes/automacoes', label: 'Automações',    icon: <IcoAutomacoes />, gestorOnly: true  },
+]
 
-const CATALOGO_ITEM: NavItem = {
-  href: '/produtos',
-  label: 'Catálogo',
-  icon: (
-    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-    </svg>
-  ),
-}
+const CONFIG_HREFS = CONFIG_ITEMS.map(i => i.href)
 
-const ORCAMENTOS_ITEM: NavItem = {
-  href: '/orcamento',
-  label: 'Orçamentos',
-  icon: (
-    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  ),
-}
+// ── Componente NavLink ────────────────────────────────────────────────────────
 
-
-const SUPERVISAO_ITEM: NavItem = {
-  href: '/supervisao',
-  label: 'Supervisão',
-  icon: (
-    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-  ),
-}
-
-function NavLink({ item, collapsed, active }: { item: NavItem; collapsed: boolean; active: boolean }) {
+function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
       href={item.href}
-      title={collapsed ? item.label : undefined}
-      className={`flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors text-sm font-medium ${
-        active
-          ? 'bg-blue-50 text-blue-700'
-          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-      }`}
+      style={{
+        display:       'flex',
+        alignItems:    'center',
+        gap:           '12px',
+        padding:       '11px 13px',
+        borderRadius:  '12px',
+        fontSize:      '14px',
+        fontWeight:    600,
+        textDecoration:'none',
+        transition:    'background 0.15s, color 0.15s',
+        ...(active
+          ? { background: '#0098DA', color: '#fff', boxShadow: '0 6px 16px -6px rgba(0,152,218,.6)' }
+          : { color: '#3F5666' }
+        ),
+      }}
+      className={!active ? 'nav-item-idle' : ''}
     >
       {item.icon}
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      <span style={{ flex: 1 }}>{item.label}</span>
     </Link>
   )
 }
 
-const CONFIG_HREFS = [
-  '/configuracoes/funis',
-  '/configuracoes/templates',
-  '/configuracoes/equipe',
-  '/configuracoes/automacoes',
-]
+// ── Componente principal ──────────────────────────────────────────────────────
 
 export default function AppSidebar() {
-  const pathname   = usePathname()
-  const router     = useRouter()
-  const supabase   = createClient()
+  const pathname = usePathname()
+  const router   = useRouter()
+  const supabase = createClient()
   const { profile, perfil, isGestor } = useProfile()
 
-  const [collapsed,   setCollapsed]   = useState(false)
-  const [configOpen,  setConfigOpen]  = useState(() =>
+  const [configOpen, setConfigOpen] = useState(() =>
     CONFIG_HREFS.some(h => pathname.startsWith(h))
   )
+
+  const isActive     = (href: string) => pathname.startsWith(href)
+  const isConfigActive = CONFIG_HREFS.some(h => isActive(h))
+
+  const userName    = profile?.full_name ?? ''
+  const userEmail   = (profile as any)?.email ?? ''
+  const initials    = userName
+    .split(' ')
+    .slice(0, 2)
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase() || '?'
+  const perfilLabel = perfil ? PERFIL_LABELS[perfil] : 'Admin'
 
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
-  const isActive   = (href: string) => pathname.startsWith(href)
-  const userName   = profile?.full_name ?? ''
-  const initial    = userName ? userName[0].toUpperCase() : '?'
-  const roleColor  = isGestor ? 'bg-purple-100' : 'bg-blue-100'
-  const roleText   = isGestor ? 'text-purple-600' : 'text-blue-600'
-  const perfilLabel = perfil ? PERFIL_LABELS[perfil] : null
-
   return (
-    <aside
-      className={`relative flex flex-col bg-white border-r border-gray-200 shrink-0 transition-all duration-200 ease-in-out ${
-        collapsed ? 'w-14' : 'w-52'
-      }`}
-    >
-      {/* Logo + toggle */}
-      <div className={`flex items-center border-b border-gray-100 shrink-0 h-14 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
-        {!collapsed && (
-          <span className="text-sm font-bold text-gray-900 truncate">Vitta Core</span>
-        )}
-        <button
-          onClick={() => setCollapsed(v => !v)}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        >
-          <svg
-            className={`w-4 h-4 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </svg>
-        </button>
-      </div>
+    <>
+      {/* Hover idle: injetado via <style> para evitar prop inline repetida */}
+      <style>{`.nav-item-idle:hover { background: #E8F3FB; }`}</style>
 
-      {/* Nav items */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV_ITEMS.map(item => (
-          <NavLink key={item.href} item={item} collapsed={collapsed} active={isActive(item.href)} />
-        ))}
+      <aside style={{
+        width:          '248px',
+        flexShrink:     0,
+        display:        'flex',
+        flexDirection:  'column',
+        height:         '100%',
+        background:     '#F4FAFE',
+        borderRight:    '1px solid #E1EEF7',
+        padding:        '20px 14px 14px',
+        overflow:       'hidden',
+      }}>
 
-        {/* Clientes */}
-        <NavLink item={CLIENTES_ITEM} collapsed={collapsed} active={isActive(CLIENTES_ITEM.href)} />
-
-        {/* Catálogo de vacinas */}
-        <NavLink item={CATALOGO_ITEM} collapsed={collapsed} active={isActive(CATALOGO_ITEM.href)} />
-
-        {/* Orçamentos */}
-        <NavLink item={ORCAMENTOS_ITEM} collapsed={collapsed} active={isActive(ORCAMENTOS_ITEM.href)} />
-
-        {/* Supervisão — gestors only */}
-        {isGestor && (
-          <Link
-            href={SUPERVISAO_ITEM.href}
-            title={collapsed ? SUPERVISAO_ITEM.label : undefined}
-            className={`flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors text-sm font-medium ${
-              isActive(SUPERVISAO_ITEM.href)
-                ? 'bg-purple-50 text-purple-700'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            {SUPERVISAO_ITEM.icon}
-            {!collapsed && <span className="truncate">{SUPERVISAO_ITEM.label}</span>}
-          </Link>
-        )}
-      </nav>
-
-      {/* Bottom section */}
-      <div className="px-2 pb-3 space-y-0.5 border-t border-gray-100 pt-2 shrink-0">
-
-        {/* Notificações */}
-        <NotificationBell collapsed={collapsed} />
-
-        {/* Configurações — expansível com sub-itens */}
-        <div>
-          <button
-            onClick={() => !collapsed && setConfigOpen(v => !v)}
-            title={collapsed ? 'Configurações' : undefined}
-            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors text-sm font-medium ${
-              CONFIG_HREFS.some(h => isActive(h))
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        {/* ── Logo ──────────────────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '11px', marginBottom: '22px' }}>
+          <div style={{
+            width: '38px', height: '38px', borderRadius: '11px', flexShrink: 0,
+            background: 'linear-gradient(135deg, #0098DA, #54B3E6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 6px 14px -4px rgba(0,152,218,0.45)',
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
+              <path d="M12 21s-7.5-4.7-10-9.3C.7 9 1.6 5.5 4.7 4.6 7 3.9 9.3 4.9 10.5 6.9c.4.6 1 1.5 1.5 1.5s1.1-.9 1.5-1.5C14.7 4.9 17 3.9 19.3 4.6c3.1.9 4 4.4 2.7 7.1C19.5 16.3 12 21 12 21z"/>
             </svg>
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-left truncate">Configurações</span>
-                <svg
-                  className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${configOpen ? 'rotate-180' : ''}`}
-                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </>
-            )}
-          </button>
-
-          {/* Sub-itens — visíveis quando expandido ou sidebar colapsada (tooltip) */}
-          {(configOpen || collapsed) && (
-            <div className={`space-y-0.5 ${collapsed ? '' : 'ml-3 pl-2.5 border-l border-gray-200 mt-0.5'}`}>
-              {/* Funis — todos */}
-              <Link
-                href="/configuracoes/funis"
-                title={collapsed ? 'Funis' : undefined}
-                className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
-                  isActive('/configuracoes/funis')
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-                }`}
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-                {!collapsed && <span className="truncate">Funis</span>}
-              </Link>
-
-              {/* Templates PDF — gestores */}
-              {isGestor && (
-                <Link
-                  href="/configuracoes/templates"
-                  title={collapsed ? 'Templates PDF' : undefined}
-                  className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
-                    isActive('/configuracoes/templates')
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-                  }`}
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  {!collapsed && <span className="truncate">Templates PDF</span>}
-                </Link>
-              )}
-
-              {/* Equipe — gestores */}
-              {isGestor && (
-                <Link
-                  href="/configuracoes/equipe"
-                  title={collapsed ? 'Equipe' : undefined}
-                  className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
-                    isActive('/configuracoes/equipe')
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-                  }`}
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  {!collapsed && <span className="truncate">Equipe</span>}
-                </Link>
-              )}
-
-              {/* Automações — gestores */}
-              {isGestor && (
-                <Link
-                  href="/configuracoes/automacoes"
-                  title={collapsed ? 'Automações' : undefined}
-                  className={`flex items-center gap-3 px-2.5 py-1.5 rounded-xl transition-colors text-sm ${
-                    isActive('/configuracoes/automacoes')
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-                  }`}
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                      d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  {!collapsed && <span className="truncate">Automações</span>}
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* User + logout */}
-        <div className={`flex items-center mt-1 ${collapsed ? 'justify-center' : 'gap-2 px-2.5 py-2'}`}>
-          <div
-            className={`w-7 h-7 rounded-full ${roleColor} flex items-center justify-center shrink-0 cursor-default`}
-            title={collapsed ? (userName || 'Usuário') : undefined}
-          >
-            <span className={`text-[11px] font-bold ${roleText}`}>{initial}</span>
           </div>
-          {!collapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs text-gray-700 truncate block">{userName || 'Usuário'}</span>
-                {perfilLabel && (
-                  <span className={`text-[10px] font-medium ${isGestor ? 'text-purple-500' : 'text-emerald-500'}`}>
-                    {perfilLabel}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleLogout}
-                title="Sair"
-                className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors shrink-0"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            </>
-          )}
+          <span style={{ fontSize: '17px', fontWeight: 800, color: '#0E2C3D', letterSpacing: '-0.01em' }}>
+            Vitta Core
+          </span>
         </div>
-        {collapsed && (
-          <button
-            onClick={handleLogout}
-            title="Sair"
-            className="flex items-center justify-center w-full py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
-        )}
-      </div>
-    </aside>
+
+        {/* ── Nav principal ──────────────────────────────────────────────────── */}
+        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
+          {NAV_ITEMS.map(item => (
+            <NavLink key={item.href} item={item} active={isActive(item.href)} />
+          ))}
+
+          {/* Supervisão — gestores only, badge DEMO */}
+          {isGestor && (
+            <Link
+              href="/supervisao"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '11px 13px', borderRadius: '12px',
+                fontSize: '14px', fontWeight: 600, textDecoration: 'none',
+                transition: 'background 0.15s, color 0.15s',
+                ...(isActive('/supervisao')
+                  ? { background: '#0098DA', color: '#fff', boxShadow: '0 6px 16px -6px rgba(0,152,218,.6)' }
+                  : { color: '#3F5666' }
+                ),
+              }}
+              className={!isActive('/supervisao') ? 'nav-item-idle' : ''}
+            >
+              <IcoSupervisao />
+              <span style={{ flex: 1 }}>Supervisão</span>
+              <span style={{
+                fontSize: '9px', fontWeight: 800, letterSpacing: '0.06em',
+                background: '#FEF4E6', color: '#D17F0E',
+                padding: '2px 6px', borderRadius: '999px',
+              }}>
+                DEMO
+              </span>
+            </Link>
+          )}
+        </nav>
+
+        {/* ── Rodapé ────────────────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '8px', borderTop: '1px solid #E1EEF7', paddingTop: '10px' }}>
+
+          {/* Notificações */}
+          <NotificationBell />
+
+          {/* Configurações com submenu */}
+          <div>
+            <button
+              onClick={() => setConfigOpen(v => !v)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '11px 13px', borderRadius: '12px',
+                fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer',
+                transition: 'background 0.15s, color 0.15s',
+                background: isConfigActive ? '#EAF6FC' : 'transparent',
+                color:      isConfigActive ? '#0098DA'  : '#3F5666',
+              }}
+              className={!isConfigActive ? 'nav-item-idle' : ''}
+            >
+              <IcoSettings />
+              <span style={{ flex: 1, textAlign: 'left' }}>Configurações</span>
+              <span style={{
+                transition: 'transform 0.2s',
+                transform:  configOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                color: '#8A98A6',
+              }}>
+                <IcoChevronDown />
+              </span>
+            </button>
+
+            {configOpen && (
+              <div style={{ marginLeft: '14px', paddingLeft: '10px', borderLeft: '1px solid #E1EEF7', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                {CONFIG_ITEMS.filter(i => !i.gestorOnly || isGestor).map(item => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '8px 10px', borderRadius: '10px',
+                      fontSize: '13px', fontWeight: isActive(item.href) ? 600 : 500,
+                      textDecoration: 'none', transition: 'background 0.15s',
+                      background: isActive(item.href) ? '#EAF6FC' : 'transparent',
+                      color:      isActive(item.href) ? '#0098DA'  : '#8A98A6',
+                    }}
+                    className={!isActive(item.href) ? 'nav-item-idle' : ''}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Card do usuário */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '10px 10px', marginTop: '4px', borderRadius: '12px',
+          }}>
+            {/* Avatar */}
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #0098DA, #54B3E6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>{initials}</span>
+            </div>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0E2C3D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {userName || 'Usuário'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#0098DA', fontWeight: 600 }}>
+                {perfilLabel ?? 'Admin'}
+              </div>
+            </div>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              title="Sair"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#8A98A6', padding: '4px', borderRadius: '6px',
+                display: 'flex', alignItems: 'center', transition: 'color 0.15s',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#3F5666')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#8A98A6')}
+            >
+              <IcoLogout />
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   )
 }

@@ -21,11 +21,7 @@ interface Toast {
   body:  string | null
 }
 
-interface Props {
-  collapsed: boolean
-}
-
-export default function NotificationBell({ collapsed }: Props) {
+export default function NotificationBell() {
   const { profile } = useProfile()
   const supabase    = createClient()
 
@@ -107,29 +103,40 @@ export default function NotificationBell({ collapsed }: Props) {
       <div ref={dropdownRef} className="relative">
         <button
           onClick={() => setOpen(v => !v)}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors text-left ${
-            open ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '11px 13px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+            fontSize: '14px', fontWeight: 600, textAlign: 'left',
+            transition: 'background 0.15s, color 0.15s',
+            background: open ? '#EAF6FC' : 'transparent',
+            color:      open ? '#0098DA'  : '#3F5666',
+          }}
+          className={!open ? 'nav-item-idle' : ''}
         >
-          <div className="relative shrink-0">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          <div style={{ position: 'relative', flexShrink: 0, display: 'flex' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
             {unread > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+              <span style={{
+                position: 'absolute', top: '-4px', right: '-4px',
+                minWidth: '14px', height: '14px',
+                background: '#E5484D', color: '#fff',
+                fontSize: '9px', fontWeight: 800, borderRadius: '999px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '0 2px', lineHeight: 1,
+              }}>
                 {unread > 9 ? '9+' : unread}
               </span>
             )}
           </div>
-          {!collapsed && (
-            <span className="text-sm font-medium flex-1">Notificações</span>
-          )}
+          <span style={{ flex: 1 }}>Notificações</span>
         </button>
 
         {/* ── Dropdown ──────────────────────────────────────────────────── */}
         {open && (
-          <div className={`absolute ${collapsed ? 'left-12' : 'left-0 right-0'} bottom-full mb-1 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 w-80 overflow-hidden`}>
+          <div className="absolute left-0 right-0 bottom-full mb-1 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 w-80 overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <span className="text-sm font-semibold text-gray-900">Notificações</span>
