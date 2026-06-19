@@ -153,6 +153,11 @@ export default function LoginPage() {
             </button>
           </div>
         )}
+      <p className="text-center text-xs text-gray-400 mt-8">
+        <a href="/termos" className="hover:text-gray-500 transition-colors">Termos de Uso</a>
+        <span className="mx-2">·</span>
+        <a href="/privacidade" className="hover:text-gray-500 transition-colors">Política de Privacidade</a>
+      </p>
       </div>
     </div>
   )
