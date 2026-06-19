@@ -116,19 +116,13 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   const { error: unreadErr } = await supabase.rpc('increment_wa_unread', { p_conversation_id: conv.id })
   if (unreadErr) console.error('[WA webhook] increment_wa_unread:', unreadErr.message)
 
-  // 3c. Auto-autorização WA: quem nos manda mensagem consente implicitamente
-  if (conv.lead_id) {
-    await supabase
-      .from('leads')
-      .update({ wa_optin_at: new Date().toISOString() })
-      .eq('id', conv.lead_id)
-      .is('wa_optin_at', null)   // só grava uma vez
-  }
-
-  // 3b. Detecta opt-out ("PARAR", "STOP", "CANCELAR", "SAIR", "NAO QUERO")
+  // 3b. Detecta opt-out ANTES de criar/vincular lead — aplica para contatos novos e existentes
   const textNorm = (content.text ?? '').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   const OPTOUT_WORDS = ['PARAR', 'STOP', 'CANCELAR', 'SAIR', 'NAO QUERO', 'DESCADASTRAR']
-  if (OPTOUT_WORDS.includes(textNorm) && conv.lead_id) {
+  const isOptOut = OPTOUT_WORDS.includes(textNorm)
+
+  if (isOptOut && conv.lead_id) {
+    // Lead já existia — marcar opt-out agora
     const { data: leadBefore } = await supabase
       .from('leads')
       .select('wa_optout_at, campanha_id')
@@ -141,7 +135,6 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
         .update({ wa_optout_at: new Date().toISOString() })
         .eq('id', conv.lead_id)
 
-      // Se o lead veio de uma campanha, atualiza o destinatário e o contador
       if (leadBefore?.campanha_id) {
         await supabase
           .from('wa_campaign_recipients')
@@ -155,15 +148,24 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     }
   }
 
-  // 4. Auto-vincular / criar lead se ainda não vinculado
+  // 3c. Auto-autorização WA: só registra optin se não for opt-out
+  if (conv.lead_id && !isOptOut) {
+    await supabase
+      .from('leads')
+      .update({ wa_optin_at: new Date().toISOString() })
+      .eq('id', conv.lead_id)
+      .is('wa_optin_at', null)
+  }
+
+  // 4. Auto-vincular / criar lead — captura o ID resolvido para uso nos blocos seguintes
+  // isOptOut é passado para que leads novos que mandaram STOP sejam criados com wa_optout_at
+  let resolvedLeadId = conv.lead_id
   if (!conv.lead_id) {
-    await autoLinkOrCreateLead(supabase, conv.id, unitId, waPhone, contactName)
+    resolvedLeadId = await autoLinkOrCreateLead(supabase, conv.id, unitId, waPhone, contactName, isOptOut)
   }
 
   // 4b. Verifica campanha — lead existente ou contato XLS sem lead
-  const resolvedLeadId = conv.lead_id
-
-  // Caso 1: lead já vinculado — verifica reply de campanha pelo lead_id
+  // Caso 1: lead vinculado (pré-existente ou recém-criado) — verifica reply de campanha
   if (resolvedLeadId) {
     const { data: recip } = await supabase
       .from('wa_campaign_recipients')
@@ -228,20 +230,17 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     }
   }
 
-  // 5. Se conversa ainda não tem agente, tenta auto-distribuir via fila padrão da unidade
-  if (!conv.lead_id) {
-    // Re-fetch para pegar lead_id recém-criado e queue_id atual
-    const { data: fresh } = await supabase
-      .from('wa_conversations')
-      .select('queue_id, assigned_to')
-      .eq('id', conv.id)
-      .single()
-    if (fresh?.queue_id && !fresh?.assigned_to) {
-      try {
-        await runAutoAssign(supabase, conv.id, fresh.queue_id as string)
-      } catch (e) {
-        console.error('[WA webhook] runAutoAssign falhou:', e)
-      }
+  // 5. Tenta auto-distribuir — re-fetch para ter queue_id e assigned_to atualizados
+  const { data: fresh } = await supabase
+    .from('wa_conversations')
+    .select('queue_id, assigned_to')
+    .eq('id', conv.id)
+    .single()
+  if (fresh?.queue_id && !fresh?.assigned_to) {
+    try {
+      await runAutoAssign(supabase, conv.id, fresh.queue_id as string)
+    } catch (e) {
+      console.error('[WA webhook] runAutoAssign falhou:', e)
     }
   }
 }
@@ -254,7 +253,8 @@ async function autoLinkOrCreateLead(
   unitId:      string,
   waPhone:     string,   // E.164 sem '+', ex: "5511984535197"
   contactName: string | null,
-) {
+  isOptOut     = false,
+): Promise<string | null> {
   // Normaliza: só dígitos do waPhone, e versão sem DDI (últimos 11 dígitos)
   const digitsAll   = waPhone.replace(/\D/g, '')
   const digitsShort = digitsAll.length > 11 ? digitsAll.slice(-11) : digitsAll
@@ -305,7 +305,7 @@ async function autoLinkOrCreateLead(
       const stageId = await getDefaultStageId(supabase, unitId)
       if (!stageId) {
         console.error('[WA webhook] nenhum estágio encontrado para criar lead')
-        return
+        return null
       }
 
       const { data: newLead, error: leadErr } = await supabase
@@ -325,7 +325,7 @@ async function autoLinkOrCreateLead(
 
       if (leadErr || !newLead) {
         console.error('[WA webhook] erro ao criar lead:', leadErr)
-        return
+        return null
       }
 
       leadId = newLead.id
@@ -342,17 +342,23 @@ async function autoLinkOrCreateLead(
     }
   }
 
-  // Vincula a conversa ao lead e registra autorização WA
-  await supabase
-    .from('wa_conversations')
-    .update({ lead_id: leadId })
-    .eq('id', convId)
+  // Vincula a conversa ao lead
+  await supabase.from('wa_conversations').update({ lead_id: leadId }).eq('id', convId)
 
-  await supabase
-    .from('leads')
-    .update({ wa_optin_at: new Date().toISOString() })
-    .eq('id', leadId)
-    .is('wa_optin_at', null)
+  // Registra optin ou optout dependendo da mensagem que disparou o vínculo
+  if (isOptOut) {
+    await supabase.from('leads')
+      .update({ wa_optout_at: new Date().toISOString() })
+      .eq('id', leadId)
+      .is('wa_optout_at', null)
+  } else {
+    await supabase.from('leads')
+      .update({ wa_optin_at: new Date().toISOString() })
+      .eq('id', leadId)
+      .is('wa_optin_at', null)
+  }
+
+  return leadId
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

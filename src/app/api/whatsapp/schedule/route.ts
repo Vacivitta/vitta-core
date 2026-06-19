@@ -84,6 +84,26 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
+  // Verify ownership: fetch the row first and confirm unit_id matches the caller's unit
+  const { data: msg } = await supabase
+    .from('wa_scheduled_messages')
+    .select('id, unit_id')
+    .eq('id', id)
+    .single()
+
+  if (!msg) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 })
+
+  // Get caller's unit_id from their profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('unit_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || profile.unit_id !== msg.unit_id) {
+    return NextResponse.json({ error: 'Sem permissão para cancelar esta mensagem' }, { status: 403 })
+  }
+
   await supabase.from('wa_scheduled_messages').update({ status: 'cancelled' }).eq('id', id)
   return NextResponse.json({ success: true })
 }

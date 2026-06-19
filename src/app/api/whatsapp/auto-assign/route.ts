@@ -61,7 +61,7 @@ export async function runAutoAssign(
     .from('user_units')
     .select('user_id, profile:profiles!inner(id, full_name, perfil)')
     .eq('unit_id', unitId)
-    .eq('profiles.perfil', 'atendente')
+    .eq('profile.perfil', 'atendente')
 
   const allowedIds = queueAgents?.length
     ? new Set(queueAgents.map(r => r.agent_id))

@@ -996,7 +996,12 @@ export default function OrcamentosClient({
     if (!window.confirm(`Excluir orçamento #${String(q.numero ?? 0).padStart(4, '0')} de ${patientName(q)}? Esta ação não pode ser desfeita.`)) return
     setDeletingId(q.id)
     const supabase = createClient()
-    await supabase.from('quote_items').delete().eq('quote_id', q.id)
+    const { error: itemsErr } = await supabase.from('quote_items').delete().eq('quote_id', q.id)
+    if (itemsErr) {
+      setDeletingId(null)
+      alert('Erro ao excluir itens do orçamento: ' + itemsErr.message)
+      return
+    }
     const { error } = await supabase.from('quotes').delete().eq('id', q.id)
     setDeletingId(null)
     if (error) { alert('Erro ao excluir: ' + error.message); return }

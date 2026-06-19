@@ -131,7 +131,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     const msgs = chatItems.filter(i => i.kind === 'message')
     if (msgs.length === 0) return false
     const lastInbound = [...chatItems].reverse().find(i => i.kind === 'message' && i.message?.direction === 'inbound')
-    if (!lastInbound) return true
+    // Sem nenhuma mensagem inbound: janela nunca foi aberta, não há restrição
+    if (!lastInbound) return false
     return Date.now() - new Date(lastInbound.created_at).getTime() > 24 * 60 * 60 * 1000
   }, [msgsLoaded, chatItems])
 
