@@ -1,0 +1,135 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+const META_API_URL = 'https://graph.facebook.com/v20.0'
+
+function adminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('[WA] NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados')
+  return createClient(url, key)
+}
+
+// POST /api/whatsapp/send-media
+// Body: FormData { file: File, conversation_id: string }
+export async function POST(req: NextRequest) {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const form = await req.formData()
+  const file            = form.get('file') as File | null
+  const conversation_id = form.get('conversation_id') as string | null
+
+  if (!file || !conversation_id) {
+    return NextResponse.json({ error: 'file e conversation_id obrigatórios' }, { status: 400 })
+  }
+
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken   = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) {
+    return NextResponse.json({ error: 'Variáveis WhatsApp não configuradas' }, { status: 500 })
+  }
+
+  const admin = adminClient()
+  const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id').eq('id', conversation_id).single()
+  if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+
+  // 1. Upload do arquivo para a API de mídia do Meta
+  const uploadForm = new FormData()
+  uploadForm.append('file', file, file.name)
+  uploadForm.append('messaging_product', 'whatsapp')
+  uploadForm.append('type', file.type)
+
+  const uploadRes = await fetch(`${META_API_URL}/${phoneNumberId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: uploadForm,
+  })
+  const uploadData = await uploadRes.json() as { id?: string; error?: unknown }
+  if (!uploadRes.ok || !uploadData.id) {
+    return NextResponse.json({ error: 'Falha no upload da mídia', details: uploadData }, { status: 502 })
+  }
+
+  const mediaId = uploadData.id
+
+  // 2. Determina o tipo da mensagem
+  const mime = file.type
+  let msgType = 'document'
+  if (mime.startsWith('image/')) msgType = 'image'
+  else if (mime.startsWith('video/')) msgType = 'video'
+  else if (mime.startsWith('audio/')) msgType = 'audio'
+
+  // 3. Envia a mensagem via API do Meta
+  const metaPayload: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    to: conv.wa_phone,
+    type: msgType,
+    [msgType]: { id: mediaId },
+  }
+
+  const sendRes = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(metaPayload),
+  })
+  const sendData = await sendRes.json() as { messages?: { id: string }[]; error?: unknown }
+  if (!sendRes.ok) {
+    return NextResponse.json({ error: 'Falha ao enviar mídia', details: sendData }, { status: 502 })
+  }
+
+  const waMessageId = sendData.messages?.[0]?.id ?? null
+
+  // 4. Salva no banco
+  await admin.from('wa_messages').insert({
+    conversation_id,
+    unit_id:        conv.unit_id,
+    wa_message_id:  waMessageId,
+    direction:      'outbound',
+    type:           msgType,
+    content:        file.name,
+    media_url:      mediaId,
+    media_mime_type: mime,
+    status:         'sent',
+    sent_by:        user.id,
+  })
+
+  await admin.from('wa_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation_id)
+
+  // Automação: atendente respondeu
+  await runWaAutomation(admin, 'outbound_message', conv.unit_id, conversation_id)
+
+  return NextResponse.json({ success: true, message_id: waMessageId })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runWaAutomation(
+  supabase:       any,
+  trigger:        string,
+  unitId:         string,
+  conversationId: string,
+) {
+  const { data: automation } = await supabase
+    .from('wa_automations')
+    .select('action, stage_id')
+    .eq('unit_id', unitId)
+    .eq('trigger', trigger)
+    .eq('ativo', true)
+    .single()
+
+  if (!automation || automation.action !== 'move_stage' || !automation.stage_id) return
+
+  const { data: conv } = await supabase
+    .from('wa_conversations')
+    .select('lead_id')
+    .eq('id', conversationId)
+    .single()
+
+  if (!conv?.lead_id) return
+
+  await supabase
+    .from('leads')
+    .update({ stage_id: automation.stage_id })
+    .eq('id', conv.lead_id)
+}
