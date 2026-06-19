@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import AutomacoesClient from './AutomacoesClient'
 import type { Profile } from '@/types/database'
 
-export const metadata = { title: 'Automações de Funil — Vitta Core' }
+export const metadata = { title: 'Automações — Vitta Core' }
 
 export default async function AutomacoesPage() {
   const supabase = await createClient()
@@ -17,11 +17,12 @@ export default async function AutomacoesPage() {
   if (!profile) redirect('/login')
   if (profile.perfil === 'atendente') redirect('/funil')
 
-  const unitId = profile.unit_id
+  const unitId = profile.unit_id ?? ''
 
   const [
     { data: stages },
-    { data: automations },
+    { data: quoteAutomations },
+    { data: waAutomations },
   ] = await Promise.all([
     supabase
       .from('funnel_stages')
@@ -30,7 +31,11 @@ export default async function AutomacoesPage() {
     supabase
       .from('quote_automations')
       .select('*')
-      .eq('unit_id', unitId ?? ''),
+      .eq('unit_id', unitId),
+    supabase
+      .from('wa_automations')
+      .select('*')
+      .eq('unit_id', unitId),
   ])
 
   const normalizedStages = (stages ?? []).map(s => ({
@@ -42,7 +47,8 @@ export default async function AutomacoesPage() {
     <AutomacoesClient
       currentUser={profile as Profile}
       stages={normalizedStages}
-      initialAutomations={automations ?? []}
+      initialQuoteAutomations={quoteAutomations ?? []}
+      initialWaAutomations={waAutomations ?? []}
     />
   )
 }

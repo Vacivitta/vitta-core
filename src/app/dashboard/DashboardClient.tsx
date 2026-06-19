@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import type { Profile } from '@/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface LeadRow   { id: string; stage_id: string | null; criado_em: string }
+interface LeadRow   { id: string; stage_id: string | null; created_at: string }
 interface QuoteRow  { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null }
 interface StageRow  { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
 
@@ -36,14 +36,19 @@ function inPeriod(iso: string, cut: Date | null) {
 
 // ─── Subcomponents ───────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, color = 'text-gray-900' }: {
-  label: string; value: string | number; sub?: string; color?: string
+function KpiCard({ label, value, sub, valueColor, subColor, icon, chipColor, gradient, borderColor }: {
+  label: string; value: string | number; sub?: string
+  valueColor?: string; subColor?: string
+  icon: React.ReactNode; chipColor: string; gradient: string; borderColor: string
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    <div style={{ background: gradient, border: `1px solid ${borderColor}`, borderRadius: '18px', padding: '18px' }}>
+      <div style={{ width: '38px', height: '38px', borderRadius: '11px', background: chipColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+        {icon}
+      </div>
+      <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.05em', color: '#5B6B7B', margin: 0 }}>{label.toUpperCase()}</p>
+      <p style={{ fontSize: '30px', fontWeight: 800, margin: '4px 0', letterSpacing: '-0.02em', color: valueColor ?? 'var(--color-ink)' }}>{value}</p>
+      {sub && <p style={{ fontSize: '12px', fontWeight: 700, color: subColor ?? 'var(--color-muted)', margin: 0 }}>{sub}</p>}
     </div>
   )
 }
@@ -51,15 +56,15 @@ function KpiCard({ label, value, sub, color = 'text-gray-900' }: {
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
   return (
-    <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color || '#6366f1' }} />
+    <div className="flex-1 rounded-full overflow-hidden" style={{ background: 'var(--color-track)', height: '10px' }}>
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
     </div>
   )
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ leads, quotes, stages }: Props) {
+export default function DashboardClient({ currentUser, leads, quotes, stages }: Props) {
   const [period, setPeriod] = useState<Period>('30d')
 
   const cut = useMemo(() => cutoff(period), [period])
@@ -71,7 +76,7 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
   )
 
   const filteredLeads = useMemo(() =>
-    leads.filter(l => inPeriod(l.criado_em, cut)),
+    leads.filter(l => inPeriod(l.created_at, cut)),
     [leads, cut]
   )
 
@@ -98,11 +103,11 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
   const quoteFunnel = useMemo(() => {
     const all = filteredQuotes
     return [
-      { label: 'Criados',     count: all.length,                                                             color: '#6b7280' },
-      { label: 'Enviados',    count: all.filter(q => ['enviado','visualizado','aceito','recusado'].includes(q.status)).length, color: '#3b82f6' },
-      { label: 'Visualizados',count: all.filter(q => ['visualizado','aceito','recusado'].includes(q.status)).length,           color: '#8b5cf6' },
-      { label: 'Aceitos',     count: all.filter(q => q.status === 'aceito').length,                          color: '#10b981' },
-      { label: 'Recusados',   count: all.filter(q => q.status === 'recusado').length,                        color: '#ef4444' },
+      { label: 'Criados',     count: all.length,                                                             color: '#8A98A6' },
+      { label: 'Enviados',    count: all.filter(q => ['enviado','visualizado','aceito','recusado'].includes(q.status)).length, color: '#0098DA' },
+      { label: 'Visualizados',count: all.filter(q => ['visualizado','aceito','recusado'].includes(q.status)).length,           color: '#54B3E6' },
+      { label: 'Aceitos',     count: all.filter(q => q.status === 'aceito').length,                          color: '#4EB46B' },
+      { label: 'Recusados',   count: all.filter(q => q.status === 'recusado').length,                        color: '#E5484D' },
     ]
   }, [filteredQuotes])
 
@@ -127,11 +132,11 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
     for (const q of filteredQuotes) map[q.status] = (map[q.status] ?? 0) + 1
     const total = filteredQuotes.length
     return [
-      { label: 'Rascunho',     key: 'rascunho',     color: '#9ca3af', count: map['rascunho']     ?? 0 },
-      { label: 'Enviado',      key: 'enviado',      color: '#3b82f6', count: map['enviado']      ?? 0 },
-      { label: 'Visualizado',  key: 'visualizado',  color: '#8b5cf6', count: map['visualizado']  ?? 0 },
-      { label: 'Aceito',       key: 'aceito',       color: '#10b981', count: map['aceito']       ?? 0 },
-      { label: 'Recusado',     key: 'recusado',     color: '#ef4444', count: map['recusado']     ?? 0 },
+      { label: 'Rascunho',     key: 'rascunho',     color: '#8A98A6', count: map['rascunho']     ?? 0 },
+      { label: 'Enviado',      key: 'enviado',      color: '#0098DA', count: map['enviado']      ?? 0 },
+      { label: 'Visualizado',  key: 'visualizado',  color: '#54B3E6', count: map['visualizado']  ?? 0 },
+      { label: 'Aceito',       key: 'aceito',       color: '#4EB46B', count: map['aceito']       ?? 0 },
+      { label: 'Recusado',     key: 'recusado',     color: '#E5484D', count: map['recusado']     ?? 0 },
     ].filter(s => s.count > 0).map(s => ({ ...s, pct: total > 0 ? Math.round(s.count / total * 100) : 0 }))
   }, [filteredQuotes])
 
@@ -139,19 +144,22 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
     <div className="flex flex-col flex-1 overflow-hidden">
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0 flex items-center justify-between">
+      <header className="bg-white px-6 py-4 shrink-0 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <div>
-          <h1 className="text-base font-semibold text-gray-900">Dashboard</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Visão geral do funil comercial</p>
+          <h1 className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
+            Olá, {currentUser.full_name?.split(' ')[0] ?? 'bem-vindo'}
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>Visão geral do funil comercial</p>
         </div>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'var(--color-track)' }}>
           {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
               className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                period === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                period === p ? 'bg-white shadow-sm' : 'hover:opacity-80'
               }`}
+              style={{ color: period === p ? 'var(--color-ink)' : 'var(--color-muted)' }}
             >
               {PERIOD_LABELS[p]}
             </button>
@@ -164,36 +172,51 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
         {/* ── KPIs ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            label="Leads ativos"
+            label="Contatos ativos"
             value={kpis.leadsAtivos}
             sub={`+${kpis.novosLeads} no período`}
-            color="text-gray-900"
+            subColor="#3E9D5A"
+            gradient="linear-gradient(160deg,#EAF6FC,#F4FAFE)"
+            borderColor="#D7EBF7"
+            chipColor="#0098DA"
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M21 20a5 5 0 0 0-4-4.9"/></svg>}
           />
           <KpiCard
             label="Orçamentos aceitos"
             value={kpis.aceitos}
             sub={`de ${kpis.enviados} enviados`}
-            color="text-emerald-600"
+            gradient="linear-gradient(160deg,#E9F7EE,#F4FBF6)"
+            borderColor="#CFEBD9"
+            chipColor="#4EB46B"
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 14 2 2 4-4"/></svg>}
           />
           <KpiCard
             label="Receita gerada"
             value={kpis.totalAceito > 0 ? fmtBRL.format(kpis.totalAceito) : '—'}
             sub={kpis.aceitos > 0 ? `ticket médio ${fmtBRL.format(kpis.ticketMedio)}` : undefined}
-            color="text-emerald-600"
+            valueColor="#2E8E4C"
+            gradient="linear-gradient(160deg,#E9F7EE,#F4FBF6)"
+            borderColor="#CFEBD9"
+            chipColor="#4EB46B"
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M2 10h2M20 10h2"/></svg>}
           />
           <KpiCard
             label="Taxa de conversão"
             value={`${kpis.taxaConv}%`}
-            sub="orçamentos aceitos / enviados"
-            color={kpis.taxaConv >= 50 ? 'text-emerald-600' : kpis.taxaConv >= 25 ? 'text-amber-500' : 'text-gray-900'}
+            sub="aceitos / enviados"
+            valueColor={kpis.taxaConv >= 50 ? '#2E8E4C' : kpis.taxaConv >= 25 ? '#D17F0E' : '#E5484D'}
+            gradient="linear-gradient(160deg,#FEF4E6,#FFF9F0)"
+            borderColor="#F7E2C2"
+            chipColor="#F39313"
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>}
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* ── Funil de orçamentos ── */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Funil de Orçamentos</h2>
+          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Funil de Orçamentos</h2>
             {filteredQuotes.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">Nenhum orçamento no período</p>
             ) : (
@@ -213,7 +236,7 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
                         </div>
                         <span className="text-xs font-bold" style={{ color: step.color }}>{step.count}</span>
                       </div>
-                      <div className="bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="rounded-full overflow-hidden" style={{ background: 'var(--color-track)', height: '10px' }}>
                         <div
                           className="h-full rounded-full transition-all"
                           style={{ width: max > 0 ? `${Math.round(step.count / max * 100)}%` : '0%', backgroundColor: step.color }}
@@ -226,32 +249,48 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
             )}
           </div>
 
-          {/* ── Status dos orçamentos ── */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Distribuição de Status</h2>
+          {/* ── Status dos orçamentos — donut ── */}
+          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Distribuição de Status</h2>
             {statusDist.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">Nenhum orçamento no período</p>
-            ) : (
-              <div className="space-y-3">
-                {statusDist.map(s => (
-                  <div key={s.key} className="flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                    <span className="text-xs text-gray-600 w-24 shrink-0">{s.label}</span>
-                    <MiniBar value={s.count} max={filteredQuotes.length} color={s.color} />
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs font-semibold text-gray-900 w-6 text-right">{s.count}</span>
-                      <span className="text-[11px] text-gray-400 w-8">{s.pct}%</span>
+            ) : (() => {
+              const total = filteredQuotes.length
+              // build conic-gradient stops
+              let acc = 0
+              const stops = statusDist.map(s => {
+                const from = acc
+                acc += s.pct
+                return `${s.color} ${from}% ${acc}%`
+              })
+              const conicGrad = `conic-gradient(${stops.join(', ')})`
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '22px' }}>
+                  <div style={{ position: 'relative', width: '140px', height: '140px', flexShrink: 0, borderRadius: '50%', background: conicGrad }}>
+                    <div style={{ position: 'absolute', inset: '26px', background: '#fff', borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '24px', fontWeight: 800, lineHeight: 1 }}>{total}</span>
+                      <span style={{ fontSize: '11px', color: '#8A98A6' }}>total</span>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '11px' }}>
+                    {statusDist.map(s => (
+                      <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px' }}>
+                        <div style={{ width: '9px', height: '9px', borderRadius: '3px', background: s.color, flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontWeight: 600 }}>{s.label}</span>
+                        <span style={{ fontWeight: 700 }}>{s.count}</span>
+                        <span style={{ color: '#8A98A6', width: '36px', textAlign: 'right' }}>{s.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
 
         {/* ── Leads por funil ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Leads por Funil</h2>
+        <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+          <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Contatos por Funil</h2>
           {funnelData.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">Nenhum funil configurado</p>
           ) : (
@@ -263,7 +302,7 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
                   <div key={f.nome}>
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-xs font-semibold text-gray-700">{f.nome}</p>
-                      <span className="text-xs font-bold text-gray-500">{total} leads</span>
+                      <span className="text-xs font-bold text-gray-500">{total} contatos</span>
                     </div>
                     <div className="space-y-2">
                       {f.stages.map(stage => (
@@ -275,7 +314,7 @@ export default function DashboardClient({ leads, quotes, stages }: Props) {
                         </div>
                       ))}
                       {f.stages.every(s => s.count === 0) && (
-                        <p className="text-xs text-gray-400 text-center py-2">Nenhum lead neste funil</p>
+                        <p className="text-xs text-gray-400 text-center py-2">Nenhum contato neste funil</p>
                       )}
                     </div>
                   </div>

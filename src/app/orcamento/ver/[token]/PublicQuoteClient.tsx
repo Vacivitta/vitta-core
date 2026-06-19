@@ -129,15 +129,18 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
           </div>
           <div className="divide-y divide-gray-50">
             {quote.items.map(item => (
-              <div key={item.id} className="px-6 py-3.5 flex items-center gap-3">
+              <div key={item.id} className="px-6 py-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900">{item.nome_snapshot}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  {item.descricao_snapshot && (
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{item.descricao_snapshot}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
                     {fmtBRL.format(item.valor_snapshot)} × {item.quantidade}
                     {item.desconto > 0 && ` · ${item.desconto}% desc.`}
                   </p>
                 </div>
-                <span className="text-sm font-semibold text-gray-900 shrink-0">
+                <span className="text-sm font-semibold text-gray-900 shrink-0 mt-0.5">
                   {fmtBRL.format(item.valor_final)}
                 </span>
               </div>
@@ -199,7 +202,7 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
         {/* Feedback de status */}
         {quote.status === 'aceito' && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-5 text-center">
-            <p className="text-2xl mb-2">✓</p>
+            <p className="text-sm font-bold mb-2 text-emerald-700">Aceito</p>
             <p className="text-sm font-semibold text-emerald-800">Orçamento aceito!</p>
             <p className="text-xs text-emerald-600 mt-1">Entraremos em contato para confirmar os próximos passos.</p>
           </div>

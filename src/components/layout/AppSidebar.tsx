@@ -107,6 +107,19 @@ const IcoAutomacoes = () => (
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
   </svg>
 )
+const IcoFilas = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M22 11H16M19 8v6"/>
+  </svg>
+)
+const IcoTemplatesWa = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    <path d="M8 10h8M8 14h5"/>
+  </svg>
+)
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -129,10 +142,12 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 const CONFIG_ITEMS = [
-  { href: '/configuracoes/funis',      label: 'Funis',         icon: <IcoFunis />,      gestorOnly: false },
-  { href: '/configuracoes/templates',  label: 'Templates PDF', icon: <IcoTemplates />,  gestorOnly: true  },
-  { href: '/configuracoes/equipe',     label: 'Equipe',        icon: <IcoEquipe />,     gestorOnly: true  },
-  { href: '/configuracoes/automacoes', label: 'Automações',    icon: <IcoAutomacoes />, gestorOnly: true  },
+  { href: '/configuracoes/funis',               label: 'Funis',             icon: <IcoFunis />,        gestorOnly: false },
+  { href: '/configuracoes/filas',               label: 'Filas',             icon: <IcoFilas />,        gestorOnly: true  },
+  { href: '/configuracoes/templates',           label: 'Templates PDF',     icon: <IcoTemplates />,    gestorOnly: true  },
+  { href: '/configuracoes/templates-whatsapp',  label: 'Templates WhatsApp',icon: <IcoTemplatesWa />,  gestorOnly: true  },
+  { href: '/configuracoes/equipe',              label: 'Equipe',            icon: <IcoEquipe />,       gestorOnly: true  },
+  { href: '/configuracoes/automacoes',          label: 'Automações',        icon: <IcoAutomacoes />,   gestorOnly: true  },
 ]
 
 const CONFIG_HREFS = CONFIG_ITEMS.map(i => i.href)
@@ -236,7 +251,7 @@ export default function AppSidebar() {
             <NavLink key={item.href} item={item} active={isActive(item.href)} />
           ))}
 
-          {/* Supervisão — gestores only, badge DEMO */}
+          {/* Supervisão — gestores only */}
           {isGestor && (
             <Link
               href="/supervisao"
@@ -254,13 +269,6 @@ export default function AppSidebar() {
             >
               <IcoSupervisao />
               <span style={{ flex: 1 }}>Supervisão</span>
-              <span style={{
-                fontSize: '9px', fontWeight: 800, letterSpacing: '0.06em',
-                background: '#FEF4E6', color: '#D17F0E',
-                padding: '2px 6px', borderRadius: '999px',
-              }}>
-                DEMO
-              </span>
             </Link>
           )}
         </nav>

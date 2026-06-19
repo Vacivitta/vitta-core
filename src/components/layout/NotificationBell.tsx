@@ -28,6 +28,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open,          setOpen]          = useState(false)
   const [toasts,        setToasts]        = useState<Toast[]>([])
+  const [dropdownPos,   setDropdownPos]   = useState({ left: 0, bottom: 0, width: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const unread = notifications.filter(n => !n.lida).length
@@ -102,7 +103,13 @@ export default function NotificationBell() {
       {/* ── Sino ──────────────────────────────────────────────────────────── */}
       <div ref={dropdownRef} className="relative">
         <button
-          onClick={() => setOpen(v => !v)}
+          onClick={() => {
+            if (!open && dropdownRef.current) {
+              const rect = dropdownRef.current.getBoundingClientRect()
+              setDropdownPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4, width: Math.max(rect.width, 320) })
+            }
+            setOpen(v => !v)
+          }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
             padding: '11px 13px', borderRadius: '12px', border: 'none', cursor: 'pointer',
@@ -136,14 +143,15 @@ export default function NotificationBell() {
 
         {/* ── Dropdown ──────────────────────────────────────────────────── */}
         {open && (
-          <div className="absolute left-0 right-0 bottom-full mb-1 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 w-80 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden" style={{ position: 'fixed', left: dropdownPos.left, bottom: dropdownPos.bottom, width: '320px', zIndex: 200 }}>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <span className="text-sm font-semibold text-gray-900">Notificações</span>
               {unread > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                  className="text-xs font-medium"
+                  style={{ color: 'var(--color-brand)' }}
                 >
                   Marcar todas como lidas
                 </button>
@@ -161,13 +169,20 @@ export default function NotificationBell() {
                 <button
                   key={n.id}
                   onClick={() => markRead(n.id)}
-                  className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${!n.lida ? 'bg-blue-50/50' : ''}`}
+                  className="w-full text-left flex items-start gap-3 px-4 py-3 transition-colors"
+                  style={{ background: !n.lida ? 'var(--color-brand-subtle)' : undefined }}
                 >
-                  <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm ${
-                    n.type === 'quote_aceito'   ? 'bg-emerald-100' :
-                    n.type === 'quote_recusado' ? 'bg-red-100'     : 'bg-gray-100'
-                  }`}>
-                    {n.type === 'quote_aceito' ? '✅' : n.type === 'quote_recusado' ? '❌' : '🔔'}
+                  <div
+                    className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm"
+                    style={{ background: n.type === 'quote_aceito' ? 'var(--color-success-subtle)' : n.type === 'quote_recusado' ? 'var(--color-danger-subtle)' : 'var(--color-track)' }}
+                  >
+                    {n.type === 'quote_aceito' ? (
+                      <svg width="14" height="14" fill="none" stroke="var(--color-success)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    ) : n.type === 'quote_recusado' ? (
+                      <svg width="14" height="14" fill="none" stroke="var(--color-danger)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                    ) : (
+                      <svg width="14" height="14" fill="none" stroke="var(--color-muted)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${!n.lida ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
@@ -179,7 +194,7 @@ export default function NotificationBell() {
                     <p className="text-[11px] text-gray-400 mt-1">{fmtTime(n.criado_em)}</p>
                   </div>
                   {!n.lida && (
-                    <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />
+                    <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--color-brand)' }} />
                   )}
                 </button>
               ))}
@@ -195,11 +210,8 @@ export default function NotificationBell() {
             key={t.id}
             className="pointer-events-auto bg-white border border-gray-200 rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 w-72 animate-slide-up"
           >
-            <span className="text-lg shrink-0">
-              {t.title.startsWith('✅') ? '✅' : '❌'}
-            </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900">{t.title.replace(/^[✅❌]\s*/, '')}</p>
+              <p className="text-sm font-semibold text-gray-900">{t.title}</p>
               {t.body && <p className="text-xs text-gray-500 mt-0.5 truncate">{t.body}</p>}
             </div>
           </div>

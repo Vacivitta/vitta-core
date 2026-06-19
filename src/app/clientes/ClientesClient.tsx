@@ -125,12 +125,37 @@ export default function ClientesClient({ initialClients, units }: Props) {
     try {
       if (modal === 'create') {
         const unitId = units[0]?.id ?? profile?.unit_id
+
+        // Verifica se já existe lead com mesmo telefone para linkar automaticamente
+        let autoLeadId: string | null = null
+        if (payload.telefone) {
+          const tel = payload.telefone.replace(/\D/g, '')
+          const { data: leadMatches } = await supabase
+            .from('leads')
+            .select('id, telefone, client_id')
+            .eq('unit_id', unitId)
+            .eq('arquivado', false)
+            .not('telefone', 'is', null)
+            .limit(50)
+          const match = (leadMatches ?? []).find(l => {
+            const d = (l.telefone as string).replace(/\D/g, '')
+            return d === tel || d.endsWith(tel.slice(-11)) || tel.endsWith(d.slice(-11))
+          })
+          if (match && !match.client_id) autoLeadId = match.id
+        }
+
         const { data, error: err } = await supabase
           .from('clients')
-          .insert({ ...payload, unit_id: unitId })
+          .insert({ ...payload, unit_id: unitId, lead_id: autoLeadId })
           .select('*, lead:leads!lead_id(id, nome, sobrenome)')
           .single()
         if (err) throw err
+
+        // Fecha o ciclo: atualiza lead.client_id também
+        if (autoLeadId) {
+          await supabase.from('leads').update({ client_id: data.id }).eq('id', autoLeadId)
+        }
+
         setClients(prev => [data as ClientWithLead, ...prev])
       } else if (selected) {
         const { data, error: err } = await supabase
@@ -152,8 +177,12 @@ export default function ClientesClient({ initialClients, units }: Props) {
 
   async function handleDelete(id: string) {
     setDeleting(id)
-    await supabase.from('clients').delete().eq('id', id)
-    setClients(prev => prev.filter(c => c.id !== id))
+    // Remove FK inversa: leads que apontam client_id para este cliente
+    await supabase.from('leads').update({ client_id: null }).eq('client_id', id)
+    // Remove FK direta: wa_conversations que têm este cliente via lead
+    // (não há FK direta conversation→client, apenas via lead — já resolvido acima)
+    const { error } = await supabase.from('clients').delete().eq('id', id)
+    if (!error) setClients(prev => prev.filter(c => c.id !== id))
     setDeleting(null)
   }
 
@@ -163,9 +192,9 @@ export default function ClientesClient({ initialClients, units }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full" style={{ background: 'var(--color-bg-app)' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
+      <div className="bg-white px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Clientes</h1>
@@ -173,7 +202,8 @@ export default function ClientesClient({ initialClients, units }: Props) {
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl transition-colors"
+            style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -213,7 +243,11 @@ export default function ClientesClient({ initialClients, units }: Props) {
                   {group.map(c => `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`).join(' · ')}
                   {group[0].telefone && <span className="text-amber-500 ml-1">({group[0].telefone})</span>}
                   <button
-                    onClick={() => handleDelete(group[group.length - 1].id)}
+                    onClick={() => {
+                      // Prefere deletar o sem lead_id (cadastro manual solto); se todos têm ou nenhum tem, pega o mais recente
+                      const toDelete = group.find(c => !c.lead) ?? group[group.length - 1]
+                      void handleDelete(toDelete.id)
+                    }}
                     className="ml-2 underline hover:no-underline text-amber-600"
                   >
                     Remover duplicata
@@ -242,7 +276,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+            <thead className="sticky top-0" style={{ background: '#F7FAFC', borderBottom: '1px solid var(--color-border)' }}>
               <tr>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nome</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefone</th>
@@ -253,13 +287,13 @@ export default function ClientesClient({ initialClients, units }: Props) {
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
+            <tbody className="divide-y bg-white" style={{ borderColor: 'var(--color-border)' }}>
               {filtered.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={c.id} className="transition-colors" style={{ ['--tw-bg-opacity' as string]: '1' }} onMouseEnter={e => (e.currentTarget.style.background = '#F8FBFD')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-semibold text-blue-600">{c.nome[0].toUpperCase()}</span>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-brand-subtle)' }}>
+                        <span className="text-xs font-semibold" style={{ color: 'var(--color-brand)' }}>{c.nome[0].toUpperCase()}</span>
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{c.nome}{c.sobrenome ? ` ${c.sobrenome}` : ''}</p>
@@ -274,11 +308,11 @@ export default function ClientesClient({ initialClients, units }: Props) {
                   <td className="px-4 py-3 text-gray-600">{c.cpf ?? '—'}</td>
                   <td className="px-4 py-3">
                     {c.lead ? (
-                      <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' }}>
                         Lead convertido
                       </span>
                     ) : (
-                      <span className="text-gray-400 text-xs">Direto</span>
+                      <span className="text-xs" style={{ color: 'var(--color-muted)' }}>Direto</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(c.criado_em)}</td>
@@ -415,9 +449,10 @@ export default function ClientesClient({ initialClients, units }: Props) {
                 Cancelar
               </button>
               <button
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-50 transition-colors"
+                style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
               >
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>

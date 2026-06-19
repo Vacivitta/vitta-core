@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, AutomationTrigger } from '@/types/database'
-import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS } from '@/types/database'
+import { QUOTE_STATUS_COLORS } from '@/types/database'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Stage {
   id:        string
@@ -15,7 +15,7 @@ interface Stage {
   funnels:   { nome: string } | null
 }
 
-interface Automation {
+interface QuoteAutomation {
   id:           string
   unit_id:      string
   quote_status: AutomationTrigger
@@ -24,264 +24,372 @@ interface Automation {
   ativo:        boolean
 }
 
+interface WaAutomation {
+  id:       string
+  unit_id:  string
+  trigger:  string
+  action:   'move_stage' | 'none'
+  stage_id: string | null
+  ativo:    boolean
+}
+
 interface Props {
-  currentUser:        Profile
-  stages:             Stage[]
-  initialAutomations: Automation[]
+  currentUser:            Profile
+  stages:                 Stage[]
+  initialQuoteAutomations: QuoteAutomation[]
+  initialWaAutomations:   WaAutomation[]
 }
 
-const AUTOMATABLE: AutomationTrigger[] = ['criado', 'enviado', 'aceito', 'recusado']
+// ── Config maps ───────────────────────────────────────────────────────────────
 
-const TRIGGER_LABELS: Record<AutomationTrigger, string> = {
-  criado:        'Orçamento Criado',
-  enviado:       'Enviado ao Paciente',
-  visualizado:   'Visualizado',
-  aceito:        'Aceito',
-  recusado:      'Recusado',
-  em_negociacao: 'Em Negociação',
-  expirado:      'Expirado',
-  rascunho:      'Rascunho',
+const QUOTE_AUTOMATABLE: AutomationTrigger[] = ['criado', 'enviado', 'aceito', 'recusado']
+
+const QUOTE_TRIGGER_META: Record<string, { label: string; desc: string; color: string }> = {
+  criado:   { label: 'Orçamento Criado',      desc: 'Quando um orçamento é criado para o contato',       color: '#7C3AED' },
+  enviado:  { label: 'Enviado ao Paciente',   desc: 'Quando o link do orçamento é copiado/enviado',      color: '#0098DA' },
+  aceito:   { label: 'Aceito pelo Paciente',  desc: 'Quando o paciente aceita o orçamento',              color: '#1D9E75' },
+  recusado: { label: 'Recusado pelo Paciente',desc: 'Quando o paciente recusa o orçamento',              color: '#EF4444' },
 }
 
-const TRIGGER_COLORS: Record<AutomationTrigger, string> = {
-  criado:        'bg-purple-100 text-purple-700',
-  enviado:       QUOTE_STATUS_COLORS.enviado,
-  visualizado:   QUOTE_STATUS_COLORS.visualizado,
-  aceito:        QUOTE_STATUS_COLORS.aceito,
-  recusado:      QUOTE_STATUS_COLORS.recusado,
-  em_negociacao: QUOTE_STATUS_COLORS.em_negociacao,
-  expirado:      QUOTE_STATUS_COLORS.expirado,
-  rascunho:      QUOTE_STATUS_COLORS.rascunho,
-}
+const WA_TRIGGERS: { key: string; label: string; desc: string; color: string }[] = [
+  { key: 'inbound_message',       label: 'Contato envia mensagem',   desc: 'Primeira mensagem recebida — aciona ao chegar no WhatsApp', color: '#25D366' },
+  { key: 'outbound_message',      label: 'Atendente responde',       desc: 'Quando qualquer atendente envia uma resposta ao contato',  color: '#0098DA' },
+  { key: 'conversation_resolved', label: 'Conversa resolvida',       desc: 'Quando a conversa é marcada como Resolvida',              color: '#1D9E75' },
+]
 
-const STATUS_DESCRIPTIONS: Record<string, string> = {
-  criado:   'Quando um orçamento é criado para o lead',
-  enviado:  'Quando o link do orçamento é copiado/enviado ao paciente',
-  aceito:   'Quando o paciente aceita o orçamento',
-  recusado: 'Quando o paciente recusa o orçamento',
-}
+type RowState = { action: 'none' | 'move_stage'; stage_id: string }
 
-const STATUS_ICONS: Record<string, string> = {
-  criado:   '📋',
-  enviado:  '📤',
-  aceito:   '✅',
-  recusado: '❌',
-}
+// ── Component ─────────────────────────────────────────────────────────────────
 
-type Action = 'none' | 'move_stage' | 'archive'
-
-interface RowState {
-  action:   Action
-  stage_id: string
-}
-
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export default function AutomacoesClient({ currentUser, stages, initialAutomations }: Props) {
+export default function AutomacoesClient({ currentUser, stages, initialQuoteAutomations, initialWaAutomations }: Props) {
   const supabase = createClient()
-  const unitId   = currentUser.unit_id
+  const unitId   = currentUser.unit_id ?? ''
 
-  // Build initial row states from existing automations
-  const initRows = (): Record<AutomationTrigger, RowState> => {
-    const defaults: Record<string, RowState> = {}
-    for (const s of AUTOMATABLE) {
-      const existing = initialAutomations.find(a => a.quote_status === s)
-      defaults[s] = {
-        action:   existing?.action   ?? 'none',
-        stage_id: existing?.stage_id ?? '',
-      }
+  // Quote automation rows
+  const initQuoteRows = (): Record<string, RowState> => {
+    const r: Record<string, RowState> = {}
+    for (const s of QUOTE_AUTOMATABLE) {
+      const ex = initialQuoteAutomations.find(a => a.quote_status === s)
+      r[s] = { action: ex?.action === 'archive' ? 'none' : (ex?.action ?? 'none'), stage_id: ex?.stage_id ?? '' }
     }
-    return defaults as Record<AutomationTrigger, RowState>
+    return r
   }
 
-  const [rows,    setRows]    = useState<Record<AutomationTrigger, RowState>>(initRows)
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [error,   setError]   = useState('')
-
-  function setRow(status: AutomationTrigger, patch: Partial<RowState>) {
-    setRows(prev => ({ ...prev, [status]: { ...prev[status], ...patch } }))
-    setSaved(false)
-  }
-
-  async function handleSave() {
-    if (!unitId) { setError('Perfil sem unidade configurada.'); return }
-    setSaving(true)
-    setError('')
-
-    for (const status of AUTOMATABLE) {
-      const row = rows[status]
-      const existing = initialAutomations.find(a => a.quote_status === status)
-
-      const payload = {
-        unit_id:      unitId,
-        quote_status: status,
-        action:       row.action,
-        stage_id:     row.action === 'move_stage' && row.stage_id ? row.stage_id : null,
-        ativo:        true,
-      }
-
-      if (existing) {
-        await supabase.from('quote_automations').update(payload).eq('id', existing.id)
-      } else {
-        await supabase.from('quote_automations').insert(payload)
-      }
+  // WA automation rows
+  const initWaRows = (): Record<string, RowState> => {
+    const r: Record<string, RowState> = {}
+    for (const t of WA_TRIGGERS) {
+      const ex = initialWaAutomations.find(a => a.trigger === t.key)
+      r[t.key] = { action: ex?.action ?? 'none', stage_id: ex?.stage_id ?? '' }
     }
-
-    setSaving(false)
-    setSaved(true)
+    return r
   }
 
-  // Group stages by funnel for the dropdown
+  const [quoteRows, setQuoteRows] = useState<Record<string, RowState>>(initQuoteRows)
+  const [waRows,    setWaRows]    = useState<Record<string, RowState>>(initWaRows)
+  const [savingQ,   setSavingQ]   = useState(false)
+  const [savedQ,    setSavedQ]    = useState(false)
+  const [savingWa,  setSavingWa]  = useState(false)
+  const [savedWa,   setSavedWa]   = useState(false)
+  const [error,     setError]     = useState('')
+
+  function setQuoteRow(key: string, patch: Partial<RowState>) {
+    setQuoteRows(p => ({ ...p, [key]: { ...p[key], ...patch } }))
+    setSavedQ(false)
+  }
+  function setWaRow(key: string, patch: Partial<RowState>) {
+    setWaRows(p => ({ ...p, [key]: { ...p[key], ...patch } }))
+    setSavedWa(false)
+  }
+
+  // Stages grouped by funnel for the dropdown
   const stagesByFunnel = stages.reduce<Record<string, { funnel: string; stages: Stage[] }>>(
     (acc, s) => {
       const fn = s.funnel_id
       if (!acc[fn]) acc[fn] = { funnel: s.funnels?.nome ?? 'Funil', stages: [] }
       acc[fn].stages.push(s)
       return acc
-    },
-    {}
+    }, {}
   )
 
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+  async function saveQuote() {
+    if (!unitId) { setError('Perfil sem unidade.'); return }
+    setSavingQ(true); setError('')
+    for (const status of QUOTE_AUTOMATABLE) {
+      const row = quoteRows[status]
+      const ex  = initialQuoteAutomations.find(a => a.quote_status === status)
+      const payload = {
+        unit_id: unitId, quote_status: status,
+        action:   row.action,
+        stage_id: row.action === 'move_stage' && row.stage_id ? row.stage_id : null,
+        ativo: true,
+      }
+      if (ex) await supabase.from('quote_automations').update(payload).eq('id', ex.id)
+      else    await supabase.from('quote_automations').insert(payload)
+    }
+    setSavingQ(false); setSavedQ(true)
+  }
 
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-base font-semibold text-gray-900">Automações de Funil</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Configure o que acontece com o lead no funil quando o status de um orçamento muda
-            </p>
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
-          >
-            {saving && (
-              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            )}
-            {saved ? 'Salvo!' : saving ? 'Salvando...' : 'Salvar configuração'}
-          </button>
-        </div>
+  async function saveWa() {
+    if (!unitId) { setError('Perfil sem unidade.'); return }
+    setSavingWa(true); setError('')
+    for (const t of WA_TRIGGERS) {
+      const row = waRows[t.key]
+      const ex  = initialWaAutomations.find(a => a.trigger === t.key)
+      const payload = {
+        unit_id: unitId, trigger: t.key,
+        action:   row.action,
+        stage_id: row.action === 'move_stage' && row.stage_id ? row.stage_id : null,
+        ativo: true,
+      }
+      if (ex) await supabase.from('wa_automations').update(payload).eq('id', ex.id)
+      else    await supabase.from('wa_automations').insert(payload)
+    }
+    setSavingWa(false); setSavedWa(true)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+
+      {/* ── Page header ── */}
+      <header style={{ background: '#fff', borderBottom: '1px solid #F1F4F7', padding: '18px 28px', flexShrink: 0 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.02em' }}>Automações</h1>
+        <p style={{ fontSize: 12, color: '#8FA0AF', margin: '3px 0 0' }}>
+          Configure ações automáticas para movimentar contatos no funil com base em eventos
+        </p>
       </header>
 
-      <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-2xl mx-auto space-y-4">
+      <main style={{ flex: 1, overflowY: 'auto', padding: '28px 28px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32 }}>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{error}</p>
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#DC2626' }}>
+              {error}
+            </div>
           )}
 
-          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-xs text-amber-700">
-            <strong>Como funciona:</strong> quando um orçamento muda para o status configurado, o lead vinculado
-            é movido automaticamente para o stage escolhido — ou arquivado, se preferir.
-          </div>
+          {/* ── Seção WhatsApp ── */}
+          <Section
+            icon={
+              <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: '#25D366' }}>
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+              </svg>
+            }
+            title="Automações de Atendimento"
+            desc="Mova o contato no funil automaticamente com base em eventos do WhatsApp"
+            accentColor="#25D366"
+            onSave={saveWa}
+            saving={savingWa}
+            saved={savedWa}
+          >
+            {WA_TRIGGERS.map(t => (
+              <AutomationCard
+                key={t.key}
+                label={t.label}
+                desc={t.desc}
+                accentColor={t.color}
+                row={waRows[t.key]}
+                stages={stagesByFunnel}
+                allStages={stages}
+                onChange={patch => setWaRow(t.key, patch)}
+              />
+            ))}
+          </Section>
 
-          {AUTOMATABLE.map(status => {
-            const row = rows[status]
-            return (
-              <div key={status} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                {/* Status header */}
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-                  <span className="text-xl">{STATUS_ICONS[status]}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${TRIGGER_COLORS[status]}`}>
-                        {TRIGGER_LABELS[status]}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{STATUS_DESCRIPTIONS[status]}</p>
-                  </div>
-                </div>
+          <Divider />
 
-                {/* Action config */}
-                <div className="px-5 py-4 space-y-3">
-                  <p className="text-xs font-medium text-gray-600">Ação automática:</p>
+          {/* ── Seção Orçamentos ── */}
+          <Section
+            icon={
+              <svg width="18" height="18" fill="none" stroke="#0098DA" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
+            title="Automações de Orçamento"
+            desc="Mova ou arquive o contato quando o status de um orçamento mudar"
+            accentColor="#0098DA"
+            onSave={saveQuote}
+            saving={savingQ}
+            saved={savedQ}
+          >
+            {QUOTE_AUTOMATABLE.map(status => {
+              const meta = QUOTE_TRIGGER_META[status]
+              return (
+                <AutomationCard
+                  key={status}
+                  label={meta.label}
+                  desc={meta.desc}
+                  accentColor={meta.color}
+                  row={quoteRows[status]}
+                  stages={stagesByFunnel}
+                  allStages={stages}
+                  onChange={patch => setQuoteRow(status, patch)}
+                />
+              )
+            })}
+          </Section>
 
-                  <div className="space-y-2">
-                    {/* Nenhuma ação */}
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        row.action === 'none' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                      }`}>
-                        {row.action === 'none' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </div>
-                      <input type="radio" className="sr-only" checked={row.action === 'none'} onChange={() => setRow(status, { action: 'none' })} />
-                      <span className="text-sm text-gray-700">Nenhuma ação</span>
-                    </label>
-
-                    {/* Mover para stage */}
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${
-                        row.action === 'move_stage' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                      }`}>
-                        {row.action === 'move_stage' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </div>
-                      <input type="radio" className="sr-only" checked={row.action === 'move_stage'} onChange={() => setRow(status, { action: 'move_stage' })} />
-                      <div className="flex-1">
-                        <span className="text-sm text-gray-700">Mover lead para o stage:</span>
-                        {row.action === 'move_stage' && (
-                          <select
-                            value={row.stage_id}
-                            onChange={e => setRow(status, { stage_id: e.target.value })}
-                            className="mt-2 w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">Selecione um stage...</option>
-                            {Object.values(stagesByFunnel).map(({ funnel, stages: fStages }) => (
-                              <optgroup key={funnel} label={funnel}>
-                                {fStages.map(s => (
-                                  <option key={s.id} value={s.id}>{s.nome}</option>
-                                ))}
-                              </optgroup>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </label>
-
-                    {/* Arquivar lead */}
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        row.action === 'archive' ? 'border-red-500 bg-red-500' : 'border-gray-300'
-                      }`}>
-                        {row.action === 'archive' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </div>
-                      <input type="radio" className="sr-only" checked={row.action === 'archive'} onChange={() => setRow(status, { action: 'archive' })} />
-                      <span className="text-sm text-gray-700">Arquivar lead</span>
-                    </label>
-                  </div>
-
-                  {/* Preview */}
-                  {row.action === 'move_stage' && row.stage_id && (
-                    <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2">
-                      <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                      <span className="text-xs text-blue-700">
-                        Lead moverá para <strong>{stages.find(s => s.id === row.stage_id)?.nome ?? '—'}</strong>
-                      </span>
-                    </div>
-                  )}
-                  {row.action === 'archive' && (
-                    <div className="flex items-center gap-2 bg-red-50 rounded-xl px-3 py-2">
-                      <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                      </svg>
-                      <span className="text-xs text-red-700">Lead será arquivado automaticamente</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
         </div>
       </main>
     </div>
   )
+}
+
+// ── Section wrapper ───────────────────────────────────────────────────────────
+
+function Section({ icon, title, desc, accentColor, onSave, saving, saved, children }: {
+  icon: React.ReactNode; title: string; desc: string; accentColor: string
+  onSave: () => void; saving: boolean; saved: boolean; children: React.ReactNode
+}) {
+  return (
+    <div>
+      {/* Section header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: accentColor + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {icon}
+          </div>
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.01em' }}>{title}</h2>
+            <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>{desc}</p>
+          </div>
+        </div>
+        <button
+          onClick={onSave}
+          disabled={saving}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+            fontSize: 12, fontWeight: 700, borderRadius: 9, border: 'none', cursor: saving ? 'default' : 'pointer',
+            background: saved ? '#E8F7EE' : accentColor, color: saved ? '#1D9E75' : '#fff',
+            opacity: saving ? 0.7 : 1, transition: 'all 0.2s', flexShrink: 0,
+          }}
+        >
+          {saving && <Spinner />}
+          {saved ? 'Salvo' : saving ? 'Salvando...' : 'Salvar'}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ── Automation card ───────────────────────────────────────────────────────────
+
+interface AutomationCardProps {
+  label:        string
+  desc:         string
+  accentColor:  string
+  row:          RowState
+  stages:       Record<string, { funnel: string; stages: Stage[] }>
+  allStages:    Stage[]
+  onChange:     (patch: Partial<RowState>) => void
+}
+
+function AutomationCard({ label, desc, accentColor, row, stages, allStages, onChange }: AutomationCardProps) {
+  const targetStage = allStages.find(s => s.id === row.stage_id)
+
+  return (
+    <div style={{
+      background: '#fff', border: '1px solid #F1F4F7', borderRadius: 14,
+      overflow: 'hidden', borderLeft: `3px solid ${accentColor}`,
+    }}>
+      {/* Trigger row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid #F8FAFB' }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: accentColor, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', margin: 0 }}>{label}</p>
+          <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>{desc}</p>
+        </div>
+        {/* Quick status pill */}
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, flexShrink: 0,
+          background: row.action !== 'none' ? accentColor + '18' : '#F1F4F7',
+          color: row.action !== 'none' ? accentColor : '#B0BEC9',
+        }}>
+          {row.action === 'move_stage' ? 'Mover' : 'Sem ação'}
+        </span>
+      </div>
+
+      {/* Action config */}
+      <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Ação automática</p>
+
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(['none', 'move_stage'] as Array<'none' | 'move_stage'>).map(a => (
+            <button
+              key={a}
+              onClick={() => onChange({ action: a })}
+              style={{
+                padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid', cursor: 'pointer', transition: 'all 0.15s',
+                background: row.action === a ? (a === 'none' ? '#F1F4F7' : accentColor) : '#fff',
+                color: row.action === a ? (a === 'none' ? '#5A7184' : '#fff') : '#8FA0AF',
+                borderColor: row.action === a ? (a === 'none' ? '#E8EDF2' : accentColor) : '#E8EDF2',
+              }}
+            >
+              {a === 'none' ? 'Nenhuma ação' : 'Mover contato para →'}
+            </button>
+          ))}
+        </div>
+
+        {row.action === 'move_stage' && (
+          <select
+            value={row.stage_id}
+            onChange={e => onChange({ stage_id: e.target.value })}
+            style={{
+              width: '100%', fontSize: 13, padding: '8px 12px', borderRadius: 9,
+              border: `1px solid ${row.stage_id ? accentColor + '60' : '#E8EDF2'}`,
+              background: '#F8FAFB', outline: 'none', color: '#0E2C3D', cursor: 'pointer',
+            }}
+          >
+            <option value="">Selecione um estágio...</option>
+            {Object.values(stages).map(({ funnel, stages: fStages }) => (
+              <optgroup key={funnel} label={funnel}>
+                {fStages.map(s => (
+                  <option key={s.id} value={s.id}>{s.nome}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        )}
+
+        {/* Preview arrow */}
+        {row.action === 'move_stage' && row.stage_id && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: accentColor + '0D', border: `1px solid ${accentColor}30`, borderRadius: 8, padding: '7px 12px' }}>
+            <svg width="14" height="14" fill="none" stroke={accentColor} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>
+              Contato move para <strong>{targetStage?.nome ?? '—'}</strong>
+              {targetStage?.cor && (
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: targetStage.cor, marginLeft: 6, verticalAlign: 'middle' }} />
+              )}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+
+function Divider() {
+  return <div style={{ height: 1, background: '#F1F4F7' }} />
+}
+
+function Spinner() {
+  return (
+    <div style={{ width: 13, height: 13, border: '2px solid #ffffff55', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+  )
+}
+
+// inline keyframes injected once
+if (typeof document !== 'undefined' && !document.getElementById('spin-kf')) {
+  const s = document.createElement('style')
+  s.id = 'spin-kf'
+  s.textContent = '@keyframes spin { to { transform: rotate(360deg) } }'
+  document.head.appendChild(s)
 }

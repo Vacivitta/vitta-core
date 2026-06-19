@@ -8,7 +8,9 @@ import {
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { LeadTask, Profile } from '@/types/database'
+import { displayName } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
+import DateTimePicker from '@/components/ui/DateTimePicker'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,12 +40,21 @@ const WEEK_SHORT  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Converte "YYYY-MM-DDTHH:mm" (hora local do input) para ISO UTC
+// Usa o construtor posicional do Date, que SEMPRE interpreta como hora local
+function localInputToISO(s: string): string {
+  const [date, time] = s.split('T')
+  const [y, mo, d] = date.split('-').map(Number)
+  const [h, mi]    = time.split(':').map(Number)
+  return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
+}
+
 function taskColor(task: TaskWithLead) {
   if (task.concluida)
-    return { bg: 'bg-emerald-50', text: 'text-emerald-700', barColor: '#34d399' }
+    return { bg: '', text: '', barColor: '#4EB46B', style: { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' } }
   if (task.data_limite && isBefore(parseISO(task.data_limite), new Date()))
-    return { bg: 'bg-red-50', text: 'text-red-700', barColor: '#f87171' }
-  return { bg: 'bg-blue-50', text: 'text-blue-700', barColor: '#60a5fa' }
+    return { bg: '', text: '', barColor: '#E5484D', style: { background: 'var(--color-danger-subtle)', color: 'var(--color-danger-text)' } }
+  return { bg: '', text: '', barColor: '#0098DA', style: { background: 'var(--color-brand-subtle)', color: 'var(--color-brand)' } }
 }
 
 function taskTop(dt: Date): number {
@@ -90,6 +101,7 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
       .from('lead_tasks')
       .select('*, responsavel:profiles(*), lead:leads(id, nome, sobrenome)')
       .not('data_limite', 'is', null)
+      .eq('concluida', false)
       .order('data_limite')
     if (data) setTasks(data as TaskWithLead[])
   }
@@ -181,14 +193,15 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
             className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shrink-0"
           >
             <option value="">Todos responsáveis</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
           </select>
         )}
 
         {/* New task */}
         <button
           onClick={() => { setNewFormDate(null); setShowNewForm(true) }}
-          className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium shrink-0"
+          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors"
+          style={{ background: 'var(--color-brand)', color: '#fff', boxShadow: 'var(--shadow-btn-primary)' }}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -290,13 +303,14 @@ function MonthView({
               <div className="flex items-center justify-between mb-0.5">
                 <button
                   onClick={() => onDayClick(day)}
-                  className={`w-6 h-6 flex items-center justify-center text-xs font-semibold rounded-full transition-colors ${
+                  className="w-6 h-6 flex items-center justify-center text-xs font-semibold rounded-full transition-colors"
+                  style={
                     today
-                      ? 'bg-blue-500 text-white'
+                      ? { background: 'var(--color-brand)', color: '#fff' }
                       : inMonth
-                        ? 'text-gray-800 hover:bg-gray-100'
-                        : 'text-gray-300'
-                  }`}
+                        ? { color: 'var(--color-ink)' }
+                        : { color: 'var(--color-muted)' }
+                  }
                 >
                   {format(day, 'd')}
                 </button>
@@ -314,13 +328,13 @@ function MonthView({
                   <button
                     key={task.id}
                     onClick={() => onTaskClick(task)}
-                    className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate font-medium border ${c.bg} ${c.text}`}
-                    style={{ borderColor: taskColor(task).barColor + '55' }}
+                    className="w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate font-medium border"
+                    style={{ ...c.style, borderColor: c.barColor + '55' }}
                   >
                     {task.data_limite && (
                       <span className="opacity-70 mr-1">{format(parseISO(task.data_limite), 'HH:mm')}</span>
                     )}
-                    {task.concluida && '✓ '}{task.titulo}
+                    {task.titulo}
                   </button>
                 )
               })}
@@ -378,9 +392,8 @@ function TimeGridView({
               {format(day, 'EEE', { locale: ptBR })}
             </div>
             <div
-              className={`text-lg font-bold mx-auto w-8 h-8 flex items-center justify-center rounded-full ${
-                isToday(day) ? 'bg-blue-500 text-white' : 'text-gray-800'
-              }`}
+              className="text-lg font-bold mx-auto w-8 h-8 flex items-center justify-center rounded-full"
+              style={isToday(day) ? { background: 'var(--color-brand)', color: '#fff' } : { color: 'var(--color-ink)' }}
             >
               {format(day, 'd')}
             </div>
@@ -451,8 +464,8 @@ function TimeGridView({
                     style={{ top: `${nowTop}px` }}
                   >
                     <div className="relative flex items-center">
-                      <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
-                      <div className="flex-1 border-t-2 border-red-400" />
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--color-danger)' }} />
+                      <div className="flex-1 border-t-2" style={{ borderColor: 'var(--color-danger)' }} />
                     </div>
                   </div>
                 )}
@@ -465,8 +478,9 @@ function TimeGridView({
                   return (
                     <div
                       key={task.id}
-                      className={`absolute left-1 right-1 rounded-lg px-2 py-1 cursor-pointer hover:z-10 hover:shadow-md transition-shadow ${c.bg} ${c.text}`}
+                      className="absolute left-1 right-1 rounded-lg px-2 py-1 cursor-pointer hover:z-10 hover:shadow-md transition-shadow"
                       style={{
+                        ...c.style,
                         top: `${top}px`,
                         height: `${EVENT_H}px`,
                         borderLeft: `3px solid ${c.barColor}`,
@@ -483,7 +497,7 @@ function TimeGridView({
                       )}
                       {task.responsavel && (
                         <p className="text-[10px] truncate opacity-60">
-                          {task.responsavel.full_name}
+                          {displayName(task.responsavel)}
                         </p>
                       )}
                     </div>
@@ -517,7 +531,7 @@ function TaskDetailModal({
   const [confirm, setConfirm] = useState(false)
   const [form,    setForm]    = useState({
     titulo:         task.titulo,
-    data_limite:    task.data_limite ? task.data_limite.slice(0, 16) : '',
+    data_limite:    task.data_limite ? format(new Date(task.data_limite), "yyyy-MM-dd'T'HH:mm") : '',
     responsavel_id: task.responsavel_id ?? '',
     descricao:      task.descricao ?? '',
   })
@@ -533,7 +547,7 @@ function TaskDetailModal({
     setSaving(true)
     await supabase.from('lead_tasks').update({
       titulo:         form.titulo,
-      data_limite:    form.data_limite || null,
+      data_limite:    form.data_limite ? localInputToISO(form.data_limite) : null,
       responsavel_id: form.responsavel_id || null,
       descricao:      form.descricao || null,
     }).eq('id', task.id)
@@ -594,11 +608,9 @@ function TaskDetailModal({
             <>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Data e hora</label>
-                <input
-                  type="datetime-local"
+                <DateTimePicker
                   value={form.data_limite}
-                  onChange={e => setForm(f => ({ ...f, data_limite: e.target.value }))}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={v => setForm(f => ({ ...f, data_limite: v }))}
                 />
               </div>
               <div>
@@ -609,7 +621,7 @@ function TaskDetailModal({
                   className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Sem responsável</option>
-                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
                 </select>
               </div>
               <div>
@@ -641,7 +653,7 @@ function TaskDetailModal({
                   <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  {task.responsavel.full_name}
+                  {displayName(task.responsavel)}
                 </div>
               )}
               {task.descricao && (
@@ -658,7 +670,7 @@ function TaskDetailModal({
               <button
                 onClick={handleSave}
                 disabled={saving || !form.titulo.trim()}
-                className="flex-1 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                className="flex-1 py-2 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition-colors" style={{ background: 'var(--color-brand)' }}
               >
                 {saving ? 'Salvando…' : 'Salvar'}
               </button>
@@ -683,11 +695,11 @@ function TaskDetailModal({
             <>
               <button
                 onClick={handleToggle}
-                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  task.concluida
-                    ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                    : 'bg-emerald-500 text-white hover:bg-emerald-600'
-                }`}
+                className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors"
+                style={task.concluida
+                  ? { border: '1px solid var(--color-border)', color: 'var(--color-text)' }
+                  : { background: 'var(--color-success)', color: '#fff' }
+                }
               >
                 {task.concluida ? 'Reabrir' : 'Concluir'}
               </button>
@@ -776,7 +788,7 @@ function NewTaskModal({
     await supabase.from('lead_tasks').insert({
       lead_id:        selectedLead.id,
       titulo:         form.titulo,
-      data_limite:    form.data_limite || null,
+      data_limite:    form.data_limite ? localInputToISO(form.data_limite) : null,
       responsavel_id: form.responsavel_id || null,
       descricao:      form.descricao || null,
       concluida:      false,
@@ -815,7 +827,7 @@ function NewTaskModal({
 
           {/* Lead search */}
           <div className="relative">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Lead / paciente *</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Contato *</label>
             <input
               value={leadQuery}
               onChange={e => handleLeadInput(e.target.value)}
@@ -844,21 +856,17 @@ function NewTaskModal({
             )}
             {showDropdown && leadResults.length === 0 && leadQuery.length >= 2 && (
               <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg px-3 py-2 text-xs text-gray-400">
-                Nenhum lead encontrado
+                Nenhum contato encontrado
               </div>
             )}
           </div>
 
           {/* Date/time */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Data e hora</label>
-            <input
-              type="datetime-local"
-              value={form.data_limite}
-              onChange={e => setForm(f => ({ ...f, data_limite: e.target.value }))}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <DateTimePicker
+            value={form.data_limite}
+            onChange={v => setForm(f => ({ ...f, data_limite: v }))}
+            label="Data e hora"
+          />
 
           {/* Responsible */}
           <div>
@@ -868,7 +876,7 @@ function NewTaskModal({
               onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))}
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
             </select>
           </div>
 
@@ -889,7 +897,7 @@ function NewTaskModal({
           <button
             onClick={handleCreate}
             disabled={saving || !form.titulo.trim() || !selectedLead}
-            className="flex-1 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors"
+            className="flex-1 py-2 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition-colors" style={{ background: 'var(--color-brand)' }}
           >
             {saving ? 'Criando…' : 'Criar tarefa'}
           </button>

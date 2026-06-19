@@ -23,6 +23,7 @@ export default async function AgendaPage() {
       .from('lead_tasks')
       .select('*, responsavel:profiles(*), lead:leads(id, nome, sobrenome)')
       .not('data_limite', 'is', null)
+      .eq('concluida', false)
       .order('data_limite'),
   ])
 

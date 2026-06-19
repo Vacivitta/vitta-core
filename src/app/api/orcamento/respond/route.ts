@@ -68,17 +68,25 @@ export async function POST(req: NextRequest) {
   // ── 3. Executar automação de funil via função SECURITY DEFINER ────────────
   const leadId = quote.lead_id
   if (leadId) {
-    await supabase.rpc('execute_quote_automation', {
+    const { error: autoErr } = await supabase.rpc('execute_quote_automation', {
       p_unit_id:      quote.unit_id,
       p_lead_id:      leadId,
       p_quote_status: status,
       p_motivo:       motivo ?? null,
     })
+    if (autoErr) console.error('[orcamento/respond] execute_quote_automation:', autoErr.message)
   }
 
   // ── 4. Criar notificação in-app ao aceitar ou recusar ─────────────────────
   if (status === 'aceito' || status === 'recusado') {
-    const patient = (quote as any).lead ?? (quote as any).client
+    type QuoteRelation = { nome: string; sobrenome: string | null }
+    type QuoteRow = typeof quote & {
+      lead:            QuoteRelation | null
+      client:          QuoteRelation | null
+      responsavel_id:  string | null
+    }
+    const q          = quote as QuoteRow
+    const patient    = q.lead ?? q.client
     const patientName = patient
       ? `${patient.nome}${patient.sobrenome ? ` ${patient.sobrenome}` : ''}`
       : 'Paciente'
@@ -86,15 +94,16 @@ export async function POST(req: NextRequest) {
     const fmtBRL   = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
     const valorStr = quote.total_calculado != null ? fmtBRL.format(Number(quote.total_calculado)) : ''
 
-    await supabase.rpc('create_quote_notification', {
+    const { error: notifErr } = await supabase.rpc('create_quote_notification', {
       p_unit_id:  quote.unit_id,
-      p_user_id:  (quote as any).responsavel_id ?? null,
+      p_user_id:  q.responsavel_id ?? null,
       p_type:     `quote_${status}`,
       p_title:    status === 'aceito' ? '✅ Orçamento aceito' : '❌ Orçamento recusado',
       p_body:     `#${numStr} · ${patientName}${valorStr ? ` · ${valorStr}` : ''}`,
       p_quote_id: quote.id,
       p_lead_id:  leadId ?? null,
     })
+    if (notifErr) console.error('[orcamento/respond] create_quote_notification:', notifErr.message)
   }
 
   return NextResponse.json({

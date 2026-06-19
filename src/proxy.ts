@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   '/auth/reset-password',
   '/orcamento/ver',
   '/api/orcamento/respond',
+  '/api/whatsapp',       // webhook do Meta — chamadas server-to-server sem cookie de auth
 ]
 
 export async function proxy(request: NextRequest) {

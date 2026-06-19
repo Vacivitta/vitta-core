@@ -22,17 +22,14 @@ export default async function DashboardPage() {
     { data: quotesRaw },
     { data: stagesRaw },
   ] = await Promise.all([
-    // Leads ativos com stage
     supabase
       .from('leads')
-      .select('id, stage_id, criado_em')
+      .select('id, stage_id, created_at')
       .eq('arquivado', false),
-    // Todos os orçamentos
     supabase
       .from('quotes')
       .select('id, status, total_calculado, criado_em, aceito_em')
       .order('criado_em', { ascending: false }),
-    // Stages com funil
     supabase
       .from('funnel_stages')
       .select('id, nome, cor, ordem, funnel_id, funnels(id, nome)')

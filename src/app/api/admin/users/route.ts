@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null)
-  const { email, full_name, perfil, unit_id } = body ?? {}
+  const { email, full_name, apelido, perfil, unit_id } = body ?? {}
   if (!email || !full_name || !perfil) {
     return NextResponse.json({ error: 'email, full_name e perfil são obrigatórios' }, { status: 400 })
   }
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Atualiza o perfil criado pelo trigger com os campos extras
-  await admin.from('profiles').update({ full_name, perfil, unit_id: unit_id ?? null, email }).eq('id', invited.user.id)
+  await admin.from('profiles').update({ full_name, apelido: apelido ?? null, perfil, unit_id: unit_id ?? null, email }).eq('id', invited.user.id)
 
   // Vínculo user_units se unit_id informado
   if (unit_id) {

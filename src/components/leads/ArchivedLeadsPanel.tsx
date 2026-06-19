@@ -35,9 +35,9 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Leads Arquivados</h2>
+            <h2 className="text-base font-semibold text-gray-900">Contatos Arquivados</h2>
             <p className="text-xs text-gray-400">
-              {loading ? 'Carregando...' : `${leads.length} ${leads.length === 1 ? 'lead' : 'leads'}`}
+              {loading ? 'Carregando...' : `${leads.length} ${leads.length === 1 ? 'contato' : 'contatos'}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
               </svg>
-              <p className="text-sm">Nenhum lead arquivado</p>
+              <p className="text-sm">Nenhum contato arquivado</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">

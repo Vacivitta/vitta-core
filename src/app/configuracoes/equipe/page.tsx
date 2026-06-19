@@ -17,7 +17,7 @@ export default async function EquipePage() {
   const [{ data: users }, { data: units }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, perfil, unit_id, ativo, created_at, unit:units(id,nome)')
+      .select('id, full_name, apelido, email, perfil, unit_id, ativo, created_at, unit:units(id,nome)')
       .order('full_name'),
     supabase
       .from('units')
@@ -27,7 +27,7 @@ export default async function EquipePage() {
 
   return (
     <EquipeClient
-      initialUsers={users ?? []}
+      initialUsers={(users ?? []) as unknown as Parameters<typeof EquipeClient>[0]['initialUsers']}
       initialUnits={units ?? []}
     />
   )

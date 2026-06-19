@@ -594,8 +594,8 @@ function TemplateCard({ template, onEdit, onDelete, onToggleDefault }: {
     pacote_ativo: false, pacote_opcoes: null,
     criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString(),
     items: [
-      { id: '1', quote_id: 'preview', unit_id: template.unit_id, product_id: '1', nome_snapshot: 'Vacina Gripe Quadrivalente', valor_snapshot: 150, quantidade: 1, desconto: 0, valor_final: 150, observacao: null, criado_em: '' },
-      { id: '2', quote_id: 'preview', unit_id: template.unit_id, product_id: '2', nome_snapshot: 'Vacina Hepatite B', valor_snapshot: 120, quantidade: 2, desconto: 5, valor_final: 228, observacao: null, criado_em: '' },
+      { id: '1', quote_id: 'preview', unit_id: template.unit_id, product_id: '1', nome_snapshot: 'Vacina Gripe Quadrivalente', descricao_snapshot: 'Proteção contra influenza A (H1N1, H3N2) e influenza B. Recomendada anualmente.', valor_snapshot: 150, quantidade: 1, desconto: 0, valor_final: 150, observacao: null, criado_em: '' },
+      { id: '2', quote_id: 'preview', unit_id: template.unit_id, product_id: '2', nome_snapshot: 'Vacina Hepatite B', descricao_snapshot: 'Prevenção da hepatite B, doença hepática grave causada pelo vírus HBV. Esquema em 3 doses.', valor_snapshot: 120, quantidade: 2, desconto: 5, valor_final: 228, observacao: null, criado_em: '' },
     ],
     template: { ...template, texto_rodape: rodapeText },
     lead: { nome: 'Maria', sobrenome: 'Silva', telefone: '(11) 99999-0000' },

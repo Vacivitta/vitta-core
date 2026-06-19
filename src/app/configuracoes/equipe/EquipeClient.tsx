@@ -8,6 +8,7 @@ import { PERFIL_LABELS } from '@/types/database'
 interface UserProfile {
   id:         string
   full_name:  string
+  apelido:    string | null
   email:      string | null
   perfil:     UserPerfil
   unit_id:    string | null
@@ -41,7 +42,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
   // ── Formulário de usuário ──────────────────────────────────────────────────
   const [userForm, setUserForm] = useState({
-    full_name: '', email: '', perfil: 'atendente' as UserPerfil, unit_id: '',
+    full_name: '', apelido: '', email: '', perfil: 'atendente' as UserPerfil, unit_id: '',
   })
 
   // ── Formulário de unidade ──────────────────────────────────────────────────
@@ -51,14 +52,14 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
   // ── Usuários ───────────────────────────────────────────────────────────────
   function openInvite() {
-    setUserForm({ full_name: '', email: '', perfil: 'atendente', unit_id: units[0]?.id ?? '' })
+    setUserForm({ full_name: '', apelido: '', email: '', perfil: 'atendente', unit_id: units[0]?.id ?? '' })
     setSelUser(null)
     setFormError('')
     setUserModal('invite')
   }
 
   function openEditUser(u: UserProfile) {
-    setUserForm({ full_name: u.full_name, email: u.email ?? '', perfil: u.perfil, unit_id: u.unit_id ?? '' })
+    setUserForm({ full_name: u.full_name, apelido: u.apelido ?? '', email: u.email ?? '', perfil: u.perfil, unit_id: u.unit_id ?? '' })
     setSelUser(u)
     setFormError('')
     setUserModal('edit')
@@ -77,6 +78,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
           body: JSON.stringify({
             email:     userForm.email.trim(),
             full_name: userForm.full_name.trim(),
+            apelido:   userForm.apelido.trim() || null,
             perfil:    userForm.perfil,
             unit_id:   userForm.unit_id || null,
           }),
@@ -88,13 +90,14 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
           .from('profiles')
           .select('id, full_name, email, perfil, unit_id, ativo, created_at, unit:units(id,nome)')
           .order('full_name')
-        if (data) setUsers(data as UserProfile[])
+        if (data) setUsers(data as unknown as UserProfile[])
       } else if (selUser) {
         const res = await fetch(`/api/admin/users/${selUser.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             full_name: userForm.full_name.trim(),
+            apelido:   userForm.apelido.trim() || null,
             perfil:    userForm.perfil,
             unit_id:   userForm.unit_id || null,
           }),
@@ -102,7 +105,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
         if (!res.ok) { const j = await res.json(); setFormError(j.error ?? 'Erro ao salvar.'); setSaving(false); return }
         const unit = units.find(u => u.id === userForm.unit_id)
         setUsers(prev => prev.map(u => u.id === selUser.id
-          ? { ...u, full_name: userForm.full_name.trim(), perfil: userForm.perfil, unit_id: userForm.unit_id || null, unit: unit ? { id: unit.id, nome: unit.nome } : null }
+          ? { ...u, full_name: userForm.full_name.trim(), apelido: userForm.apelido.trim() || null, perfil: userForm.perfil, unit_id: userForm.unit_id || null, unit: unit ? { id: unit.id, nome: unit.nome } : null }
           : u
         ))
       }
@@ -249,7 +252,10 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">{u.full_name}</p>
-                          <p className="text-xs text-gray-400">{u.email ?? '—'}</p>
+                          {u.apelido
+                            ? <p className="text-xs font-medium text-blue-500">@{u.apelido}</p>
+                            : <p className="text-xs text-gray-400">{u.email ?? '—'}</p>
+                          }
                         </div>
                       </div>
                     </td>
@@ -387,6 +393,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
             <div className="px-6 py-4 space-y-3">
               <UField label="Nome completo *" value={userForm.full_name} onChange={v => setUserForm(f => ({ ...f, full_name: v }))} />
+              <UField label="Apelido (nome no atendimento)" value={userForm.apelido} onChange={v => setUserForm(f => ({ ...f, apelido: v }))} placeholder="ex: Ana, Dr. João" />
               {userModal === 'invite' && (
                 <UField label="E-mail *" value={userForm.email} onChange={v => setUserForm(f => ({ ...f, email: v }))} type="email" />
               )}

@@ -47,7 +47,7 @@ export default function QuickLeadForm({
   }
 
   async function handleSave(openFull = false) {
-    if (!form.nome.trim()) { setError('Informe o nome do lead.'); return }
+    if (!form.nome.trim()) { setError('Informe o nome do contato.'); return }
     setSaving(true)
     setError('')
     try {
@@ -68,6 +68,9 @@ export default function QuickLeadForm({
         responsavel_id: form.responsavel_id    || null,
         unit_id:        currentUser.unit_id,
         client_id:      null,
+        wa_optin_at:    null,
+        wa_optout_at:   null,
+        campanha_id:    null,
       })
       onCreated(lead, openFull)
     } catch {
@@ -84,7 +87,7 @@ export default function QuickLeadForm({
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">Novo Lead</h2>
+          <h2 className="text-base font-semibold text-gray-900">Novo Contato</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition-colors"
@@ -106,7 +109,7 @@ export default function QuickLeadForm({
               value={form.nome}
               onChange={e => { setForm(f => ({ ...f, nome: e.target.value })); setError('') }}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSave()}
-              placeholder="Nome do lead..."
+              placeholder="Nome do contato..."
               className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 error ? 'border-red-300 ring-1 ring-red-300' : 'border-gray-200'
               }`}

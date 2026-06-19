@@ -37,9 +37,36 @@ export async function updateFunnel(
   if (error) throw error
 }
 
-// Desativa (soft-delete) — não excluímos porque leads referenciam o funil
+// Desativa (soft-delete)
 export async function deactivateFunnel(id: string): Promise<void> {
   await updateFunnel(id, { ativo: false })
+}
+
+// Exclui permanentemente — só permite se não houver leads em nenhuma etapa
+export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount: number }> {
+  const supabase = createClient()
+
+  // Conta leads ativos vinculados ao funil (via etapas)
+  const { data: stages } = await supabase
+    .from('funnel_stages').select('id').eq('funnel_id', id)
+
+  const stageIds = (stages ?? []).map(s => s.id)
+  let leadCount = 0
+
+  if (stageIds.length > 0) {
+    const { count } = await supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .in('stage_id', stageIds)
+      .eq('arquivado', false)
+    leadCount = count ?? 0
+  }
+
+  if (leadCount > 0) return { ok: false, leadCount }
+
+  const { error } = await supabase.from('funnels').delete().eq('id', id)
+  if (error) throw error
+  return { ok: true, leadCount: 0 }
 }
 
 // ---- Etapas ---------------------------------------------------------------

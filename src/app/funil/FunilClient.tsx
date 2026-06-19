@@ -70,7 +70,12 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       .order('stage_ordem')
       .order('ordem')
       .order('created_at')
-    if (data) setLeads(data as LeadKanban[])
+    if (data) {
+      const fresh = data as LeadKanban[]
+      setLeads(fresh)
+      // Atualiza o modal com os dados frescos sem fechar
+      setModalLead(prev => prev ? (fresh.find(l => l.id === prev.id) ?? prev) : prev)
+    }
   }
 
   function handleLeadClick(lead: LeadKanban) {
@@ -128,7 +133,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             <span className="text-sm font-semibold text-gray-800">{selectedFunnel.nome}</span>
           )}
 
-          <span className="hidden sm:block text-xs text-gray-400">{totalLeads} leads</span>
+          <span className="hidden sm:block text-xs text-gray-400">{totalLeads} contatos</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -170,7 +175,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           <button
             onClick={() => setShowArchived(true)}
             className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
-            title="Ver leads arquivados"
+            title="Ver contatos arquivados"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -186,7 +191,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Novo lead
+            Novo contato
           </button>
         </div>
       </header>

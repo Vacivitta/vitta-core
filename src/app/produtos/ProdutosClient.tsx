@@ -26,14 +26,14 @@ function MargemBadge({ venda, custo }: { venda: number | null; custo: number | n
   const m = calcMargem(venda, custo)
   if (m == null) return <span className="text-xs text-gray-300">—</span>
 
-  const color = m >= 40
-    ? 'bg-emerald-50 text-emerald-700'
+  const colorStyle = m >= 40
+    ? { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' }
     : m >= 20
-      ? 'bg-amber-50 text-amber-700'
-      : 'bg-red-50 text-red-700'
+      ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent-text)' }
+      : { background: 'var(--color-danger-subtle)', color: 'var(--color-danger-text)' }
 
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${color}`}>
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={colorStyle}>
       {m.toFixed(1)}%
     </span>
   )
@@ -41,16 +41,16 @@ function MargemBadge({ venda, custo }: { venda: number | null; custo: number | n
 
 // ─── TIPO badge ───────────────────────────────────────────────────────────────
 
-const TIPO_COLORS: Record<ProductTipo, string> = {
-  vacina:  'bg-blue-50 text-blue-700',
-  pacote:  'bg-purple-50 text-purple-700',
-  servico: 'bg-teal-50 text-teal-700',
+const TIPO_STYLES: Record<ProductTipo, React.CSSProperties> = {
+  vacina:  { background: 'var(--color-brand-subtle)', color: 'var(--color-brand)' },
+  pacote:  { background: 'var(--color-accent-subtle)', color: 'var(--color-accent-text)' },
+  servico: { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' },
 }
 
 function TipoBadge({ tipo }: { tipo: ProductTipo | null }) {
   if (!tipo) return null
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${TIPO_COLORS[tipo]}`}>
+    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={TIPO_STYLES[tipo]}>
       {PRODUCT_TIPO_LABELS[tipo]}
     </span>
   )
@@ -140,11 +140,13 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
     onSaved(data as Product)
   }
 
-  const margemColor = margem == null
-    ? 'text-gray-400'
-    : margem >= 40 ? 'text-emerald-600'
-    : margem >= 20 ? 'text-amber-600'
-    : 'text-red-600'
+  const margemColorStyle: React.CSSProperties = {
+    color: margem == null
+      ? 'var(--color-muted)'
+      : margem >= 40 ? 'var(--color-success-text)'
+      : margem >= 20 ? 'var(--color-accent-text)'
+      : 'var(--color-danger-text)',
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -233,7 +235,7 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
             <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-gray-500">Margem bruta estimada</span>
               <div className="text-right">
-                <span className={`text-sm font-bold ${margemColor}`}>
+                <span className="text-sm font-bold" style={margemColorStyle}>
                   {margem != null ? `${margem.toFixed(1)}%` : '—'}
                 </span>
                 {venda != null && custo != null && venda > 0 && (
@@ -284,7 +286,8 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
           <button
             onClick={handleSave}
             disabled={saving || !canEdit}
-            className="px-4 py-2 text-xs font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            className="px-4 py-2 text-xs font-medium text-white rounded-xl disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
           >
             {saving && (
               <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -386,7 +389,8 @@ export default function ProdutosClient({ currentUser, initialProducts }: Props) 
           {canEdit && (
             <button
               onClick={openNew}
-              className="flex items-center gap-1.5 text-sm px-3 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+              className="flex items-center gap-1.5 text-sm px-3 py-2 text-white rounded-xl transition-colors font-medium"
+              style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -401,16 +405,16 @@ export default function ProdutosClient({ currentUser, initialProducts }: Props) 
       <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-6 shrink-0">
         <StatCard label="Total cadastrado" value={stats.total} />
         <div className="w-px h-8 bg-gray-100" />
-        <StatCard label="Ativos" value={stats.ativos} color="text-emerald-600" />
+        <StatCard label="Ativos" value={stats.ativos} color="text-[#4EB46B]" />
         <div className="w-px h-8 bg-gray-100" />
         <StatCard
           label="Margem média"
           value={stats.avgMargem != null ? `${stats.avgMargem.toFixed(1)}%` : '—'}
           color={
             stats.avgMargem == null ? 'text-gray-400'
-              : stats.avgMargem >= 40 ? 'text-emerald-600'
-              : stats.avgMargem >= 20 ? 'text-amber-600'
-              : 'text-red-600'
+              : stats.avgMargem >= 40 ? 'text-[#4EB46B]'
+              : stats.avgMargem >= 20 ? 'text-[#F39313]'
+              : 'text-[#E5484D]'
           }
         />
       </div>
@@ -578,9 +582,13 @@ function ProductRow({
 
       {/* Status */}
       <td className="px-4 py-3.5 text-center">
-        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
-          product.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
-        }`}>
+        <span
+          className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+          style={product.ativo
+            ? { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' }
+            : { background: 'var(--color-track)', color: 'var(--color-muted)' }
+          }
+        >
           {product.ativo ? 'Ativo' : 'Inativo'}
         </span>
       </td>

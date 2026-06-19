@@ -43,11 +43,19 @@ export interface UserUnit {
 export interface Profile {
   id:         string
   full_name:  string
+  apelido:    string | null
   avatar_url: string | null
   perfil:     UserPerfil
   unit_id:    string | null
   ativo:      boolean
   created_at: string
+  email:      string | null
+}
+
+/** Retorna apelido se definido, senão o primeiro nome do full_name */
+export function displayName(p: Pick<Profile, 'full_name' | 'apelido'>): string {
+  if (p.apelido?.trim()) return p.apelido.trim()
+  return p.full_name?.split(' ')[0] ?? p.full_name
 }
 
 // ---- Chat interno ----------------------------------------------------------
@@ -111,6 +119,9 @@ export interface Lead {
   ordem:           number
   unit_id:         string | null
   client_id:       string | null   // preenchido ao converter em cliente
+  wa_optin_at:     string | null   // quando consentiu receber mensagens WA
+  wa_optout_at:    string | null   // quando pediu PARAR
+  campanha_id:     string | null   // campanha de origem
   stage_changed_at: string
   created_at:      string
   updated_at:      string
@@ -134,18 +145,20 @@ export interface LeadKanban extends Lead {
 
 // ---- Relacionamentos do lead ------------------------------------------------
 
-export type ContactRole = 'proprietario' | 'secretaria' | 'financeiro' | 'socio' | 'outro'
+export type ContactRole = 'filho' | 'filha' | 'dependente' | 'outro'
 
 export interface LeadContact {
-  id:         string
-  lead_id:    string
-  nome:       string
-  telefone:   string | null
-  email:      string | null
-  cargo:      ContactRole
-  observacao: string | null
-  unit_id:    string | null
-  created_at: string
+  id:               string
+  lead_id:          string
+  nome:             string
+  telefone:         string | null
+  email:            string | null
+  cargo:            ContactRole
+  relacao:          ContactRole
+  data_nascimento:  string | null
+  observacao:       string | null
+  unit_id:          string | null
+  created_at:       string
 }
 
 export interface LeadNote {
@@ -337,17 +350,18 @@ export interface Quote {
 }
 
 export interface QuoteItem {
-  id:             string
-  quote_id:       string
-  unit_id:        string
-  product_id:     string
-  nome_snapshot:  string
-  valor_snapshot: number
-  quantidade:     number
-  desconto:       number
-  valor_final:    number
-  observacao:     string | null
-  criado_em:      string
+  id:                  string
+  quote_id:            string
+  unit_id:             string
+  product_id:          string
+  nome_snapshot:       string
+  descricao_snapshot:  string | null
+  valor_snapshot:      number
+  quantidade:          number
+  desconto:            number
+  valor_final:         number
+  observacao:          string | null
+  criado_em:           string
 }
 
 // ---- Templates de orçamento ------------------------------------------------
@@ -430,11 +444,10 @@ export interface Notification {
 // ---- Constantes estáticas --------------------------------------------------
 
 export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
-  proprietario: 'Proprietário',
-  secretaria:   'Secretária',
-  financeiro:   'Financeiro',
-  socio:        'Sócio',
-  outro:        'Outro',
+  filho:       'Filho',
+  filha:       'Filha',
+  dependente:  'Dependente',
+  outro:       'Outro',
 }
 
 export const ARCHIVE_REASONS = [

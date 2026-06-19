@@ -97,7 +97,8 @@ function ItemsTable({ items, styles }: { items: QuoteWithItems['items']; styles:
         <View key={item.id} style={styles.tableRow}>
           <View style={styles.colNome}>
             <Text style={styles.tdBold}>{item.nome_snapshot}</Text>
-            {item.observacao && <Text style={[styles.tdText, { fontSize: 7, marginTop: 1, opacity: 0.65 }]}>{item.observacao}</Text>}
+            {item.descricao_snapshot && <Text style={[styles.tdText, { fontSize: 7, marginTop: 1, opacity: 0.7 }]}>{item.descricao_snapshot}</Text>}
+            {item.observacao && <Text style={[styles.tdText, { fontSize: 7, marginTop: 1, opacity: 0.55 }]}>{item.observacao}</Text>}
           </View>
           <View style={styles.colQtd}><Text style={styles.tdText}>{item.quantidade}</Text></View>
           <View style={styles.colPreco}><Text style={styles.tdText}>{fmtBRL(item.valor_snapshot)}</Text></View>

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import DateTimePicker from '@/components/ui/DateTimePicker'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
@@ -31,6 +32,23 @@ interface Props {
 type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
 const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Orçamentos']
 const DISABLED_TABS = new Set<Tab>([])
+
+interface WaConversation {
+  id:           string
+  wa_phone:     string
+  status:       string
+  unread_count: number
+}
+
+interface WaMessage {
+  id:         string
+  direction:  'inbound' | 'outbound'
+  type:       string
+  content:    string | null
+  status:     string
+  created_at: string
+  sent_by:    string | null
+}
 
 interface LeadQuote {
   id:              string
@@ -75,12 +93,6 @@ function LeadDrawer({
     setTimeout(onClose, 280)
   }
 
-  function handleOpenAtendimento() {
-    const numero = lead.telefone?.replace(/\D/g, '') ?? ''
-    setVisible(false)
-    setTimeout(() => { onClose(); router.push(`/atendimento?numero=${numero}`) }, 280)
-  }
-
   // ── Edit mode ──────────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
@@ -116,8 +128,112 @@ function LeadDrawer({
     setForm(prev => ({ ...prev, funnel_id: funnelId, stage_id: f?.stages[0]?.id ?? prev.stage_id }))
   }
 
+  // ── Consentimento WhatsApp ─────────────────────────────────────────────────
+  const [waOptinAt,  setWaOptinAt]  = useState<string | null>(lead.wa_optin_at  ?? null)
+  const [waOptoutAt, setWaOptoutAt] = useState<string | null>(lead.wa_optout_at ?? null)
+
+  async function handleRegisterOptin() {
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
+    if (!error) {
+      setWaOptinAt(now)
+      onSaved()
+    }
+  }
+
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('Histórico')
+
+  // ── WhatsApp chat ──────────────────────────────────────────────────────────
+  const [waConversation, setWaConversation] = useState<WaConversation | null>(null)
+  const [waMessages,     setWaMessages]     = useState<WaMessage[]>([])
+  const [waLoaded,       setWaLoaded]       = useState(false)
+  const [waInput,        setWaInput]        = useState('')
+  const [waSending,      setWaSending]      = useState(false)
+  const waMsgsEndRef = useRef<HTMLDivElement>(null)
+
+  // Carrega conversa quando abre a aba Atendimento
+  useEffect(() => {
+    if (tab !== 'Atendimento' || !lead.telefone || waLoaded) return
+    setWaLoaded(false)
+
+    const phoneRaw = lead.telefone.replace(/\D/g, '')
+    // normaliza para E.164 brasileiro (adiciona 55 se não tiver)
+    const waPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`
+
+    supabase
+      .from('wa_conversations')
+      .select('id, wa_phone, status, unread_count')
+      .eq('wa_phone', waPhone)
+      .maybeSingle()
+      .then(async ({ data: conv }) => {
+        if (!conv) { setWaLoaded(true); return }
+        setWaConversation(conv as WaConversation)
+
+        // Carrega mensagens
+        const { data: msgs } = await supabase
+          .from('wa_messages')
+          .select('id, direction, type, content, status, created_at, sent_by')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true })
+        if (msgs) setWaMessages(msgs as WaMessage[])
+
+        // Zera unread_count
+        if (conv.unread_count > 0) {
+          await supabase
+            .from('wa_conversations')
+            .update({ unread_count: 0 })
+            .eq('id', conv.id)
+        }
+
+        setWaLoaded(true)
+      })
+  }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime: novas mensagens chegam automaticamente
+  useEffect(() => {
+    if (!waConversation) return
+
+    const channel = supabase
+      .channel(`wa-messages-${waConversation.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'wa_messages', filter: `conversation_id=eq.${waConversation.id}` },
+        (payload) => {
+          const msg = payload.new as WaMessage
+          setWaMessages(prev => {
+            if (prev.some(m => m.id === msg.id)) return prev
+            return [...prev, msg]
+          })
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [waConversation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll para o fim ao receber novas mensagens
+  useEffect(() => {
+    waMsgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [waMessages.length])
+
+  async function handleWaSend() {
+    if (!waInput.trim() || !waConversation || waSending) return
+    const text = waInput.trim()
+    setWaInput('')
+    setWaSending(true)
+    try {
+      await fetch('/api/whatsapp/send', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ conversation_id: waConversation.id, content: text }),
+      })
+    } finally {
+      setWaSending(false)
+    }
+  }
 
   useEffect(() => {
     if (tab !== 'Orçamentos' || quotesLoaded) return
@@ -178,25 +294,43 @@ function LeadDrawer({
   }, [lead.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Contact CRUD ───────────────────────────────────────────────────────────
+  const emptyContact = { nome: '', telefone: '', email: '', cargo: 'outro' as ContactRole, relacao: 'filho' as ContactRole, data_nascimento: '', observacao: '', unit_id: null }
   const [addingContact,     setAddingContact]     = useState(false)
-  const [newContact,        setNewContact]        = useState<Omit<LeadContact, 'id' | 'lead_id' | 'created_at'>>({ nome: '', telefone: '', email: '', cargo: 'outro', observacao: '', unit_id: null })
+  const [newContact,        setNewContact]        = useState<Omit<LeadContact, 'id' | 'lead_id' | 'created_at'>>(emptyContact)
   const [editingContactId,  setEditingContactId]  = useState<string | null>(null)
   const [editContactDraft,  setEditContactDraft]  = useState<Partial<LeadContact>>({})
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
 
   async function saveNewContact() {
     if (!newContact.nome.trim()) return
-    const { data } = await supabase.from('lead_contacts').insert({ ...newContact, lead_id: lead.id }).select().single()
-    if (data) {
+    const payload = {
+      lead_id:         lead.id,
+      unit_id:         newContact.unit_id,
+      nome:            newContact.nome.trim(),
+      relacao:         newContact.relacao,   // coluna text — aceita 'filho','filha'...
+      cargo:           'outro',              // enum legado — mantém compatibilidade
+      data_nascimento: newContact.data_nascimento || null,
+      observacao:      newContact.observacao?.trim() || null,
+      telefone:        null,
+      email:           null,
+    }
+    const { data, error } = await supabase.from('lead_contacts').insert(payload).select().single()
+    if (!error && data) {
       setContacts(prev => [...prev, data as LeadContact])
-      setAddingContact(false)
-      setNewContact({ nome: '', telefone: '', email: '', cargo: 'outro', observacao: '', unit_id: null })
+      setNewContact(emptyContact)
+      // mantém o form aberto para adicionar mais
     }
   }
   async function saveContactEdit() {
     if (!editingContactId) return
-    await supabase.from('lead_contacts').update(editContactDraft).eq('id', editingContactId)
-    setContacts(prev => prev.map(c => c.id === editingContactId ? { ...c, ...editContactDraft } : c))
+    const patch: Partial<LeadContact> = {
+      ...editContactDraft,
+      cargo:           'outro' as ContactRole,  // enum legado — mantém compatibilidade
+      data_nascimento: editContactDraft.data_nascimento || null,
+      observacao:      editContactDraft.observacao?.trim() || null,
+    }
+    await supabase.from('lead_contacts').update(patch).eq('id', editingContactId)
+    setContacts(prev => prev.map(c => c.id === editingContactId ? { ...c, ...patch } : c))
     setEditingContactId(null)
     setEditContactDraft({})
   }
@@ -412,23 +546,20 @@ function LeadDrawer({
       <div className={`fixed right-0 top-0 bottom-0 z-50 flex w-full sm:w-[85%] max-w-5xl shadow-2xl transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
 
         {/* ════ LEFT PANEL ════ */}
-        <div className="hidden sm:flex flex-col w-72 shrink-0 bg-gray-50 border-r border-gray-200 overflow-hidden">
+        <div className="hidden sm:flex flex-col shrink-0" style={{ width: '344px', background: '#fff', borderRight: '1px solid #EDF2F6', overflowY: 'auto' }}>
 
           {/* Avatar + name */}
-          <div className="px-5 pt-5 pb-4 border-b border-gray-200 shrink-0">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-sm font-bold text-blue-600">
+          <div className="shrink-0" style={{ padding: '22px 22px 18px', borderBottom: '1px solid #F1F4F7' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '13px' }}>
+              <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '50%', background: '#EAF6FC', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '19px', fontWeight: 800 }}>
                 {lead.nome[0]?.toUpperCase() ?? '?'}
               </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-sm text-gray-900 leading-tight">
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '-0.01em', color: '#0E2C3D', margin: 0 }}>
                   {form.nome}{form.sobrenome ? ` ${form.sobrenome}` : ''}
                 </p>
                 {stageNome && (
-                  <span
-                    className="text-[11px] font-medium px-2 py-0.5 rounded-full inline-block mt-0.5"
-                    style={{ backgroundColor: `${stageCor}22`, color: stageCor }}
-                  >
+                  <span style={{ display: 'inline-block', marginTop: '5px', fontSize: '11px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>
                     {stageNome}
                   </span>
                 )}
@@ -438,22 +569,26 @@ function LeadDrawer({
             {!editing ? (
               <button
                 onClick={() => setEditing(true)}
-                className="w-full py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-white hover:border-gray-300 transition-colors font-medium"
+                style={{ width: '100%', marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid #E1EEF7', borderRadius: '11px', padding: '10px', fontSize: '13.5px', fontWeight: 700, color: '#3F5666', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#F4FAFE')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                 Editar dados
               </button>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-3">
                 <button
                   onClick={handleSave}
                   disabled={saving || !form.nome.trim()}
-                  className="flex-1 py-1.5 text-xs text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium transition-colors"
+                  className="flex-1 py-2 text-xs text-white rounded-xl disabled:opacity-50 font-semibold transition-colors"
+                  style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
                 >
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-white transition-colors"
+                  className="flex-1 py-2 text-xs border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -462,7 +597,7 @@ function LeadDrawer({
           </div>
 
           {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+          <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
             {editing ? (
               /* ── Edit mode ── */
@@ -511,11 +646,6 @@ function LeadDrawer({
                     </select>
                   </div>
                 </LeftSection>
-                <LeftSection title="Proposta">
-                  <F label="Modelo / Serviço"     value={negotiation.modelo}          onChange={v => setNegotiation(n => ({ ...n, modelo: v }))} placeholder="Ex: Plano Anual..." />
-                  <F label="Valor proposta (R$)"  value={negotiation.valor_proposta}  onChange={v => setNegotiation(n => ({ ...n, valor_proposta: v }))} type="number" placeholder="0,00" />
-                  <F label="Valor negociado (R$)" value={negotiation.valor_negociado} onChange={v => setNegotiation(n => ({ ...n, valor_negociado: v }))} type="number" placeholder="0,00" />
-                </LeftSection>
               </>
             ) : (
               /* ── View mode ── */
@@ -525,10 +655,8 @@ function LeadDrawer({
                   {phone ? (
                     <InfoRow label="Telefone">
                       <span>{form.telefone}</span>
-                      <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer" className="ml-1 text-emerald-500 hover:text-emerald-700" title="WhatsApp">
-                        <svg className="w-3.5 h-3.5 inline" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                        </svg>
+                      <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: '#25D366', flexShrink: 0 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2zm5.3 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-1-.3-1.6-.6-2.9-1.2-4.7-4-4.9-4.3-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.2c.2-.2.5-.3.6-.3h.5c.2 0 .4 0 .6.5l.7 1.8c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.5l.8 1.3c.5.7 1.1 1.1 1.7 1.5.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.6.8c.3.1.4.2.5.3 0 .2 0 .8-.2 1.3z"/></svg>
                       </a>
                     </InfoRow>
                   ) : null}
@@ -552,8 +680,29 @@ function LeadDrawer({
                   <InfoRow label="Cadastrado">
                     <span>{format(new Date(lead.created_at), "d MMM yyyy", { locale: ptBR })}</span>
                   </InfoRow>
-                  {form.origem && <InfoRow label="Origem"><span>{form.origem}</span></InfoRow>}
+                  {form.origem && (
+                    <InfoRow label="Origem">
+                      <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: '#FEF4E6', color: '#C77A11' }}>{form.origem}</span>
+                    </InfoRow>
+                  )}
                   {form.profissao && <InfoRow label="Profissão"><span>{form.profissao}</span></InfoRow>}
+                  {lead.campanha_id && (
+                    <InfoRow label="Campanha">
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#EDE9FE', color: '#6D28D9' }}>origem: campanha</span>
+                    </InfoRow>
+                  )}
+                  <InfoRow label="WhatsApp">
+                    {waOptoutAt ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#FEE2E2', color: '#B91C1C' }}>Bloqueado em {format(new Date(waOptoutAt), "d MMM yyyy", { locale: ptBR })}</span>
+                    ) : waOptinAt ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#DCFCE7', color: '#166534' }}>Autorizado WA desde {format(new Date(waOptinAt), "d MMM yyyy", { locale: ptBR })}</span>
+                    ) : (
+                      <button onClick={() => void handleRegisterOptin()}
+                        style={{ fontSize: '11px', color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                        Autorizar WA manualmente
+                      </button>
+                    )}
+                  </InfoRow>
                   <InfoRow label="Responsável">
                     <div className="flex items-center gap-1.5">
                       {lead.responsavel_avatar ? (
@@ -566,132 +715,165 @@ function LeadDrawer({
                       <span>{responsavelNome ?? 'Sem responsável'}</span>
                     </div>
                   </InfoRow>
-                  {(lead.valor_negociado != null || lead.valor_proposta != null) && (
-                    <InfoRow label="Valor">
-                      <span className="text-emerald-600 font-semibold">
-                        {fmtCurrency.format(lead.valor_negociado ?? lead.valor_proposta ?? 0)}
-                      </span>
-                    </InfoRow>
-                  )}
-                  {lead.modelo && <InfoRow label="Modelo"><span>{lead.modelo}</span></InfoRow>}
                 </LeftSection>
               </>
             )}
 
-            {/* ── Linked contacts ── */}
+            {/* ── Pacientes vinculados ── */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Contatos vinculados</p>
-                <button onClick={() => setAddingContact(true)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">+ Adicionar</button>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pacientes</p>
+                {!addingContact && (
+                  <button onClick={() => setAddingContact(true)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">+ Adicionar</button>
+                )}
               </div>
 
               {addingContact && (
-                <div className="border border-blue-200 rounded-xl p-3 bg-blue-50 space-y-2 mb-2">
-                  <F label="Nome *"   value={newContact.nome}          onChange={v => setNewContact(c => ({ ...c, nome: v }))} />
-                  <F label="Telefone" value={newContact.telefone ?? ''} onChange={v => setNewContact(c => ({ ...c, telefone: v }))} />
-                  <F label="E-mail"   value={newContact.email    ?? ''} onChange={v => setNewContact(c => ({ ...c, email: v }))} type="email" />
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Cargo</label>
-                    <select value={newContact.cargo} onChange={e => setNewContact(c => ({ ...c, cargo: e.target.value as ContactRole }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                      {Object.entries(CONTACT_ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                  </div>
+                <div className="border border-violet-200 rounded-xl p-3 bg-violet-50 space-y-2 mb-2">
+                  <F label="Nome *" value={newContact.nome} onChange={v => setNewContact(c => ({ ...c, nome: v }))} />
                   <div className="flex gap-2">
-                    <button onClick={saveNewContact} disabled={!newContact.nome.trim()} className="flex-1 py-1.5 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium">Salvar</button>
-                    <button onClick={() => setAddingContact(false)} className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Relação</label>
+                      <select value={newContact.relacao} onChange={e => setNewContact(c => ({ ...c, relacao: e.target.value as ContactRole }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white">
+                        {Object.entries(CONTACT_ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Data de nascimento</label>
+                      <input type="date" value={newContact.data_nascimento ?? ''} onChange={e => setNewContact(c => ({ ...c, data_nascimento: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white" />
+                    </div>
+                  </div>
+                  <F label="Observações (alergias, condições...)" value={newContact.observacao ?? ''} onChange={v => setNewContact(c => ({ ...c, observacao: v }))} />
+                  <div className="flex gap-2">
+                    <button onClick={saveNewContact} disabled={!newContact.nome.trim()} className="flex-1 py-1.5 text-xs bg-violet-500 text-white rounded-lg hover:bg-violet-600 disabled:opacity-50 font-medium">Salvar</button>
+                    <button onClick={() => { setAddingContact(false); setNewContact(emptyContact) }} className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
                   </div>
                 </div>
               )}
 
               {contacts.length === 0 && !addingContact && (
-                <p className="text-xs text-gray-400 italic">Nenhum contato vinculado</p>
+                <p className="text-xs text-gray-400 italic">Nenhum paciente vinculado</p>
               )}
 
               <div className="space-y-2">
-                {contacts.map(c => (
-                  <div key={c.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                    {editingContactId === c.id ? (
-                      <div className="p-3 bg-blue-50 space-y-2">
-                        <F label="Nome *"   value={editContactDraft.nome     ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, nome: v }))} />
-                        <F label="Telefone" value={editContactDraft.telefone ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, telefone: v }))} />
-                        <F label="E-mail"   value={editContactDraft.email    ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, email: v }))} type="email" />
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={saveContactEdit} className="flex-1 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium">Salvar</button>
-                          <button onClick={() => setEditingContactId(null)} className="flex-1 py-1 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
-                        </div>
-                      </div>
-                    ) : deletingContactId === c.id ? (
-                      <div className="p-3 bg-red-50">
-                        <p className="text-xs text-red-700 font-medium mb-2">Excluir "{c.nome}"?</p>
-                        <div className="flex gap-2">
-                          <button onClick={() => deleteContact(c.id)} className="flex-1 py-1 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">Excluir</button>
-                          <button onClick={() => setDeletingContactId(null)} className="flex-1 py-1 text-xs border border-gray-200 rounded-lg hover:bg-white">Não</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-3 group">
-                        <div className="flex items-start justify-between gap-1">
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium text-gray-900">{c.nome}</p>
-                            <p className="text-[11px] text-gray-500">{CONTACT_ROLE_LABELS[c.cargo]}{c.telefone ? ` · ${c.telefone}` : ''}</p>
-                            {c.email && <p className="text-[11px] text-blue-500 truncate">{c.email}</p>}
+                {contacts.map(c => {
+                  const relacao = c.relacao ?? c.cargo
+                  const relLabel = CONTACT_ROLE_LABELS[relacao as ContactRole] ?? relacao
+                  const idade = calcIdade(c.data_nascimento)
+                  return (
+                    <div key={c.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                      {editingContactId === c.id ? (
+                        <div className="p-3 bg-violet-50 space-y-2">
+                          <F label="Nome *" value={editContactDraft.nome ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, nome: v }))} />
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Relação</label>
+                              <select value={editContactDraft.relacao ?? 'filho'} onChange={e => setEditContactDraft(d => ({ ...d, relacao: e.target.value as ContactRole, cargo: e.target.value as ContactRole }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white">
+                                {Object.entries(CONTACT_ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Data de nascimento</label>
+                              <input type="date" value={editContactDraft.data_nascimento ?? ''} onChange={e => setEditContactDraft(d => ({ ...d, data_nascimento: e.target.value }))}
+                                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white" />
+                            </div>
                           </div>
-                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button
-                              onClick={() => { setEditingContactId(c.id); setEditContactDraft({ nome: c.nome, telefone: c.telefone, email: c.email, cargo: c.cargo, observacao: c.observacao }) }}
-                              className="p-1 text-gray-400 hover:text-blue-500 rounded"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                            </button>
-                            <button onClick={() => setDeletingContactId(c.id)} className="p-1 text-gray-400 hover:text-red-500 rounded">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
+                          <F label="Observações" value={editContactDraft.observacao ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, observacao: v }))} />
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={saveContactEdit} className="flex-1 py-1 text-xs bg-violet-500 text-white rounded-lg hover:bg-violet-600 font-medium">Salvar</button>
+                            <button onClick={() => setEditingContactId(null)} className="flex-1 py-1 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      ) : deletingContactId === c.id ? (
+                        <div className="p-3 bg-red-50">
+                          <p className="text-xs text-red-700 font-medium mb-2">Excluir "{c.nome}"?</p>
+                          <div className="flex gap-2">
+                            <button onClick={() => deleteContact(c.id)} className="flex-1 py-1 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">Excluir</button>
+                            <button onClick={() => setDeletingContactId(null)} className="flex-1 py-1 text-xs border border-gray-200 rounded-lg hover:bg-white">Não</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 group">
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="min-w-0 flex items-start gap-2">
+                              <div>
+                                <p className="text-xs font-semibold text-gray-900">{c.nome}</p>
+                                <p className="text-[11px] text-gray-500">
+                                  {relLabel}{idade !== null ? ` · ${idade} ano${idade !== 1 ? 's' : ''}` : ''}{c.data_nascimento ? ` (${formatDtNasc(c.data_nascimento)})` : ''}
+                                </p>
+                                {c.observacao && <p className="text-[11px] text-amber-700 mt-0.5 bg-amber-50 rounded px-1.5 py-0.5 inline-block">{c.observacao}</p>}
+                              </div>
+                            </div>
+                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button
+                                onClick={() => { setEditingContactId(c.id); setEditContactDraft({ nome: c.nome, relacao: (c.relacao ?? c.cargo) as ContactRole, cargo: (c.relacao ?? c.cargo) as ContactRole, data_nascimento: c.data_nascimento, observacao: c.observacao }) }}
+                                className="p-1 text-gray-400 hover:text-violet-500 rounded"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              </button>
+                              <button onClick={() => setDeletingContactId(c.id)} className="p-1 text-gray-400 hover:text-red-500 rounded">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
+          </div>
 
-            {/* ── Converter em cliente ── */}
+          {/* ── Pinned footer: Converter + Arquivar ── */}
+          <div style={{ marginTop: 'auto', padding: '18px 22px', borderTop: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Converter em cliente */}
             {!isArchived && (
-              <div className="pt-2 border-t border-gray-200">
-                {clientId ? (
-                  <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-emerald-600 font-medium">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Convertido em cliente
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <button
-                      onClick={handleConvert}
-                      disabled={converting}
-                      className="w-full py-2 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 font-medium transition-colors disabled:opacity-50"
-                    >
-                      {converting ? 'Convertendo...' : 'Converter em cliente'}
-                    </button>
-                    {convertError && <p className="text-[11px] text-red-500 text-center">{convertError}</p>}
-                  </div>
-                )}
-              </div>
+              clientId ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 0', fontSize: '12px', color: '#3E9D5A', fontWeight: 600 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Convertido em cliente
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <button
+                    onClick={handleConvert}
+                    disabled={converting}
+                    style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 700, color: '#1E86C0', border: '1px solid #E1EEF7', borderRadius: '11px', background: 'transparent', cursor: converting ? 'not-allowed' : 'pointer', opacity: converting ? 0.5 : 1, transition: 'background 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#F4FAFE')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {converting ? 'Convertendo...' : 'Converter em cliente'}
+                  </button>
+                  {convertError && <p style={{ fontSize: '11px', color: '#D23B40', textAlign: 'center', margin: 0 }}>{convertError}</p>}
+                </div>
+              )
             )}
 
-            {/* ── Archive / Restore ── */}
-            <div className="pt-2 border-t border-gray-200">
-              {isArchived ? (
-                <button onClick={handleRestore} className="w-full py-2 text-xs text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 font-medium transition-colors">
-                  Restaurar lead
-                </button>
-              ) : (
-                <button onClick={() => setArchiveModal(true)} className="w-full py-2 text-xs text-red-500 border border-red-200 rounded-lg hover:bg-red-50 font-medium transition-colors">
-                  Arquivar lead
-                </button>
-              )}
-            </div>
+            {/* Archive / Restore */}
+            {isArchived ? (
+              <button
+                onClick={handleRestore}
+                style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 700, color: '#3E9D5A', border: '1px solid #CFEBD9', borderRadius: '11px', background: 'transparent', cursor: 'pointer', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#F4FBF6')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Restaurar contato
+              </button>
+            ) : (
+              <button
+                onClick={() => setArchiveModal(true)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid #F5C9CB', borderRadius: '11px', padding: '11px', fontSize: '13.5px', fontWeight: 700, color: '#D23B40', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#FDF1F2')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
+                Arquivar contato
+              </button>
+            )}
           </div>
         </div>
 
@@ -699,9 +881,9 @@ function LeadDrawer({
         <div className="flex-1 flex flex-col bg-white min-w-0">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 shrink-0">
+          <div className="flex items-center justify-between shrink-0" style={{ padding: '22px 28px 0' }}>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-gray-900 truncate">
+              <h2 className="truncate" style={{ fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#0E2C3D' }}>
                 {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
               </h2>
               {stageNome && (
@@ -727,52 +909,50 @@ function LeadDrawer({
                   </button>
                 )}
               </div>
-              <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <button
+                onClick={handleClose}
+                style={{ width: '34px', height: '34px', borderRadius: '9px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8A98A6', flexShrink: 0, transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#F1F4F7')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-100 px-4 shrink-0 overflow-x-auto">
+          <div className="shrink-0 overflow-x-auto" style={{ display: 'flex', alignItems: 'center', gap: '26px', padding: '14px 28px 0', borderBottom: '1px solid #EDF2F6' }}>
             {TABS.map(t => {
               const disabled = DISABLED_TABS.has(t)
-              const isAtendimento = t === 'Atendimento'
               function handleTabClick() {
                 if (disabled) return
-                if (isAtendimento && lead.telefone) { handleOpenAtendimento(); return }
                 setTab(t)
               }
+              const isActive = tab === t
               return (
                 <button
                   key={t}
                   onClick={handleTabClick}
                   disabled={disabled}
                   title={disabled ? 'Em breve' : undefined}
-                  className={`text-sm py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors -mb-px flex items-center gap-1.5 ${
-                    disabled
-                      ? 'border-transparent text-gray-300 cursor-not-allowed'
-                      : tab === t
-                        ? 'border-blue-500 text-blue-600 font-medium'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
+                  style={{
+                    fontSize: '14.5px', fontWeight: 700, paddingBottom: '13px', cursor: disabled ? 'not-allowed' : 'pointer',
+                    color: disabled ? '#CFD8E1' : isActive ? '#0098DA' : '#7A8694',
+                    background: 'none', border: 'none', borderBottom: isActive ? '2px solid #0098DA' : '2px solid transparent',
+                    display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap', transition: 'color 0.15s',
+                  }}
                 >
-                  {isAtendimento && (
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  )}
                   {t}
                   {t === 'Tarefas' && pendingTasks > 0 && (
-                    <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-600 rounded-full px-1.5 py-0.5 font-semibold">{pendingTasks}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, minWidth: '18px', textAlign: 'center', padding: '1px 6px', borderRadius: '999px', background: '#FEF0DD', color: '#C77A11' }}>{pendingTasks}</span>
                   )}
                   {t === 'Orçamentos' && quotes.length > 0 && (
-                    <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-600 rounded-full px-1.5 py-0.5 font-semibold">{quotes.length}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, minWidth: '18px', textAlign: 'center', padding: '1px 6px', borderRadius: '999px', background: '#E9F5FC', color: '#1E86C0' }}>{quotes.length}</span>
                   )}
                   {t === 'Anotações' && notes.length > 0 && (
-                    <span className="ml-1.5 text-[10px] bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-semibold">{notes.length}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, minWidth: '18px', textAlign: 'center', padding: '1px 6px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>{notes.length}</span>
                   )}
                 </button>
               )
@@ -780,158 +960,150 @@ function LeadDrawer({
           </div>
 
           {/* Tab body */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto" style={{ padding: '24px 28px 32px', background: '#FBFDFF' }}>
 
             {/* ═══ HISTÓRICO ═══ */}
             {tab === 'Histórico' && (
-              <div className="space-y-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {timeline.length === 0 && (
-                  <p className="text-sm text-gray-400 text-center py-12">Nenhuma atividade ainda</p>
+                  <p style={{ fontSize: '13px', color: '#9DB6C7', textAlign: 'center', padding: '48px 0' }}>Nenhuma atividade ainda</p>
                 )}
-                {timeline.map(item => (
-                  <div key={`${item.kind}-${item.id}`} className="flex gap-3">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                      item.kind === 'note'  ? 'bg-blue-100'   :
-                      item.kind === 'task'  ? 'bg-emerald-100':
-                      item.kind === 'stage' ? 'bg-indigo-100' : 'bg-purple-100'
-                    }`}>
-                      {item.kind === 'note' && (
-                        <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
-                      )}
-                      {item.kind === 'task' && (
-                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      )}
-                      {item.kind === 'resp' && (
-                        <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                      )}
-                      {item.kind === 'stage' && (
-                        <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {item.kind === 'note' && (
-                        <>
-                          <p className="text-xs text-gray-500 mb-1">{item.note.autor?.full_name ?? '—'} adicionou uma anotação</p>
-                          <div className="bg-gray-50 rounded-xl border border-gray-100 px-3 py-2.5">
-                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.note.conteudo}</p>
-                          </div>
-                        </>
-                      )}
-                      {item.kind === 'task' && (
-                        <>
-                          <p className="text-xs text-gray-500 mb-1">Tarefa concluída</p>
-                          <div className="bg-emerald-50 rounded-xl border border-emerald-100 px-3 py-2.5">
-                            <p className="text-sm text-gray-500 line-through">{item.task.titulo}</p>
-                          </div>
-                        </>
-                      )}
-                      {item.kind === 'resp' && (
-                        <div className="bg-purple-50 rounded-xl border border-purple-100 px-3 py-2.5">
-                          <p className="text-xs text-gray-600">
-                            Responsável alterado →{' '}
-                            <span className="font-medium text-purple-700">
-                              {profiles.find(p => p.id === item.history.novo_responsavel_id)?.full_name ?? 'Nenhum'}
-                            </span>
-                          </p>
+                {timeline.map((item, idx) => {
+                  const isLast = idx === timeline.length - 1
+                  return (
+                    <div key={`${item.kind}-${item.id}`} style={{ display: 'flex', gap: '14px' }}>
+                      {/* icon + connector */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ width: '34px', height: '34px', flexShrink: 0, borderRadius: '50%', background: '#EAF6FC', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {item.kind === 'note' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>}
+                          {item.kind === 'task' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 13l4 4L19 7"/></svg>}
+                          {item.kind === 'resp' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>}
+                          {item.kind === 'stage' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>}
                         </div>
-                      )}
-                      {item.kind === 'stage' && (() => {
-                        const h       = item.stageHistory
-                        const de      = h.de_stage
-                        const para    = h.para_stage
-                        const quemStr = h.movido_por_profile?.full_name ?? 'Automação'
-                        return (
-                          <div className="bg-indigo-50 rounded-xl border border-indigo-100 px-3 py-2.5">
-                            <p className="text-xs text-gray-500 mb-1.5">{quemStr} moveu o lead</p>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {de ? (
-                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600">
-                                  {de.nome}
-                                </span>
-                              ) : (
-                                <span className="text-[11px] text-gray-400 italic">entrada</span>
-                              )}
-                              <svg className="w-3 h-3 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                              </svg>
-                              {para && (
-                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: para.cor || '#6366f1' }}>
-                                  {para.nome}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })()}
-                      <p className="text-[11px] text-gray-400 mt-1">
-                        {format(new Date(item.ts), "d MMM 'às' HH:mm", { locale: ptBR })}
-                      </p>
+                        {!isLast && <div style={{ flex: 1, width: '2px', background: '#E7EEF4', marginTop: '4px' }} />}
+                      </div>
+
+                      {/* content */}
+                      <div style={{ flex: 1, paddingBottom: '4px' }}>
+                        <div style={{ background: '#fff', border: '1px solid #E9EFF4', borderRadius: '13px', padding: '14px 16px' }}>
+                          {item.kind === 'note' && (
+                            <>
+                              <p style={{ fontSize: '13.5px', color: '#3F5666', marginBottom: '8px' }}>{item.note.autor?.full_name ?? '—'} adicionou uma anotação</p>
+                              <p style={{ fontSize: '13.5px', color: '#3F5666', whiteSpace: 'pre-wrap', margin: 0 }}>{item.note.conteudo}</p>
+                            </>
+                          )}
+                          {item.kind === 'task' && (
+                            <>
+                              <p style={{ fontSize: '13.5px', color: '#3F5666', marginBottom: '8px' }}>Tarefa concluída</p>
+                              <p style={{ fontSize: '13.5px', color: '#9DB6C7', textDecoration: 'line-through', margin: 0 }}>{item.task.titulo}</p>
+                            </>
+                          )}
+                          {item.kind === 'resp' && (
+                            <p style={{ fontSize: '13.5px', color: '#3F5666', margin: 0 }}>
+                              Responsável → <span style={{ fontWeight: 700, color: '#0E2C3D' }}>{profiles.find(p => p.id === item.history.novo_responsavel_id)?.full_name ?? 'Nenhum'}</span>
+                            </p>
+                          )}
+                          {item.kind === 'stage' && (() => {
+                            const h       = item.stageHistory
+                            const de      = h.de_stage
+                            const para    = h.para_stage
+                            const quemStr = h.movido_por_profile?.full_name ?? 'Automação'
+                            return (
+                              <>
+                                <p style={{ fontSize: '13.5px', color: '#3F5666', marginBottom: '10px' }}>{quemStr} moveu o contato</p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                                  {de ? (
+                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>{de.nome}</span>
+                                  ) : (
+                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>entrada</span>
+                                  )}
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B6C4D0" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                                  {para && (
+                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#0098DA', color: '#fff' }}>{para.nome}</span>
+                                  )}
+                                </div>
+                              </>
+                            )
+                          })()}
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#9DB6C7', marginTop: '7px' }}>
+                          {format(new Date(item.ts), "d MMM 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
             {/* ═══ ANOTAÇÕES ═══ */}
             {tab === 'Anotações' && (
-              <div className="space-y-3">
-                <div className="flex gap-2 items-start">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* New note input */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                   <textarea
                     value={newNote}
                     onChange={e => setNewNote(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAddNote() }}
-                    placeholder="Nova anotação... (Ctrl+Enter para salvar)"
+                    placeholder="Nova anotação… (Ctrl+Enter para salvar)"
                     rows={2}
-                    className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    style={{ flex: 1, border: '1px solid #E1EEF7', borderRadius: '13px', padding: '14px 16px', fontSize: '13.5px', color: '#0E2C3D', resize: 'none', outline: 'none', fontFamily: 'inherit', minHeight: '54px' }}
                   />
-                  <button onClick={handleAddNote} disabled={!newNote.trim() || addingNote} className="px-3 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors self-end">
+                  <button
+                    onClick={handleAddNote}
+                    disabled={!newNote.trim() || addingNote}
+                    style={{ alignSelf: 'center', background: '#0098DA', color: '#fff', borderRadius: '11px', padding: '11px 24px', fontSize: '13.5px', fontWeight: 700, border: 'none', cursor: addingNote ? 'wait' : 'pointer', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', opacity: !newNote.trim() || addingNote ? 0.5 : 1, transition: 'background 0.15s', whiteSpace: 'nowrap' }}
+                    onMouseEnter={e => { if (newNote.trim() && !addingNote) e.currentTarget.style.background = '#0086C2' }}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}
+                  >
                     {addingNote ? '...' : 'Salvar'}
                   </button>
                 </div>
 
-                {notes.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Nenhuma anotação ainda</p>}
+                {notes.length === 0 && <p style={{ fontSize: '13px', color: '#9DB6C7', textAlign: 'center', padding: '32px 0' }}>Nenhuma anotação ainda</p>}
 
                 {notes.map(note => {
                   const isEditing  = editingNoteId  === note.id
                   const isDeleting = deletingNoteId === note.id
                   const isOwn      = note.autor_id  === currentUser.id
+                  const authorInitial = (note.autor?.full_name ?? '?')[0].toUpperCase()
                   return (
-                    <div key={note.id} className={`rounded-xl border p-3 group ${isEditing ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
+                    <div key={note.id} className="group" style={{ background: '#fff', border: `1px solid ${isEditing ? '#D0E8F7' : '#E9EFF4'}`, borderRadius: '14px', padding: '20px 22px' }}>
                       {isEditing ? (
                         <>
-                          <textarea autoFocus value={editNoteText} onChange={e => setEditNoteText(e.target.value)} rows={3} className="w-full bg-white rounded-lg border border-blue-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-2" />
-                          <div className="flex gap-2">
-                            <button onClick={() => handleSaveNote(note.id)} disabled={!editNoteText.trim()} className="flex-1 py-1.5 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium">Salvar</button>
-                            <button onClick={() => setEditingNoteId(null)} className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
+                          <textarea autoFocus value={editNoteText} onChange={e => setEditNoteText(e.target.value)} rows={4} style={{ width: '100%', border: '1px solid #D0E8F7', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#0E2C3D', resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '12px' }} />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => handleSaveNote(note.id)} disabled={!editNoteText.trim()} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Salvar</button>
+                            <button onClick={() => setEditingNoteId(null)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#3F5666', border: '1px solid #E1EEF7', borderRadius: '10px', cursor: 'pointer' }}>Cancelar</button>
                           </div>
                         </>
                       ) : isDeleting ? (
-                        <div className="text-xs">
-                          <p className="text-red-700 font-medium mb-2">Excluir esta anotação?</p>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleDeleteNote(note.id)} className="flex-1 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">Excluir</button>
-                            <button onClick={() => setDeletingNoteId(null)} className="flex-1 py-1 border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
+                        <>
+                          <p style={{ fontSize: '13px', fontWeight: 700, color: '#D23B40', marginBottom: '12px' }}>Excluir esta anotação?</p>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => handleDeleteNote(note.id)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 700, background: '#E5484D', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Excluir</button>
+                            <button onClick={() => setDeletingNoteId(null)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#3F5666', border: '1px solid #E1EEF7', borderRadius: '10px', cursor: 'pointer' }}>Cancelar</button>
                           </div>
-                        </div>
+                        </>
                       ) : (
                         <>
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap">{note.conteudo}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <p className="text-xs text-gray-400">
-                              {note.autor?.full_name ?? '—'} · {format(new Date(note.created_at), "d MMM 'às' HH:mm", { locale: ptBR })}
-                              {note.editado_em && <span className="ml-1 text-gray-300">(editado)</span>}
-                            </p>
-                            {isOwn && (
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.conteudo) }} className="p-1 text-gray-400 hover:text-blue-500 rounded" title="Editar">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                </button>
-                                <button onClick={() => setDeletingNoteId(note.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Excluir">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                              </div>
-                            )}
+                          {/* Author header */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#0098DA', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
+                              {authorInitial}
+                            </div>
+                            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#3F5666' }}>{note.autor?.full_name ?? '—'}</span>
+                            <span style={{ fontSize: '12px', color: '#9DB6C7' }}>· {format(new Date(note.created_at), "d MMM 'às' HH:mm", { locale: ptBR })}{note.editado_em ? ' (editado)' : ''}</span>
                           </div>
+                          {/* Content */}
+                          <p style={{ fontSize: '13.5px', lineHeight: 1.65, color: '#3F5666', margin: 0, whiteSpace: 'pre-wrap' }}>{note.conteudo}</p>
+                          {/* Actions */}
+                          {isOwn && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'flex', gap: '6px', marginTop: '12px', justifyContent: 'flex-end' }}>
+                              <button onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.conteudo) }} style={{ padding: '4px 8px', fontSize: '11.5px', fontWeight: 600, color: '#1E86C0', background: 'transparent', border: '1px solid #E1EEF7', borderRadius: '7px', cursor: 'pointer' }}>Editar</button>
+                              <button onClick={() => setDeletingNoteId(note.id)} style={{ padding: '4px 8px', fontSize: '11.5px', fontWeight: 600, color: '#D23B40', background: 'transparent', border: '1px solid #F5C9CB', borderRadius: '7px', cursor: 'pointer' }}>Excluir</button>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -942,58 +1114,97 @@ function LeadDrawer({
 
             {/* ═══ TAREFAS ═══ */}
             {tab === 'Tarefas' && (
-              <div className="space-y-3">
-                <div className="border border-gray-100 rounded-xl p-3 bg-gray-50 space-y-2">
-                  <F label="Tarefa *" value={newTask.titulo} onChange={v => setNewTask(t => ({ ...t, titulo: v }))} placeholder="Descreva a tarefa..." />
-                  <div className="grid grid-cols-2 gap-2">
-                    <F label="Prazo" value={newTask.data_limite} onChange={v => setNewTask(t => ({ ...t, data_limite: v }))} type="datetime-local" />
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Responsável</label>
-                      <select value={newTask.responsavel_id} onChange={e => setNewTask(t => ({ ...t, responsavel_id: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Add task form */}
+                <div style={{ background: '#fff', border: '1px solid #E9EFF4', borderRadius: '14px', padding: '20px 22px' }}>
+                  <p style={{ fontSize: '12.5px', fontWeight: 700, color: '#3F5666', marginBottom: '8px' }}>Tarefa <span style={{ color: '#E5484D' }}>*</span></p>
+                  <input
+                    type="text"
+                    value={newTask.titulo}
+                    onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
+                    placeholder="Descreva a tarefa…"
+                    style={{ width: '100%', border: '1px solid #E1EEF7', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#0E2C3D', outline: 'none', fontFamily: 'inherit', marginBottom: '14px', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: '14px', marginBottom: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <DateTimePicker
+                        label="Prazo"
+                        value={newTask.data_limite}
+                        onChange={v => setNewTask(t => ({ ...t, data_limite: v }))}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: '12.5px', fontWeight: 700, color: '#3F5666', marginBottom: '8px' }}>Responsável</p>
+                      <select
+                        value={newTask.responsavel_id}
+                        onChange={e => setNewTask(t => ({ ...t, responsavel_id: e.target.value }))}
+                        style={{ width: '100%', border: '1px solid #E1EEF7', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#0E2C3D', outline: 'none', fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box' }}
+                      >
                         {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                       </select>
                     </div>
                   </div>
-                  <button onClick={handleAddTask} disabled={!newTask.titulo.trim()} className="w-full py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors">
+                  <button
+                    onClick={handleAddTask}
+                    disabled={!newTask.titulo.trim()}
+                    style={{ width: '100%', padding: '12px', fontSize: '13.5px', fontWeight: 700, color: '#fff', background: '#0098DA', border: 'none', borderRadius: '11px', cursor: !newTask.titulo.trim() ? 'not-allowed' : 'pointer', opacity: !newTask.titulo.trim() ? 0.5 : 1, boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', transition: 'background 0.15s' }}
+                    onMouseEnter={e => { if (newTask.titulo.trim()) e.currentTarget.style.background = '#0086C2' }}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}
+                  >
                     Adicionar tarefa
                   </button>
                 </div>
 
-                {tasks.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Nenhuma tarefa ainda</p>}
+                {tasks.length === 0 && <p style={{ fontSize: '13px', color: '#9DB6C7', textAlign: 'center', padding: '32px 0' }}>Nenhuma tarefa ainda</p>}
 
-                {tasks.map((task) => {
-                  const overdue = !task.concluida && task.data_limite && new Date(task.data_limite) < new Date()
-                  return (
-                    <div key={task.id} className={`group flex items-start gap-3 p-3 rounded-xl border transition-colors ${task.concluida ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'}`}>
-                      <button onClick={() => handleToggleTask(task)} className="mt-0.5 shrink-0">
-                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${task.concluida ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 hover:border-blue-400'}`}>
-                          {task.concluida && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                        </div>
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${task.concluida ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.titulo}</p>
-                        <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                          {task.data_limite && (
-                            <span className={`text-xs ${overdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                              {overdue ? '⚠ ' : ''}{format(new Date(task.data_limite), "d MMM 'às' HH:mm", { locale: ptBR })}
-                            </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {tasks.map((task) => {
+                    const overdue = !task.concluida && task.data_limite && new Date(task.data_limite) < new Date()
+                    return (
+                      <div key={task.id} className="group" style={{ display: 'flex', alignItems: 'flex-start', gap: '13px', background: task.concluida ? '#F7FAFC' : '#fff', border: `1px solid ${task.concluida ? '#EDF2F6' : '#E9EFF4'}`, borderRadius: '13px', padding: '15px 17px' }}>
+                        {/* Checkbox */}
+                        <button onClick={() => handleToggleTask(task)} style={{ flexShrink: 0, marginTop: '1px', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                          {task.concluida ? (
+                            <div style={{ width: '20px', height: '20px', borderRadius: '6px', background: '#4EB46B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 12l5 5 9-10"/></svg>
+                            </div>
+                          ) : (
+                            <div style={{ width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #CFD8E1' }} />
                           )}
-                          {task.responsavel && <span className="text-xs text-gray-400">{task.responsavel.full_name}</span>}
-                        </div>
-                      </div>
-                      {deletingTaskId === task.id ? (
-                        <div className="flex gap-1 shrink-0">
-                          <button onClick={() => handleDeleteTask(task.id)} className="text-[11px] px-2 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600">Excluir</button>
-                          <button onClick={() => setDeletingTaskId(null)} className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg hover:bg-gray-50">Não</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setDeletingTaskId(task.id)} className="shrink-0 p-1 text-gray-300 hover:text-red-400 rounded opacity-0 group-hover:opacity-100 transition-all">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
-                      )}
-                    </div>
-                  )
-                })}
+
+                        {/* Content */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: '14px', fontWeight: 700, color: task.concluida ? '#9DB6C7' : '#0E2C3D', textDecoration: task.concluida ? 'line-through' : 'none', margin: 0 }}>{task.titulo}</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
+                            {task.data_limite && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: overdue ? 700 : 400, color: overdue ? '#D23B40' : '#9DB6C7' }}>
+                                {overdue && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0zM12 9v4M12 17h.01"/></svg>}
+                                {format(new Date(task.data_limite), "d MMM 'às' HH:mm", { locale: ptBR })}
+                              </span>
+                            )}
+                            {task.responsavel && <span style={{ fontSize: '12px', color: '#9DB6C7' }}>{task.responsavel.full_name}</span>}
+                          </div>
+                        </div>
+
+                        {/* Delete */}
+                        {deletingTaskId === task.id ? (
+                          <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                            <button onClick={() => handleDeleteTask(task.id)} style={{ fontSize: '11.5px', padding: '4px 10px', background: '#E5484D', color: '#fff', border: 'none', borderRadius: '7px', cursor: 'pointer', fontWeight: 700 }}>Excluir</button>
+                            <button onClick={() => setDeletingTaskId(null)} style={{ fontSize: '11.5px', padding: '4px 10px', background: 'transparent', color: '#3F5666', border: '1px solid #E1EEF7', borderRadius: '7px', cursor: 'pointer' }}>Não</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeletingTaskId(task.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: '#CFD8E1' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#D23B40')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#CFD8E1')}
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
@@ -1021,11 +1232,11 @@ function LeadDrawer({
                   {/* Botão novo orçamento — pré-seleciona lead ou cliente */}
                   <a
                     href={clientId ? `/orcamento?client_id=${clientId}` : `/orcamento?lead_id=${lead.id}`}
-                    className="flex items-center justify-center gap-1.5 w-full py-2.5 text-sm font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 transition-colors"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#0098DA', color: '#fff', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', transition: 'background 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#0086C2')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14M5 12h14"/></svg>
                     Novo orçamento
                   </a>
 
@@ -1046,53 +1257,52 @@ function LeadDrawer({
                   )}
 
                   {quotesLoaded && quotes.map(q => (
-                    <div key={q.id} className="border border-gray-200 rounded-xl p-3.5 flex items-center gap-3 hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-mono font-semibold text-gray-500">
+                    <div
+                      key={q.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: '14px', background: '#fff', border: '1px solid #E9EFF4', borderRadius: '14px', padding: '15px 18px', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#D7E6F0'; e.currentTarget.style.boxShadow = '0 6px 16px -10px rgba(16,44,61,0.2)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#E9EFF4'; e.currentTarget.style.boxShadow = 'none' }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#9DB6C7', fontFamily: 'monospace' }}>
                             #{String(q.numero ?? 0).padStart(4, '0')}
                           </span>
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${QUOTE_STATUS_COLORS[q.status]}`}>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${QUOTE_STATUS_COLORS[q.status]}`} style={{ fontSize: '12px', fontWeight: 700, padding: '3px 12px', borderRadius: '999px' }}>
                             {QUOTE_STATUS_LABELS[q.status]}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-gray-900">
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                          <span style={{ fontSize: '17px', fontWeight: 800, color: '#0E2C3D' }}>
                             {q.total_calculado != null ? fmtBRL.format(q.total_calculado) : '—'}
                           </span>
-                          <span className="text-xs text-gray-400">
+                          <span style={{ fontSize: '12.5px', color: '#9DB6C7' }}>
                             {new Date(q.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {/* Copiar link */}
+                      <div style={{ display: 'flex', gap: '12px', color: '#9DB6C7', flexShrink: 0 }}>
                         <button
                           onClick={() => handleCopyLink(q)}
                           title={copiedQuoteId === q.id ? 'Copiado!' : 'Copiar link do paciente'}
-                          className={`p-1.5 rounded-lg transition-colors ${copiedQuoteId === q.id ? 'text-emerald-600 bg-emerald-50' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copiedQuoteId === q.id ? '#4EB46B' : '#9DB6C7', transition: 'color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = copiedQuoteId === q.id ? '#4EB46B' : '#3F5666')}
+                          onMouseLeave={e => (e.currentTarget.style.color = copiedQuoteId === q.id ? '#4EB46B' : '#9DB6C7')}
                         >
                           {copiedQuoteId === q.id ? (
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg>
                           ) : (
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
                           )}
                         </button>
-                        {/* Editar */}
                         <a
                           href={`/orcamento?quote_id=${q.id}`}
                           title="Editar orçamento"
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          style={{ color: '#9DB6C7', transition: 'color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#3F5666')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#9DB6C7')}
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg>
                         </a>
                       </div>
                     </div>
@@ -1101,26 +1311,108 @@ function LeadDrawer({
               )
             })()}
 
-            {/* ═══ ATENDIMENTO (no-phone fallback) ═══ */}
-            {tab === 'Atendimento' && !lead.telefone && (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
+            {/* ═══ ATENDIMENTO ═══ */}
+            {tab === 'Atendimento' && (() => {
+              // Sem telefone cadastrado
+              if (!lead.telefone) return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' }}>
+                  <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#EAF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0098DA' }}>
+                    <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '15px', fontWeight: 800, color: '#3F5666', margin: '0 0 6px' }}>Telefone não cadastrado</p>
+                    <p style={{ fontSize: '13px', color: '#9DB6C7', margin: 0 }}>Cadastre um telefone para iniciar o atendimento via WhatsApp</p>
+                  </div>
+                  <button
+                    onClick={() => { setTab('Histórico'); setEditing(true) }}
+                    style={{ padding: '10px 24px', fontSize: '13.5px', fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: '11px', cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)' }}
+                  >
+                    Editar dados
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Telefone não cadastrado</p>
-                  <p className="text-xs text-gray-400 mt-1">Cadastre um telefone para acessar o atendimento</p>
+              )
+
+              // Carregando
+              if (!waLoaded) return (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0', color: '#9DB6C7', fontSize: '13px' }}>
+                  Carregando conversa…
                 </div>
-                <button
-                  onClick={() => { setTab('Histórico'); setEditing(true) }}
-                  className="text-sm px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
-                >
-                  Editar dados
-                </button>
-              </div>
-            )}
+              )
+
+              // Sem conversa ainda
+              if (!waConversation) return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' }}>
+                  <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#EAF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0098DA' }}>
+                    <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '15px', fontWeight: 800, color: '#3F5666', margin: '0 0 6px' }}>Nenhuma conversa ainda</p>
+                    <p style={{ fontSize: '13px', color: '#9DB6C7', margin: 0, maxWidth: '280px' }}>Quando este contato enviar uma mensagem para o WhatsApp, a conversa aparecerá aqui automaticamente.</p>
+                  </div>
+                </div>
+              )
+
+              // Chat
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: '-24px -28px -32px', overflow: 'hidden' }}>
+                  {/* Messages */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 12px', display: 'flex', flexDirection: 'column', gap: '8px', background: '#F7FAFC' }}>
+                    {waMessages.map(msg => {
+                      const isOut = msg.direction === 'outbound'
+                      return (
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
+                          <div style={{
+                            maxWidth: '72%',
+                            background:   isOut ? '#0098DA' : '#fff',
+                            color:        isOut ? '#fff' : '#0E2C3D',
+                            borderRadius: isOut ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                            padding:      '10px 14px',
+                            fontSize:     '13.5px',
+                            lineHeight:   1.55,
+                            boxShadow:    '0 2px 8px -4px rgba(16,44,61,0.15)',
+                            border:       isOut ? 'none' : '1px solid #EDF2F6',
+                          }}>
+                            <p style={{ margin: '0 0 4px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              {msg.content ?? `[${msg.type}]`}
+                            </p>
+                            <p style={{ margin: 0, fontSize: '11px', opacity: 0.65, textAlign: 'right' }}>
+                              {format(new Date(msg.created_at), "HH:mm", { locale: ptBR })}
+                              {isOut && (
+                                <span style={{ marginLeft: '4px' }}>
+                                  {msg.status === 'read' ? 'visto' : msg.status === 'delivered' ? 'entregue' : 'enviado'}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={waMsgsEndRef} />
+                  </div>
+
+                  {/* Input */}
+                  <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #EDF2F6', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                    <textarea
+                      value={waInput}
+                      onChange={e => setWaInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleWaSend() } }}
+                      placeholder="Digite uma mensagem… (Enter para enviar)"
+                      rows={1}
+                      style={{ flex: 1, border: '1px solid #E1EEF7', borderRadius: '12px', padding: '10px 14px', fontSize: '13.5px', color: '#0E2C3D', resize: 'none', outline: 'none', fontFamily: 'inherit', maxHeight: '120px', overflowY: 'auto' }}
+                    />
+                    <button
+                      onClick={handleWaSend}
+                      disabled={!waInput.trim() || waSending}
+                      style={{ width: '42px', height: '42px', flexShrink: 0, borderRadius: '12px', background: '#0098DA', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: !waInput.trim() || waSending ? 'not-allowed' : 'pointer', opacity: !waInput.trim() || waSending ? 0.5 : 1, transition: 'opacity 0.15s', boxShadow: '0 4px 12px -4px rgba(0,152,218,0.5)' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2">
+                        <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -1129,8 +1421,8 @@ function LeadDrawer({
       {archiveModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
-            <h3 className="font-semibold text-gray-900 mb-0.5">Arquivar lead</h3>
-            <p className="text-xs text-gray-500 mb-4">O lead será removido do funil e preservado no banco.</p>
+            <h3 className="font-semibold text-gray-900 mb-0.5">Arquivar contato</h3>
+            <p className="text-xs text-gray-500 mb-4">O contato será removido do funil e preservado no banco.</p>
             <p className="text-xs font-medium text-gray-700 mb-2">Motivo da perda *</p>
             <div className="space-y-2 mb-3">
               {ARCHIVE_REASONS.map(reason => (
@@ -1170,17 +1462,17 @@ function LeadDrawer({
 function LeftSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">{title}</p>
-      <div className="space-y-2">{children}</div>
+      <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.09em', color: '#9DB6C7', marginBottom: '12px', textTransform: 'uppercase' }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>{children}</div>
     </div>
   )
 }
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 text-xs">
-      <span className="text-gray-400 shrink-0 w-20 text-right leading-5">{label}</span>
-      <div className="flex-1 min-w-0 text-gray-800 leading-5 flex items-center gap-1 flex-wrap">{children}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <span style={{ fontSize: '13px', color: '#8A98A6', width: '78px', flexShrink: 0 }}>{label}</span>
+      <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0E2C3D', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>{children}</div>
     </div>
   )
 }
@@ -1204,4 +1496,20 @@ function F({
       />
     </div>
   )
+}
+
+function calcIdade(dataNasc: string | null | undefined): number | null {
+  if (!dataNasc) return null
+  const nasc = new Date(dataNasc)
+  if (isNaN(nasc.getTime())) return null
+  const hoje = new Date()
+  let idade = hoje.getFullYear() - nasc.getFullYear()
+  const m = hoje.getMonth() - nasc.getMonth()
+  if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--
+  return idade < 0 ? 0 : idade
+}
+
+function formatDtNasc(dataNasc: string): string {
+  const d = new Date(dataNasc + 'T12:00:00') // evita fuso-horário
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }

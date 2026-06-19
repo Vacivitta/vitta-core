@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type {
   Profile, Product, QuoteTemplate, Quote, QuoteStatus, QuoteItem, QuoteWithItems, PacoteOpcao,
 } from '@/types/database'
-import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS } from '@/types/database'
+import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS } from '@/types/database'
 
 const PdfButton = dynamic(
   () => import('@/components/orcamento/PdfButton'),
@@ -41,13 +41,14 @@ export type QuoteRow = Quote & {
 // ─── Local types ─────────────────────────────────────────────────────────────
 
 interface ItemForm {
-  key:            string
-  product_id:     string
-  nome_snapshot:  string
-  valor_snapshot: number
-  quantidade:     number
-  desconto:       number
-  observacao:     string
+  key:                 string
+  product_id:          string
+  nome_snapshot:       string
+  descricao_snapshot:  string | null
+  valor_snapshot:      number
+  quantidade:          number
+  desconto:            number
+  observacao:          string
 }
 
 interface Props {
@@ -88,9 +89,19 @@ function calcTotal(items: ItemForm[]): number {
 
 // ─── StatusBadge ─────────────────────────────────────────────────────────────
 
+const STATUS_CSS: Record<QuoteStatus, React.CSSProperties> = {
+  rascunho:      { background: 'var(--status-rascunho-bg)',     color: 'var(--status-rascunho-text)' },
+  enviado:       { background: 'var(--status-enviado-bg)',      color: 'var(--status-enviado-text)' },
+  visualizado:   { background: 'var(--status-visualizado-bg)',  color: 'var(--status-visualizado-text)' },
+  aceito:        { background: 'var(--status-aceito-bg)',       color: 'var(--status-aceito-text)' },
+  recusado:      { background: 'var(--status-recusado-bg)',     color: 'var(--status-recusado-text)' },
+  em_negociacao: { background: 'var(--color-accent-subtle)',    color: 'var(--color-accent-text)' },
+  expirado:      { background: 'var(--color-track)',            color: 'var(--color-muted)' },
+}
+
 function StatusBadge({ status }: { status: QuoteStatus }) {
   return (
-    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${QUOTE_STATUS_COLORS[status]}`}>
+    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full" style={STATUS_CSS[status]}>
       {QUOTE_STATUS_LABELS[status]}
     </span>
   )
@@ -167,13 +178,14 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
       .then(({ data }) => {
         if (data) {
           setItems(data.map(i => ({
-            key:            crypto.randomUUID(),
-            product_id:     i.product_id,
-            nome_snapshot:  i.nome_snapshot,
-            valor_snapshot: Number(i.valor_snapshot),
-            quantidade:     i.quantidade,
-            desconto:       Number(i.desconto),
-            observacao:     i.observacao ?? '',
+            key:                 crypto.randomUUID(),
+            product_id:          i.product_id,
+            nome_snapshot:       i.nome_snapshot,
+            descricao_snapshot:  i.descricao_snapshot ?? null,
+            valor_snapshot:      Number(i.valor_snapshot),
+            quantidade:          i.quantidade,
+            desconto:            Number(i.desconto),
+            observacao:          i.observacao ?? '',
           })))
         }
         setLoadingItems(false)
@@ -217,13 +229,14 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
       setItems(prev => [
         ...prev,
         {
-          key:            crypto.randomUUID(),
-          product_id:     p.id,
-          nome_snapshot:  p.nome,
-          valor_snapshot: p.valor_venda ?? 0,
-          quantidade:     1,
-          desconto:       0,
-          observacao:     '',
+          key:                 crypto.randomUUID(),
+          product_id:          p.id,
+          nome_snapshot:       p.nome,
+          descricao_snapshot:  p.descricao ?? null,
+          valor_snapshot:      p.valor_venda ?? 0,
+          quantidade:          1,
+          desconto:            0,
+          observacao:          '',
         },
       ])
     }
@@ -320,15 +333,16 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
     }
 
     const itemsPayload = items.map(i => ({
-      quote_id:       quoteId,
-      unit_id:        unitId,
-      product_id:     i.product_id,
-      nome_snapshot:  i.nome_snapshot,
-      valor_snapshot: i.valor_snapshot,
-      quantidade:     i.quantidade,
-      desconto:       i.desconto,
-      valor_final:    calcValorFinal(i.valor_snapshot, i.quantidade, i.desconto),
-      observacao:     i.observacao.trim() || null,
+      quote_id:            quoteId,
+      unit_id:             unitId,
+      product_id:          i.product_id,
+      nome_snapshot:       i.nome_snapshot,
+      descricao_snapshot:  i.descricao_snapshot ?? null,
+      valor_snapshot:      i.valor_snapshot,
+      quantidade:          i.quantidade,
+      desconto:            i.desconto,
+      valor_final:         calcValorFinal(i.valor_snapshot, i.quantidade, i.desconto),
+      observacao:          i.observacao.trim() || null,
     }))
 
     const { error: itemsErr } = await supabase.from('quote_items').insert(itemsPayload)
@@ -377,17 +391,18 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
       criado_em:       editing?.criado_em ?? new Date().toISOString(),
       atualizado_em:   new Date().toISOString(),
       items: items.map(i => ({
-        id:             i.key,
-        quote_id:       editing?.id ?? 'preview',
-        unit_id:        unitId ?? '',
-        product_id:     i.product_id,
-        nome_snapshot:  i.nome_snapshot,
-        valor_snapshot: i.valor_snapshot,
-        quantidade:     i.quantidade,
-        desconto:       i.desconto,
-        valor_final:    calcValorFinal(i.valor_snapshot, i.quantidade, i.desconto),
-        observacao:     i.observacao || null,
-        criado_em:      new Date().toISOString(),
+        id:                  i.key,
+        quote_id:            editing?.id ?? 'preview',
+        unit_id:             unitId ?? '',
+        product_id:          i.product_id,
+        nome_snapshot:       i.nome_snapshot,
+        descricao_snapshot:  i.descricao_snapshot ?? null,
+        valor_snapshot:      i.valor_snapshot,
+        quantidade:          i.quantidade,
+        desconto:            i.desconto,
+        valor_final:         calcValorFinal(i.valor_snapshot, i.quantidade, i.desconto),
+        observacao:          i.observacao || null,
+        criado_em:           new Date().toISOString(),
       })),
       template: templateObj,
       lead:   patientType === 'lead' && selectedLead
@@ -406,37 +421,41 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
   ] as const
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-6" style={{ background: 'rgba(14,44,61,0.42)' }}>
+      <div className="bg-white flex flex-col w-full" style={{ maxWidth: '640px', maxHeight: '88vh', borderRadius: '18px', boxShadow: '0 40px 90px -30px rgba(14,44,61,0.55)', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between shrink-0" style={{ padding: '20px 24px 0' }}>
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">
+            <h2 style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: '#0E2C3D' }}>
               {editing
                 ? `Orçamento #${String(editing.numero ?? 0).padStart(4, '0')}`
                 : 'Novo orçamento'}
             </h2>
             {editing && <div className="mt-0.5"><StatusBadge status={editing.status} /></div>}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button
+            onClick={onClose}
+            style={{ width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8A98A6', background: 'none', border: 'none', transition: 'background 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#F1F4F7')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100 px-6 shrink-0">
+        <div className="shrink-0" style={{ display: 'flex', alignItems: 'center', gap: '26px', padding: '14px 24px 0', borderBottom: '1px solid #EDF2F6' }}>
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`text-xs font-medium py-2.5 px-1 mr-4 border-b-2 transition-colors ${
-                tab === t.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              style={{
+                fontSize: '14px', fontWeight: 700, paddingBottom: '12px', cursor: 'pointer',
+                color: tab === t.id ? 'var(--color-brand)' : '#7A8694',
+                background: 'none', border: 'none', borderBottom: tab === t.id ? '2px solid var(--color-brand)' : '2px solid transparent',
+                transition: 'color 0.15s',
+              }}
             >
               {t.label}
             </button>
@@ -444,7 +463,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
 
           {/* ── Paciente ── */}
           {tab === 'paciente' && (
@@ -469,7 +488,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
               {/* Selected patient display */}
               {selectedPatient && (
                 <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-brand)' }}>
                     <span className="text-xs font-bold text-white">{selectedPatient.nome[0]}</span>
                   </div>
                   <div className="flex-1 min-w-0">
@@ -524,9 +543,10 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
                           isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'
                         }`}
                       >
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                          isSelected ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'
-                        }`}>
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                          style={isSelected ? { background: 'var(--color-brand)', color: '#fff' } : { background: 'var(--color-track)', color: 'var(--color-text)' }}
+                        >
                           {p.nome[0]}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -792,9 +812,8 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
                   <button
                     type="button"
                     onClick={() => togglePacote(!pacoteAtivo)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                      pacoteAtivo ? 'bg-blue-500' : 'bg-gray-200'
-                    }`}
+                    className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
+                    style={{ background: pacoteAtivo ? 'var(--color-brand)' : 'var(--color-track)' }}
                   >
                     <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
                       pacoteAtivo ? 'translate-x-4' : 'translate-x-0'
@@ -827,23 +846,25 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 shrink-0">
+        <div className="flex items-center justify-between shrink-0" style={{ padding: '16px 24px', borderTop: '1px solid #EDF2F6' }}>
           <div className="flex items-center gap-2">
             {quoteForPdf && (
               <PdfButton quote={quoteForPdf} label="Prévia PDF" variant="preview" />
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              style={{ border: '1px solid #E1EEF7', borderRadius: '11px', padding: '11px 22px', fontSize: '13.5px', fontWeight: 700, color: '#3F5666', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#F4FAFE')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               Cancelar
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 text-xs font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)', border: 'none', borderRadius: '11px', padding: '11px 24px', fontSize: '13.5px', fontWeight: 700, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: saving ? 0.6 : 1, transition: 'opacity 0.15s' }}
             >
               {saving && (
                 <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -916,12 +937,15 @@ export default function OrcamentosClient({
   currentUser, initialQuotes, products, templates, leads, clients,
   initialLeadId, initialClientId, initialQuoteId,
 }: Props) {
-  const [quotes,    setQuotes]    = useState<QuoteRow[]>(initialQuotes)
-  const [search,    setSearch]    = useState('')
-  const [filterSt,  setFilterSt]  = useState<QuoteStatus | 'todos'>('todos')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing,   setEditing]   = useState<QuoteRow | null>(null)
-  const [copiedId,  setCopiedId]  = useState<string | null>(null)
+  const [quotes,      setQuotes]      = useState<QuoteRow[]>(initialQuotes)
+  const [search,      setSearch]      = useState('')
+  const [filterSt,    setFilterSt]    = useState<QuoteStatus | 'todos'>('todos')
+  const [modalOpen,   setModalOpen]   = useState(false)
+  const [editing,     setEditing]     = useState<QuoteRow | null>(null)
+  const [copiedId,    setCopiedId]    = useState<string | null>(null)
+  const [deletingId,  setDeletingId]  = useState<string | null>(null)
+
+  const canDelete = currentUser.perfil === 'admin' || currentUser.perfil === 'gestor_unidade' || currentUser.perfil === 'gestor_vacivitta'
 
   // Pré-seleciona paciente ou orçamento ao navegar com query param
   const [initialPatient, setInitialPatient] = useState<{ type: 'lead' | 'client'; patient: PatientOption } | null>(null)
@@ -968,6 +992,17 @@ export default function OrcamentosClient({
     setEditing(null)
   }
 
+  async function handleDelete(q: QuoteRow) {
+    if (!window.confirm(`Excluir orçamento #${String(q.numero ?? 0).padStart(4, '0')} de ${patientName(q)}? Esta ação não pode ser desfeita.`)) return
+    setDeletingId(q.id)
+    const supabase = createClient()
+    await supabase.from('quote_items').delete().eq('quote_id', q.id)
+    const { error } = await supabase.from('quotes').delete().eq('id', q.id)
+    setDeletingId(null)
+    if (error) { alert('Erro ao excluir: ' + error.message); return }
+    setQuotes(prev => prev.filter(x => x.id !== q.id))
+  }
+
   async function handleCopyLink(q: QuoteRow) {
     const url = `${window.location.origin}/orcamento/ver/${q.token_publico}`
 
@@ -1001,7 +1036,7 @@ export default function OrcamentosClient({
           </div>
           <button
             onClick={() => { setEditing(null); setModalOpen(true) }}
-            className="flex items-center gap-1.5 text-sm px-3 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+            className="flex items-center gap-1.5 text-sm px-3 py-2 text-white rounded-xl transition-colors font-medium" style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1019,12 +1054,12 @@ export default function OrcamentosClient({
         <div className="w-px h-8 bg-gray-100" />
         <StatCard label="Aguardando" value={stats.enviados} />
         <div className="w-px h-8 bg-gray-100" />
-        <StatCard label="Aceitos" value={stats.aceitos} color="text-emerald-600" />
+        <StatCard label="Aceitos" value={stats.aceitos} color="text-[#4EB46B]" />
         <div className="w-px h-8 bg-gray-100" />
         <StatCard
           label="Valor aceito"
           value={stats.totalAceito > 0 ? fmtBRL.format(stats.totalAceito) : '—'}
-          color={stats.totalAceito > 0 ? 'text-emerald-600' : 'text-gray-400'}
+          color={stats.totalAceito > 0 ? 'text-[#4EB46B]' : 'text-gray-400'}
         />
       </div>
 
@@ -1140,6 +1175,19 @@ export default function OrcamentosClient({
                           </svg>
                         )}
                       </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(q)}
+                          disabled={deletingId === q.id}
+                          title="Excluir orçamento"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
