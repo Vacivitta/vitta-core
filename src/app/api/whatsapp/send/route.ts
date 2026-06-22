@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -55,18 +56,17 @@ export async function POST(req: NextRequest) {
   // Monta o payload para a API do Meta
   const metaPayload = buildMetaPayload(conv.wa_phone, type, content, template_name, language, components)
 
-  // Chama a API do Meta
-  const phoneNumberId  = process.env.WHATSAPP_PHONE_NUMBER_ID
-  const accessToken    = process.env.WHATSAPP_ACCESS_TOKEN
+  // Chama a API do Meta — lê credenciais do banco ou fallback env vars
+  const creds = await getWaCredentials(conv.unit_id)
 
-  if (!phoneNumberId || !accessToken) {
-    return NextResponse.json({ error: 'Variáveis WHATSAPP_PHONE_NUMBER_ID ou WHATSAPP_ACCESS_TOKEN não configuradas' }, { status: 500 })
+  if (!creds.phoneNumberId || !creds.accessToken) {
+    return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
   }
 
-  const metaRes = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+  const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
     method:  'POST',
     headers: {
-      'Authorization': `Bearer ${accessToken}`,
+      'Authorization': `Bearer ${creds.accessToken}`,
       'Content-Type':  'application/json',
     },
     body: JSON.stringify(metaPayload),

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { runAutoAssign }            from '../auto-assign/route'
-
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? ''
+import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -18,7 +17,7 @@ export async function GET(req: NextRequest) {
   const token     = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token && await isValidVerifyToken(token)) {
     console.log('[WA webhook] verificado com sucesso')
     return new NextResponse(challenge, { status: 200 })
   }
