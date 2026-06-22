@@ -95,16 +95,22 @@ export async function POST(req: NextRequest) {
 
   const { phone_number_id, access_token, verify_token, waba_id, display_phone } = body
 
-  if (!phone_number_id?.trim() || !access_token?.trim() || !verify_token?.trim()) {
+  if (!verify_token?.trim()) {
+    return NextResponse.json({ error: 'verify_token é obrigatório' }, { status: 400 })
+  }
+
+  const tokenOnly = !phone_number_id?.trim() && !access_token?.trim()
+
+  if (!tokenOnly && (!phone_number_id?.trim() || !access_token?.trim())) {
     return NextResponse.json(
-      { error: 'phone_number_id, access_token e verify_token são obrigatórios' },
+      { error: 'Informe phone_number_id e access_token juntos' },
       { status: 400 },
     )
   }
 
-  // Se o token ainda está mascarado (não foi alterado), mantém o valor atual do banco
-  let finalToken = access_token.trim()
-  if (finalToken.includes('•')) {
+  // Se o access_token ainda está mascarado, mantém o valor atual do banco
+  let finalToken = access_token?.trim() ?? ''
+  if (!tokenOnly && finalToken.includes('•')) {
     const { data: existing } = await adminClient()
       .from('wa_config')
       .select('access_token')
@@ -113,17 +119,22 @@ export async function POST(req: NextRequest) {
     finalToken = existing?.access_token ?? finalToken
   }
 
+  const upsertPayload = tokenOnly
+    ? { unit_id: unitId, verify_token: verify_token.trim(), is_active: true }
+    : {
+        unit_id:         unitId,
+        phone_number_id: phone_number_id!.trim(),
+        access_token:    finalToken,
+        verify_token:    verify_token.trim(),
+        waba_id:         waba_id?.trim()       || null,
+        display_phone:   display_phone?.trim() || null,
+        is_active:       true,
+      }
+
   const { error } = await adminClient()
     .from('wa_config')
-    .upsert({
-      unit_id:         unitId,
-      phone_number_id: phone_number_id.trim(),
-      access_token:    finalToken,
-      verify_token:    verify_token.trim(),
-      waba_id:         waba_id?.trim()       || null,
-      display_phone:   display_phone?.trim() || null,
-      is_active:       true,
-    }, { onConflict: 'unit_id' })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .upsert(upsertPayload as any, { onConflict: 'unit_id' })
 
   if (error) {
     console.error('[wa_config] upsert error:', error)

@@ -43,12 +43,14 @@ export default function WhatsAppConfigClient({
   const [verifyToken, setVerifyToken]       = useState(globalVerifyToken)
   const [loadingUnit, setLoadingUnit]       = useState(false)
 
-  const [saving, setSaving]           = useState(false)
-  const [testing, setTesting]         = useState(false)
-  const [saved, setSaved]             = useState(false)
-  const [saveError, setSaveError]     = useState('')
-  const [testResult, setTestResult]   = useState<TestResult | null>(null)
-  const [tokenEditing, setTokenEditing] = useState(false)
+  const [saving, setSaving]               = useState(false)
+  const [savingToken, setSavingToken]     = useState(false)
+  const [savedToken, setSavedToken]       = useState(false)
+  const [testing, setTesting]             = useState(false)
+  const [saved, setSaved]                 = useState(false)
+  const [saveError, setSaveError]         = useState('')
+  const [testResult, setTestResult]       = useState<TestResult | null>(null)
+  const [tokenEditing, setTokenEditing]   = useState(false)
 
   const selectedUnit = units.find(u => u.id === selectedUnitId)
 
@@ -81,6 +83,20 @@ export default function WhatsAppConfigClient({
     setSaved(false)
     setSaveError('')
     setTestResult(null)
+  }
+
+  async function handleSaveToken() {
+    if (!verifyToken.trim()) return
+    setSavingToken(true)
+    setSavedToken(false)
+    const res = await fetch('/api/whatsapp/config', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unit_id: selectedUnitId, verify_token: verifyToken }),
+    })
+    const json = await res.json() as { success?: boolean; error?: string }
+    setSavingToken(false)
+    if (json.success) setSavedToken(true)
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -194,6 +210,66 @@ export default function WhatsAppConfigClient({
         </div>
       )}
 
+      {/* ── Webhook URL (global, sempre visível) ──────────────────────────── */}
+      <div style={{ background: '#F4FAFE', border: '1.5px solid #E1EEF7', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#0098DA', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px' }}>
+          URL do Webhook — Global
+        </p>
+        <p style={{ fontSize: 12, color: '#5B7A8A', margin: '0 0 10px' }}>
+          Registre esta URL uma única vez no Meta para todas as unidades.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <code style={{ flex: 1, fontSize: 13, color: '#0E2C3D', background: '#fff', border: '1px solid #E1EEF7', borderRadius: 8, padding: '8px 12px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+            {webhookUrl}
+          </code>
+          <button type="button" onClick={() => copyToClipboard(webhookUrl)}
+            style={{ flexShrink: 0, padding: '8px 14px', border: '1.5px solid #E1EEF7', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#3F5666' }}>
+            Copiar
+          </button>
+        </div>
+      </div>
+
+      {/* ── Token de verificação (global, salva independente) ─────────────── */}
+      <div style={{ background: '#fff', border: '1.5px solid #E1EEF7', borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#8A98A6', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 14px' }}>
+          Configuração Global do Webhook
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Token de verificação</label>
+            <input
+              type="text"
+              placeholder="Ex: vitta_webhook_2024"
+              value={verifyToken}
+              onChange={e => { setVerifyToken(e.target.value); setSavedToken(false) }}
+              style={inputStyle}
+              onFocus={focusOn} onBlur={focusOff}
+            />
+            <p style={hintStyle}>
+              Compartilhado entre todas as unidades — use o mesmo valor ao registrar o webhook no Meta.
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={handleSaveToken}
+              disabled={savingToken || !verifyToken.trim()}
+              style={{
+                padding: '9px 20px', border: '1.5px solid #0098DA', borderRadius: 10,
+                background: '#EAF6FC', fontSize: 13, fontWeight: 600, color: '#0098DA',
+                cursor: savingToken || !verifyToken.trim() ? 'not-allowed' : 'pointer',
+                opacity: !verifyToken.trim() ? 0.5 : 1,
+              }}
+            >
+              {savingToken ? 'Salvando…' : 'Salvar token'}
+            </button>
+            {savedToken && (
+              <span style={{ fontSize: 13, color: '#2E8E4C', fontWeight: 600 }}>✓ Token salvo</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {loadingUnit ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: '#9DB6C7', fontSize: 14 }}>
           Carregando configuração…
@@ -212,47 +288,6 @@ export default function WhatsAppConfigClient({
                 ○ Não configurado{selectedUnit ? ` — ${selectedUnit.nome}` : ''}
               </span>
             )}
-          </div>
-
-          {/* ── Webhook URL (global) ──────────────────────────────────────── */}
-          <div style={{ background: '#F4FAFE', border: '1.5px solid #E1EEF7', borderRadius: 14, padding: '16px 20px' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#0098DA', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px' }}>
-              URL do Webhook — Global
-            </p>
-            <p style={{ fontSize: 12, color: '#5B7A8A', margin: '0 0 10px' }}>
-              Registre esta URL uma única vez no Meta para todas as unidades.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <code style={{ flex: 1, fontSize: 13, color: '#0E2C3D', background: '#fff', border: '1px solid #E1EEF7', borderRadius: 8, padding: '8px 12px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-                {webhookUrl}
-              </code>
-              <button type="button" onClick={() => copyToClipboard(webhookUrl)}
-                style={{ flexShrink: 0, padding: '8px 14px', border: '1.5px solid #E1EEF7', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#3F5666' }}>
-                Copiar
-              </button>
-            </div>
-          </div>
-
-          {/* ── Token de verificação (global) ────────────────────────────── */}
-          <div style={{ background: '#fff', border: '1.5px solid #E1EEF7', borderRadius: 16, padding: '20px 24px' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#8A98A6', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 14px' }}>
-              Configuração Global do Webhook
-            </p>
-            <div>
-              <label style={labelStyle}>Token de verificação</label>
-              <input
-                type="text"
-                placeholder="Ex: vitta_webhook_2024"
-                required
-                value={verifyToken}
-                onChange={e => setVerifyToken(e.target.value)}
-                style={inputStyle}
-                onFocus={focusOn} onBlur={focusOff}
-              />
-              <p style={hintStyle}>
-                Compartilhado entre todas as unidades — use o mesmo valor ao registrar o webhook no Meta.
-              </p>
-            </div>
           </div>
 
           {/* ── Campos por unidade ────────────────────────────────────────── */}
