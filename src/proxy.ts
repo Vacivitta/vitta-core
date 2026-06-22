@@ -3,11 +3,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = [
   '/login',
+  '/termos',
+  '/privacidade',
   '/auth/callback',
   '/auth/reset-password',
   '/orcamento/ver',
   '/api/orcamento/respond',
-  '/api/whatsapp',       // webhook do Meta — chamadas server-to-server sem cookie de auth
+  '/api/whatsapp',
 ]
 
 export async function proxy(request: NextRequest) {
