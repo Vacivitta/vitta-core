@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/types/database'
 import TemplatesWhatsAppClient from './TemplatesWhatsAppClient'
 
-export const metadata = { title: 'Templates WhatsApp — Vitta Core' }
+export const metadata = { title: 'Templates WhatsApp — VittaDesk' }
 
 export default async function TemplatesWhatsAppPage() {
   const supabase = await createClient()

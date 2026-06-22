@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import PublicQuoteClient from './PublicQuoteClient'
 import type { QuoteWithItems } from '@/types/database'
 
-export const metadata = { title: 'Orçamento — Vitta Core' }
+export const metadata = { title: 'Orçamento — VittaDesk' }
 
 interface Props {
   params: Promise<{ token: string }>

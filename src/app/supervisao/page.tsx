@@ -1,10 +1,10 @@
-import { redirect }    from 'next/navigation'
+﻿import { redirect }    from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import SupervisaoClient from './SupervisaoClient'
 import type { Profile } from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from '@/app/campanhas/page'
 
-export const metadata = { title: 'Dashboard de Atendimento — Vitta Core' }
+export const metadata = { title: 'Dashboard de Atendimento — VittaDesk' }
 
 export default async function SupervisaoPage() {
   const supabase = await createClient()

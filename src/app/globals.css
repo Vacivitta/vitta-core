@@ -1,11 +1,11 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 /* ── Fonte: Plus Jakarta Sans ─────────────────────────────────────────────── */
 @theme inline {
   --font-sans: var(--font-plus-jakarta);
 }
 
-/* ── Tokens Vitta Core / Vacivitta ───────────────────────────────────────── */
+/* ── Tokens VittaDesk / Vacivitta ───────────────────────────────────────── */
 :root {
   /* Marca */
   --color-brand:          #0098DA;   /* azul primário — CTAs, ativo, links  */
@@ -202,4 +202,13 @@ textarea:focus-visible {
 ::-webkit-scrollbar         { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track   { background: transparent; }
 ::-webkit-scrollbar-thumb   { background: var(--color-border-strong); border-radius: var(--radius-badge); }
+
+/* ── Login: floating card animation ─────────────────────────────────────── */
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-9px); }
+}
+.float-card {
+  animation: floatY 6s ease-in-out infinite;
+}
 ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }

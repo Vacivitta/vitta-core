@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from './DashboardClient'
 import type { Profile } from '@/types/database'
 
-export const metadata = { title: 'Dashboard — Vitta Core' }
+export const metadata = { title: 'Dashboard — VittaDesk' }
 
 export default async function DashboardPage() {
   const supabase = await createClient()

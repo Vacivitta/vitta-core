@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/types/database'
 import FilasConfig from './FilasConfig'
 
-export const metadata = { title: 'Filas de Atendimento — Vitta Core' }
+export const metadata = { title: 'Filas de Atendimento — VittaDesk' }
 
 export default async function FilasPage() {
   const supabase = await createClient()

@@ -167,7 +167,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
   const corTexto      = t?.cor_texto_conteudo ?? '#ffffff'
   const corPrimaria   = t?.cor_primaria       ?? '#67bea0'
   const corSecundaria = t?.cor_secundaria     ?? '#185FA5'
-  const nomeClinica   = t?.nome_clinica       ?? 'Vitta Core'
+  const nomeClinica   = t?.nome_clinica       ?? 'VittaDesk'
   const validadeDias  = t?.validade_dias      ?? 7
   const numStr  = quote.numero ? String(quote.numero).padStart(4, '0') : '0000'
   const patientName = quote.lead
@@ -217,7 +217,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
             </Text>
             <Text style={{ fontSize: 9, color: txt, opacity: 0.75, marginBottom: 20 }}>
               Emitido em {fmtDate(quote.criado_em)}
-              {nomeClinica !== 'Vitta Core' ? `  ·  ${nomeClinica}` : ''}
+              {nomeClinica !== 'VittaDesk' ? `  ·  ${nomeClinica}` : ''}
               {'  ·  Válido até ' + validadeDate(quote.criado_em, validadeDias)}
             </Text>
 

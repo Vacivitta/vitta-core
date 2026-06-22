@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import ProdutosClient from './ProdutosClient'
 import type { Profile, Product } from '@/types/database'
 
-export const metadata = { title: 'Catálogo de Vacinas — Vitta Core' }
+export const metadata = { title: 'Catálogo de Vacinas — VittaDesk' }
 
 export default async function ProdutosPage() {
   const supabase = await createClient()

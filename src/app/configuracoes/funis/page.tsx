@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import FunisConfig from './FunisConfig'
 import type { FunnelWithStages } from '@/types/database'
 
-export const metadata = { title: 'Configurar Funis — Vitta Core' }
+export const metadata = { title: 'Configurar Funis — VittaDesk' }
 
 export default async function ConfigFunisPage() {
   const supabase = await createClient()

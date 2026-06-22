@@ -1,10 +1,10 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AgendaClient from './AgendaClient'
 import type { Profile } from '@/types/database'
 import type { TaskWithLead } from './AgendaClient'
 
-export const metadata = { title: 'Agenda — Vitta Core' }
+export const metadata = { title: 'Agenda — VittaDesk' }
 
 export default async function AgendaPage() {
   const supabase = await createClient()

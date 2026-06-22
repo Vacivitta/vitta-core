@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AtendimentoClient from './AtendimentoClient'
 import type { Profile, FunnelWithStages } from '@/types/database'
 
-export const metadata = { title: 'Atendimento — Vitta Core' }
+export const metadata = { title: 'Atendimento — VittaDesk' }
 
 export default async function AtendimentoPage({
   searchParams,

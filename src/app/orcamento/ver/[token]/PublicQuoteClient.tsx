@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -45,7 +45,7 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
 
   const t            = quote.template
   const corPrimaria  = t?.cor_primaria  ?? '#1D9E75'
-  const nomeClinica  = t?.nome_clinica  ?? 'Vitta Core'
+  const nomeClinica  = t?.nome_clinica  ?? 'VittaDesk'
   const validadeDias = t?.validade_dias ?? 7
   const numStr       = String(quote.numero ?? 0).padStart(4, '0')
   const patientName  = quote.lead

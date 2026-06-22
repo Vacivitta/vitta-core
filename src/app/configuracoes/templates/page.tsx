@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import TemplatesClient from './TemplatesClient'
 import type { Profile, QuoteTemplate } from '@/types/database'
 
-export const metadata = { title: 'Templates de Orçamento — Vitta Core' }
+export const metadata = { title: 'Templates de Orçamento — VittaDesk' }
 
 export default async function TemplatesPage() {
   const supabase = await createClient()

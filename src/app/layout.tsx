@@ -11,8 +11,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Vitta Core CRM',
-  description: 'CRM Comercial Vitta',
+  title: 'VittaDesk',
+  description: 'CRM Comercial VittaDesk',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

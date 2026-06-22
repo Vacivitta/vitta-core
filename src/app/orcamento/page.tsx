@@ -1,10 +1,10 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import OrcamentosClient from './OrcamentosClient'
 import type { Profile, Product, QuoteTemplate } from '@/types/database'
 import type { QuoteRow, PatientOption } from './OrcamentosClient'
 
-export const metadata = { title: 'Orçamentos — Vitta Core' }
+export const metadata = { title: 'Orçamentos — VittaDesk' }
 
 export default async function OrcamentosPage({
   searchParams,

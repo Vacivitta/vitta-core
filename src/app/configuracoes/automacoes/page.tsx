@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AutomacoesClient from './AutomacoesClient'
 import type { Profile } from '@/types/database'
 
-export const metadata = { title: 'Automações — Vitta Core' }
+export const metadata = { title: 'Automações — VittaDesk' }
 
 export default async function AutomacoesPage() {
   const supabase = await createClient()

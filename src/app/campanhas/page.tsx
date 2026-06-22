@@ -1,9 +1,9 @@
-import { redirect }    from 'next/navigation'
+﻿import { redirect }    from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CampanhasClient  from './CampanhasClient'
 import type { Profile }  from '@/types/database'
 
-export const metadata = { title: 'Campanhas — Vitta Core' }
+export const metadata = { title: 'Campanhas — VittaDesk' }
 
 export interface CampaignRow {
   id:                 string
