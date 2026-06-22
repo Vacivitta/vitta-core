@@ -4,7 +4,27 @@
       "Bash(npx tsc *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\pedro\\\\Desktop\\\\CRM Comercial\\\\vitta-core\" -Force)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\pedro\\\\Desktop\\\\CRM Comercial\\\\vitta-core\" -Directory)",
-      "mcp__visualize__read_me"
+      "mcp__visualize__read_me",
+      "Bash(grep -n \"QuoteModal\\\\|modal.*640\\\\|Novo orçamento\\\\|{\\\\/\\\\* Modal\\\\|id=\\\\\"orcTabs\\\\\"\\\\|mp-paciente\\\\|Paciente.*Itens\\\\|Criar orçamento\\\\|Cancelar.*orçamento\" src/app/orcamento/OrcamentosClient.tsx)",
+      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__list_tables",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\pedro\\\\Desktop\\\\CRM Comercial\\\\vitta-core\" -Filter \"middleware*\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)",
+      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__execute_sql",
+      "mcp__visualize__show_widget",
+      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__apply_migration",
+      "Bash(grep -v \"^$\")",
+      "WebSearch",
+      "Bash(cd \"/c/Users/pedro/Desktop/CRM Comercial/vitta-core\" && grep -r \"FUNCTION\" supabase/migrations/ | grep -E \"CREATE|REPLACE\" | head -30)",
+      "Bash(cd \"/c/Users/pedro/Desktop/CRM Comercial/vitta-core\" && grep -n \"as unknown as\\\\|as any\\\\|!\" src/app/**/*.ts* src/app/**/*.tsx | head -30)",
+      "Bash(grep -E \"\\\\.sql$\")",
+      "Bash(grep -rn \"await.*\\\\\\\\.rpc\" src/app/api/ src/app/*/page.tsx src/app/**/page.tsx)",
+      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__list_projects",
+      "WebFetch(domain:ajuda.zdg.com.br)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git push *)",
+      "mcp__Claude_in_Chrome__get_page_text"
     ]
   }
 }
