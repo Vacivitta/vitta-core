@@ -7,6 +7,13 @@ export interface WaCredentials {
   wabaId:        string
 }
 
+interface WaConfigRow {
+  phone_number_id: string | null
+  access_token:    string | null
+  verify_token:    string | null
+  waba_id:         string | null
+}
+
 let _admin: ReturnType<typeof createClient> | null = null
 
 function adminClient() {
@@ -15,35 +22,31 @@ function adminClient() {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
     _admin = createClient(url, key)
   }
-  return _admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return _admin as any
 }
 
 /**
  * Retorna as credenciais do WhatsApp para uma unidade.
  * Prioridade: wa_config no banco → env vars (compatibilidade).
  */
-interface WaConfigRow {
-  phone_number_id: string | null
-  access_token:    string | null
-  verify_token:    string | null
-  waba_id:         string | null
-}
-
 export async function getWaCredentials(unitId?: string): Promise<WaCredentials> {
   if (unitId) {
-    const { data } = await adminClient()
+    const result = await adminClient()
       .from('wa_config')
       .select('phone_number_id, access_token, verify_token, waba_id')
       .eq('unit_id', unitId)
       .eq('is_active', true)
-      .maybeSingle() as { data: WaConfigRow | null; error: unknown }
+      .maybeSingle()
+
+    const data = result.data as WaConfigRow | null
 
     if (data?.phone_number_id && data?.access_token) {
       return {
         phoneNumberId: data.phone_number_id,
         accessToken:   data.access_token,
-        verifyToken:   data.verify_token  ?? '',
-        wabaId:        data.waba_id       ?? '',
+        verifyToken:   data.verify_token ?? '',
+        wabaId:        data.waba_id      ?? '',
       }
     }
   }
@@ -63,17 +66,15 @@ export async function getWaCredentials(unitId?: string): Promise<WaCredentials> 
 export async function isValidVerifyToken(token: string): Promise<boolean> {
   if (!token) return false
 
-  // Verifica no banco primeiro
-  const { data } = await adminClient()
+  const result = await adminClient()
     .from('wa_config')
     .select('id')
     .eq('verify_token', token)
     .eq('is_active', true)
     .limit(1)
-    .maybeSingle() as { data: { id: string } | null; error: unknown }
+    .maybeSingle()
 
-  if (data) return true
+  if (result.data) return true
 
-  // Fallback: env var
   return token === (process.env.WHATSAPP_VERIFY_TOKEN ?? '')
 }
