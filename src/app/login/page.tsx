@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -216,7 +217,7 @@ export default function LoginPage() {
 
                 {/* Email */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
+                  <label htmlFor="login-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
                     E-mail
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -227,6 +228,8 @@ export default function LoginPage() {
                       </svg>
                     </span>
                     <input
+                      id="login-email"
+                      name="email"
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
@@ -254,7 +257,7 @@ export default function LoginPage() {
 
                 {/* Password */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
+                  <label htmlFor="login-password" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
                     Senha
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -265,6 +268,8 @@ export default function LoginPage() {
                       </svg>
                     </span>
                     <input
+                      id="login-password"
+                      name="password"
                       type={showPwd ? 'text' : 'password'}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
@@ -390,7 +395,7 @@ export default function LoginPage() {
 
               <form onSubmit={handleForgot} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
+                  <label htmlFor="forgot-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
                     E-mail
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -401,6 +406,8 @@ export default function LoginPage() {
                       </svg>
                     </span>
                     <input
+                      id="forgot-email"
+                      name="email"
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
@@ -493,9 +500,9 @@ export default function LoginPage() {
 
           {/* Footer links */}
           <p style={{ textAlign: 'center', fontSize: 12, color: '#9DB6C7', marginTop: 36 }}>
-            <a href="/termos" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Termos de Uso</a>
+            <Link href="/termos" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Termos de Uso</Link>
             <span style={{ margin: '0 8px' }}>·</span>
-            <a href="/privacidade" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Política de Privacidade</a>
+            <Link href="/privacidade" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Política de Privacidade</Link>
           </p>
 
         </div>
