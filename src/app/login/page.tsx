@@ -493,9 +493,9 @@ export default function LoginPage() {
 
           {/* Footer links */}
           <p style={{ textAlign: 'center', fontSize: 12, color: '#9DB6C7', marginTop: 36 }}>
-            <a href="/termos" style={{ color: 'inherit', textDecoration: 'none' }}>Termos de Uso</a>
+            <a href="/termos" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Termos de Uso</a>
             <span style={{ margin: '0 8px' }}>·</span>
-            <a href="/privacidade" style={{ color: 'inherit', textDecoration: 'none' }}>Política de Privacidade</a>
+            <a href="/privacidade" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Política de Privacidade</a>
           </p>
 
         </div>
