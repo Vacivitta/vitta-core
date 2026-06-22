@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 
+export const dynamic = 'force-static'
+
 export const metadata: Metadata = {
   title: 'Termos e Condições Gerais de Uso e Licenciamento — VittaDesk',
   description: 'Termos e Condições Gerais de Uso e Licenciamento do sistema VittaDesk, da Vacivitta Saúde Integrada LTDA.',
