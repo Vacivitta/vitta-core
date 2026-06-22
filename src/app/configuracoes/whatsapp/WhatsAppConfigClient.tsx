@@ -89,14 +89,26 @@ export default function WhatsAppConfigClient({
     if (!verifyToken.trim()) return
     setSavingToken(true)
     setSavedToken(false)
-    const res = await fetch('/api/whatsapp/config', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unit_id: selectedUnitId, verify_token: verifyToken }),
-    })
-    const json = await res.json() as { success?: boolean; error?: string }
-    setSavingToken(false)
-    if (json.success) setSavedToken(true)
+    setSaveError('')
+    try {
+      const res = await fetch('/api/whatsapp/config', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unit_id: selectedUnitId || null, verify_token: verifyToken }),
+      })
+      const text = await res.text()
+      const json = text ? JSON.parse(text) as { success?: boolean; error?: string } : {}
+      if (json.success) {
+        setSavedToken(true)
+      } else {
+        setSaveError(json.error ?? `Erro ${res.status} ao salvar token`)
+      }
+    } catch (err) {
+      setSaveError('Não foi possível salvar. Verifique a conexão e tente novamente.')
+      console.error('[handleSaveToken]', err)
+    } finally {
+      setSavingToken(false)
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -104,28 +116,33 @@ export default function WhatsAppConfigClient({
     setSaving(true)
     setSaved(false)
     setSaveError('')
-
-    const res = await fetch('/api/whatsapp/config', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        unit_id:         selectedUnitId,
-        phone_number_id: config.phone_number_id,
-        access_token:    config.access_token,
-        verify_token:    verifyToken,
-        waba_id:         config.waba_id,
-        display_phone:   config.display_phone,
-      }),
-    })
-    const json = await res.json() as { success?: boolean; error?: string }
-    setSaving(false)
-
-    if (json.success) {
-      setSaved(true)
-      setTokenEditing(false)
-      setConfig(c => ({ ...c, configured: true }))
-    } else {
-      setSaveError(json.error ?? 'Erro ao salvar')
+    try {
+      const res = await fetch('/api/whatsapp/config', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unit_id:         selectedUnitId || null,
+          phone_number_id: config.phone_number_id,
+          access_token:    config.access_token,
+          verify_token:    verifyToken,
+          waba_id:         config.waba_id,
+          display_phone:   config.display_phone,
+        }),
+      })
+      const text = await res.text()
+      const json = text ? JSON.parse(text) as { success?: boolean; error?: string } : {}
+      if (json.success) {
+        setSaved(true)
+        setTokenEditing(false)
+        setConfig(c => ({ ...c, configured: true }))
+      } else {
+        setSaveError(json.error ?? `Erro ${res.status} ao salvar`)
+      }
+    } catch (err) {
+      setSaveError('Não foi possível salvar. Verifique a conexão e tente novamente.')
+      console.error('[handleSave]', err)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -267,6 +284,11 @@ export default function WhatsAppConfigClient({
               <span style={{ fontSize: 13, color: '#2E8E4C', fontWeight: 600 }}>✓ Token salvo</span>
             )}
           </div>
+          {saveError && !saving && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FDEBEC', color: '#D23B40', fontSize: 13, fontWeight: 500 }}>
+              {saveError}
+            </div>
+          )}
         </div>
       </div>
 
