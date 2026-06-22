@@ -7,6 +7,16 @@ export const metadata = { title: 'WhatsApp API — VittaDesk' }
 
 const MULTI_UNIT_PERFIS = ['admin', 'gestor_vacivitta']
 
+interface WaConfigRow {
+  unit_id:         string
+  phone_number_id: string | null
+  access_token:    string | null
+  verify_token:    string | null
+  waba_id:         string | null
+  display_phone:   string | null
+  updated_at:      string | null
+}
+
 export default async function WhatsAppConfigPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -38,11 +48,11 @@ export default async function WhatsAppConfigPage() {
     supabase
       .from('wa_config')
       .select('unit_id, phone_number_id, access_token, verify_token, waba_id, display_phone, updated_at')
-      .order('updated_at', { ascending: false }),
+      .order('updated_at', { ascending: false }) as unknown as Promise<{ data: WaConfigRow[] | null; error: unknown }>,
   ])
 
   const units   = unitsResult.data   ?? []
-  const configs = configsResult.data ?? []
+  const configs: WaConfigRow[] = (configsResult as { data: WaConfigRow[] | null }).data ?? []
 
   // verify_token é compartilhado — pega o primeiro configurado
   const globalVerifyToken = configs.find(c => c.verify_token)?.verify_token ?? ''

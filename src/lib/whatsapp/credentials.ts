@@ -22,6 +22,13 @@ function adminClient() {
  * Retorna as credenciais do WhatsApp para uma unidade.
  * Prioridade: wa_config no banco → env vars (compatibilidade).
  */
+interface WaConfigRow {
+  phone_number_id: string | null
+  access_token:    string | null
+  verify_token:    string | null
+  waba_id:         string | null
+}
+
 export async function getWaCredentials(unitId?: string): Promise<WaCredentials> {
   if (unitId) {
     const { data } = await adminClient()
@@ -29,7 +36,7 @@ export async function getWaCredentials(unitId?: string): Promise<WaCredentials> 
       .select('phone_number_id, access_token, verify_token, waba_id')
       .eq('unit_id', unitId)
       .eq('is_active', true)
-      .maybeSingle()
+      .maybeSingle() as { data: WaConfigRow | null; error: unknown }
 
     if (data?.phone_number_id && data?.access_token) {
       return {
@@ -63,7 +70,7 @@ export async function isValidVerifyToken(token: string): Promise<boolean> {
     .eq('verify_token', token)
     .eq('is_active', true)
     .limit(1)
-    .maybeSingle()
+    .maybeSingle() as { data: { id: string } | null; error: unknown }
 
   if (data) return true
 

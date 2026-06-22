@@ -5,6 +5,16 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 const MULTI_UNIT_PERFIS = ['admin', 'gestor_vacivitta']
 
+interface WaConfigRow {
+  phone_number_id: string | null
+  access_token:    string | null
+  verify_token:    string | null
+  waba_id:         string | null
+  display_phone:   string | null
+  is_active:       boolean
+  updated_at:      string | null
+}
+
 function adminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,7 +62,7 @@ export async function GET(req: NextRequest) {
     .from('wa_config')
     .select('phone_number_id, access_token, verify_token, waba_id, display_phone, is_active, updated_at')
     .eq('unit_id', unitId)
-    .maybeSingle()
+    .maybeSingle() as { data: WaConfigRow | null; error: unknown }
 
   return NextResponse.json({
     phone_number_id: data?.phone_number_id ?? '',
@@ -99,7 +109,7 @@ export async function POST(req: NextRequest) {
       .from('wa_config')
       .select('access_token')
       .eq('unit_id', unitId)
-      .maybeSingle()
+      .maybeSingle() as { data: { access_token: string | null } | null; error: unknown }
     finalToken = existing?.access_token ?? finalToken
   }
 
