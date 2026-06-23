@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   const q = admin.from('wa_config').select('access_token').eq('is_active', true)
-  const { data: config, error: cfgErr } = await (unitId ? q.eq('unit_id', unitId) : q).limit(1).maybeSingle()
+  const { data: config, error: cfgErr } = await (unitId ? q.eq('unit_id', unitId) : q)
+    .order('updated_at', { ascending: false })
+    .limit(1).maybeSingle()
 
   if (cfgErr) console.error('[WA media] erro ao buscar wa_config:', cfgErr.message)
 
