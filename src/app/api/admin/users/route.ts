@@ -14,12 +14,65 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null)
-  const { email, full_name, apelido, perfil, unit_id } = body ?? {}
-  if (!email || !full_name || !perfil) {
-    return NextResponse.json({ error: 'email, full_name e perfil são obrigatórios' }, { status: 400 })
+  const { email, full_name, apelido, perfil, unit_id, unit_ids, password } = body ?? {}
+  if (!full_name || !perfil) {
+    return NextResponse.json({ error: 'full_name e perfil são obrigatórios' }, { status: 400 })
+  }
+  if (!email && !password) {
+    return NextResponse.json({ error: 'Informe e-mail (convite) ou senha (criação direta)' }, { status: 400 })
   }
 
+  // unit_ids tem prioridade; unit_id (legado) vira array de 1
+  const resolvedUnitIds: string[] = Array.isArray(unit_ids) && unit_ids.length > 0
+    ? unit_ids
+    : (unit_id ? [unit_id] : [])
+  const primaryUnitId = resolvedUnitIds[0] ?? null
+
   const admin = createAdminClient()
+
+  // ── Modo: criação direta com senha (sem e-mail real) ──────────────────────
+  if (password) {
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Senha deve ter pelo menos 6 caracteres' }, { status: 400 })
+    }
+    // Gera e-mail interno único a partir do nome
+    const slug = full_name
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '.')
+      .replace(/^\.+|\.+$/g, '')
+    const rand = Math.random().toString(36).slice(2, 6)
+    const generatedEmail = `${slug}.${rand}@interno.vittadesk`
+
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email:         generatedEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name },
+    })
+
+    if (createErr || !created?.user) {
+      return NextResponse.json({ error: createErr?.message ?? 'Erro ao criar usuário' }, { status: 500 })
+    }
+
+    await admin.from('profiles').update({
+      full_name, apelido: apelido ?? null, perfil, unit_id: primaryUnitId, email: generatedEmail,
+    }).eq('id', created.user.id)
+
+    if (resolvedUnitIds.length > 0) {
+      await admin.from('user_units').upsert(
+        resolvedUnitIds.map(uid => ({ user_id: created.user.id, unit_id: uid })),
+        { onConflict: 'user_id,unit_id' }
+      )
+    }
+
+    return NextResponse.json({ id: created.user.id, generated_email: generatedEmail })
+  }
+
+  // ── Modo: convite por e-mail ──────────────────────────────────────────────
+  if (!email) {
+    return NextResponse.json({ error: 'E-mail é obrigatório para convite' }, { status: 400 })
+  }
 
   // Verifica se usuário já existe
   const { data: existing } = await admin
@@ -32,21 +85,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'E-mail já cadastrado' }, { status: 409 })
   }
 
-  // Convida o usuário (envia e-mail de convite)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://vittadesk.com.br'
   const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name },
+    data:       { full_name },
+    redirectTo: `${appUrl}/auth/callback`,
   })
 
   if (inviteErr || !invited?.user) {
     return NextResponse.json({ error: inviteErr?.message ?? 'Erro ao convidar' }, { status: 500 })
   }
 
-  // Atualiza o perfil criado pelo trigger com os campos extras
-  await admin.from('profiles').update({ full_name, apelido: apelido ?? null, perfil, unit_id: unit_id ?? null, email }).eq('id', invited.user.id)
+  await admin.from('profiles').update({
+    full_name, apelido: apelido ?? null, perfil, unit_id: primaryUnitId, email,
+  }).eq('id', invited.user.id)
 
-  // Vínculo user_units se unit_id informado
-  if (unit_id) {
-    await admin.from('user_units').upsert({ user_id: invited.user.id, unit_id }, { onConflict: 'user_id,unit_id' })
+  if (resolvedUnitIds.length > 0) {
+    await admin.from('user_units').upsert(
+      resolvedUnitIds.map(uid => ({ user_id: invited.user.id, unit_id: uid })),
+      { onConflict: 'user_id,unit_id' }
+    )
   }
 
   return NextResponse.json({ id: invited.user.id })
@@ -63,11 +120,29 @@ export async function GET() {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, perfil, unit_id, ativo, created_at, unit:units(id,nome)')
-    .order('full_name')
+  const admin = createAdminClient()
 
+  const { data: profiles, error } = await admin
+    .from('profiles')
+    .select('id, full_name, apelido, email, perfil, unit_id, ativo, created_at, unit:units(id,nome)')
+    .order('full_name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  const { data: userUnits } = await admin
+    .from('user_units')
+    .select('user_id, unit_id')
+    .eq('ativo', true)
+
+  const unitsByUser: Record<string, string[]> = {}
+  for (const row of userUnits ?? []) {
+    if (!unitsByUser[row.user_id]) unitsByUser[row.user_id] = []
+    unitsByUser[row.user_id].push(row.unit_id)
+  }
+
+  const result = (profiles ?? []).map(p => ({
+    ...p,
+    unit_ids: unitsByUser[p.id] ?? (p.unit_id ? [p.unit_id] : []),
+  }))
+
+  return NextResponse.json(result)
 }
