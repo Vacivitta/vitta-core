@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createClient } from '@supabase/supabase-js'
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // GET /api/whatsapp/media?id={media_id}[&unit_id={unit_id}]
 // Proxy para buscar mídia do Meta — não expõe o access token ao client
@@ -20,18 +13,17 @@ export async function GET(req: NextRequest) {
   const unitId  = req.nextUrl.searchParams.get('unit_id')
   if (!mediaId) return new NextResponse('Missing id', { status: 400 })
 
-  // Busca token e phone_number_id do banco
-  const admin = adminClient()
-  const baseQuery = admin.from('wa_config').select('access_token, phone_number_id').eq('is_active', true)
-  const { data: config } = await (unitId
-    ? baseQuery.eq('unit_id', unitId)
-    : baseQuery
-  ).limit(1).maybeSingle()
+  const admin = createAdminClient()
+  const q = admin.from('wa_config').select('access_token').eq('is_active', true)
+  const { data: config, error: cfgErr } = await (unitId ? q.eq('unit_id', unitId) : q).limit(1).maybeSingle()
 
-  const accessToken   = config?.access_token   ?? process.env.WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = config?.phone_number_id ?? null
+  if (cfgErr) console.error('[WA media] erro ao buscar wa_config:', cfgErr.message)
 
-  if (!accessToken) return new NextResponse('Token não configurado', { status: 500 })
+  const accessToken = config?.access_token ?? process.env.WHATSAPP_ACCESS_TOKEN
+  if (!accessToken) {
+    console.error('[WA media] nenhum token encontrado. config:', config, 'cfgErr:', cfgErr?.message)
+    return new NextResponse('Token não configurado', { status: 500 })
+  }
 
   // 1. Busca a URL temporária do arquivo
   const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
@@ -41,7 +33,7 @@ export async function GET(req: NextRequest) {
   if (!metaRes.ok) {
     const err = await metaRes.text()
     console.error('[WA media] Meta retornou erro:', metaRes.status, err)
-    return new NextResponse(`Media error: ${metaRes.status}`, { status: 404 })
+    return new NextResponse(`Media error: ${metaRes.status}`, { status: 502 })
   }
 
   const { url, mime_type } = await metaRes.json() as { url: string; mime_type: string }
