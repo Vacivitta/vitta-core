@@ -24,7 +24,8 @@
       "Bash(git commit -m ' *)",
       "mcp__Claude_Preview__preview_start",
       "Bash(git push *)",
-      "mcp__Claude_in_Chrome__get_page_text"
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__get_project_url"
     ]
   }
 }
