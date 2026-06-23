@@ -12,6 +12,7 @@ interface UserProfile {
   email:      string | null
   perfil:     UserPerfil
   unit_id:    string | null
+  unit_ids:   string[]
   ativo:      boolean
   created_at: string
   unit?:      { id: string; nome: string } | null
@@ -41,8 +42,10 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
   const [formError,   setFormError]   = useState('')
 
   // ── Formulário de usuário ──────────────────────────────────────────────────
+  const [inviteMode,      setInviteMode]      = useState<'email' | 'password'>('email')
+  const [createdCreds,    setCreatedCreds]    = useState<{ email: string; password: string } | null>(null)
   const [userForm, setUserForm] = useState({
-    full_name: '', apelido: '', email: '', perfil: 'atendente' as UserPerfil, unit_id: '',
+    full_name: '', apelido: '', email: '', password: '', perfil: 'atendente' as UserPerfil, unit_ids: [] as string[],
   })
 
   // ── Formulário de unidade ──────────────────────────────────────────────────
@@ -52,14 +55,16 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
   // ── Usuários ───────────────────────────────────────────────────────────────
   function openInvite() {
-    setUserForm({ full_name: '', apelido: '', email: '', perfil: 'atendente', unit_id: units[0]?.id ?? '' })
+    setUserForm({ full_name: '', apelido: '', email: '', password: '', perfil: 'atendente', unit_ids: [] })
     setSelUser(null)
     setFormError('')
+    setInviteMode('email')
+    setCreatedCreds(null)
     setUserModal('invite')
   }
 
   function openEditUser(u: UserProfile) {
-    setUserForm({ full_name: u.full_name, apelido: u.apelido ?? '', email: u.email ?? '', perfil: u.perfil, unit_id: u.unit_id ?? '' })
+    setUserForm({ full_name: u.full_name, apelido: u.apelido ?? '', email: u.email ?? '', password: '', perfil: u.perfil, unit_ids: u.unit_ids ?? (u.unit_id ? [u.unit_id] : []) })
     setSelUser(u)
     setFormError('')
     setUserModal('edit')
@@ -71,26 +76,35 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
     try {
       if (userModal === 'invite') {
-        if (!userForm.email.trim()) { setFormError('E-mail é obrigatório.'); setSaving(false); return }
+        if (inviteMode === 'email' && !userForm.email.trim()) {
+          setFormError('E-mail é obrigatório.'); setSaving(false); return
+        }
+        if (inviteMode === 'password' && userForm.password.length < 6) {
+          setFormError('Senha deve ter pelo menos 6 caracteres.'); setSaving(false); return
+        }
+
+        const body = inviteMode === 'email'
+          ? { email: userForm.email.trim(), full_name: userForm.full_name.trim(), apelido: userForm.apelido.trim() || null, perfil: userForm.perfil, unit_ids: userForm.unit_ids }
+          : { password: userForm.password, full_name: userForm.full_name.trim(), apelido: userForm.apelido.trim() || null, perfil: userForm.perfil, unit_ids: userForm.unit_ids }
+
         const res = await fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email:     userForm.email.trim(),
-            full_name: userForm.full_name.trim(),
-            apelido:   userForm.apelido.trim() || null,
-            perfil:    userForm.perfil,
-            unit_id:   userForm.unit_id || null,
-          }),
+          body: JSON.stringify(body),
         })
         const json = await res.json()
-        if (!res.ok) { setFormError(json.error ?? 'Erro ao convidar.'); setSaving(false); return }
-        // Recarrega lista
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, perfil, unit_id, ativo, created_at, unit:units(id,nome)')
-          .order('full_name')
-        if (data) setUsers(data as unknown as UserProfile[])
+        if (!res.ok) { setFormError(json.error ?? 'Erro ao criar usuário.'); setSaving(false); return }
+
+        // Modo senha: exibe credenciais geradas antes de fechar
+        if (inviteMode === 'password' && json.generated_email) {
+          setCreatedCreds({ email: json.generated_email, password: userForm.password })
+        } else {
+          setUserModal(null)
+        }
+
+        // Recarrega lista via API para ter unit_ids atualizado
+        const listRes = await fetch('/api/admin/users')
+        if (listRes.ok) setUsers(await listRes.json())
       } else if (selUser) {
         const res = await fetch(`/api/admin/users/${selUser.id}`, {
           method: 'PATCH',
@@ -99,13 +113,13 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
             full_name: userForm.full_name.trim(),
             apelido:   userForm.apelido.trim() || null,
             perfil:    userForm.perfil,
-            unit_id:   userForm.unit_id || null,
+            unit_ids:  userForm.unit_ids,
           }),
         })
         if (!res.ok) { const j = await res.json(); setFormError(j.error ?? 'Erro ao salvar.'); setSaving(false); return }
-        const unit = units.find(u => u.id === userForm.unit_id)
+        const primaryUnit = units.find(u => u.id === userForm.unit_ids[0])
         setUsers(prev => prev.map(u => u.id === selUser.id
-          ? { ...u, full_name: userForm.full_name.trim(), apelido: userForm.apelido.trim() || null, perfil: userForm.perfil, unit_id: userForm.unit_id || null, unit: unit ? { id: unit.id, nome: unit.nome } : null }
+          ? { ...u, full_name: userForm.full_name.trim(), apelido: userForm.apelido.trim() || null, perfil: userForm.perfil, unit_id: userForm.unit_ids[0] ?? null, unit_ids: userForm.unit_ids, unit: primaryUnit ? { id: primaryUnit.id, nome: primaryUnit.nome } : null }
           : u
         ))
       }
@@ -264,7 +278,19 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                         {PERFIL_LABELS[u.perfil]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-sm">{u.unit?.nome ?? <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-gray-600 text-sm">
+                      {u.unit_ids?.length > 0
+                        ? <div className="flex flex-wrap gap-1">
+                            {u.unit_ids.map(uid => {
+                              const unit = units.find(un => un.id === uid)
+                              return unit ? (
+                                <span key={uid} className="inline-flex items-center text-xs bg-indigo-50 text-indigo-700 rounded-full px-2 py-0.5">{unit.nome}</span>
+                              ) : null
+                            })}
+                          </div>
+                        : <span className="text-gray-400">—</span>
+                      }
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => toggleUserAtivo(u)}
@@ -391,57 +417,139 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
               </button>
             </div>
 
-            <div className="px-6 py-4 space-y-3">
-              <UField label="Nome completo *" value={userForm.full_name} onChange={v => setUserForm(f => ({ ...f, full_name: v }))} />
-              <UField label="Apelido (nome no atendimento)" value={userForm.apelido} onChange={v => setUserForm(f => ({ ...f, apelido: v }))} placeholder="ex: Ana, Dr. João" />
-              {userModal === 'invite' && (
-                <UField label="E-mail *" value={userForm.email} onChange={v => setUserForm(f => ({ ...f, email: v }))} type="email" />
-              )}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
-                <select
-                  value={userForm.perfil}
-                  onChange={e => setUserForm(f => ({ ...f, perfil: e.target.value as UserPerfil }))}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  {PERFIL_OPTIONS.map(p => (
-                    <option key={p} value={p}>{PERFIL_LABELS[p]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Unidade</label>
-                <select
-                  value={userForm.unit_id}
-                  onChange={e => setUserForm(f => ({ ...f, unit_id: e.target.value }))}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">Sem unidade</option>
-                  {units.filter(u => u.ativo).map(u => (
-                    <option key={u.id} value={u.id}>{u.nome}</option>
-                  ))}
-                </select>
-              </div>
-              {userModal === 'invite' && (
-                <p className="text-xs text-gray-500 bg-blue-50 rounded-xl px-3 py-2">
-                  O usuário receberá um e-mail de convite para definir sua senha.
-                </p>
-              )}
-              {formError && <p className="text-xs text-red-500">{formError}</p>}
-            </div>
+            {/* Tela de credenciais geradas (após criação com senha) */}
+            {createdCreds ? (
+              <>
+                <div className="px-6 py-5 space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-200">
+                    <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p className="text-sm text-green-800 font-medium">Conta criada com sucesso!</p>
+                  </div>
+                  <p className="text-xs text-gray-500">Compartilhe as credenciais abaixo com o usuário. Elas não serão exibidas novamente.</p>
+                  <div className="space-y-2">
+                    <CredField label="Login (e-mail)" value={createdCreds.email} />
+                    <CredField label="Senha temporária" value={createdCreds.password} />
+                  </div>
+                </div>
+                <div className="flex justify-end px-6 py-4 border-t border-gray-100">
+                  <button
+                    onClick={() => { setUserModal(null); setCreatedCreds(null) }}
+                    className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors"
+                  >
+                    Concluir
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="px-6 py-4 space-y-3">
+                  {/* Toggle modo de convite */}
+                  {userModal === 'invite' && (
+                    <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm">
+                      <button
+                        onClick={() => { setInviteMode('email'); setFormError('') }}
+                        className={`flex-1 py-2 font-medium transition-colors ${inviteMode === 'email' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                      >
+                        Convidar por e-mail
+                      </button>
+                      <button
+                        onClick={() => { setInviteMode('password'); setFormError('') }}
+                        className={`flex-1 py-2 font-medium transition-colors ${inviteMode === 'password' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                      >
+                        Criar com senha
+                      </button>
+                    </div>
+                  )}
 
-            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
-              <button onClick={() => setUserModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveUser}
-                disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Salvando...' : userModal === 'invite' ? 'Enviar convite' : 'Salvar'}
-              </button>
-            </div>
+                  <UField label="Nome completo *" value={userForm.full_name} onChange={v => setUserForm(f => ({ ...f, full_name: v }))} />
+                  <UField label="Apelido (nome no atendimento)" value={userForm.apelido} onChange={v => setUserForm(f => ({ ...f, apelido: v }))} placeholder="ex: Ana, Dr. João" />
+
+                  {userModal === 'invite' && inviteMode === 'email' && (
+                    <UField label="E-mail *" value={userForm.email} onChange={v => setUserForm(f => ({ ...f, email: v }))} type="email" />
+                  )}
+                  {userModal === 'invite' && inviteMode === 'password' && (
+                    <UField label="Senha temporária *" value={userForm.password} onChange={v => setUserForm(f => ({ ...f, password: v }))} type="password" placeholder="Mínimo 6 caracteres" />
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Perfil *</label>
+                    <select
+                      value={userForm.perfil}
+                      onChange={e => setUserForm(f => ({ ...f, perfil: e.target.value as UserPerfil }))}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      {PERFIL_OPTIONS.map(p => (
+                        <option key={p} value={p}>{PERFIL_LABELS[p]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Unidades com visibilidade
+                      {userForm.unit_ids.length > 0 && (
+                        <span className="ml-1.5 text-blue-500">{userForm.unit_ids.length} selecionada{userForm.unit_ids.length !== 1 ? 's' : ''}</span>
+                      )}
+                    </label>
+                    <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden max-h-40 overflow-y-auto">
+                      {units.filter(u => u.ativo).map(u => {
+                        const checked = userForm.unit_ids.includes(u.id)
+                        return (
+                          <label key={u.id} className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${checked ? 'bg-blue-50' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setUserForm(f => ({
+                                ...f,
+                                unit_ids: checked
+                                  ? f.unit_ids.filter(id => id !== u.id)
+                                  : [...f.unit_ids, u.id],
+                              }))}
+                              className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">{u.nome}</span>
+                            {userForm.unit_ids[0] === u.id && (
+                              <span className="ml-auto text-xs text-blue-500 font-medium">principal</span>
+                            )}
+                          </label>
+                        )
+                      })}
+                      {units.filter(u => u.ativo).length === 0 && (
+                        <p className="px-3 py-2 text-sm text-gray-400">Nenhuma unidade cadastrada</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {userModal === 'invite' && inviteMode === 'email' && (
+                    <p className="text-xs text-gray-500 bg-blue-50 rounded-xl px-3 py-2">
+                      O usuário receberá um e-mail de convite para definir sua própria senha.
+                    </p>
+                  )}
+                  {userModal === 'invite' && inviteMode === 'password' && (
+                    <p className="text-xs text-gray-500 bg-amber-50 rounded-xl px-3 py-2 border border-amber-100">
+                      Nenhum e-mail é enviado. Após criar, você verá as credenciais de acesso para repassar pessoalmente.
+                    </p>
+                  )}
+                  {formError && <p className="text-xs text-red-500">{formError}</p>}
+                </div>
+
+                <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+                  <button onClick={() => setUserModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveUser}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                  >
+                    {saving ? 'Salvando...' : userModal === 'invite'
+                      ? (inviteMode === 'email' ? 'Enviar convite' : 'Criar conta')
+                      : 'Salvar'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -503,6 +611,26 @@ function UField({ label, value, onChange, type = 'text', placeholder }: {
         placeholder={placeholder}
         className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+    </div>
+  )
+}
+
+function CredField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+        <span className="flex-1 text-sm font-mono text-gray-800 select-all">{value}</span>
+        <button onClick={copy} className="text-xs text-blue-500 hover:text-blue-700 font-medium shrink-0">
+          {copied ? 'Copiado!' : 'Copiar'}
+        </button>
+      </div>
     </div>
   )
 }
