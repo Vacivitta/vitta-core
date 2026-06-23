@@ -21,7 +21,7 @@ interface WaConversation {
   id: string; wa_phone: string; wa_contact_name: string | null
   status: 'open' | 'pending' | 'resolved'; unread_count: number
   last_message_at: string | null; lead_id: string | null
-  assigned_to: string | null; queue_id: string | null
+  assigned_to: string | null; queue_id: string | null; unit_id: string | null
 }
 
 interface WaMessage {
@@ -150,7 +150,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const loadConversations = useCallback(async () => {
     const { data } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id')
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     setConversations((data ?? []) as WaConversation[])
     setConvsLoaded(true)
@@ -430,7 +430,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#0098DA" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#B0BEC9', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
                 {msgsLoaded && chatItems.map(item => item.kind === 'message'
-                  ? <ChatBubble key={item.id} msg={item.message!} />
+                  ? <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} />
                   : <InternalNoteBubble key={item.id} note={item.note!} />)}
                 <div ref={msgsEndRef} />
               </div>
@@ -732,12 +732,12 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
 
 // ── ChatBubble / Media ────────────────────────────────────────────────────────
 
-function ChatBubble({ msg }: { msg: WaMessage }) {
+function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) {
   const isOut = msg.direction === 'outbound'
   return (
     <div style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
       <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: isOut ? '#0098DA' : '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-        <MediaContent msg={msg} isOut={isOut} />
+        <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
           <span style={{ fontSize: 10, color: isOut ? '#ffffff99' : '#B0BEC9' }}>{format(new Date(msg.created_at), 'HH:mm')}</span>
           {isOut && <StatusTick status={msg.status} />}
@@ -747,23 +747,24 @@ function ChatBubble({ msg }: { msg: WaMessage }) {
   )
 }
 
-function MediaContent({ msg, isOut }: { msg: WaMessage; isOut: boolean }) {
+function MediaContent({ msg, isOut, unitId }: { msg: WaMessage; isOut: boolean; unitId: string | null }) {
   const tc = isOut ? '#fff' : '#0E2C3D'
   const sc = isOut ? '#ffffffaa' : '#8FA0AF'
+  const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
   if (msg.type === 'text' || (!msg.media_url && msg.content))
     return <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</p>
   if (msg.type === 'image' && msg.media_url)
     return <div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/api/whatsapp/media?id=${msg.media_url}`} alt="Imagem" style={{ maxWidth: 220, maxHeight: 200, borderRadius: 8, display: 'block', cursor: 'pointer' }} onClick={() => window.open(`/api/whatsapp/media?id=${msg.media_url}`, '_blank')} />
+      <img src={mediaUrl(msg.media_url)} alt="Imagem" style={{ maxWidth: 220, maxHeight: 200, borderRadius: 8, display: 'block', cursor: 'pointer' }} onClick={() => window.open(mediaUrl(msg.media_url!), '_blank')} />
       {msg.content && <p style={{ margin: '4px 0 0', fontSize: 12, color: tc }}>{msg.content}</p>}
     </div>
   if (msg.type === 'audio' && msg.media_url)
-    return <audio controls style={{ height: 32, maxWidth: 220 }}><source src={`/api/whatsapp/media?id=${msg.media_url}`} type={msg.media_mime_type ?? 'audio/ogg'} /></audio>
+    return <audio controls style={{ height: 32, maxWidth: 220 }}><source src={mediaUrl(msg.media_url)} type={msg.media_mime_type ?? 'audio/ogg'} /></audio>
   if (msg.type === 'video' && msg.media_url)
-    return <video controls style={{ maxWidth: 220, maxHeight: 180, borderRadius: 8 }}><source src={`/api/whatsapp/media?id=${msg.media_url}`} type={msg.media_mime_type ?? 'video/mp4'} /></video>
+    return <video controls style={{ maxWidth: 220, maxHeight: 180, borderRadius: 8 }}><source src={mediaUrl(msg.media_url)} type={msg.media_mime_type ?? 'video/mp4'} /></video>
   if (msg.type === 'document' && msg.media_url)
-    return <a href={`/api/whatsapp/media?id=${msg.media_url}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: tc }}>
+    return <a href={mediaUrl(msg.media_url)} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: tc }}>
       <span style={{ fontSize: 12, fontWeight: 600 }}>{msg.content ?? 'Arquivo'}</span>
     </a>
   return <p style={{ margin: 0, fontSize: 12, color: sc, fontStyle: 'italic' }}>[{msg.type}]</p>
