@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   // Busca a conversa para obter o número de destino
   const { data: conv, error: convErr } = await supabase
     .from('wa_conversations')
-    .select('id, wa_phone, unit_id')
+    .select('id, wa_phone, unit_id, assigned_to')
     .eq('id', conversation_id)
     .single()
 
@@ -106,10 +106,12 @@ export async function POST(req: NextRequest) {
     // Não retorna erro — a mensagem já foi enviada ao Meta
   }
 
-  // Atualiza last_message_at na conversa
+  // Atualiza last_message_at e auto-atribui ao atendente se conversa não tiver responsável
+  const convUpdate: Record<string, unknown> = { last_message_at: new Date().toISOString() }
+  if (!conv.assigned_to) convUpdate.assigned_to = user.id
   await supabase
     .from('wa_conversations')
-    .update({ last_message_at: new Date().toISOString() })
+    .update(convUpdate)
     .eq('id', conversation_id)
 
   // Executa automação de atendimento (ex: mover lead quando atendente responde)

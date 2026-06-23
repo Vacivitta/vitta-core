@@ -210,8 +210,8 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
 
     if (xlsRecip) {
       // Cria lead agora que a pessoa respondeu
-      const stageId = await getDefaultStageId(supabase, unitId)
-      if (stageId) {
+      const defaultStage = await getDefaultStage(supabase, unitId)
+      if (defaultStage) {
         const { nome: nomeCompleto, sobrenome } = splitName(xlsRecip.nome ?? contactName)
         const { data: newLead } = await supabase.from('leads').insert({
           unit_id:     unitId,
@@ -219,7 +219,8 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
           sobrenome,
           telefone:    formatPhone(waPhone),
           origem:      'campanha_whatsapp',
-          stage_id:    stageId,
+          funnel_id:   defaultStage.funnel_id,
+          stage_id:    defaultStage.stage_id,
           arquivado:   false,
           wa_optin_at: new Date().toISOString(),
           campanha_id: xlsRecip.campaign_id,
@@ -312,22 +313,23 @@ async function autoLinkOrCreateLead(
         ? { nome: matchedClient.nome as string, sobrenome: matchedClient.sobrenome as string | null }
         : splitName(contactName)
 
-      const stageId = await getDefaultStageId(supabase, unitId)
-      if (!stageId) {
-        console.error('[WA webhook] nenhum estágio encontrado para criar lead')
+      const defaultStage = await getDefaultStage(supabase, unitId)
+      if (!defaultStage) {
+        console.error('[WA webhook] nenhum funil/estágio encontrado para criar lead')
         return null
       }
 
       const { data: newLead, error: leadErr } = await supabase
         .from('leads')
         .insert({
-          unit_id:    unitId,
+          unit_id:   unitId,
           nome,
           sobrenome,
-          telefone:   formatPhone(waPhone),
-          origem:     'whatsapp',
-          stage_id:   stageId,
-          arquivado:  false,
+          telefone:  formatPhone(waPhone),
+          origem:    'whatsapp',
+          funnel_id: defaultStage.funnel_id,
+          stage_id:  defaultStage.stage_id,
+          arquivado: false,
           ...(matchedClient ? { client_id: matchedClient.id } : {}),
         })
         .select('id')
@@ -373,7 +375,7 @@ async function autoLinkOrCreateLead(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function getDefaultStageId(supabase: ReturnType<typeof adminClient>, unitId: string): Promise<string | null> {
+async function getDefaultStage(supabase: ReturnType<typeof adminClient>, unitId: string): Promise<{ funnel_id: string; stage_id: string } | null> {
   const { data: funnels } = await supabase
     .from('funnels')
     .select('id')
@@ -393,7 +395,8 @@ async function getDefaultStageId(supabase: ReturnType<typeof adminClient>, unitI
     .limit(1)
     .maybeSingle()
 
-  return stage?.id ?? null
+  if (!stage?.id) return null
+  return { funnel_id: funnelId, stage_id: stage.id }
 }
 
 function splitName(fullName: string | null): { nome: string; sobrenome: string | null } {
