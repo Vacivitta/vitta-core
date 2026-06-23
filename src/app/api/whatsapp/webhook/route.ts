@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       }
 
       for (const status of value.statuses ?? []) {
-        await handleStatusUpdate(status)
+        await handleStatusUpdate(status, value.metadata.phone_number_id)
       }
     }
   }
@@ -53,16 +53,27 @@ export async function POST(req: NextRequest) {
   return new NextResponse('OK', { status: 200 })
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function resolveUnitId(supabase: ReturnType<typeof adminClient>, phoneNumberId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('wa_config')
+    .select('unit_id')
+    .eq('phone_number_id', phoneNumberId)
+    .maybeSingle()
+  return data?.unit_id ?? null
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   const supabase    = adminClient()
-  const unitId      = process.env.WHATSAPP_DEFAULT_UNIT_ID
+  const unitId      = await resolveUnitId(supabase, value.metadata.phone_number_id)
   const waPhone     = msg.from
   const contactName = value.contacts?.[0]?.profile?.name ?? null
 
   if (!unitId) {
-    console.error('[WA webhook] WHATSAPP_DEFAULT_UNIT_ID não configurado')
+    console.error('[WA webhook] phone_number_id não mapeado para nenhuma unidade:', value.metadata.phone_number_id)
     return
   }
 
@@ -406,7 +417,7 @@ function formatPhone(waPhone: string): string {
   return waPhone
 }
 
-async function handleStatusUpdate(status: WAStatus) {
+async function handleStatusUpdate(status: WAStatus, phoneNumberId: string) {
   const supabase = adminClient()
   const mapped: Record<string, string> = {
     sent: 'sent', delivered: 'delivered', read: 'read', failed: 'failed',
@@ -437,7 +448,7 @@ async function handleStatusUpdate(status: WAStatus) {
 
   // Registra custo por mensagem (modelo Meta pós-julho 2025: per-message pricing)
   if (status.status === 'sent' && status.pricing) {
-    const unitId = process.env.WHATSAPP_DEFAULT_UNIT_ID
+    const unitId = await resolveUnitId(supabase, phoneNumberId)
     if (!unitId) return
     const monthYear = new Date().toISOString().slice(0, 7)
 
