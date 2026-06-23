@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
-// GET /api/whatsapp/media?id={media_id}
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+// GET /api/whatsapp/media?id={media_id}[&unit_id={unit_id}]
 // Proxy para buscar mídia do Meta — não expõe o access token ao client
 export async function GET(req: NextRequest) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const mediaId = req.nextUrl.searchParams.get('id')
+  const mediaId  = req.nextUrl.searchParams.get('id')
+  const unitId   = req.nextUrl.searchParams.get('unit_id')
   if (!mediaId) return new NextResponse('Missing id', { status: 400 })
 
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  // Busca token do banco — por unidade específica ou o primeiro ativo disponível
+  const query = adminClient().from('wa_config').select('access_token').eq('is_active', true)
+  if (unitId) query.eq('unit_id', unitId)
+  const { data: config } = await query.limit(1).maybeSingle()
+
+  const accessToken = config?.access_token ?? process.env.WHATSAPP_ACCESS_TOKEN
   if (!accessToken) return new NextResponse('Token não configurado', { status: 500 })
 
   // 1. Busca a URL temporária do arquivo
