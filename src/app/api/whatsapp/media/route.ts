@@ -16,23 +16,37 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const mediaId  = req.nextUrl.searchParams.get('id')
-  const unitId   = req.nextUrl.searchParams.get('unit_id')
+  const mediaId = req.nextUrl.searchParams.get('id')
+  const unitId  = req.nextUrl.searchParams.get('unit_id')
   if (!mediaId) return new NextResponse('Missing id', { status: 400 })
 
-  // Busca token do banco — por unidade específica ou o primeiro ativo disponível
-  const query = adminClient().from('wa_config').select('access_token').eq('is_active', true)
-  if (unitId) query.eq('unit_id', unitId)
-  const { data: config } = await query.limit(1).maybeSingle()
+  // Busca token e phone_number_id do banco
+  const admin = adminClient()
+  const baseQuery = admin.from('wa_config').select('access_token, phone_number_id').eq('is_active', true)
+  const { data: config } = await (unitId
+    ? baseQuery.eq('unit_id', unitId)
+    : baseQuery
+  ).limit(1).maybeSingle()
 
-  const accessToken = config?.access_token ?? process.env.WHATSAPP_ACCESS_TOKEN
+  const accessToken   = config?.access_token   ?? process.env.WHATSAPP_ACCESS_TOKEN
+  const phoneNumberId = config?.phone_number_id ?? null
+
   if (!accessToken) return new NextResponse('Token não configurado', { status: 500 })
 
-  // 1. Busca a URL temporária do arquivo
-  const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
+  // 1. Busca a URL temporária do arquivo (phone_number_id melhora o roteamento na Meta)
+  const metaUrl = phoneNumberId
+    ? `https://graph.facebook.com/v20.0/${mediaId}?phone_number_id=${phoneNumberId}`
+    : `https://graph.facebook.com/v20.0/${mediaId}`
+
+  const metaRes = await fetch(metaUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
-  if (!metaRes.ok) return new NextResponse('Media not found', { status: 404 })
+
+  if (!metaRes.ok) {
+    const err = await metaRes.text()
+    console.error('[WA media] Meta retornou erro:', metaRes.status, err)
+    return new NextResponse(`Media error: ${metaRes.status}`, { status: 404 })
+  }
 
   const { url, mime_type } = await metaRes.json() as { url: string; mime_type: string }
 
