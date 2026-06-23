@@ -33,12 +33,8 @@ export async function GET(req: NextRequest) {
 
   if (!accessToken) return new NextResponse('Token não configurado', { status: 500 })
 
-  // 1. Busca a URL temporária do arquivo (phone_number_id melhora o roteamento na Meta)
-  const metaUrl = phoneNumberId
-    ? `https://graph.facebook.com/v20.0/${mediaId}?phone_number_id=${phoneNumberId}`
-    : `https://graph.facebook.com/v20.0/${mediaId}`
-
-  const metaRes = await fetch(metaUrl, {
+  // 1. Busca a URL temporária do arquivo
+  const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
