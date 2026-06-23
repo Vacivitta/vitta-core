@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// DELETE /api/admin/users/[id] — remove usuário do Auth e da profiles
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (user.id === id) return NextResponse.json({ error: 'Não é possível excluir o próprio usuário' }, { status: 400 })
+
+  const { data: caller } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
+  if (!caller || !['admin', 'gestor_vacivitta'].includes(caller.perfil)) {
+    return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.deleteUser(id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}
+
 // PATCH /api/admin/users/[id] — atualiza perfil de qualquer usuário
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

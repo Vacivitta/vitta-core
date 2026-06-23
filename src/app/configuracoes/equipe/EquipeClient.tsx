@@ -40,6 +40,9 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
   const [selUnit,     setSelUnit]     = useState<Unit | null>(null)
   const [saving,      setSaving]      = useState(false)
   const [formError,   setFormError]   = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
+  const [deleting,     setDeleting]    = useState(false)
+  const [deleteError,  setDeleteError]  = useState('')
 
   // ── Formulário de usuário ──────────────────────────────────────────────────
   const [inviteMode,      setInviteMode]      = useState<'email' | 'password'>('email')
@@ -138,6 +141,22 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
       body: JSON.stringify({ ativo: !u.ativo }),
     })
     setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ativo: !u.ativo } : x))
+  }
+
+  async function handleDeleteUser() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError('')
+    const res = await fetch(`/api/admin/users/${deleteTarget.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const j = await res.json()
+      setDeleteError(j.error ?? 'Erro ao excluir.')
+      setDeleting(false)
+      return
+    }
+    setUsers(prev => prev.filter(u => u.id !== deleteTarget.id))
+    setDeleteTarget(null)
+    setDeleting(false)
   }
 
   // ── Unidades ───────────────────────────────────────────────────────────────
@@ -300,15 +319,26 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => openEditUser(u)}
-                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Editar"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEditUser(u)}
+                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => { setDeleteTarget(u); setDeleteError('') }}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -550,6 +580,47 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal confirmação de exclusão ──────────────────────────────────── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Excluir usuário</h2>
+                  <p className="text-sm text-gray-500">{deleteTarget.full_name}</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600">
+                Essa ação é <strong>permanente</strong>. O usuário perderá o acesso imediatamente e não poderá ser recuperado.
+              </p>
+              {deleteError && <p className="mt-2 text-xs text-red-500">{deleteError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={deleting}
+                className="px-4 py-2 text-sm bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? 'Excluindo...' : 'Excluir permanentemente'}
+              </button>
+            </div>
           </div>
         </div>
       )}
