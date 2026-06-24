@@ -153,7 +153,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       .from('wa_conversations')
       .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,lead:leads(nome,sobrenome)')
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
-    setConversations((data ?? []) as WaConversation[])
+    setConversations((data ?? []) as unknown as WaConversation[])
     setConvsLoaded(true)
   }, [supabase])
 
