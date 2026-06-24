@@ -876,10 +876,11 @@ function InternalNoteBubble({ note }: { note: WaNote }) {
   )
 }
 
-// ── Audio conversion (WebM → MP3 via lamejs) ──────────────────────────────────
-// Chrome só grava em audio/webm que a Meta não aceita.
-// Decodifica o áudio via AudioContext e re-encoda como MP3 (audio/mpeg).
-async function convertWebmToMp3(blob: Blob): Promise<File> {
+// ── Audio conversion (qualquer formato → MP3 via lamejs) ──────────────────────
+// Chrome grava em audio/webm e (erroneamente) audio/mp4 — ambos rejeitados pela Meta.
+// Decodifica via AudioContext (aceita qualquer formato que o browser suporte)
+// e re-encoda como MP3 128kbps (audio/mpeg).
+async function convertToMp3(blob: Blob): Promise<File> {
   const arrayBuffer = await blob.arrayBuffer()
   const audioCtx = new AudioContext()
   const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
@@ -890,7 +891,7 @@ async function convertWebmToMp3(blob: Blob): Promise<File> {
   const left  = audioBuffer.getChannelData(0)
   const right = numChannels > 1 ? audioBuffer.getChannelData(1) : left
 
-  const toInt16 = (f32: Float32Array) => {
+  const toInt16 = (f32: Float32Array): Int16Array => {
     const buf = new Int16Array(f32.length)
     for (let i = 0; i < f32.length; i++)
       buf[i] = Math.max(-32768, Math.min(32767, Math.round(f32[i] * 32768)))
@@ -900,20 +901,19 @@ async function convertWebmToMp3(blob: Blob): Promise<File> {
   const { Mp3Encoder } = await import('lamejs')
   const encoder = new Mp3Encoder(numChannels, sampleRate, 128)
 
-  const chunks: ArrayBuffer[] = []
-  const blockSize = 1152
+  const parts: Blob[] = []
+  const BLOCK = 1152
 
-  for (let i = 0; i < left.length; i += blockSize) {
-    const l = toInt16(left.subarray(i, i + blockSize))
-    const r = numChannels > 1 ? toInt16(right.subarray(i, i + blockSize)) : l
+  for (let i = 0; i < left.length; i += BLOCK) {
+    const l = toInt16(left.subarray(i, i + BLOCK))
+    const r = numChannels > 1 ? toInt16(right.subarray(i, i + BLOCK)) : l
     const encoded = numChannels > 1 ? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l)
-    if (encoded.length > 0) chunks.push(encoded.buffer.slice(0, encoded.byteLength) as ArrayBuffer)
+    if (encoded.length > 0) parts.push(new Blob([encoded as unknown as BlobPart]))
   }
   const flushed = encoder.flush()
-  if (flushed.length > 0) chunks.push(flushed.buffer.slice(0, flushed.byteLength) as ArrayBuffer)
+  if (flushed.length > 0) parts.push(new Blob([flushed as unknown as BlobPart]))
 
-  const mp3Blob = new Blob(chunks, { type: 'audio/mpeg' })
-  return new File([mp3Blob], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' })
+  return new File([new Blob(parts)], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' })
 }
 
 // ── ChatInput ─────────────────────────────────────────────────────────────────
@@ -970,10 +970,15 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      // Prioridade: ogg/opus (Firefox) → mp4 (Safari/Chrome 129+) → webm (Chrome fallback, será convertido para MP3)
-      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
-        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+      // Apenas ogg/opus (Firefox) é enviado direto — Meta aceita.
+      // Tudo mais (webm do Chrome, mp4 do Safari) vai pelo lamejs → MP3,
+      // porque o Chrome 130+ reporta suporte a audio/mp4 mas gera arquivo
+      // que a Meta rejeita como application/octet-stream.
+      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm'
       const mr = new MediaRecorder(stream, { mimeType })
       audioChunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
@@ -981,17 +986,17 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
         stream.getTracks().forEach(t => t.stop())
         const rawBlob = new Blob(audioChunksRef.current, { type: mimeType })
         let file: File
-        if (mimeType.startsWith('audio/webm')) {
-          // Chrome grava em webm que a Meta não aceita — converte para MP3 no browser
+        if (mimeType === 'audio/ogg;codecs=opus') {
+          // OGG nativo — Meta aceita diretamente
+          file = new File([rawBlob], `audio_${Date.now()}.ogg`, { type: 'audio/ogg' })
+        } else {
+          // WebM (Chrome) — converte para MP3 via lamejs
           try {
-            file = await convertWebmToMp3(rawBlob)
+            file = await convertToMp3(rawBlob)
           } catch {
             alert('Erro ao converter áudio. Tente novamente.')
             return
           }
-        } else {
-          const ext = mimeType.startsWith('audio/ogg') ? 'ogg' : 'mp4'
-          file = new File([rawBlob], `audio_${Date.now()}.${ext}`, { type: mimeType })
         }
         onMediaUpload(file)
       }
