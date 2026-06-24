@@ -27,6 +27,7 @@ interface Props {
   currentUser: Profile
   onClose: () => void
   onSaved: () => void
+  onLeadPatched?: (patch: Partial<LeadKanban>) => void
 }
 
 type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
@@ -78,7 +79,7 @@ export default function LeadModal(props: Props) {
 }
 
 function LeadDrawer({
-  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved,
+  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched,
 }: Props & { lead: LeadKanban }) {
   const isArchived = lead.arquivado === true
   const supabase   = createClient()
@@ -137,8 +138,10 @@ function LeadDrawer({
     const supabase = createClient()
     const now = new Date().toISOString()
     const { error } = await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
-    if (!error) setWaOptinAt(now)
-    // não fecha o modal — o badge atualiza na hora sem precisar reabrir
+    if (!error) {
+      setWaOptinAt(now)
+      onLeadPatched?.({ wa_optin_at: now })
+    }
   }
 
   // ── Tab ────────────────────────────────────────────────────────────────────

@@ -543,6 +543,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           onSaved={() => {
             setModalLead(undefined)
             if (selectedConv?.lead_id) void loadLeadDetail(selectedConv.lead_id)
+          }}
+          onLeadPatched={patch => {
+            setLeadDetail(prev => prev ? { ...prev, lead: { ...prev.lead, ...patch } } : null)
+            setModalLead(prev => prev ? { ...prev, ...patch } : prev)
           }} />
       )}
       {showQuickForm && defaultStage && (
