@@ -174,10 +174,12 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     return
   }
 
-  // 3. Atualiza last_message_at + unread
+  // 3. Atualiza last_message_at, prévia da última mensagem e unread
+  const lastContent = content.text
+    ?? (msg.type === 'image' ? '📷 Imagem' : msg.type === 'audio' ? '🎤 Áudio' : msg.type === 'video' ? '🎬 Vídeo' : msg.type === 'document' ? '📎 Documento' : '📎 Anexo')
   const { error: updErr } = await supabase
     .from('wa_conversations')
-    .update({ last_message_at: new Date().toISOString(), status: 'open' })
+    .update({ last_message_at: new Date().toISOString(), status: 'open', last_message_content: lastContent, last_message_direction: 'inbound' })
     .eq('id', conv.id)
   if (updErr) console.error('[WA webhook] update last_message_at:', updErr.message)
 

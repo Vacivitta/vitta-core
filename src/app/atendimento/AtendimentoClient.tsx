@@ -23,6 +23,8 @@ interface WaConversation {
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
   profile_picture_url?: string | null
+  last_message_content?: string | null
+  last_message_direction?: 'inbound' | 'outbound' | null
   lead?: { nome: string; sobrenome: string | null } | null
 }
 
@@ -104,7 +106,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [signatureEnabled,  setSignatureEnabled]  = useState(() =>
     typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1'
   )
-  const msgsEndRef = useRef<HTMLDivElement>(null)
+  const msgsEndRef        = useRef<HTMLDivElement>(null)
+  const selectedConvIdRef = useRef<string | null>(null)
+
+  function selectConv(conv: WaConversation | null) {
+    selectedConvIdRef.current = conv?.id ?? null
+    setSelectedConv(conv)
+  }
 
   const [leadDetail,    setLeadDetail]    = useState<LeadDetail | null>(null)
   const [loadingLead,   setLoadingLead]   = useState(false)
@@ -152,9 +160,12 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const loadConversations = useCallback(async () => {
     const { data } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,lead:leads(nome,sobrenome)')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome)')
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
-    setConversations((data ?? []) as unknown as WaConversation[])
+    const list = (data ?? []) as unknown as WaConversation[]
+    // Garante que a conversa aberta não mostre badge de não lidas (race condition)
+    const openId = selectedConvIdRef.current
+    setConversations(openId ? list.map(c => c.id === openId ? { ...c, unread_count: 0 } : c) : list)
     setConvsLoaded(true)
   }, [supabase])
 
@@ -259,6 +270,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         await fetch('/api/whatsapp/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text }) })
       } else {
         await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text }) })
+        // Atualiza preview imediatamente sem esperar realtime
+        const convId = selectedConv.id
+        setConversations(prev => prev.map(c => c.id === convId
+          ? { ...c, last_message_content: text, last_message_direction: 'outbound' }
+          : c))
       }
     } finally { setSending(false) }
   }
@@ -425,7 +441,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   return (
     <>
       <div className="flex flex-1 overflow-hidden">
-        <ConvList convs={filteredConvs} loaded={convsLoaded} selected={selectedConv} onSelect={setSelectedConv}
+        <ConvList convs={filteredConvs} loaded={convsLoaded} selected={selectedConv} onSelect={selectConv}
           search={convSearch} onSearch={setConvSearch} filterStatus={filterStatus} onFilterStatus={setFilterStatus}
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
           filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread} />
@@ -639,7 +655,9 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 1 }}>
                   <span style={{ fontSize: 11, color: '#8FA0AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                    {assignee ? `↳ ${displayName(assignee)}` : conv.wa_phone}
+                    {conv.last_message_content
+                      ? (conv.last_message_direction === 'outbound' ? `Você: ${conv.last_message_content}` : conv.last_message_content)
+                      : (assignee ? `↳ ${displayName(assignee)}` : conv.wa_phone)}
                   </span>
                   {conv.unread_count > 0 && <span style={{ background: '#25D366', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
                 </div>
