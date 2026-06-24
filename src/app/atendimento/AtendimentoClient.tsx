@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import LeadModal from '@/components/leads/LeadModal'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
-import { Mp3Encoder } from 'lamejs'
+import { Mp3Encoder } from '@breezystack/lamejs'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
