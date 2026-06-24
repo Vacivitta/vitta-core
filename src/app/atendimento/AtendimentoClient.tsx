@@ -930,9 +930,16 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   }, [])
 
   async function startRecording() {
+    let stream: MediaStream
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (err) {
+      console.error('[audio] getUserMedia error:', err)
+      alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.')
+      return
+    }
 
+    try {
       if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
         // Firefox: OGG/Opus — Meta aceita nativamente
         const mr = new MediaRecorder(stream, { mimeType: 'audio/ogg;codecs=opus' })
@@ -953,8 +960,13 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const processor = audioCtx.createScriptProcessor(4096, 1, 1)
 
-        const { Mp3Encoder } = await import('lamejs')
-        const encoder = new Mp3Encoder(1, audioCtx.sampleRate, 128)
+        const lamejsMod = await import('lamejs')
+        // lamejs é CJS — o Mp3Encoder pode estar em .default dependendo do bundler
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const Mp3Encoder = (lamejsMod as any).Mp3Encoder ?? (lamejsMod as any).default?.Mp3Encoder
+        if (!Mp3Encoder) throw new Error('Mp3Encoder not found in lamejs module')
+
+        const encoder = new Mp3Encoder(1, audioCtx.sampleRate, 128) as import('lamejs').Mp3Encoder
         const parts: Blob[] = []
 
         processor.onaudioprocess = (e: AudioProcessingEvent) => {
@@ -987,8 +999,10 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
 
       setRecording(true); setRecordingTime(0)
       recordTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
-    } catch {
-      alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.')
+    } catch (err) {
+      console.error('[audio] startRecording setup error:', err)
+      stream.getTracks().forEach(t => t.stop())
+      alert(`Erro ao iniciar gravação: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
