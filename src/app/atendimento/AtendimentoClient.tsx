@@ -22,6 +22,7 @@ interface WaConversation {
   status: 'open' | 'pending' | 'resolved'; unread_count: number
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
+  profile_picture_url?: string | null
   lead?: { nome: string; sobrenome: string | null } | null
 }
 
@@ -151,7 +152,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const loadConversations = useCallback(async () => {
     const { data } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,lead:leads(nome,sobrenome)')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,lead:leads(nome,sobrenome)')
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     setConversations((data ?? []) as unknown as WaConversation[])
     setConvsLoaded(true)
@@ -613,9 +614,13 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
             <button key={conv.id} onClick={() => onSelect(conv)}
               style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F8FAFB', background: isSelected ? '#F0F8FF' : 'transparent', cursor: 'pointer', transition: 'background 0.1s' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: isSelected ? '#0098DA' : '#E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#fff' : '#5A7184' }}>{name.slice(0, 2).toUpperCase()}</span>
-                </div>
+                {conv.profile_picture_url ? (
+                  <img src={conv.profile_picture_url} alt={name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: isSelected ? '#0098DA' : '#E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#fff' : '#5A7184' }}>{name.slice(0, 2).toUpperCase()}</span>
+                  </div>
+                )}
                 <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: sc.text, border: '1.5px solid #fff' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -655,9 +660,13 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
 
   return (
     <div style={{ padding: '10px 14px', borderBottom: '1px solid #F1F4F7', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
-      <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{name.slice(0, 2).toUpperCase()}</span>
-      </div>
+      {conv.profile_picture_url ? (
+        <img src={conv.profile_picture_url} alt={name} style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{name.slice(0, 2).toUpperCase()}</span>
+        </div>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
         <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>{conv.wa_phone}</p>

@@ -55,27 +55,80 @@ export async function POST(req: NextRequest) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function resolveUnitId(supabase: ReturnType<typeof adminClient>, phoneNumberId: string): Promise<string | null> {
+interface WaConfig { unit_id: string; access_token: string; phone_number_id: string }
+
+async function resolveConfig(supabase: ReturnType<typeof adminClient>, phoneNumberId: string): Promise<WaConfig | null> {
   const { data } = await supabase
     .from('wa_config')
-    .select('unit_id')
+    .select('unit_id, access_token, phone_number_id')
     .eq('phone_number_id', phoneNumberId)
     .maybeSingle()
-  return data?.unit_id ?? null
+  if (!data?.unit_id || !data?.access_token) return null
+  return { unit_id: data.unit_id, access_token: data.access_token, phone_number_id: data.phone_number_id }
+}
+
+async function fetchAndStoreProfilePicture(
+  supabase: ReturnType<typeof adminClient>,
+  conversationId: string,
+  waPhone:        string,
+  phoneNumberId:  string,
+  accessToken:    string,
+): Promise<void> {
+  try {
+    const waId = waPhone.replace(/\D/g, '')
+    const metaRes = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/contacts/${waId}?fields=profile_picture_url`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    if (!metaRes.ok) return
+
+    const metaData = await metaRes.json() as { profile_picture_url?: string }
+    const picUrl = metaData.profile_picture_url
+    if (!picUrl) return
+
+    // Baixa a imagem e faz upload para o Supabase Storage
+    const imgRes = await fetch(picUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!imgRes.ok) return
+
+    const imgBuffer = await imgRes.arrayBuffer()
+    const contentType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+    const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
+    const path = `${waPhone}.${ext}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from('wa-avatars')
+      .upload(path, imgBuffer, { contentType, upsert: true })
+
+    if (uploadErr) {
+      console.error('[WA avatar] upload falhou:', uploadErr.message)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('wa-avatars').getPublicUrl(path)
+
+    await supabase
+      .from('wa_conversations')
+      .update({ profile_picture_url: publicUrl })
+      .eq('id', conversationId)
+  } catch (e) {
+    console.error('[WA avatar] erro ao buscar foto de perfil:', e)
+  }
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   const supabase    = adminClient()
-  const unitId      = await resolveUnitId(supabase, value.metadata.phone_number_id)
+  const config      = await resolveConfig(supabase, value.metadata.phone_number_id)
   const waPhone     = msg.from
   const contactName = value.contacts?.[0]?.profile?.name ?? null
 
-  if (!unitId) {
+  if (!config) {
     console.error('[WA webhook] phone_number_id não mapeado para nenhuma unidade:', value.metadata.phone_number_id)
     return
   }
+
+  const { unit_id: unitId, access_token: accessToken, phone_number_id: phoneNumberId } = config
 
   // 1. Upsert da conversa
   const { data: conv, error: convErr } = await supabase
@@ -84,12 +137,17 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
       { unit_id: unitId, wa_phone: waPhone, wa_contact_name: contactName },
       { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
     )
-    .select('id, lead_id')
+    .select('id, lead_id, profile_picture_url')
     .maybeSingle()
 
   if (convErr || !conv) {
     console.error('[WA webhook] erro ao upsert conversa:', convErr)
     return
+  }
+
+  // 1b. Busca foto de perfil do contato se ainda não tiver (fire-and-forget)
+  if (!conv.profile_picture_url) {
+    void fetchAndStoreProfilePicture(supabase, conv.id, waPhone, phoneNumberId, accessToken)
   }
 
   // 2. Inserir mensagem (ignora duplicatas)
@@ -493,8 +551,9 @@ async function handleStatusUpdate(status: WAStatus, phoneNumberId: string) {
 
   // Registra custo por mensagem (modelo Meta pós-julho 2025: per-message pricing)
   if (status.status === 'sent' && status.pricing) {
-    const unitId = await resolveUnitId(supabase, phoneNumberId)
-    if (!unitId) return
+    const cfg = await resolveConfig(supabase, phoneNumberId)
+    if (!cfg) return
+    const unitId = cfg.unit_id
     const monthYear = new Date().toISOString().slice(0, 7)
 
     // Custo unitário por categoria (USD). Service é sempre 0.
