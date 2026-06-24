@@ -550,7 +550,6 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       )}
       {newConvOpen && (
         <NewConversationModal
-          templates={templates.filter(t => t.category === 'meta_api')}
           unitId={currentUser.unit_id ?? ''}
           onStart={handleStartConversation}
           onClose={() => setNewConvOpen(false)}
@@ -1433,18 +1432,41 @@ function IconClock()    { return <svg width="16" height="16" fill="none" stroke=
 
 // ── NewConversationModal ───────────────────────────────────────────────────────
 
-function NewConversationModal({ templates, unitId, onStart, onClose }: {
-  templates: WaTemplate[]
-  unitId:    string
-  onStart:   (phone: string, unitId: string, templateName: string, language: string, components: object[]) => Promise<void>
-  onClose:   () => void
-}) {
-  const [phone,    setPhone]    = useState('')
-  const [tmplIdx,  setTmplIdx]  = useState(0)
-  const [sending,  setSending]  = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
+interface MetaApprovedTemplate { name: string; language: string; bodyText: string }
 
-  const selected = templates[tmplIdx] ?? null
+function NewConversationModal({ unitId, onStart, onClose }: {
+  unitId:  string
+  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[]) => Promise<void>
+  onClose: () => void
+}) {
+  const [phone,     setPhone]     = useState('')
+  const [tmplIdx,   setTmplIdx]   = useState(0)
+  const [sending,   setSending]   = useState(false)
+  const [error,     setError]     = useState<string | null>(null)
+  const [metaTmpls, setMetaTmpls] = useState<MetaApprovedTemplate[] | null>(null)
+  const [loadingT,  setLoadingT]  = useState(true)
+
+  // Busca templates aprovados direto da Meta ao abrir o modal
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res  = await fetch('/api/whatsapp/meta-templates')
+        const data = await res.json() as { templates?: { name: string; status: string; language: string; components?: { type: string; text?: string }[] }[]; error?: string }
+        if (!res.ok || data.error) { setMetaTmpls([]); return }
+        const approved = (data.templates ?? [])
+          .filter(t => t.status === 'APPROVED')
+          .map(t => ({
+            name:     t.name,
+            language: t.language,
+            bodyText: t.components?.find(c => c.type === 'BODY')?.text ?? '',
+          }))
+        setMetaTmpls(approved)
+      } catch { setMetaTmpls([]) }
+      finally { setLoadingT(false) }
+    })()
+  }, [])
+
+  const selected = metaTmpls?.[tmplIdx] ?? null
 
   async function handleSend() {
     setError(null)
@@ -1452,11 +1474,13 @@ function NewConversationModal({ templates, unitId, onStart, onClose }: {
     if (!selected)     { setError('Selecione um template'); return }
     setSending(true)
     try {
-      await onStart(phone.trim(), unitId, selected.template_name ?? selected.name, selected.language ?? 'pt_BR', [])
+      await onStart(phone.trim(), unitId, selected.name, selected.language, [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao iniciar conversa')
     } finally { setSending(false) }
   }
+
+  const noTmpls = !loadingT && (metaTmpls ?? []).length === 0
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
@@ -1476,9 +1500,14 @@ function NewConversationModal({ templates, unitId, onStart, onClose }: {
         />
 
         <label style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template de abertura</label>
-        {templates.length === 0 ? (
+        {loadingT ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Spinner size={16} color="#0098DA" />
+            <span style={{ fontSize: 12, color: '#8FA0AF' }}>Carregando templates aprovados…</span>
+          </div>
+        ) : noTmpls ? (
           <p style={{ fontSize: 12, color: '#B0BEC9', marginBottom: 16 }}>
-            Nenhum template aprovado. Acesse <strong>Configurações → Templates</strong> para sincronizar com a Meta.
+            Nenhum template aprovado na Meta. Acesse <strong>Configurações → Templates</strong> e aguarde a aprovação.
           </p>
         ) : (
           <>
@@ -1487,12 +1516,12 @@ function NewConversationModal({ templates, unitId, onStart, onClose }: {
               onChange={e => setTmplIdx(Number(e.target.value))}
               style={{ width: '100%', border: '1.5px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12, background: '#fff', color: '#0E2C3D', cursor: 'pointer' }}
             >
-              {templates.map((t, i) => <option key={t.id} value={i}>{t.name}</option>)}
+              {(metaTmpls ?? []).map((t, i) => <option key={`${t.name}-${t.language}`} value={i}>{t.name} ({t.language})</option>)}
             </select>
-            {selected?.content && (
+            {selected?.bodyText && (
               <div style={{ background: '#F0F8FF', border: '1px solid #D0EAFB', borderRadius: 10, padding: '10px 13px', marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#0098DA', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prévia</p>
-                <p style={{ fontSize: 13, color: '#0E2C3D', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selected.content}</p>
+                <p style={{ fontSize: 13, color: '#0E2C3D', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selected.bodyText}</p>
               </div>
             )}
           </>
@@ -1502,11 +1531,11 @@ function NewConversationModal({ templates, unitId, onStart, onClose }: {
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>Cancelar</button>
-          <button onClick={handleSend} disabled={sending || templates.length === 0}
+          <button onClick={handleSend} disabled={sending || noTmpls || loadingT}
             style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
-              cursor: sending || templates.length === 0 ? 'default' : 'pointer',
-              background: sending || templates.length === 0 ? '#E8EDF2' : '#25D366',
-              color: sending || templates.length === 0 ? '#B0BEC9' : '#fff', transition: 'all 0.15s' }}>
+              cursor: sending || noTmpls || loadingT ? 'default' : 'pointer',
+              background: sending || noTmpls || loadingT ? '#E8EDF2' : '#25D366',
+              color: sending || noTmpls || loadingT ? '#B0BEC9' : '#fff', transition: 'all 0.15s' }}>
             {sending ? 'Enviando…' : 'Iniciar conversa'}
           </button>
         </div>
