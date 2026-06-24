@@ -137,10 +137,8 @@ function LeadDrawer({
     const supabase = createClient()
     const now = new Date().toISOString()
     const { error } = await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
-    if (!error) {
-      setWaOptinAt(now)
-      onSaved()
-    }
+    if (!error) setWaOptinAt(now)
+    // não fecha o modal — o badge atualiza na hora sem precisar reabrir
   }
 
   // ── Tab ────────────────────────────────────────────────────────────────────

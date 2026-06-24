@@ -801,15 +801,22 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
 
 function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) {
   const isOut = msg.direction === 'outbound'
+  const failed = isOut && msg.status === 'failed'
   return (
-    <div style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
-      <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: isOut ? '#0098DA' : '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
+      <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: failed ? '#FEE2E2' : isOut ? '#0098DA' : '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: failed ? '1px solid #FECACA' : 'none' }}>
         <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: isOut ? '#ffffff99' : '#B0BEC9' }}>{format(new Date(msg.created_at), 'HH:mm')}</span>
+          <span style={{ fontSize: 10, color: failed ? '#B91C1C' : isOut ? '#ffffff99' : '#B0BEC9' }}>{format(new Date(msg.created_at), 'HH:mm')}</span>
           {isOut && <StatusTick status={msg.status} />}
         </div>
       </div>
+      {failed && (
+        <span style={{ fontSize: 10, color: '#B91C1C', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+          Mensagem não entregue
+        </span>
+      )}
     </div>
   )
 }
