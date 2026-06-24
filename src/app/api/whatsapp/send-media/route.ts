@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { getWaCredentials } from '@/lib/whatsapp/credentials'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -26,15 +27,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'file e conversation_id obrigatórios' }, { status: 400 })
   }
 
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
-  const accessToken   = process.env.WHATSAPP_ACCESS_TOKEN
-  if (!phoneNumberId || !accessToken) {
-    return NextResponse.json({ error: 'Variáveis WhatsApp não configuradas' }, { status: 500 })
-  }
-
   const admin = adminClient()
   const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id').eq('id', conversation_id).single()
   if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+
+  const creds = await getWaCredentials(conv.unit_id)
+  const phoneNumberId = creds.phoneNumberId
+  const accessToken   = creds.accessToken
+  if (!phoneNumberId || !accessToken)
+    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
 
   // 1. Upload do arquivo para a API de mídia do Meta
   const uploadForm = new FormData()
