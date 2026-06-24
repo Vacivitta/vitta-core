@@ -930,13 +930,17 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Prioridade: ogg/opus (Firefox) → mp4/aac (Chrome 96+, Safari) → webm (fallback)
+      // audio/webm não é aceito pela Meta API — será bloqueado com mensagem de erro
       const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
         : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+      const ext = mimeType.startsWith('audio/ogg') ? 'ogg' : mimeType.startsWith('audio/mp4') ? 'mp4' : 'webm'
       const mr = new MediaRecorder(stream, { mimeType })
       audioChunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.onstop = () => {
-        const blob = new File(audioChunksRef.current, `audio_${Date.now()}.webm`, { type: mimeType })
+        const blob = new File(audioChunksRef.current, `audio_${Date.now()}.${ext}`, { type: mimeType })
         onMediaUpload(blob)
         stream.getTracks().forEach(t => t.stop())
       }
