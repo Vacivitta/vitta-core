@@ -25,10 +25,11 @@ function oggCrc32(buf: Buffer): number {
 
 function makeOggPage(
   headerType: number,
-  granule: number,  // PCM sample count; fits in 32-bit for audio up to ~25 h
+  granuleLo: number, // low 32 bits of 64-bit granule position
   serial: number,
   seq: number,
   pkt: Buffer,
+  granuleHi = 0,    // high 32 bits (0 for data pages; 0xFFFFFFFF for header pages)
 ): Buffer {
   // Lacing table (255-byte segments)
   const lace: number[] = []
@@ -39,9 +40,9 @@ function makeOggPage(
   const hdr = Buffer.alloc(27 + lace.length)
   hdr.write('OggS', 0, 'ascii')
   hdr[4] = 0; hdr[5] = headerType
-  // 64-bit LE granule position: low 32 bits then high 32 bits (always 0 here)
-  hdr.writeUInt32LE(granule >>> 0, 6)
-  hdr.writeUInt32LE(0, 10)
+  // 64-bit LE granule position
+  hdr.writeUInt32LE(granuleLo >>> 0, 6)
+  hdr.writeUInt32LE(granuleHi >>> 0, 10)
   hdr.writeUInt32LE(serial, 14)
   hdr.writeUInt32LE(seq, 18)
   hdr.writeUInt32LE(0, 22)       // checksum — filled after CRC
@@ -158,14 +159,15 @@ function extractOpusPackets(webm: Buffer): Buffer[] {
 
 export function convertWebmToOgg(webm: Buffer): Buffer {
   const packets = extractOpusPackets(webm)
+  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')}`)
   if (packets.length === 0) throw new Error('[webm-to-ogg] no Opus packets found in WebM')
 
   const serial = Math.floor(Math.random() * 0xffffffff)
   const pages: Buffer[] = []
 
-  // Header pages (granule = 0)
-  pages.push(makeOggPage(0x02, 0, serial, 0, buildOpusHead(1, 48000)))
-  pages.push(makeOggPage(0x00, 0, serial, 1, buildOpusTags()))
+  // RFC 7845: granule position of header pages MUST be -1 (all 64 bits set)
+  pages.push(makeOggPage(0x02, 0xffffffff, serial, 0, buildOpusHead(1, 48000), 0xffffffff))
+  pages.push(makeOggPage(0x00, 0xffffffff, serial, 1, buildOpusTags(),          0xffffffff))
 
   // Data pages — one packet per page
   // Assume 20 ms frames (960 samples @ 48 kHz); typical for Chrome MediaRecorder

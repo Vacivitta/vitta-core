@@ -84,13 +84,11 @@ export async function POST(req: NextRequest) {
     else if (mime.startsWith('audio/')) msgType = 'audio'
 
     // 3. Envia a mensagem via API do Meta
-    // voice: true faz áudio aparecer como mensagem de voz no WhatsApp
-    const mediaObject = msgType === 'audio' ? { id: mediaId, voice: true } : { id: mediaId }
     const metaPayload: Record<string, unknown> = {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
       type: msgType,
-      [msgType]: mediaObject,
+      [msgType]: { id: mediaId },
     }
 
     const sendRes  = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
