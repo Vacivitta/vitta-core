@@ -5,10 +5,6 @@ import { getWaCredentials } from '@/lib/whatsapp/credentials'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
-// Meta aceita: audio/aac, audio/mp4, audio/mpeg, audio/amr, audio/ogg, audio/opus
-// audio/webm (produzido pelo Chrome) não é aceito — retornamos 400 com mensagem amigável
-const UNSUPPORTED_AUDIO = ['audio/webm']
-
 function normalizeMime(raw: string): string {
   return raw.split(';')[0].trim().toLowerCase()
 }
@@ -47,12 +43,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
 
     const mime = normalizeMime(file.type)
-
-    if (UNSUPPORTED_AUDIO.includes(mime)) {
-      return NextResponse.json({
-        error: 'Formato de áudio não suportado pelo WhatsApp. Envie um arquivo MP3, MP4 ou OGG, ou use o microfone em Firefox/Safari.',
-      }, { status: 400 })
-    }
 
     // 1. Upload do arquivo para a API de mídia do Meta
     const uploadForm = new FormData()

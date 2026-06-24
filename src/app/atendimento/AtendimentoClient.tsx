@@ -876,6 +876,46 @@ function InternalNoteBubble({ note }: { note: WaNote }) {
   )
 }
 
+// ── Audio conversion (WebM → MP3 via lamejs) ──────────────────────────────────
+// Chrome só grava em audio/webm que a Meta não aceita.
+// Decodifica o áudio via AudioContext e re-encoda como MP3 (audio/mpeg).
+async function convertWebmToMp3(blob: Blob): Promise<File> {
+  const arrayBuffer = await blob.arrayBuffer()
+  const audioCtx = new AudioContext()
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+  await audioCtx.close()
+
+  const numChannels = Math.min(audioBuffer.numberOfChannels, 2)
+  const sampleRate  = audioBuffer.sampleRate
+  const left  = audioBuffer.getChannelData(0)
+  const right = numChannels > 1 ? audioBuffer.getChannelData(1) : left
+
+  const toInt16 = (f32: Float32Array) => {
+    const buf = new Int16Array(f32.length)
+    for (let i = 0; i < f32.length; i++)
+      buf[i] = Math.max(-32768, Math.min(32767, Math.round(f32[i] * 32768)))
+    return buf
+  }
+
+  const { Mp3Encoder } = await import('lamejs')
+  const encoder = new Mp3Encoder(numChannels, sampleRate, 128)
+
+  const chunks: ArrayBuffer[] = []
+  const blockSize = 1152
+
+  for (let i = 0; i < left.length; i += blockSize) {
+    const l = toInt16(left.subarray(i, i + blockSize))
+    const r = numChannels > 1 ? toInt16(right.subarray(i, i + blockSize)) : l
+    const encoded = numChannels > 1 ? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l)
+    if (encoded.length > 0) chunks.push(encoded.buffer.slice(0, encoded.byteLength) as ArrayBuffer)
+  }
+  const flushed = encoder.flush()
+  if (flushed.length > 0) chunks.push(flushed.buffer.slice(0, flushed.byteLength) as ArrayBuffer)
+
+  const mp3Blob = new Blob(chunks, { type: 'audio/mpeg' })
+  return new File([mp3Blob], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' })
+}
+
 // ── ChatInput ─────────────────────────────────────────────────────────────────
 
 function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onScheduleSend, templates, quickReplies, sending, mode, onModeChange, unitId, onTemplatesReload, onQuickRepliesReload, isOutside24hWindow, signatureEnabled, onToggleSignature, signerName }: {
@@ -930,21 +970,32 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      // Prioridade: ogg/opus (Firefox) → mp4/aac (Chrome 96+, Safari) → webm (fallback)
-      // audio/webm não é aceito pela Meta API — será bloqueado com mensagem de erro
+      // Prioridade: ogg/opus (Firefox) → mp4 (Safari/Chrome 129+) → webm (Chrome fallback, será convertido para MP3)
       const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
         : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
-      const ext = mimeType.startsWith('audio/ogg') ? 'ogg' : mimeType.startsWith('audio/mp4') ? 'mp4' : 'webm'
       const mr = new MediaRecorder(stream, { mimeType })
       audioChunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-      mr.onstop = () => {
-        const blob = new File(audioChunksRef.current, `audio_${Date.now()}.${ext}`, { type: mimeType })
-        onMediaUpload(blob)
+      mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
+        const rawBlob = new Blob(audioChunksRef.current, { type: mimeType })
+        let file: File
+        if (mimeType.startsWith('audio/webm')) {
+          // Chrome grava em webm que a Meta não aceita — converte para MP3 no browser
+          try {
+            file = await convertWebmToMp3(rawBlob)
+          } catch {
+            alert('Erro ao converter áudio. Tente novamente.')
+            return
+          }
+        } else {
+          const ext = mimeType.startsWith('audio/ogg') ? 'ogg' : 'mp4'
+          file = new File([rawBlob], `audio_${Date.now()}.${ext}`, { type: mimeType })
+        }
+        onMediaUpload(file)
       }
-      mr.start(250) // collect in 250ms chunks
+      mr.start(250)
       mediaRecorderRef.current = mr
       setRecording(true); setRecordingTime(0)
       recordTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
