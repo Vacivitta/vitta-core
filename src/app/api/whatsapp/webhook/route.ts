@@ -241,6 +241,9 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     }
   }
 
+  // 4c. Auto-cria cliente se o lead ainda não tem um
+  if (resolvedLeadId) await autoCreateClient(supabase, resolvedLeadId, unitId)
+
   // 5. Tenta auto-distribuir — re-fetch para ter queue_id e assigned_to atualizados
   const { data: fresh } = await supabase
     .from('wa_conversations')
@@ -253,6 +256,45 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     } catch (e) {
       console.error('[WA webhook] runAutoAssign falhou:', e)
     }
+  }
+}
+
+// ── Auto-criar cliente quando lead faz contato pela primeira vez ──────────────
+
+async function autoCreateClient(
+  supabase: ReturnType<typeof adminClient>,
+  leadId:   string,
+  unitId:   string,
+) {
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('client_id, nome, sobrenome, telefone')
+    .eq('id', leadId)
+    .single()
+
+  if (!lead || lead.client_id) return // já tem cliente
+
+  // Garante que não existe cliente órfão com este lead_id
+  const { data: existing } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('lead_id', leadId)
+    .maybeSingle()
+
+  if (existing) {
+    await supabase.from('leads').update({ client_id: existing.id }).eq('id', leadId)
+    return
+  }
+
+  const { data: client } = await supabase
+    .from('clients')
+    .insert({ unit_id: unitId, lead_id: leadId, nome: lead.nome, sobrenome: lead.sobrenome, telefone: lead.telefone })
+    .select('id')
+    .single()
+
+  if (client) {
+    await supabase.from('leads').update({ client_id: client.id }).eq('id', leadId)
+    console.log(`[WA webhook] cliente criado automaticamente: ${client.id} → lead ${leadId}`)
   }
 }
 

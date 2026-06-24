@@ -22,6 +22,7 @@ interface WaConversation {
   status: 'open' | 'pending' | 'resolved'; unread_count: number
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
+  lead?: { nome: string; sobrenome: string | null } | null
 }
 
 interface WaMessage {
@@ -150,7 +151,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const loadConversations = useCallback(async () => {
     const { data } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,lead:leads(nome,sobrenome)')
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     setConversations((data ?? []) as WaConversation[])
     setConvsLoaded(true)
@@ -604,7 +605,8 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
         {loaded && convs.length === 0 && <div style={{ textAlign: 'center', padding: '32px 16px', color: '#B0BEC9', fontSize: 12 }}>Nenhuma conversa</div>}
         {convs.map(conv => {
           const isSelected = selected?.id === conv.id
-          const name = conv.wa_contact_name ?? conv.wa_phone
+          const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
+          const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
           return (
@@ -647,7 +649,8 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
   const [showStatus, setShowStatus] = useState(false)
   const [showAgent,  setShowAgent]  = useState(false)
   const [showQueue,  setShowQueue]  = useState(false)
-  const name = conv.wa_contact_name ?? conv.wa_phone
+  const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
+  const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
   const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
 
   return (
