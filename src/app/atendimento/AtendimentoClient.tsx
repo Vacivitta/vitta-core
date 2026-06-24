@@ -225,6 +225,15 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           setChatItems(prev => prev.some(i => i.id === msg.id) ? prev : [...prev, { kind: 'message', id: msg.id, created_at: msg.created_at, message: msg }])
           void supabase.from('wa_conversations').update({ unread_count: 0 }).eq('id', selectedConv.id)
         })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_messages', filter: `conversation_id=eq.${selectedConv.id}` },
+        payload => {
+          const updated = payload.new as WaMessage
+          setChatItems(prev => prev.map(item =>
+            item.kind === 'message' && item.id === updated.id
+              ? { ...item, message: updated }
+              : item
+          ))
+        })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_internal_notes', filter: `conversation_id=eq.${selectedConv.id}` },
         payload => {
           const n = payload.new as WaNote
