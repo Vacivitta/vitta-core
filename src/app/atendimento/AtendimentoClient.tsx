@@ -10,7 +10,6 @@ import { createClient } from '@/lib/supabase/client'
 import LeadModal from '@/components/leads/LeadModal'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
-import { Mp3Encoder } from '@breezystack/lamejs'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -913,7 +912,6 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   const [recording,        setRecording]         = useState(false)
   const [recordingTime,    setRecordingTime]      = useState(0)
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null)
-  const audioStopRef       = useRef<((send: boolean) => void) | null>(null)
   const recordTimerRef     = useRef<ReturnType<typeof setInterval> | null>(null)
   const supabase = createClient()
 
@@ -926,7 +924,6 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     return () => {
       if (recordTimerRef.current) clearInterval(recordTimerRef.current)
       mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop())
-      audioStopRef.current?.(false)
     }
   }, [])
 
@@ -941,56 +938,24 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     }
 
     try {
-      if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-        // Firefox: OGG/Opus — Meta aceita nativamente
-        const mr = new MediaRecorder(stream, { mimeType: 'audio/ogg;codecs=opus' })
-        const chunks: Blob[] = []
-        mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
-        mr.onstop = () => {
-          stream.getTracks().forEach(t => t.stop())
-          const file = new File([new Blob(chunks, { type: 'audio/ogg' })], `audio_${Date.now()}.ogg`, { type: 'audio/ogg' })
-          onMediaUpload(file)
-        }
-        mr.start()
-        mediaRecorderRef.current = mr
-      } else {
-        // Chrome: captura PCM via ScriptProcessorNode → lamejs → MP3 em tempo real.
-        // Evita decodeAudioData que não consegue decodificar WebM de streaming.
-        const audioCtx  = new AudioContext()
-        const source    = audioCtx.createMediaStreamSource(stream)
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const processor = audioCtx.createScriptProcessor(4096, 1, 1)
+      // Firefox → audio/ogg;codecs=opus nativo (Meta aceita diretamente)
+      // Chrome  → audio/webm;codecs=opus (servidor converte para OGG antes de enviar à Meta)
+      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : 'audio/webm;codecs=opus'
+      const outMime  = mimeType === 'audio/ogg;codecs=opus' ? 'audio/ogg' : 'audio/webm'
+      const ext      = mimeType === 'audio/ogg;codecs=opus' ? 'ogg'       : 'webm'
 
-        const encoder = new Mp3Encoder(1, audioCtx.sampleRate, 128)
-        const parts: Blob[] = []
-
-        processor.onaudioprocess = (e: AudioProcessingEvent) => {
-          const f32  = e.inputBuffer.getChannelData(0)
-          const i16  = new Int16Array(f32.length)
-          for (let i = 0; i < f32.length; i++)
-            i16[i] = Math.max(-32768, Math.min(32767, Math.round(f32[i] * 32768)))
-          const encoded = encoder.encodeBuffer(i16)
-          if (encoded.length > 0) parts.push(new Blob([encoded as unknown as BlobPart]))
-        }
-
-        source.connect(processor)
-        processor.connect(audioCtx.destination)
-
-        audioStopRef.current = (send: boolean) => {
-          processor.disconnect()
-          source.disconnect()
-          stream.getTracks().forEach(t => t.stop())
-          void audioCtx.close()
-          audioStopRef.current = null
-
-          if (!send) return
-
-          const flushed = encoder.flush()
-          if (flushed.length > 0) parts.push(new Blob([flushed as unknown as BlobPart]))
-          const file = new File([new Blob(parts)], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' })
-          onMediaUpload(file)
-        }
+      const mr = new MediaRecorder(stream, { mimeType })
+      const chunks: Blob[] = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunks, { type: outMime })
+        onMediaUpload(new File([blob], `audio_${Date.now()}.${ext}`, { type: outMime }))
       }
+      mr.start()
+      mediaRecorderRef.current = mr
 
       setRecording(true); setRecordingTime(0)
       recordTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
@@ -1003,21 +968,12 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
 
   function stopRecording(send: boolean) {
     if (recordTimerRef.current) { clearInterval(recordTimerRef.current); recordTimerRef.current = null }
-
-    if (mediaRecorderRef.current) {
-      const mr = mediaRecorderRef.current
+    const mr = mediaRecorderRef.current
+    if (mr) {
       mediaRecorderRef.current = null
-      if (!send) {
-        mr.ondataavailable = null; mr.onstop = null
-        try { mr.stop() } catch {}
-        mr.stream.getTracks().forEach(t => t.stop())
-      } else {
-        mr.stop()
-      }
-    } else if (audioStopRef.current) {
-      audioStopRef.current(send)
+      if (!send) { mr.ondataavailable = null; mr.onstop = null; try { mr.stop() } catch {} ; mr.stream.getTracks().forEach(t => t.stop()) }
+      else mr.stop()
     }
-
     setRecording(false); setRecordingTime(0)
   }
 

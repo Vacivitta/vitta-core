@@ -3,7 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 
-const META_API_URL = 'https://graph.facebook.com/v20.0'
+const META_API_URL = 'https://graph.facebook.com/v21.0'
 
 function normalizeMime(raw: string): string {
   return raw.split(';')[0].trim().toLowerCase()
@@ -42,11 +42,21 @@ export async function POST(req: NextRequest) {
     if (!phoneNumberId || !accessToken)
       return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
 
-    const mime = normalizeMime(file.type)
+    let mime = normalizeMime(file.type)
+
+    // Converte audio/webm (Chrome MediaRecorder) para audio/ogg antes do upload
+    let uploadFile: File = file
+    if (mime === 'audio/webm') {
+      const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
+      const oggBuf  = convertWebmToOgg(Buffer.from(await file.arrayBuffer()))
+      const oggBlob = new Blob([oggBuf as unknown as BlobPart], { type: 'audio/ogg' })
+      uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
+      mime = 'audio/ogg'
+    }
 
     // 1. Upload do arquivo para a API de mídia do Meta
     const uploadForm = new FormData()
-    uploadForm.append('file', file, file.name)
+    uploadForm.append('file', uploadFile, uploadFile.name)
     uploadForm.append('messaging_product', 'whatsapp')
     uploadForm.append('type', mime)
 
@@ -59,7 +69,7 @@ export async function POST(req: NextRequest) {
     let uploadData: { id?: string; error?: unknown }
     try { uploadData = JSON.parse(uploadText) } catch { uploadData = {} }
 
-    console.log(`[send-media] upload status=${uploadRes.status} mime=${mime} name=${file.name} body=${uploadText.slice(0, 300)}`)
+    console.log(`[send-media] upload status=${uploadRes.status} mime=${mime} name=${uploadFile.name} body=${uploadText.slice(0, 300)}`)
 
     if (!uploadRes.ok || !uploadData.id) {
       return NextResponse.json({ error: 'Falha no upload da mídia', details: uploadData }, { status: 502 })
@@ -74,11 +84,13 @@ export async function POST(req: NextRequest) {
     else if (mime.startsWith('audio/')) msgType = 'audio'
 
     // 3. Envia a mensagem via API do Meta
+    // voice: true faz áudio aparecer como mensagem de voz no WhatsApp
+    const mediaObject = msgType === 'audio' ? { id: mediaId, voice: true } : { id: mediaId }
     const metaPayload: Record<string, unknown> = {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
       type: msgType,
-      [msgType]: { id: mediaId },
+      [msgType]: mediaObject,
     }
 
     const sendRes  = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
