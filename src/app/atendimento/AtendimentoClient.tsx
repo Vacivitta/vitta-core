@@ -286,7 +286,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setSending(true)
     try {
       const form = new FormData(); form.append('file', file); form.append('conversation_id', selectedConv.id)
-      await fetch('/api/whatsapp/send-media', { method: 'POST', body: form })
+      const res = await fetch('/api/whatsapp/send-media', { method: 'POST', body: form })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        alert(data.error ?? 'Erro ao enviar mídia')
+      }
+    } catch {
+      alert('Erro ao enviar mídia')
     } finally { setSending(false) }
   }
 
@@ -924,8 +930,8 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : 'audio/webm'
+      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
       const mr = new MediaRecorder(stream, { mimeType })
       audioChunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
