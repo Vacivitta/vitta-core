@@ -14,9 +14,20 @@ function adminClient() {
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, '')
-  if (digits.startsWith('55') && digits.length >= 12) return digits
-  if (digits.startsWith('0'))  return '55' + digits.slice(1)
-  return '55' + digits
+
+  let n: string
+  if (digits.startsWith('55') && digits.length >= 12) n = digits
+  else if (digits.startsWith('0'))                    n = '55' + digits.slice(1)
+  else                                                n = '55' + digits
+
+  // Brasil: 55 + DDD(2) + 8 dígitos começando com 6-9 = celular sem o 9º dígito obrigatório
+  // Ex: 559845351977 → 5598945351977
+  if (n.startsWith('55') && n.length === 12) {
+    const local8 = n.slice(4)
+    if (/^[6-9]/.test(local8)) n = n.slice(0, 4) + '9' + local8
+  }
+
+  return n
 }
 
 // ── POST /api/whatsapp/start-conversation ────────────────────────────────────
