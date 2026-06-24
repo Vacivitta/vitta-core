@@ -430,11 +430,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setLeadDetail(null)
   }
 
-  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[]) {
+  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean) {
     const res = await fetch('/api/whatsapp/start-conversation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components }),
+      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components, register_optin: registerOptin }),
     })
     const data = await res.json() as { conversation_id?: string; error?: string }
     if (!res.ok || !data.conversation_id) throw new Error(data.error ?? 'Erro ao iniciar conversa')
@@ -1455,15 +1455,16 @@ interface MetaApprovedTemplate { name: string; language: string; bodyText: strin
 
 function NewConversationModal({ unitId, onStart, onClose }: {
   unitId:  string
-  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[]) => Promise<void>
+  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean) => Promise<void>
   onClose: () => void
 }) {
-  const [phone,     setPhone]     = useState('')
-  const [tmplIdx,   setTmplIdx]   = useState(0)
-  const [sending,   setSending]   = useState(false)
-  const [error,     setError]     = useState<string | null>(null)
-  const [metaTmpls, setMetaTmpls] = useState<MetaApprovedTemplate[] | null>(null)
-  const [loadingT,  setLoadingT]  = useState(true)
+  const [phone,        setPhone]        = useState('')
+  const [tmplIdx,      setTmplIdx]      = useState(0)
+  const [sending,      setSending]      = useState(false)
+  const [error,        setError]        = useState<string | null>(null)
+  const [metaTmpls,    setMetaTmpls]    = useState<MetaApprovedTemplate[] | null>(null)
+  const [loadingT,     setLoadingT]     = useState(true)
+  const [regOptin,     setRegOptin]     = useState(true)
 
   // Busca templates aprovados direto da Meta ao abrir o modal
   useEffect(() => {
@@ -1493,7 +1494,7 @@ function NewConversationModal({ unitId, onStart, onClose }: {
     if (!selected)     { setError('Selecione um template'); return }
     setSending(true)
     try {
-      await onStart(phone.trim(), unitId, selected.name, selected.language, [])
+      await onStart(phone.trim(), unitId, selected.name, selected.language, [], regOptin)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao iniciar conversa')
     } finally { setSending(false) }
@@ -1545,6 +1546,14 @@ function NewConversationModal({ unitId, onStart, onClose }: {
             )}
           </>
         )}
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer' }}>
+          <input type="checkbox" checked={regOptin} onChange={e => setRegOptin(e.target.checked)}
+            style={{ width: 15, height: 15, accentColor: '#0098DA', flexShrink: 0, cursor: 'pointer' }} />
+          <span style={{ fontSize: 12, color: '#5A7184', lineHeight: 1.4 }}>
+            Registrar autorização WhatsApp para este contato
+          </span>
+        </label>
 
         {error && <p style={{ fontSize: 12, color: '#E53E3E', marginBottom: 12 }}>{error}</p>}
 

@@ -43,14 +43,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const body = await req.json() as {
-    phone:          string
-    unit_id:        string
-    template_name:  string
-    language?:      string
-    components?:    object[]
+    phone:           string
+    unit_id:         string
+    template_name:   string
+    language?:       string
+    components?:     object[]
+    register_optin?: boolean
   }
 
-  const { unit_id, template_name, language = 'pt_BR', components = [] } = body
+  const { unit_id, template_name, language = 'pt_BR', components = [], register_optin = false } = body
   const phone = normalizePhone(body.phone ?? '')
 
   if (!phone || phone.length < 12)
@@ -127,6 +128,29 @@ export async function POST(req: NextRequest) {
     assigned_to:            user.id,
     status:                 'open',
   }).eq('id', conv.id)
+
+  // 5. Registra optin no lead vinculado ao telefone (se solicitado)
+  if (register_optin) {
+    const now = new Date().toISOString()
+    // Tenta todas as variações do telefone que podem estar cadastradas no lead
+    const phoneVariants = [phone]
+    if (phone.startsWith('55')) {
+      const withoutCountry = phone.slice(2)
+      phoneVariants.push(withoutCountry, `0${withoutCountry}`)
+    }
+    const { data: leads } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('unit_id', unit_id)
+      .is('wa_optin_at', null)
+      .or(phoneVariants.map(p => `telefone.ilike.%${p}`).join(','))
+      .limit(5)
+    if (leads && leads.length > 0) {
+      await supabase.from('leads')
+        .update({ wa_optin_at: now })
+        .in('id', leads.map(l => l.id))
+    }
+  }
 
   return NextResponse.json({ conversation_id: conv.id })
 }
