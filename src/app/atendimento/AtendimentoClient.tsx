@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import LeadModal from '@/components/leads/LeadModal'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
+import { Mp3Encoder } from 'lamejs'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -960,13 +961,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const processor = audioCtx.createScriptProcessor(4096, 1, 1)
 
-        const lamejsMod = await import('lamejs')
-        // lamejs é CJS — o Mp3Encoder pode estar em .default dependendo do bundler
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const Mp3Encoder = (lamejsMod as any).Mp3Encoder ?? (lamejsMod as any).default?.Mp3Encoder
-        if (!Mp3Encoder) throw new Error('Mp3Encoder not found in lamejs module')
-
-        const encoder = new Mp3Encoder(1, audioCtx.sampleRate, 128) as import('lamejs').Mp3Encoder
+        const encoder = new Mp3Encoder(1, audioCtx.sampleRate, 128)
         const parts: Blob[] = []
 
         processor.onaudioprocess = (e: AudioProcessingEvent) => {
