@@ -1555,6 +1555,7 @@ function NewConversationModal({ unitId, onStart, onClose }: {
 // ── Shared ────────────────────────────────────────────────────────────────────
 
 function StatusTick({ status }: { status: string }) {
+  if (status === 'failed') return <span style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 700 }}>!</span>
   const c = status === 'read' ? '#fff' : '#ffffffaa'
   if (status === 'sent') return <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 5l3 3 5-7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
   return <svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M1 5l3 3 5-7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M6 5l3 3 5-7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>

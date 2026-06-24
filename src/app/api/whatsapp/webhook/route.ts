@@ -531,6 +531,7 @@ async function handleStatusUpdate(status: WAStatus, phoneNumberId: string) {
   if (!newStatus) return
   const update: Record<string, unknown> = { status: newStatus }
   if (status.errors?.length) update.error_data = status.errors[0]
+  console.log(`[webhook status] id=${status.id} status=${newStatus}${status.errors?.length ? ` error=${JSON.stringify(status.errors[0])}` : ''}`)
   await supabase.from('wa_messages').update(update).eq('wa_message_id', status.id)
 
   // ── Atualiza destinatário de campanha se aplicável ──────────────────────────
