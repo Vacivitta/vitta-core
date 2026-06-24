@@ -33,7 +33,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [showArchived, setShowArchived]   = useState(false)
   const [filters, setFilters]             = useState<Filters>({
     search:         '',
-    responsavel_id: currentUser.perfil !== 'atendente' ? '' : currentUser.id,
+    responsavel_id: '',
     cidade:         '',
     profissao:      '',
     stage_id:       '',
@@ -199,16 +199,14 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       {/* Barra de filtros */}
       {showFilters && (
         <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap">
-          {currentUser.perfil !== 'atendente' && (
-            <select
-              value={filters.responsavel_id}
-              onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}
-              className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="">Todos responsáveis</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select>
-          )}
+          <select
+            value={filters.responsavel_id}
+            onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">Todos responsáveis</option>
+            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          </select>
 
           <input
             type="text"
