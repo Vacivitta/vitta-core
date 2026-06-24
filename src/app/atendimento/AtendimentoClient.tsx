@@ -430,11 +430,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setLeadDetail(null)
   }
 
-  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean) {
+  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText = '') {
     const res = await fetch('/api/whatsapp/start-conversation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components, register_optin: registerOptin }),
+      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components, register_optin: registerOptin, body_text: bodyText }),
     })
     const data = await res.json() as { conversation_id?: string; error?: string }
     if (!res.ok || !data.conversation_id) throw new Error(data.error ?? 'Erro ao iniciar conversa')
@@ -1455,7 +1455,7 @@ interface MetaApprovedTemplate { name: string; language: string; bodyText: strin
 
 function NewConversationModal({ unitId, onStart, onClose }: {
   unitId:  string
-  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean) => Promise<void>
+  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText: string) => Promise<void>
   onClose: () => void
 }) {
   const [phone,        setPhone]        = useState('')
@@ -1494,7 +1494,7 @@ function NewConversationModal({ unitId, onStart, onClose }: {
     if (!selected)     { setError('Selecione um template'); return }
     setSending(true)
     try {
-      await onStart(phone.trim(), unitId, selected.name, selected.language, [], regOptin)
+      await onStart(phone.trim(), unitId, selected.name, selected.language, [], regOptin, selected.bodyText)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao iniciar conversa')
     } finally { setSending(false) }

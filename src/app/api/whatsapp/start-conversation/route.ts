@@ -49,9 +49,10 @@ export async function POST(req: NextRequest) {
     language?:       string
     components?:     object[]
     register_optin?: boolean
+    body_text?:      string
   }
 
-  const { unit_id, template_name, language = 'pt_BR', components = [], register_optin = false } = body
+  const { unit_id, template_name, language = 'pt_BR', components = [], register_optin = false, body_text = '' } = body
   const phone = normalizePhone(body.phone ?? '')
 
   if (!phone || phone.length < 12)
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
     direction:       'outbound',
     type:            'template',
     template_name,
+    content:         body_text || null,
     status:          'sent',
     sent_by:         user.id,
   })
