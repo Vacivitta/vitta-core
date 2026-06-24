@@ -124,9 +124,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   const [modalLead,       setModalLead]       = useState<LeadKanban | null | undefined>(undefined)
   const [showQuickForm,   setShowQuickForm]   = useState(false)
-  const [resolveDialogOpen, setResolveDialogOpen] = useState(false)
-  const [contextPanelOpen,  setContextPanelOpen]  = useState(true)
-  const [transferBanner,    setTransferBanner]    = useState<{ toName: string; toId: string } | null>(null)
+  const [resolveDialogOpen,   setResolveDialogOpen]   = useState(false)
+  const [contextPanelOpen,    setContextPanelOpen]    = useState(true)
+  const [transferBanner,      setTransferBanner]      = useState<{ toName: string; toId: string } | null>(null)
+  const [newConvOpen,         setNewConvOpen]         = useState(false)
 
   function toggleSignature() {
     setSignatureEnabled(v => {
@@ -428,6 +429,20 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setLeadDetail(null)
   }
 
+  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[]) {
+    const res = await fetch('/api/whatsapp/start-conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components }),
+    })
+    const data = await res.json() as { conversation_id?: string; error?: string }
+    if (!res.ok || !data.conversation_id) throw new Error(data.error ?? 'Erro ao iniciar conversa')
+    setNewConvOpen(false)
+    await loadConversations()
+    const conv = conversations.find(c => c.id === data.conversation_id)
+    if (conv) selectConv(conv)
+  }
+
   const filteredConvs = conversations.filter(c => {
     if (filterStatus !== 'all' && c.status !== filterStatus) return false
     if (filterQueue !== 'all' && c.queue_id !== filterQueue) return false
@@ -444,7 +459,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         <ConvList convs={filteredConvs} loaded={convsLoaded} selected={selectedConv} onSelect={selectConv}
           search={convSearch} onSearch={setConvSearch} filterStatus={filterStatus} onFilterStatus={setFilterStatus}
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
-          filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread} />
+          filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread}
+          onNewConv={() => setNewConvOpen(true)} />
 
         {/* Chat */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F8FAFB', minWidth: 0, position: 'relative' }}>
@@ -532,6 +548,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         <QuickLeadForm defaultStage={defaultStage} funnels={funnels} profiles={profiles} currentUser={currentUser}
           onClose={() => setShowQuickForm(false)} onCreated={() => setShowQuickForm(false)} />
       )}
+      {newConvOpen && (
+        <NewConversationModal
+          templates={templates.filter(t => t.category === 'meta_api')}
+          unitId={currentUser.unit_id ?? ''}
+          onStart={handleStartConversation}
+          onClose={() => setNewConvOpen(false)}
+        />
+      )}
       <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }`}</style>
     </>
   )
@@ -575,11 +599,11 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
 
 // ── ConvList ──────────────────────────────────────────────────────────────────
 
-function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread }: {
+function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv }: {
   convs: WaConversation[]; loaded: boolean; selected: WaConversation | null; onSelect: (c: WaConversation) => void
   search: string; onSearch: (q: string) => void; filterStatus: ConvStatus; onFilterStatus: (s: ConvStatus) => void
   filterQueue: string; onFilterQueue: (q: string) => void; queues: WaQueue[]; filterMine: boolean
-  onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number
+  onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number; onNewConv: () => void
 }) {
   return (
     <div style={{ width: 300, minWidth: 300, borderRight: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
@@ -592,6 +616,10 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, borderRadius: 6, border: '1px solid', cursor: 'pointer',
                 background: filterMine ? '#0098DA' : 'transparent', color: filterMine ? '#fff' : '#8FA0AF', borderColor: filterMine ? '#0098DA' : '#E8EDF2' }}>
               Minhas
+            </button>
+            <button onClick={onNewConv} title="Nova conversa"
+              style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: '#F0F8FF', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
         </div>
@@ -1402,6 +1430,90 @@ function IconDocument() { return <svg width="16" height="16" fill="none" stroke=
 function IconTemplate() { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h18M3 12h18M3 16h10" /></svg> }
 function IconFlash()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> }
 function IconClock()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
+
+// ── NewConversationModal ───────────────────────────────────────────────────────
+
+function NewConversationModal({ templates, unitId, onStart, onClose }: {
+  templates: WaTemplate[]
+  unitId:    string
+  onStart:   (phone: string, unitId: string, templateName: string, language: string, components: object[]) => Promise<void>
+  onClose:   () => void
+}) {
+  const [phone,    setPhone]    = useState('')
+  const [tmplIdx,  setTmplIdx]  = useState(0)
+  const [sending,  setSending]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
+
+  const selected = templates[tmplIdx] ?? null
+
+  async function handleSend() {
+    setError(null)
+    if (!phone.trim()) { setError('Informe o telefone do contato'); return }
+    if (!selected)     { setError('Selecione um template'); return }
+    setSending(true)
+    try {
+      await onStart(phone.trim(), unitId, selected.template_name ?? selected.name, selected.language ?? 'pt_BR', [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao iniciar conversa')
+    } finally { setSending(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 440, maxWidth: '94vw', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Nova conversa</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8FA0AF', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Telefone (DDD + número)</label>
+        <input
+          type="tel"
+          placeholder="Ex: 11999998888"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          style={{ width: '100%', border: '1.5px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16, color: '#0E2C3D' }}
+        />
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template de abertura</label>
+        {templates.length === 0 ? (
+          <p style={{ fontSize: 12, color: '#B0BEC9', marginBottom: 16 }}>
+            Nenhum template aprovado. Acesse <strong>Configurações → Templates</strong> para sincronizar com a Meta.
+          </p>
+        ) : (
+          <>
+            <select
+              value={tmplIdx}
+              onChange={e => setTmplIdx(Number(e.target.value))}
+              style={{ width: '100%', border: '1.5px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12, background: '#fff', color: '#0E2C3D', cursor: 'pointer' }}
+            >
+              {templates.map((t, i) => <option key={t.id} value={i}>{t.name}</option>)}
+            </select>
+            {selected?.content && (
+              <div style={{ background: '#F0F8FF', border: '1px solid #D0EAFB', borderRadius: 10, padding: '10px 13px', marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#0098DA', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prévia</p>
+                <p style={{ fontSize: 13, color: '#0E2C3D', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selected.content}</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {error && <p style={{ fontSize: 12, color: '#E53E3E', marginBottom: 12 }}>{error}</p>}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>Cancelar</button>
+          <button onClick={handleSend} disabled={sending || templates.length === 0}
+            style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
+              cursor: sending || templates.length === 0 ? 'default' : 'pointer',
+              background: sending || templates.length === 0 ? '#E8EDF2' : '#25D366',
+              color: sending || templates.length === 0 ? '#B0BEC9' : '#fff', transition: 'all 0.15s' }}>
+            {sending ? 'Enviando…' : 'Iniciar conversa'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
