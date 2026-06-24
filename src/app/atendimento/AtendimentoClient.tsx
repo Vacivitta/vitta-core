@@ -31,6 +31,7 @@ interface WaConversation {
 interface WaMessage {
   id: string; direction: 'inbound' | 'outbound'; type: string
   content: string | null; media_url: string | null; media_mime_type: string | null
+  template_name: string | null
   status: string; created_at: string; sent_by: string | null
 }
 
@@ -185,7 +186,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setMsgsLoaded(false); setChatItems([])
     void Promise.all([
       supabase.from('wa_messages')
-        .select('id,direction,type,content,media_url,media_mime_type,status,created_at,sent_by')
+        .select('id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by')
         .eq('conversation_id', selectedConv.id).order('created_at').limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
         .eq('conversation_id', selectedConv.id).order('created_at'),
@@ -817,6 +818,13 @@ function MediaContent({ msg, isOut, unitId }: { msg: WaMessage; isOut: boolean; 
   const tc = isOut ? '#fff' : '#0E2C3D'
   const sc = isOut ? '#ffffffaa' : '#8FA0AF'
   const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
+  if (msg.type === 'template')
+    return (
+      <div>
+        <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, color: isOut ? '#ffffff99' : '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template</p>
+        <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content ?? msg.template_name}</p>
+      </div>
+    )
   if (msg.type === 'text' || (!msg.media_url && msg.content))
     return <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</p>
   if (msg.type === 'image' && msg.media_url)
