@@ -167,37 +167,77 @@ function extractWebmData(webm: Buffer): WebmData {
   return { packets, codecPrivate }
 }
 
+// Re-encode Opus packets at 16 kbps using opusscript (WASM).
+// Chrome MediaRecorder ignores audioBitsPerSecond and records at ~380 kbps by default.
+// Meta's PTT transcoder (voice:true) rejects high-bitrate Opus → "não está mais disponível" on mobile.
+function reencodeAt16kbps(packets: Buffer[], channels: number): Buffer[] {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const OpusScript = require('opusscript') as {
+    new(sampleRate: number, channels: number, application?: number): {
+      encode(buf: Buffer, frameSize: number): Buffer
+      decode(buf: Buffer, frameSize: number): Buffer
+      setBitrate(bps: number): void
+      delete(): void
+    }
+    Application: { VOIP: number }
+  }
+
+  const FRAME_SIZE = 960 // 20ms @ 48kHz
+  const dec = new OpusScript(48000, channels)
+  const enc = new OpusScript(48000, channels, OpusScript.Application.VOIP)
+  enc.setBitrate(16000)
+
+  const out: Buffer[] = []
+  for (const pkt of packets) {
+    try {
+      const pcm = dec.decode(pkt, FRAME_SIZE)
+      out.push(Buffer.from(enc.encode(pcm, FRAME_SIZE)))
+    } catch {
+      // skip corrupt packet
+    }
+  }
+
+  dec.delete()
+  enc.delete()
+  return out
+}
+
 export function convertWebmToOgg(webm: Buffer): Buffer {
   const { packets, codecPrivate } = extractWebmData(webm)
-  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')} codecPrivate=${codecPrivate?.length ?? 'none'}B`)
-  if (packets.length === 0) throw new Error('[webm-to-ogg] no Opus packets found in WebM')
 
-  // Use the real OpusHead from the WebM's CodecPrivate when available.
-  // This ensures channel count, pre-skip, and sample rate match what Chrome encoded.
-  const opusHeadBuf = (codecPrivate && codecPrivate.length >= 12)
+  const origHead = (codecPrivate && codecPrivate.length >= 12)
     ? codecPrivate
     : buildOpusHead(1, 48000, 312)
 
-  // Read pre-skip from OpusHead (bytes 10-11, little-endian uint16)
-  const preSkip = opusHeadBuf.readUInt16LE(10)
+  const channels = origHead[9] ?? 1
+  const origPreSkip = origHead.readUInt16LE(10)
 
-  const serial = Math.floor(Math.random() * 0xffffffff)
+  // Re-encode if packets are high-bitrate (Chrome default ≈ 380 kbps → ~959 bytes/frame).
+  // 16 kbps target → ~40 bytes/frame. Threshold at 100 bytes covers anything above ~40 kbps.
+  const needsReencode = packets.length > 0 && packets[0].length > 100
+  const finalPackets  = needsReencode ? reencodeAt16kbps(packets, channels) : packets
+  const preSkip       = needsReencode ? 312 : origPreSkip  // VOIP app @ 48kHz always uses 312
+
+  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')} codecPrivate=${codecPrivate?.length ?? 'none'}B reencoded=${needsReencode} finalSizes=${finalPackets.slice(0,3).map(p=>p.length).join(',')}`)
+
+  if (finalPackets.length === 0) throw new Error('[webm-to-ogg] no Opus packets after processing')
+
+  const opusHead = buildOpusHead(channels, 48000, preSkip)
+  const serial   = Math.floor(Math.random() * 0xffffffff)
   const pages: Buffer[] = []
 
-  // RFC 7845: granule position of header pages MUST be -1 (all 64 bits set)
-  pages.push(makeOggPage(0x02, 0xffffffff, serial, 0, opusHeadBuf,      0xffffffff))
+  // RFC 7845: header pages MUST have granule = -1
+  pages.push(makeOggPage(0x02, 0xffffffff, serial, 0, opusHead,        0xffffffff))
   pages.push(makeOggPage(0x00, 0xffffffff, serial, 1, buildOpusTags(), 0xffffffff))
 
-  // Data pages — one packet per page.
-  // RFC 7845 §4: granule = (total decoded samples so far) − pre_skip
-  // Assumes 20 ms frames (960 samples @ 48 kHz) as produced by Chrome MediaRecorder.
+  // RFC 7845 §4: granule = accumulated_samples − pre_skip
   const FRAME_SAMPLES = 960
   let accumulated = 0
-  for (let i = 0; i < packets.length; i++) {
+  for (let i = 0; i < finalPackets.length; i++) {
     accumulated += FRAME_SAMPLES
     const granule = Math.max(0, accumulated - preSkip)
-    const isLast  = i === packets.length - 1
-    pages.push(makeOggPage(isLast ? 0x04 : 0x00, granule, serial, i + 2, packets[i]))
+    const isLast  = i === finalPackets.length - 1
+    pages.push(makeOggPage(isLast ? 0x04 : 0x00, granule, serial, i + 2, finalPackets[i]))
   }
 
   return Buffer.concat(pages)
