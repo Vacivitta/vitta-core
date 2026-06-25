@@ -944,7 +944,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
       const outMime  = mimeType === 'audio/ogg;codecs=opus' ? 'audio/ogg' : 'audio/webm'
       const ext      = mimeType === 'audio/ogg;codecs=opus' ? 'ogg'       : 'webm'
 
-      const mr = new MediaRecorder(stream, { mimeType })
+      const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
       const chunks: Blob[] = []
       mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
       mr.onstop = () => {
