@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
       type: msgType,
-      [msgType]: msgType === 'audio' ? { id: mediaId, voice: true } : { id: mediaId },
+      [msgType]: { id: mediaId },
     }
 
     const sendRes  = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {

@@ -911,8 +911,15 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   const [saving,           setSaving]            = useState(false)
   const [recording,        setRecording]         = useState(false)
   const [recordingTime,    setRecordingTime]      = useState(0)
-  const mediaRecorderRef   = useRef<MediaRecorder | null>(null)
-  const recordTimerRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  interface PcmRecorder {
+    audioCtx: AudioContext
+    processor: ScriptProcessorNode
+    source:    MediaStreamAudioSourceNode
+    stream:    MediaStream
+    chunks:    Float32Array[]
+  }
+  const pcmRecorderRef  = useRef<PcmRecorder | null>(null)
+  const recordTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -923,7 +930,12 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) clearInterval(recordTimerRef.current)
-      mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop())
+      const rec = pcmRecorderRef.current
+      if (rec) {
+        rec.processor.disconnect(); rec.source.disconnect()
+        rec.stream.getTracks().forEach(t => t.stop())
+        rec.audioCtx.close().catch(() => {})
+      }
     }
   }, [])
 
@@ -938,25 +950,20 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     }
 
     try {
-      // Firefox → audio/ogg;codecs=opus nativo (Meta aceita diretamente)
-      // Chrome  → audio/webm;codecs=opus (servidor converte para OGG antes de enviar à Meta)
-      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-        ? 'audio/ogg;codecs=opus'
-        : 'audio/webm;codecs=opus'
-      const outMime  = mimeType === 'audio/ogg;codecs=opus' ? 'audio/ogg' : 'audio/webm'
-      const ext      = mimeType === 'audio/ogg;codecs=opus' ? 'ogg'       : 'webm'
+      const audioCtx = new AudioContext()
+      const source   = audioCtx.createMediaStreamSource(stream)
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1)
+      const chunks: Float32Array[] = []
 
-      const mr = new MediaRecorder(stream, { mimeType })
-      const chunks: Blob[] = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
-      mr.onstop = () => {
-        stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(chunks, { type: outMime })
-        onMediaUpload(new File([blob], `audio_${Date.now()}.${ext}`, { type: outMime }))
+      processor.onaudioprocess = (e) => {
+        chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)))
       }
-      mr.start()
-      mediaRecorderRef.current = mr
 
+      source.connect(processor)
+      processor.connect(audioCtx.destination)
+
+      pcmRecorderRef.current = { audioCtx, processor, source, stream, chunks }
       setRecording(true); setRecordingTime(0)
       recordTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
     } catch (err) {
@@ -966,13 +973,50 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     }
   }
 
-  function stopRecording(send: boolean) {
+  async function stopRecording(send: boolean) {
     if (recordTimerRef.current) { clearInterval(recordTimerRef.current); recordTimerRef.current = null }
-    const mr = mediaRecorderRef.current
-    if (mr) {
-      mediaRecorderRef.current = null
-      if (!send) { mr.ondataavailable = null; mr.onstop = null; try { mr.stop() } catch {} ; mr.stream.getTracks().forEach(t => t.stop()) }
-      else mr.stop()
+    const rec = pcmRecorderRef.current
+    if (rec) {
+      pcmRecorderRef.current = null
+      rec.processor.disconnect(); rec.source.disconnect()
+      rec.stream.getTracks().forEach(t => t.stop())
+      rec.audioCtx.close().catch(() => {})
+
+      if (send && rec.chunks.length > 0) {
+        try {
+          const { Mp3Encoder } = await import('@breezystack/lamejs')
+          const sampleRate = rec.audioCtx.sampleRate
+          const encoder    = new Mp3Encoder(1, sampleRate, 128)
+
+          const totalSamples = rec.chunks.reduce((s, c) => s + c.length, 0)
+          const allPcm = new Float32Array(totalSamples)
+          let offset = 0
+          for (const c of rec.chunks) { allPcm.set(c, offset); offset += c.length }
+
+          const CHUNK = 1152
+          const mp3Parts: Int8Array[] = []
+          for (let i = 0; i < allPcm.length; i += CHUNK) {
+            const slice = allPcm.subarray(i, Math.min(i + CHUNK, allPcm.length))
+            const int16 = new Int16Array(slice.length)
+            for (let j = 0; j < slice.length; j++)
+              int16[j] = Math.max(-32768, Math.min(32767, slice[j] * 32767))
+            const mp3 = encoder.encodeBuffer(int16)
+            if (mp3.length > 0) mp3Parts.push(mp3)
+          }
+          const fin = encoder.flush()
+          if (fin.length > 0) mp3Parts.push(fin)
+
+          const total = mp3Parts.reduce((s, p) => s + p.length, 0)
+          const buf   = new Uint8Array(total)
+          let pos = 0
+          for (const p of mp3Parts) { buf.set(p, pos); pos += p.length }
+
+          onMediaUpload(new File([buf], `audio_${Date.now()}.mp3`, { type: 'audio/mpeg' }))
+        } catch (err) {
+          console.error('[audio] MP3 encode error:', err)
+          alert(`Erro ao processar áudio: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
     }
     setRecording(false); setRecordingTime(0)
   }
