@@ -54,12 +54,12 @@ function makeOggPage(
   return page
 }
 
-function buildOpusHead(channels: number, inputSampleRate: number): Buffer {
+function buildOpusHead(channels: number, inputSampleRate: number, preSkip = 312): Buffer {
   const b = Buffer.alloc(19)
   b.write('OpusHead', 0, 'ascii')
   b[8] = 1           // version
   b[9] = channels
-  b.writeUInt16LE(312, 10)            // pre-skip (312 samples @ 48 kHz)
+  b.writeUInt16LE(preSkip, 10)
   b.writeUInt32LE(inputSampleRate, 12)
   b.writeUInt16LE(0, 16)             // output gain
   b[18] = 0                          // channel mapping family: mono/stereo
@@ -76,12 +76,18 @@ function buildOpusTags(): Buffer {
   return b
 }
 
+interface WebmData {
+  packets:    Buffer[]
+  codecPrivate: Buffer | null  // OpusHead binary from WebM TrackEntry
+}
+
 /**
- * Minimal EBML parser — extracts the raw Opus payload bytes
- * from every SimpleBlock in the WebM file.
+ * Minimal EBML parser — extracts Opus packets from SimpleBlocks and
+ * the CodecPrivate (OpusHead) from the Tracks section.
  */
-function extractOpusPackets(webm: Buffer): Buffer[] {
+function extractWebmData(webm: Buffer): WebmData {
   const packets: Buffer[] = []
+  let codecPrivate: Buffer | null = null
   let p = 0
 
   // EBML VINT for element sizes (masks the leading 1-bit)
@@ -94,7 +100,7 @@ function extractOpusPackets(webm: Buffer): Buffer[] {
     let v = b & ~mask
     for (let i = 1; i < w; i++) v = v * 256 + webm[p + i]
     p += w
-    // Unknown size (all data bits = 1) → treat as "recurse into element"
+    // Unknown size → recurse
     return v === Math.pow(2, 7 * w) - 1 ? -1 : v
   }
 
@@ -114,6 +120,8 @@ function extractOpusPackets(webm: Buffer): Buffer[] {
   // Container elements to recurse into rather than skip
   const RECURSE = new Set([
     0x18538067, // Segment
+    0x1654AE6B, // Tracks
+    0xAE,       // TrackEntry
     0x1F43B675, // Cluster
   ])
 
@@ -123,9 +131,9 @@ function extractOpusPackets(webm: Buffer): Buffer[] {
     const size = readVintSize()
 
     if (id === 0xA3 && size > 0) {
-      // SimpleBlock body: TrackNum (VINT) | TimeCode (2 bytes) | Flags (1 byte) | Data
+      // SimpleBlock: TrackNum (VINT) | TimeCode (2 bytes) | Flags (1 byte) | Data
       const bodyStart = p
-      const bodyEnd = bodyStart + size
+      const bodyEnd   = bodyStart + size
       if (bodyEnd > webm.length) break
 
       // Skip TrackNum VINT
@@ -134,19 +142,21 @@ function extractOpusPackets(webm: Buffer): Buffer[] {
       while (tnm > 0 && !(tnb & tnm)) { tnw++; tnm >>= 1 }
       p += tnw
 
-      const flags = webm[p + 2] // byte after 2-byte timecode
-      p += 3                     // skip timecode + flags
+      const flags = webm[p + 2]  // byte after 2-byte timecode
+      p += 3                      // skip timecode + flags
 
       const lacingType = (flags >> 1) & 0x3
       if (lacingType === 0 && p < bodyEnd) {
-        // No lacing — single Opus frame
         packets.push(Buffer.from(webm.subarray(p, bodyEnd)))
       }
-      // Laced blocks (uncommon in Chrome MediaRecorder) are skipped
 
       p = bodyEnd
+    } else if (id === 0x63A2 && size > 0 && p + size <= webm.length) {
+      // CodecPrivate — contains the Opus ID header (OpusHead binary)
+      codecPrivate = Buffer.from(webm.subarray(p, p + size))
+      p += size
     } else if (RECURSE.has(id) || size === -1) {
-      // Recurse: don't advance p — loop continues parsing body
+      // Recurse: don't advance p
     } else if (size >= 0 && p + size <= webm.length) {
       p += size
     } else {
@@ -154,28 +164,39 @@ function extractOpusPackets(webm: Buffer): Buffer[] {
     }
   }
 
-  return packets
+  return { packets, codecPrivate }
 }
 
 export function convertWebmToOgg(webm: Buffer): Buffer {
-  const packets = extractOpusPackets(webm)
-  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')}`)
+  const { packets, codecPrivate } = extractWebmData(webm)
+  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')} codecPrivate=${codecPrivate?.length ?? 'none'}B`)
   if (packets.length === 0) throw new Error('[webm-to-ogg] no Opus packets found in WebM')
+
+  // Use the real OpusHead from the WebM's CodecPrivate when available.
+  // This ensures channel count, pre-skip, and sample rate match what Chrome encoded.
+  const opusHeadBuf = (codecPrivate && codecPrivate.length >= 12)
+    ? codecPrivate
+    : buildOpusHead(1, 48000, 312)
+
+  // Read pre-skip from OpusHead (bytes 10-11, little-endian uint16)
+  const preSkip = opusHeadBuf.readUInt16LE(10)
 
   const serial = Math.floor(Math.random() * 0xffffffff)
   const pages: Buffer[] = []
 
   // RFC 7845: granule position of header pages MUST be -1 (all 64 bits set)
-  pages.push(makeOggPage(0x02, 0xffffffff, serial, 0, buildOpusHead(1, 48000), 0xffffffff))
-  pages.push(makeOggPage(0x00, 0xffffffff, serial, 1, buildOpusTags(),          0xffffffff))
+  pages.push(makeOggPage(0x02, 0xffffffff, serial, 0, opusHeadBuf,      0xffffffff))
+  pages.push(makeOggPage(0x00, 0xffffffff, serial, 1, buildOpusTags(), 0xffffffff))
 
-  // Data pages — one packet per page
-  // Assume 20 ms frames (960 samples @ 48 kHz); typical for Chrome MediaRecorder
+  // Data pages — one packet per page.
+  // RFC 7845 §4: granule = (total decoded samples so far) − pre_skip
+  // Assumes 20 ms frames (960 samples @ 48 kHz) as produced by Chrome MediaRecorder.
   const FRAME_SAMPLES = 960
-  let granule = 0
+  let accumulated = 0
   for (let i = 0; i < packets.length; i++) {
-    granule += FRAME_SAMPLES
-    const isLast = i === packets.length - 1
+    accumulated += FRAME_SAMPLES
+    const granule = Math.max(0, accumulated - preSkip)
+    const isLast  = i === packets.length - 1
     pages.push(makeOggPage(isLast ? 0x04 : 0x00, granule, serial, i + 2, packets[i]))
   }
 
