@@ -85,7 +85,7 @@ interface WebmData {
  * Minimal EBML parser — extracts Opus packets from SimpleBlocks and
  * the CodecPrivate (OpusHead) from the Tracks section.
  */
-function extractWebmData(webm: Buffer): WebmData {
+export function extractWebmData(webm: Buffer): WebmData {
   const packets: Buffer[] = []
   let codecPrivate: Buffer | null = null
   let p = 0

@@ -44,14 +44,16 @@ export async function POST(req: NextRequest) {
 
     let mime = normalizeMime(file.type)
 
-    // Converte audio/webm (Chrome MediaRecorder) para audio/ogg antes do upload
+    // Converte audio/webm (Chrome) para MP3 antes do upload.
+    // OGG/Opus gerado pelo MediaRecorder tem estrutura que o WhatsApp mobile não decodifica
+    // corretamente (mas o Web consegue). MP3 é universalmente suportado em todos os devices.
     let uploadFile: File = file
     if (mime === 'audio/webm') {
-      const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
-      const oggBuf  = convertWebmToOgg(Buffer.from(await file.arrayBuffer()))
-      const oggBlob = new Blob([oggBuf as unknown as BlobPart], { type: 'audio/ogg' })
-      uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
-      mime = 'audio/ogg'
+      const { convertWebmToMp3 } = await import('@/lib/audio/webm-to-mp3')
+      const mp3Buf  = await convertWebmToMp3(Buffer.from(await file.arrayBuffer()))
+      const mp3Blob = new Blob([mp3Buf as unknown as BlobPart], { type: 'audio/mpeg' })
+      uploadFile = new File([mp3Blob], file.name.replace(/\.webm$/, '.mp3'), { type: 'audio/mpeg' })
+      mime = 'audio/mpeg'
     }
 
     // 1. Upload do arquivo para a API de mídia do Meta
