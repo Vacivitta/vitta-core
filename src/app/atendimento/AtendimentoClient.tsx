@@ -92,6 +92,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [quickReplies, setQuickReplies] = useState<WaQuickReply[]>([])
 
   const [conversations, setConversations] = useState<WaConversation[]>([])
+  const conversationsRef = useRef<WaConversation[]>([])
+  useEffect(() => { conversationsRef.current = conversations }, [conversations])
   const [convsLoaded,   setConvsLoaded]   = useState(false)
   const [convSearch,    setConvSearch]    = useState('')
   const [filterStatus,  setFilterStatus]  = useState<ConvStatus>('all')
@@ -172,7 +174,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     } catch { /* AudioContext bloqueado antes de interação do usuário */ }
   }
 
-  // Subscription global — toca som em qualquer nova mensagem inbound da unidade
+  // Pede permissão de notificação nativa na primeira visita
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission()
+    }
+  }, [])
+
+  // Subscription global — toca som e/ou mostra notificação nativa para mensagens inbound
   useEffect(() => {
     if (!currentUser.unit_id) return
     const ch = supabase
@@ -183,8 +192,26 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         table: 'wa_messages',
         filter: `unit_id=eq.${currentUser.unit_id}`,
       }, payload => {
-        const msg = payload.new as { direction: string }
-        if (msg.direction === 'inbound') playNotificationSound()
+        const msg = payload.new as { direction: string; conversation_id: string }
+        if (msg.direction !== 'inbound') return
+        if (!soundEnabledRef.current) return
+
+        // Som via Web Audio (funciona quando a aba está visível)
+        playNotificationSound()
+
+        // Notificação nativa quando a aba está minimizada/em segundo plano
+        if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+          const conv = conversationsRef.current.find(c => c.id === msg.conversation_id)
+          const name = conv?.lead
+            ? `${conv.lead.nome}${conv.lead.sobrenome ? ` ${conv.lead.sobrenome}` : ''}`
+            : conv?.wa_contact_name ?? conv?.wa_phone ?? 'WhatsApp'
+          const n = new Notification('Nova mensagem — VittaDesk', {
+            body: name,
+            icon: '/favicon.ico',
+            tag:  `wa-conv-${msg.conversation_id}`, // agrupa por conversa, não empilha
+          })
+          n.onclick = () => { window.focus() }
+        }
       })
       .subscribe()
     return () => { void supabase.removeChannel(ch) }
