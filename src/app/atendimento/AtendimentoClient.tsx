@@ -232,8 +232,33 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   useEffect(() => {
     void supabase.from('wa_queues').select('id,nome,cor,auto_assign').eq('ativo', true).order('nome')
       .then(({ data }) => setQueues((data ?? []) as WaQueue[]))
-    void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
-      .then(({ data }) => setTemplates((data ?? []) as WaTemplate[]))
+    void (async () => {
+      try {
+        // Busca templates aprovados direto da Meta (sempre atualizados)
+        const metaRes  = await fetch('/api/whatsapp/meta-templates')
+        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }> }> }
+        const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
+          .filter(t => t.status === 'APPROVED')
+          .map(t => ({
+            id:            t.name,
+            name:          t.name,
+            content:       t.components?.find(c => c.type === 'BODY')?.text ?? '',
+            category:      'meta_api' as const,
+            template_name: t.name,
+            language:      t.language,
+          }))
+        // Carrega templates custom do banco
+        const { data: custom } = await supabase.from('wa_message_templates')
+          .select('id,name,content,category,template_name,language')
+          .eq('ativo', true).eq('category', 'custom').order('name')
+        setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
+      } catch {
+        // Fallback: carrega tudo do banco se a Meta API falhar
+        const { data } = await supabase.from('wa_message_templates')
+          .select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+        setTemplates((data ?? []) as WaTemplate[])
+      }
+    })()
     void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
   }, [supabase])
@@ -575,7 +600,20 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend}
                 templates={templates} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
                 unitId={currentUser.unit_id ?? ''}
-                onTemplatesReload={() => void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name').then(({ data }) => setTemplates((data ?? []) as WaTemplate[]))}
+                onTemplatesReload={async () => {
+                  try {
+                    const metaRes  = await fetch('/api/whatsapp/meta-templates')
+                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }> }> }
+                    const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
+                      .filter(t => t.status === 'APPROVED')
+                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language }))
+                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).eq('category', 'custom').order('name')
+                    setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
+                  } catch {
+                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+                    setTemplates((data ?? []) as WaTemplate[])
+                  }
+                }}
                 onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))}
                 isOutside24hWindow={isOutside24hWindow}
                 signatureEnabled={signatureEnabled} onToggleSignature={toggleSignature}
@@ -989,7 +1027,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   onScheduleSend: (content: string, scheduledFor: string) => void
   templates: WaTemplate[]; quickReplies: WaQuickReply[]
   sending: boolean; mode: InputMode; onModeChange: (m: InputMode) => void
-  unitId: string; onTemplatesReload: () => void; onQuickRepliesReload: () => void
+  unitId: string; onTemplatesReload: () => Promise<void>; onQuickRepliesReload: () => void
   isOutside24hWindow: boolean; signatureEnabled: boolean
   onToggleSignature: () => void; signerName: string
 }) {
@@ -1001,6 +1039,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
 
   const [attachOpen,       setAttachOpen]       = useState(false)
   const [showTemplates,    setShowTemplates]     = useState(false)
+  const [tmplLoading,      setTmplLoading]       = useState(false)
   const [showQuickReplies, setShowQuickReplies]  = useState(false)
   const [scheduleMode,     setScheduleMode]      = useState(false)
   const [scheduleFor,      setScheduleFor]       = useState('')
@@ -1085,6 +1124,11 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     const f = e.target.files?.[0]; if (f) { onMediaUpload(f); e.target.value = '' }
   }
 
+  async function syncTemplates() {
+    setTmplLoading(true)
+    try { await onTemplatesReload() } finally { setTmplLoading(false) }
+  }
+
   function pickTemplate(t: WaTemplate) {
     if (t.category === 'meta_api') onTemplateSend(t); else onChange(t.content)
     setShowTemplates(false)
@@ -1097,7 +1141,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     setSaving(true)
     try {
       await supabase.from('wa_message_templates').insert({ unit_id: unitId, name: newTmplName.trim(), content: newTmplContent.trim(), category: 'custom' })
-      setShowNewTmpl(false); setNewTmplName(''); setNewTmplContent(''); onTemplatesReload()
+      setShowNewTmpl(false); setNewTmplName(''); setNewTmplContent(''); void syncTemplates()
     } finally { setSaving(false) }
   }
 
@@ -1139,6 +1183,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
         <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 320, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F1F4F7', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <IconTemplate /> <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: 0, flex: 1 }}>Modelos de Mensagem</p>
+            <button onClick={() => void syncTemplates()} disabled={tmplLoading} style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', opacity: tmplLoading ? 0.5 : 1 }}>{tmplLoading ? '...' : '↻ Meta'}</button>
             <button onClick={() => setShowNewTmpl(v => !v)} style={{ fontSize: 10, fontWeight: 600, color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer' }}>+ Novo</button>
             <button onClick={() => setShowTemplates(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
@@ -1159,7 +1204,8 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
               style={{ width: '100%', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, padding: '4px 8px', outline: 'none', boxSizing: 'border-box', background: '#F8FAFB' }} />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtTmpls.length === 0 && <p style={{ fontSize: 12, color: '#B0BEC9', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum modelo</p>}
+            {tmplLoading && <p style={{ fontSize: 12, color: '#0098DA', textAlign: 'center', padding: '12px 0', margin: 0 }}>Buscando templates Meta...</p>}
+            {!tmplLoading && filtTmpls.length === 0 && <p style={{ fontSize: 12, color: '#B0BEC9', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum modelo — clique em ↻ Meta para sincronizar</p>}
             {filtTmpls.map(t => (
               <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 14px', borderBottom: '1px solid #F8FAFB', cursor: 'pointer' }} onClick={() => pickTemplate(t)}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1169,7 +1215,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
                   </div>
                   <p style={{ fontSize: 11, color: '#8FA0AF', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category === 'meta_api' ? `Template: ${t.template_name}` : t.content}</p>
                 </div>
-                <button onClick={e => { e.stopPropagation(); void supabase.from('wa_message_templates').update({ ativo: false }).eq('id', t.id).then(onTemplatesReload) }}
+                <button onClick={e => { e.stopPropagation(); void supabase.from('wa_message_templates').update({ ativo: false }).eq('id', t.id).then(() => void syncTemplates()) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', flexShrink: 0, lineHeight: 0, padding: 2 }}>
                   <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M10 11v6m4-6v6M4 7h16M9 7V4h6v3" /></svg>
                 </button>
