@@ -176,18 +176,19 @@ export interface LeadNote {
 }
 
 export interface LeadTask {
-  id:             string
-  lead_id:        string
-  titulo:         string
-  descricao:      string | null
-  responsavel_id: string | null
-  data_limite:    string | null
-  lembrete_em:    string | null
-  concluida:      boolean
-  unit_id:        string | null
-  created_at:     string
-  updated_at:     string
-  responsavel?:   Profile
+  id:                    string
+  lead_id:               string
+  titulo:                string
+  descricao:             string | null
+  responsavel_id:        string | null
+  data_limite:           string | null
+  lembrete_em:           string | null
+  concluida:             boolean
+  observacao_conclusao:  string | null
+  unit_id:               string | null
+  created_at:            string
+  updated_at:            string
+  responsavel?:          Profile
 }
 
 export interface LeadNegotiation {

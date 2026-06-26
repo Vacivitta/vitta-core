@@ -382,7 +382,7 @@ function LeadDrawer({
   }
   async function handleToggleTask(task: LeadTask) {
     const { data } = await supabase.from('lead_tasks')
-      .update({ concluida: !task.concluida }).eq('id', task.id)
+      .update({ concluida: !task.concluida, updated_at: new Date().toISOString() }).eq('id', task.id)
       .select('*, responsavel:profiles(*)').single()
     if (data) setTasks(prev => prev.map(t => t.id === task.id ? data as LeadTask : t))
   }
@@ -1128,6 +1128,11 @@ function LeadDrawer({
                         {/* Content */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: '14px', fontWeight: 700, color: task.concluida ? '#9DB6C7' : '#0E2C3D', textDecoration: task.concluida ? 'line-through' : 'none', margin: 0 }}>{task.titulo}</p>
+                          {task.observacao_conclusao && (
+                            <p style={{ fontSize: '12px', color: '#6B7280', fontStyle: 'italic', margin: '4px 0 0', background: '#F9FAFB', padding: '5px 8px', borderRadius: '6px', borderLeft: '3px solid #E2E8F0' }}>
+                              {task.observacao_conclusao}
+                            </p>
+                          )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
                             {task.data_limite && (
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: overdue ? 700 : 400, color: overdue ? '#D23B40' : '#9DB6C7' }}>
