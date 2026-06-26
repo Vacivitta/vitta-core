@@ -73,7 +73,7 @@ export async function archiveLead(id: string, motivo_perda: string): Promise<voi
 }
 
 export async function moveLeadStage(
-  id: string, stage_id: string, ordem: number, de_stage_id?: string
+  id: string, stage_id: string, ordem: number, de_stage_id?: string, movido_via?: string
 ): Promise<void> {
   const supabase = createClient()
 
@@ -98,6 +98,7 @@ export async function moveLeadStage(
     p_de_stage:   fromStageId,
     p_para_stage: stage_id,
     p_movido_por: user?.id ?? null,
+    p_movido_via: movido_via ?? 'manual',
   })
   if (rpcErr) console.error('[moveLeadStage] record_stage_history falhou:', rpcErr)
 }

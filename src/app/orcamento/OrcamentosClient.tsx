@@ -113,7 +113,7 @@ interface ModalProps {
   products:        Product[]
   templates:       QuoteTemplate[]
   leads:           PatientOption[]
-  initialPatient?: { type: 'lead' | 'client'; patient: PatientOption } | null
+  initialPatient?: PatientOption | null
   onClose:         () => void
   onSaved:         (q: QuoteRow, isNew: boolean) => void
 }
@@ -123,16 +123,10 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
 
   const [tab, setTab] = useState<'paciente' | 'itens' | 'config'>('paciente')
 
-  // Paciente — tipo + seleção
-  const [patientType,     setPatientType]     = useState<'lead' | 'client'>(
-    () => editing?.lead ? 'lead' : (initialPatient?.type ?? 'lead')
-  )
-  const [search,          setSearch]          = useState('')
-  const [selectedLead,    setSelectedLead]    = useState<PatientOption | null>(
-    editing?.lead ?? (initialPatient?.type === 'lead' ? initialPatient.patient : null)
-  )
-  const [selectedClient,  setSelectedClient]  = useState<PatientOption | null>(
-    initialPatient?.type === 'client' ? initialPatient.patient : null
+  // Paciente
+  const [search,       setSearch]       = useState('')
+  const [selectedLead, setSelectedLead] = useState<PatientOption | null>(
+    editing?.lead ?? initialPatient ?? null
   )
 
   // Items
@@ -253,7 +247,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
     ))
   }
 
-  const selectedPatient = patientType === 'lead' ? selectedLead : selectedClient
+  const selectedPatient = selectedLead
 
   async function handleSave() {
     if (!selectedPatient) {
@@ -277,8 +271,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
 
     const quotePayload = {
       unit_id:         unitId,
-      lead_id:         patientType === 'lead'   ? selectedLead?.id   ?? null : null,
-      client_id:       patientType === 'client' ? selectedClient?.id ?? null : null,
+      lead_id:         selectedLead?.id ?? null,
       template_id:     templateId || null,
       status,
       motivo_recusa:   status === 'recusado' ? motivoRecusa.trim() : null,
@@ -290,7 +283,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
       pacote_opcoes:   pacoteAtivo ? pacoteOpcoes : null,
     }
 
-    const SELECT = '*, lead:leads(nome,sobrenome,telefone), client:clients(nome,sobrenome,telefone), template:quote_templates(*)'
+    const SELECT = '*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*)'
 
     let quoteId: string
     let quoteData: QuoteRow
@@ -460,23 +453,6 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
           {/* ── Paciente ── */}
           {tab === 'paciente' && (
             <div className="space-y-3">
-              {/* Toggle Lead / Cliente */}
-              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-0.5">
-                {(['lead', 'client'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => { setPatientType(type); setSearch('') }}
-                    className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors ${
-                      patientType === type
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {type === 'lead' ? 'Lead' : 'Cliente'}
-                  </button>
-                ))}
-              </div>
-
               {/* Selected patient display */}
               {selectedPatient && (
                 <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
@@ -492,7 +468,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
                     )}
                   </div>
                   <button
-                    onClick={() => patientType === 'lead' ? setSelectedLead(null) : setSelectedClient(null)}
+                    onClick={() => setSelectedLead(null)}
                     className="text-xs text-blue-400 hover:text-blue-600 shrink-0"
                   >
                     Trocar
@@ -506,7 +482,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
                 </svg>
                 <input
                   type="text"
-                  placeholder={`Buscar ${patientType === 'lead' ? 'lead' : 'cliente'} por nome ou telefone...`}
+                  placeholder="Buscar paciente por nome ou telefone..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -516,7 +492,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
               <div className="space-y-1 max-h-56 overflow-y-auto">
                 {filteredPatients.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-4">
-                    Nenhum {patientType === 'lead' ? 'lead' : 'cliente'} encontrado
+                    Nenhum paciente encontrado
                   </p>
                 ) : (
                   filteredPatients.map((p: PatientOption) => {
@@ -937,7 +913,7 @@ export default function OrcamentosClient({
   const canDelete = currentUser.perfil === 'admin' || currentUser.perfil === 'gestor_unidade' || currentUser.perfil === 'gestor_vacivitta'
 
   // Pré-seleciona paciente ou orçamento ao navegar com query param
-  const [initialPatient, setInitialPatient] = useState<{ type: 'lead' | 'client'; patient: PatientOption } | null>(null)
+  const [initialPatient, setInitialPatient] = useState<PatientOption | null>(null)
   useEffect(() => {
     if (initialQuoteId) {
       const q = initialQuotes.find(x => x.id === initialQuoteId) ?? null
@@ -946,7 +922,7 @@ export default function OrcamentosClient({
     }
     if (initialLeadId) {
       const p = leads.find(l => l.id === initialLeadId)
-      if (p) { setInitialPatient({ type: 'lead', patient: p }); setModalOpen(true) }
+      if (p) { setInitialPatient(p); setModalOpen(true) }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

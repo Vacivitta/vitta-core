@@ -78,11 +78,10 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
   }, [leads, stageIds])
 
   const handleDragEnd = useCallback(async ({ active, over }: DragEndEvent) => {
-    console.log('[kanban dragEnd INICIO]', { activeId: active.id, overId: over?.id })
     setActiveId(null)
     const originStage = dragOriginStageRef.current
     dragOriginStageRef.current = null
-    if (!over) { console.log('[kanban dragEnd] sem alvo'); return }
+    if (!over) return
 
     const lead = leads.find(l => l.id === active.id)
     if (!lead) return
@@ -92,20 +91,19 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
 
     let newLeads = [...leads]
 
-    console.log('[kanban dragEnd]', { leadId: lead.id, originStage, targetStageId })
-
-    // Compara com o stage ORIGINAL (antes das atualizações otimistas do handleDragOver)
-    if (originStage && originStage !== targetStageId) {
-      // Movido para outra coluna
-      newLeads = newLeads.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l)
-      await moveLeadStage(lead.id, targetStageId, columnLeads.length, originStage)
-    } else if (over.id !== active.id) {
-      // Reordenado na mesma coluna
-      const oldIndex = columnLeads.findIndex(l => l.id === active.id)
-      const newIndex = columnLeads.findIndex(l => l.id === over.id)
-      const reordered = arrayMove(columnLeads, oldIndex, newIndex).map((l, i) => ({ ...l, ordem: i }))
-      newLeads = newLeads.map(l => reordered.find(r => r.id === l.id) ?? l)
-      await reorderLeads(reordered.map(l => ({ id: l.id, ordem: l.ordem })))
+    try {
+      if (originStage && originStage !== targetStageId) {
+        newLeads = newLeads.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l)
+        await moveLeadStage(lead.id, targetStageId, columnLeads.length, originStage, 'kanban')
+      } else if (over.id !== active.id) {
+        const oldIndex  = columnLeads.findIndex(l => l.id === active.id)
+        const newIndex  = columnLeads.findIndex(l => l.id === over.id)
+        const reordered = arrayMove(columnLeads, oldIndex, newIndex).map((l, i) => ({ ...l, ordem: i }))
+        newLeads = newLeads.map(l => reordered.find(r => r.id === l.id) ?? l)
+        await reorderLeads(reordered.map(l => ({ id: l.id, ordem: l.ordem })))
+      }
+    } catch (err) {
+      console.error('[kanban] erro ao mover lead:', err)
     }
 
     setLeads(newLeads)

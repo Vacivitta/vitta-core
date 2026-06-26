@@ -119,16 +119,20 @@ export async function runAutoAssign(
 
   if (!chosenAgent) return null
 
-  // 3. Assign conversation + update round-robin pointer
+  // 3. Fetch linked lead (if any) to sync responsavel_id
+  const { data: conv } = await supabase
+    .from('wa_conversations')
+    .select('lead_id')
+    .eq('id', conversationId)
+    .single()
+
+  // 4. Assign conversation + update round-robin pointer + sync lead responsável
   await Promise.all([
-    supabase
-      .from('wa_conversations')
-      .update({ assigned_to: chosenAgent.id })
-      .eq('id', conversationId),
-    supabase
-      .from('wa_queues')
-      .update({ last_assigned_agent: chosenAgent.id })
-      .eq('id', queueId),
+    supabase.from('wa_conversations').update({ assigned_to: chosenAgent.id }).eq('id', conversationId),
+    supabase.from('wa_queues').update({ last_assigned_agent: chosenAgent.id }).eq('id', queueId),
+    ...(conv?.lead_id
+      ? [supabase.from('leads').update({ responsavel_id: chosenAgent.id }).eq('id', conv.lead_id)]
+      : []),
   ])
 
   return { agentId: chosenAgent.id, agentName: chosenAgent.name }
