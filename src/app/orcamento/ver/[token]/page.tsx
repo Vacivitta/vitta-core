@@ -19,8 +19,7 @@ export default async function PublicQuotePage({ params }: Props) {
       *,
       quote_items (*),
       template:quote_templates (*),
-      lead:leads (nome, sobrenome, telefone),
-      client:clients (nome, sobrenome, telefone)
+      lead:leads (nome, sobrenome, telefone)
     `)
     .eq('token_publico', token)
     .single()
@@ -43,7 +42,6 @@ export default async function PublicQuotePage({ params }: Props) {
     items: data.quote_items ?? [],
     template: data.template ?? null,
     lead: data.lead ?? null,
-    client: data.client ?? null,
   }
 
   return <PublicQuoteClient quote={quote} token={token} />

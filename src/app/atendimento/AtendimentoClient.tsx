@@ -210,7 +210,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   async function loadLeadDetail(leadId: string) {
     setLoadingLead(true)
     const [{ data: lead }, { data: notes }, { data: tasks }, { data: quotes }, { data: stageHistory }, { data: contacts }] = await Promise.all([
-      supabase.from('leads_kanban').select('*').eq('id', leadId).single(),
+      supabase.from('leads').select('*').eq('id', leadId).single(),
       supabase.from('lead_notes').select('conteudo').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
       supabase.from('lead_tasks').select('*').eq('lead_id', leadId).eq('concluida', false).order('data_limite', { nullsFirst: false }),
       supabase.from('quotes').select('id,status,total_calculado,criado_em').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
@@ -413,19 +413,23 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     linkTimerRef.current = setTimeout(async () => {
       setLinkSearching(true)
       const digits = q.replace(/\D/g, '')
-      const base = supabase.from('leads_kanban').select('*').eq('arquivado', false).limit(6).order('nome')
+      const base = supabase.from('leads').select('*').eq('arquivado', false).limit(6).order('nome')
       const { data } = digits.length >= 6 ? await base.ilike('telefone', `%${digits}%`) : await base.or(`nome.ilike.%${q}%,sobrenome.ilike.%${q}%`)
       setLinkResults((data ?? []) as LeadKanban[]); setLinkSearching(false)
     }, 300)
     return () => { if (linkTimerRef.current) clearTimeout(linkTimerRef.current) }
   }, [linkSearchQ]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function linkLead(lead: LeadKanban) {
+  async function linkLeadById(leadId: string) {
     if (!selectedConv) return
-    await supabase.from('wa_conversations').update({ lead_id: lead.id }).eq('id', selectedConv.id)
-    setSelectedConv(prev => prev ? { ...prev, lead_id: lead.id } : null)
-    setConversations(prev => prev.map(c => c.id === selectedConv.id ? { ...c, lead_id: lead.id } : c))
-    setShowLinkPanel(false); setLinkSearchQ(''); void loadLeadDetail(lead.id)
+    await supabase.from('wa_conversations').update({ lead_id: leadId }).eq('id', selectedConv.id)
+    setSelectedConv(prev => prev ? { ...prev, lead_id: leadId } : null)
+    setConversations(prev => prev.map(c => c.id === selectedConv.id ? { ...c, lead_id: leadId } : c))
+    setShowLinkPanel(false); setLinkSearchQ(''); void loadLeadDetail(leadId)
+  }
+
+  async function linkLead(lead: LeadKanban) {
+    void linkLeadById(lead.id)
   }
 
   async function unlinkLead() {
@@ -455,7 +459,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (filterQueue !== 'all' && c.queue_id !== filterQueue) return false
     if (filterMine && c.assigned_to !== currentUser.id) return false
     const q = convSearch.toLowerCase()
-    return !q || (c.wa_contact_name ?? c.wa_phone).toLowerCase().includes(q) || c.wa_phone.includes(q)
+    return !q
+      || (c.wa_contact_name ?? c.wa_phone).toLowerCase().includes(q)
+      || c.wa_phone.includes(q)
+      || (c.lead ? `${c.lead.nome} ${c.lead.sobrenome ?? ''}`.toLowerCase().includes(q) : false)
   })
   const totalUnread  = conversations.reduce((s, c) => s + (c.unread_count ?? 0), 0)
   const defaultStage = funnels[0]?.stages[0]
@@ -557,7 +564,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       )}
       {showQuickForm && defaultStage && (
         <QuickLeadForm defaultStage={defaultStage} funnels={funnels} profiles={profiles} currentUser={currentUser}
-          onClose={() => setShowQuickForm(false)} onCreated={() => setShowQuickForm(false)} />
+          onClose={() => setShowQuickForm(false)}
+          onCreated={(lead) => { setShowQuickForm(false); void linkLeadById(lead.id) }} />
       )}
       {newConvOpen && (
         <NewConversationModal
@@ -1402,7 +1410,7 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
 }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 14 }}>
-      <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, marginTop: 0 }}>Lead</p>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, marginTop: 0 }}>Cliente</p>
       {!showPanel ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ textAlign: 'center', padding: '20px 0 12px' }}>

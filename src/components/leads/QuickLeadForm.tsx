@@ -66,11 +66,14 @@ export default function QuickLeadForm({
         funnel_id:      form.funnel_id,
         stage_id:       form.stage_id,
         responsavel_id: form.responsavel_id    || null,
-        unit_id:        currentUser.unit_id,
-        client_id:      null,
-        wa_optin_at:    null,
-        wa_optout_at:   null,
-        campanha_id:    null,
+        unit_id:         currentUser.unit_id,
+        is_converted:    false,
+        data_nascimento: null,
+        cpf:             null,
+        observacoes_cli: null,
+        wa_optin_at:     null,
+        wa_optout_at:    null,
+        campanha_id:     null,
       })
       onCreated(lead, openFull)
     } catch {

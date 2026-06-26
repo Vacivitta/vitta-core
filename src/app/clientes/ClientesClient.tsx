@@ -1,44 +1,70 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useProfile } from '@/hooks/useProfile'
-import type { Client, Unit } from '@/types/database'
+import type { Lead, Unit } from '@/types/database'
 
 interface Profile { id: string; full_name: string }
-interface LeadRef  { id: string; nome: string; sobrenome: string | null }
-interface ClientWithLead extends Client { lead?: LeadRef | null }
 
 interface Props {
-  initialClients: ClientWithLead[]
-  profiles:       Profile[]
-  units:          Pick<Unit, 'id' | 'nome'>[]
+  initialClients:  Lead[]
+  initialError:    string | null
+  profiles:        Profile[]
+  units:           Pick<Unit, 'id' | 'nome'>[]
+  defaultFunnelId: string | null
+  defaultStageId:  string | null
 }
 
 const EMPTY_FORM = {
   nome: '', sobrenome: '', telefone: '', email: '',
-  cpf: '', data_nascimento: '', observacoes: '',
+  cpf: '', data_nascimento: '', observacoes_cli: '',
 }
 
-export default function ClientesClient({ initialClients, units }: Props) {
-  const supabase  = createClient()
+export default function ClientesClient({
+  initialClients, initialError, units, defaultFunnelId, defaultStageId,
+}: Props) {
+  const supabase    = createClient()
   const { profile } = useProfile()
 
-  const [clients,  setClients]  = useState<ClientWithLead[]>(initialClients)
-  const [search,   setSearch]   = useState('')
-  const [modal,    setModal]    = useState<'create' | 'edit' | null>(null)
-  const [selected, setSelected] = useState<ClientWithLead | null>(null)
-  const [form,     setForm]     = useState({ ...EMPTY_FORM })
-  const [saving,   setSaving]   = useState(false)
-  const [error,    setError]    = useState('')
-  const [deleting, setDeleting] = useState<string | null>(null)
-  const [dupWarning, setDupWarning] = useState<ClientWithLead | null>(null)
+  const [clients,    setClients]    = useState<Lead[]>(initialClients)
+  const [fetchError, setFetchError] = useState<string | null>(initialError)
+  const [search,     setSearch]     = useState('')
+  const [modal,      setModal]      = useState<'create' | 'edit' | null>(null)
+  const [selected,   setSelected]   = useState<Lead | null>(null)
+  const [form,       setForm]       = useState({ ...EMPTY_FORM })
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState('')
+  const [deleting,   setDeleting]   = useState<string | null>(null)
+  const [dupWarning, setDupWarning] = useState<Lead | null>(null)
 
-  // Detecta duplicatas: clientes com mesmo nome+telefone ou mesmo nome+email
+  // Realtime: mantém lista sincronizada com outros abas/sessões
+  useEffect(() => {
+    const channel = supabase
+      .channel('clientes-leads')
+      .on('postgres_changes', {
+        event:  '*',
+        schema: 'public',
+        table:  'leads',
+        filter: 'is_converted=eq.true',
+      }, payload => {
+        if (payload.eventType === 'INSERT') {
+          setClients(prev => [payload.new as Lead, ...prev])
+        } else if (payload.eventType === 'UPDATE') {
+          setClients(prev => prev.map(c => c.id === (payload.new as Lead).id ? payload.new as Lead : c))
+        } else if (payload.eventType === 'DELETE') {
+          setClients(prev => prev.filter(c => c.id !== (payload.old as Lead).id))
+        }
+      })
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [supabase])
+
+  // Detecta duplicatas: leads com mesmo telefone, email ou CPF
   const duplicateGroups = useMemo(() => {
-    const groups: ClientWithLead[][] = []
+    const groups: Lead[][] = []
     const seen = new Set<string>()
     for (const c of clients) {
       if (seen.has(c.id)) continue
@@ -58,16 +84,23 @@ export default function ClientesClient({ initialClients, units }: Props) {
     return groups
   }, [clients])
 
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const q = norm(search)
     if (!q) return clients
-    return clients.filter(c =>
-      c.nome.toLowerCase().includes(q) ||
-      (c.sobrenome ?? '').toLowerCase().includes(q) ||
-      (c.telefone  ?? '').includes(q) ||
-      (c.email     ?? '').toLowerCase().includes(q) ||
-      (c.cpf       ?? '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
-    )
+    return clients.filter(c => {
+      const nome      = norm(c.nome)
+      const sobrenome = norm(c.sobrenome ?? '')
+      const fullName  = sobrenome ? `${nome} ${sobrenome}` : nome
+      return fullName.includes(q) ||
+        nome.includes(q) ||
+        sobrenome.includes(q) ||
+        (c.telefone ?? '').includes(q) ||
+        norm(c.email ?? '').includes(q) ||
+        (c.cpf ?? '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+    })
   }, [clients, search])
 
   function openCreate() {
@@ -77,7 +110,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
     setModal('create')
   }
 
-  function openEdit(c: ClientWithLead) {
+  function openEdit(c: Lead) {
     setForm({
       nome:            c.nome,
       sobrenome:       c.sobrenome       ?? '',
@@ -85,7 +118,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
       email:           c.email           ?? '',
       cpf:             c.cpf             ?? '',
       data_nascimento: c.data_nascimento ?? '',
-      observacoes:     c.observacoes     ?? '',
+      observacoes_cli: c.observacoes_cli ?? '',
     })
     setSelected(c)
     setError('')
@@ -95,11 +128,10 @@ export default function ClientesClient({ initialClients, units }: Props) {
   async function handleSave(force = false) {
     if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
 
-    // Verificação de duplicata antes de criar (não se for edição ou se já confirmou)
     if (modal === 'create' && !force) {
-      const tel = form.telefone.replace(/\D/g, '')
+      const tel   = form.telefone.replace(/\D/g, '')
       const email = form.email.trim().toLowerCase()
-      const cpf = form.cpf.replace(/\D/g, '')
+      const cpf   = form.cpf.replace(/\D/g, '')
       const potential = clients.find(c =>
         (tel   && c.telefone && c.telefone.replace(/\D/g,'') === tel)   ||
         (email && c.email    && c.email.toLowerCase()         === email) ||
@@ -119,53 +151,39 @@ export default function ClientesClient({ initialClients, units }: Props) {
       email:           form.email.trim()           || null,
       cpf:             form.cpf.trim()             || null,
       data_nascimento: form.data_nascimento        || null,
-      observacoes:     form.observacoes.trim()     || null,
+      observacoes_cli: form.observacoes_cli.trim() || null,
     }
 
     try {
       if (modal === 'create') {
         const unitId = units[0]?.id ?? profile?.unit_id
-
-        // Verifica se já existe lead com mesmo telefone para linkar automaticamente
-        let autoLeadId: string | null = null
-        if (payload.telefone) {
-          const tel = payload.telefone.replace(/\D/g, '')
-          const { data: leadMatches } = await supabase
-            .from('leads')
-            .select('id, telefone, client_id')
-            .eq('unit_id', unitId)
-            .eq('arquivado', false)
-            .not('telefone', 'is', null)
-            .limit(50)
-          const match = (leadMatches ?? []).find(l => {
-            const d = (l.telefone as string).replace(/\D/g, '')
-            return d === tel || d.endsWith(tel.slice(-11)) || tel.endsWith(d.slice(-11))
-          })
-          if (match && !match.client_id) autoLeadId = match.id
+        if (!defaultFunnelId || !defaultStageId) {
+          setError('Nenhum funil configurado. Configure um funil ativo nas configurações.')
+          setSaving(false)
+          return
         }
-
         const { data, error: err } = await supabase
-          .from('clients')
-          .insert({ ...payload, unit_id: unitId, lead_id: autoLeadId })
-          .select('*, lead:leads!lead_id(id, nome, sobrenome)')
+          .from('leads')
+          .insert({
+            ...payload,
+            unit_id:      unitId,
+            funnel_id:    defaultFunnelId,
+            stage_id:     defaultStageId,
+            is_converted: true,
+          })
+          .select('*')
           .single()
         if (err) throw err
-
-        // Fecha o ciclo: atualiza lead.client_id também
-        if (autoLeadId) {
-          await supabase.from('leads').update({ client_id: data.id }).eq('id', autoLeadId)
-        }
-
-        setClients(prev => [data as ClientWithLead, ...prev])
+        setClients(prev => [data as Lead, ...prev])
       } else if (selected) {
         const { data, error: err } = await supabase
-          .from('clients')
+          .from('leads')
           .update(payload)
           .eq('id', selected.id)
-          .select('*, lead:leads!lead_id(id, nome, sobrenome)')
+          .select('*')
           .single()
         if (err) throw err
-        setClients(prev => prev.map(c => c.id === selected.id ? data as ClientWithLead : c))
+        setClients(prev => prev.map(c => c.id === selected.id ? data as Lead : c))
       }
       setModal(null)
     } catch {
@@ -177,11 +195,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
 
   async function handleDelete(id: string) {
     setDeleting(id)
-    // Remove FK inversa: leads que apontam client_id para este cliente
-    await supabase.from('leads').update({ client_id: null }).eq('client_id', id)
-    // Remove FK direta: wa_conversations que têm este cliente via lead
-    // (não há FK direta conversation→client, apenas via lead — já resolvido acima)
-    const { error } = await supabase.from('clients').delete().eq('id', id)
+    const { error } = await supabase.from('leads').delete().eq('id', id)
     if (!error) setClients(prev => prev.filter(c => c.id !== id))
     setDeleting(null)
   }
@@ -212,7 +226,6 @@ export default function ClientesClient({ initialClients, units }: Props) {
           </button>
         </div>
 
-        {/* Search */}
         <div className="relative mt-3">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -226,6 +239,14 @@ export default function ClientesClient({ initialClients, units }: Props) {
           />
         </div>
       </div>
+
+      {/* Erro de carregamento */}
+      {fetchError && (
+        <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
+          <span>Erro ao carregar clientes: {fetchError}</span>
+          <button onClick={() => setFetchError(null)} className="text-red-400 hover:text-red-600 ml-2">✕</button>
+        </div>
+      )}
 
       {/* Banner de duplicatas detectadas */}
       {duplicateGroups.length > 0 && (
@@ -244,8 +265,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
                   {group[0].telefone && <span className="text-amber-500 ml-1">({group[0].telefone})</span>}
                   <button
                     onClick={() => {
-                      // Prefere deletar o sem lead_id (cadastro manual solto); se todos têm ou nenhum tem, pega o mais recente
-                      const toDelete = group.find(c => !c.lead) ?? group[group.length - 1]
+                      const toDelete = group[group.length - 1]
                       void handleDelete(toDelete.id)
                     }}
                     className="ml-2 underline hover:no-underline text-amber-600"
@@ -282,14 +302,18 @@ export default function ClientesClient({ initialClients, units }: Props) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefone</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">E-mail</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">CPF</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Origem</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cadastro</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y bg-white" style={{ borderColor: 'var(--color-border)' }}>
               {filtered.map(c => (
-                <tr key={c.id} className="transition-colors" style={{ ['--tw-bg-opacity' as string]: '1' }} onMouseEnter={e => (e.currentTarget.style.background = '#F8FBFD')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                <tr
+                  key={c.id}
+                  className="transition-colors"
+                  onMouseEnter={e => (e.currentTarget.style.background = '#F8FBFD')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-brand-subtle)' }}>
@@ -297,8 +321,8 @@ export default function ClientesClient({ initialClients, units }: Props) {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{c.nome}{c.sobrenome ? ` ${c.sobrenome}` : ''}</p>
-                        {c.observacoes && (
-                          <p className="text-xs text-gray-400 truncate max-w-xs">{c.observacoes}</p>
+                        {c.observacoes_cli && (
+                          <p className="text-xs text-gray-400 truncate max-w-xs">{c.observacoes_cli}</p>
                         )}
                       </div>
                     </div>
@@ -306,19 +330,9 @@ export default function ClientesClient({ initialClients, units }: Props) {
                   <td className="px-4 py-3 text-gray-600">{c.telefone ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{c.email ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{c.cpf ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    {c.lead ? (
-                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' }}>
-                        Lead convertido
-                      </span>
-                    ) : (
-                      <span className="text-xs" style={{ color: 'var(--color-muted)' }}>Direto</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(c.criado_em)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(c.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {/* Ir para atendimento */}
                       {c.telefone && (
                         <a
                           href={`/atendimento?numero=${c.telefone.replace(/\D/g, '')}`}
@@ -330,9 +344,8 @@ export default function ClientesClient({ initialClients, units }: Props) {
                           </svg>
                         </a>
                       )}
-                      {/* Ver / criar orçamentos */}
                       <a
-                        href={`/orcamento?client_id=${c.id}`}
+                        href={`/orcamento?lead_id=${c.id}`}
                         className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                         title="Orçamentos"
                       >
@@ -380,9 +393,7 @@ export default function ClientesClient({ initialClients, units }: Props) {
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900">Possível duplicata detectada</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Já existe um cliente com dados similares:
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Já existe um cliente com dados similares:</p>
               </div>
             </div>
             <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-700">
@@ -425,18 +436,18 @@ export default function ClientesClient({ initialClients, units }: Props) {
 
             <div className="px-6 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Nome *" value={form.nome} onChange={v => setForm(f => ({ ...f, nome: v }))} />
-                <Field label="Sobrenome" value={form.sobrenome} onChange={v => setForm(f => ({ ...f, sobrenome: v }))} />
-                <Field label="Telefone" value={form.telefone} onChange={v => setForm(f => ({ ...f, telefone: v }))} />
-                <Field label="E-mail" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
-                <Field label="CPF" value={form.cpf} onChange={v => setForm(f => ({ ...f, cpf: v }))} placeholder="000.000.000-00" />
-                <Field label="Data de nascimento" value={form.data_nascimento} onChange={v => setForm(f => ({ ...f, data_nascimento: v }))} type="date" />
+                <Field label="Nome *"             value={form.nome}            onChange={v => setForm(f => ({ ...f, nome: v }))} />
+                <Field label="Sobrenome"           value={form.sobrenome}       onChange={v => setForm(f => ({ ...f, sobrenome: v }))} />
+                <Field label="Telefone"            value={form.telefone}        onChange={v => setForm(f => ({ ...f, telefone: v }))} />
+                <Field label="E-mail"              value={form.email}           onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
+                <Field label="CPF"                 value={form.cpf}             onChange={v => setForm(f => ({ ...f, cpf: v }))} placeholder="000.000.000-00" />
+                <Field label="Data de nascimento"  value={form.data_nascimento} onChange={v => setForm(f => ({ ...f, data_nascimento: v }))} type="date" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
                 <textarea
-                  value={form.observacoes}
-                  onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))}
+                  value={form.observacoes_cli}
+                  onChange={e => setForm(f => ({ ...f, observacoes_cli: e.target.value }))}
                   rows={3}
                   className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />

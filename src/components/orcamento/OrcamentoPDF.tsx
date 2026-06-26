@@ -172,10 +172,8 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
   const numStr  = quote.numero ? String(quote.numero).padStart(4, '0') : '0000'
   const patientName = quote.lead
     ? `${quote.lead.nome}${quote.lead.sobrenome ? ` ${quote.lead.sobrenome}` : ''}`
-    : quote.client
-    ? `${quote.client.nome}${quote.client.sobrenome ? ` ${quote.client.sobrenome}` : ''}`
     : '—'
-  const patientPhone = quote.lead?.telefone ?? quote.client?.telefone ?? null
+  const patientPhone = quote.lead?.telefone ?? null
   const totalCalc    = quote.total_calculado ?? quote.items.reduce((s, i) => s + i.valor_final, 0)
   const rodapeText   = (t?.texto_rodape ?? '').replace('{validade_dias}', String(t?.validade_dias ?? 7))
 

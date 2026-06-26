@@ -7,23 +7,39 @@ export default async function ClientesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: clients, error: clientsError }, { data: profiles }, { data: units }] = await Promise.all([
+  const [
+    { data: leads, error: leadsError },
+    { data: profiles },
+    { data: units },
+    { data: funnels },
+  ] = await Promise.all([
     supabase
-      .from('clients')
-      // !lead_id: hint explícito para resolver join bidirecional (clients↔leads)
-      .select('*, lead:leads!lead_id(id, nome, sobrenome)')
-      .order('criado_em', { ascending: false }),
+      .from('leads')
+      .select('*')
+      .eq('is_converted', true)
+      .eq('arquivado', false)
+      .order('created_at', { ascending: false }),
     supabase.from('profiles').select('id, full_name').order('full_name'),
     supabase.from('units').select('id, nome').eq('ativo', true),
+    supabase
+      .from('funnels')
+      .select('id, stages:funnel_stages(id)')
+      .eq('ativo', true)
+      .order('ordem')
+      .limit(1),
   ])
 
-  if (clientsError) console.error('[ClientesPage] erro ao buscar clientes:', clientsError)
+  const defaultFunnelId = (funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.id ?? null
+  const defaultStageId  = (funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.stages?.[0]?.id ?? null
 
   return (
     <ClientesClient
-      initialClients={clients ?? []}
+      initialClients={leads ?? []}
+      initialError={leadsError?.message ?? null}
       profiles={profiles ?? []}
       units={units ?? []}
+      defaultFunnelId={defaultFunnelId}
+      defaultStageId={defaultStageId}
     />
   )
 }

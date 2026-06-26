@@ -239,9 +239,7 @@ function LeadDrawer({
   useEffect(() => {
     if (tab !== 'Orçamentos' || quotesLoaded) return
     // Busca por lead_id e, se já convertido, também por client_id
-    const filter = clientId
-      ? `lead_id.eq.${lead.id},client_id.eq.${clientId}`
-      : `lead_id.eq.${lead.id}`
+    const filter = `lead_id.eq.${lead.id}`
     supabase
       .from('quotes')
       .select('id, numero, status, total_calculado, criado_em, token_publico')
@@ -428,68 +426,21 @@ function LeadDrawer({
   }
 
   // ── Convert to client ──────────────────────────────────────────────────────
-  const [clientId,     setClientId]  = useState<string | null>(lead.client_id)
-  const [converting,   setConverting] = useState(false)
+  const [isConverted,  setIsConverted]  = useState<boolean>(lead.is_converted)
+  const [converting,   setConverting]   = useState(false)
   const [convertError, setConvertError] = useState('')
 
-  // Verifica no banco ao abrir — garante que dado stale do pai não engane o estado
-  useEffect(() => {
-    if (clientId) return
-    supabase
-      .from('clients')
-      .select('id')
-      .eq('lead_id', lead.id)
-      .maybeSingle()
-      .then(({ data }) => { if (data) setClientId(data.id) })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id])
-
   async function handleConvert() {
-    if (clientId || converting) return
-    const unitId = lead.unit_id ?? currentUser.unit_id
-    if (!unitId) { setConvertError('Unidade não encontrada. Verifique seu perfil.'); return }
-
+    if (isConverted || converting) return
     setConverting(true)
     setConvertError('')
     try {
-      // Guard: checar se já existe cliente para este lead
-      const { data: existing } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('lead_id', lead.id)
-        .maybeSingle()
-
-      if (existing) {
-        // Já existe — só atualizar o ponteiro no lead
-        await supabase.from('leads').update({ client_id: existing.id }).eq('id', lead.id)
-        setClientId(existing.id)
-        onSaved()
-        return
-      }
-
-      const { data: client, error: clientErr } = await supabase
-        .from('clients')
-        .insert({
-          unit_id:   unitId,
-          lead_id:   lead.id,
-          nome:      lead.nome,
-          sobrenome: lead.sobrenome ?? null,
-          telefone:  lead.telefone ?? null,
-          email:     lead.email    ?? null,
-        })
-        .select('id')
-        .single()
-
-      if (clientErr || !client) throw new Error(clientErr?.message ?? 'Falha ao criar cliente')
-
-      const { error: leadErr } = await supabase
+      const { error } = await supabase
         .from('leads')
-        .update({ client_id: client.id })
+        .update({ is_converted: true })
         .eq('id', lead.id)
-
-      if (leadErr) throw new Error(leadErr.message)
-
-      setClientId(client.id)
+      if (error) throw new Error(error.message)
+      setIsConverted(true)
       onSaved()
     } catch (err) {
       setConvertError(err instanceof Error ? err.message : 'Erro ao converter. Tente novamente.')
@@ -831,7 +782,7 @@ function LeadDrawer({
           <div style={{ marginTop: 'auto', padding: '18px 22px', borderTop: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {/* Converter em cliente */}
             {!isArchived && (
-              clientId ? (
+              isConverted ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 0', fontSize: '12px', color: '#3E9D5A', fontWeight: 600 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1232,7 +1183,7 @@ function LeadDrawer({
                 <div className="space-y-3">
                   {/* Botão novo orçamento — pré-seleciona lead ou cliente */}
                   <a
-                    href={clientId ? `/orcamento?client_id=${clientId}` : `/orcamento?lead_id=${lead.id}`}
+                    href={`/orcamento?lead_id=${lead.id}`}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#0098DA', color: '#fff', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', transition: 'background 0.15s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#0086C2')}
                     onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}

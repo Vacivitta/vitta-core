@@ -34,7 +34,6 @@ export type LeadOption = PatientOption
 
 export type QuoteRow = Quote & {
   lead:     PatientOption | null
-  client:   PatientOption | null
   template: QuoteTemplate | null
 }
 
@@ -57,10 +56,8 @@ interface Props {
   products:       Product[]
   templates:      QuoteTemplate[]
   leads:          PatientOption[]
-  clients:        PatientOption[]
-  initialLeadId?:   string | null
-  initialClientId?: string | null
-  initialQuoteId?:  string | null
+  initialLeadId?:  string | null
+  initialQuoteId?: string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -71,8 +68,8 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function patientName(q: { lead: PatientOption | null; client: PatientOption | null }): string {
-  const p = q.lead ?? q.client
+function patientName(q: { lead: PatientOption | null }): string {
+  const p = q.lead
   if (!p) return '—'
   return `${p.nome}${p.sobrenome ? ` ${p.sobrenome}` : ''}`
 }
@@ -116,27 +113,26 @@ interface ModalProps {
   products:        Product[]
   templates:       QuoteTemplate[]
   leads:           PatientOption[]
-  clients:         PatientOption[]
   initialPatient?: { type: 'lead' | 'client'; patient: PatientOption } | null
   onClose:         () => void
   onSaved:         (q: QuoteRow, isNew: boolean) => void
 }
 
-function QuoteModal({ editing, unitId, userId, products, templates, leads, clients, initialPatient, onClose, onSaved }: ModalProps) {
+function QuoteModal({ editing, unitId, userId, products, templates, leads, initialPatient, onClose, onSaved }: ModalProps) {
   const supabase = createClient()
 
   const [tab, setTab] = useState<'paciente' | 'itens' | 'config'>('paciente')
 
   // Paciente — tipo + seleção
   const [patientType,     setPatientType]     = useState<'lead' | 'client'>(
-    () => editing ? ((editing.client_id && !editing.lead_id) ? 'client' : 'lead') : (initialPatient?.type ?? 'lead')
+    () => editing?.lead ? 'lead' : (initialPatient?.type ?? 'lead')
   )
   const [search,          setSearch]          = useState('')
   const [selectedLead,    setSelectedLead]    = useState<PatientOption | null>(
     editing?.lead ?? (initialPatient?.type === 'lead' ? initialPatient.patient : null)
   )
   const [selectedClient,  setSelectedClient]  = useState<PatientOption | null>(
-    editing?.client ?? (initialPatient?.type === 'client' ? initialPatient.patient : null)
+    initialPatient?.type === 'client' ? initialPatient.patient : null
   )
 
   // Items
@@ -196,17 +192,17 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
   const total = calcTotal(items)
 
   const filteredPatients = useMemo(() => {
-    const list = patientType === 'lead' ? leads : clients
+    const list = leads
     const q = search.trim().toLowerCase()
     const all = q
-      ? list.filter(l =>
+      ? list.filter((l: PatientOption) =>
           l.nome.toLowerCase().includes(q) ||
           (l.sobrenome ?? '').toLowerCase().includes(q) ||
           (l.telefone ?? '').includes(q)
         )
       : list
     return all.slice(0, 20)
-  }, [patientType, leads, clients, search])
+  }, [leads, search])
 
   const filteredProducts = useMemo(() => {
     const q = prodSearch.trim().toLowerCase()
@@ -372,7 +368,6 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
     return {
       id:              editing?.id ?? 'preview',
       unit_id:         unitId ?? '',
-      client_id:       editing?.client_id ?? null,
       lead_id:         selectedLead?.id ?? editing?.lead_id ?? null,
       template_id:     templateId || null,
       numero:          editing?.numero ?? null,
@@ -405,14 +400,11 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
         criado_em:           new Date().toISOString(),
       })),
       template: templateObj,
-      lead:   patientType === 'lead' && selectedLead
+      lead: selectedLead
         ? { nome: selectedLead.nome, sobrenome: selectedLead.sobrenome, telefone: selectedLead.telefone }
         : editing?.lead ?? null,
-      client: patientType === 'client' && selectedClient
-        ? { nome: selectedClient.nome, sobrenome: selectedClient.sobrenome, telefone: selectedClient.telefone }
-        : editing?.client ?? null,
     }
-  }, [items, templateId, templates, patientType, selectedLead, selectedClient, editing, unitId, status, validadeAte, observacoes, total])
+  }, [items, templateId, templates, selectedLead, editing, unitId, status, validadeAte, observacoes, total])
 
   const tabs = [
     { id: 'paciente', label: 'Paciente' },
@@ -527,16 +519,13 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, clien
                     Nenhum {patientType === 'lead' ? 'lead' : 'cliente'} encontrado
                   </p>
                 ) : (
-                  filteredPatients.map(p => {
-                    const isSelected = patientType === 'lead'
-                      ? selectedLead?.id === p.id
-                      : selectedClient?.id === p.id
+                  filteredPatients.map((p: PatientOption) => {
+                    const isSelected = selectedLead?.id === p.id
                     return (
                       <button
                         key={p.id}
                         onClick={() => {
-                          if (patientType === 'lead') { setSelectedLead(p); }
-                          else { setSelectedClient(p); }
+                          setSelectedLead(p)
                           setSearch('')
                         }}
                         className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left transition-colors ${
@@ -934,8 +923,8 @@ function StatCard({ label, value, color = 'text-gray-900' }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function OrcamentosClient({
-  currentUser, initialQuotes, products, templates, leads, clients,
-  initialLeadId, initialClientId, initialQuoteId,
+  currentUser, initialQuotes, products, templates, leads,
+  initialLeadId, initialQuoteId,
 }: Props) {
   const [quotes,      setQuotes]      = useState<QuoteRow[]>(initialQuotes)
   const [search,      setSearch]      = useState('')
@@ -958,9 +947,6 @@ export default function OrcamentosClient({
     if (initialLeadId) {
       const p = leads.find(l => l.id === initialLeadId)
       if (p) { setInitialPatient({ type: 'lead', patient: p }); setModalOpen(true) }
-    } else if (initialClientId) {
-      const p = clients.find(c => c.id === initialClientId)
-      if (p) { setInitialPatient({ type: 'client', patient: p }); setModalOpen(true) }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -1210,7 +1196,6 @@ export default function OrcamentosClient({
           products={products}
           templates={templates}
           leads={leads}
-          clients={clients}
           initialPatient={editing ? null : initialPatient}
           onClose={() => { setModalOpen(false); setEditing(null); setInitialPatient(null) }}
           onSaved={handleSaved}

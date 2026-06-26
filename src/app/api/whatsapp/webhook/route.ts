@@ -301,9 +301,6 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     }
   }
 
-  // 4c. Auto-cria cliente se o lead ainda não tem um
-  if (resolvedLeadId) await autoCreateClient(supabase, resolvedLeadId, unitId)
-
   // 5. Tenta auto-distribuir — re-fetch para ter queue_id e assigned_to atualizados
   const { data: fresh } = await supabase
     .from('wa_conversations')
@@ -319,44 +316,6 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   }
 }
 
-// ── Auto-criar cliente quando lead faz contato pela primeira vez ──────────────
-
-async function autoCreateClient(
-  supabase: ReturnType<typeof adminClient>,
-  leadId:   string,
-  unitId:   string,
-) {
-  const { data: lead } = await supabase
-    .from('leads')
-    .select('client_id, nome, sobrenome, telefone')
-    .eq('id', leadId)
-    .single()
-
-  if (!lead || lead.client_id) return // já tem cliente
-
-  // Garante que não existe cliente órfão com este lead_id
-  const { data: existing } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('lead_id', leadId)
-    .maybeSingle()
-
-  if (existing) {
-    await supabase.from('leads').update({ client_id: existing.id }).eq('id', leadId)
-    return
-  }
-
-  const { data: client } = await supabase
-    .from('clients')
-    .insert({ unit_id: unitId, lead_id: leadId, nome: lead.nome, sobrenome: lead.sobrenome, telefone: lead.telefone })
-    .select('id')
-    .single()
-
-  if (client) {
-    await supabase.from('leads').update({ client_id: client.id }).eq('id', leadId)
-    console.log(`[WA webhook] cliente criado automaticamente: ${client.id} → lead ${leadId}`)
-  }
-}
 
 // ── Auto-link: busca lead existente pelo telefone ou cria novo ────────────────
 
@@ -395,65 +354,37 @@ async function autoLinkOrCreateLead(
     leadId = matchedLead.id
     console.log(`[WA webhook] lead existente encontrado: ${leadId}`)
   } else {
-    // 2. Busca cliente manual com mesmo telefone (criado em /clientes sem lead vinculado)
-    const { data: clients } = await supabase
-      .from('clients')
-      .select('id, telefone, nome, sobrenome, lead_id')
-      .eq('unit_id', unitId)
-      .not('telefone', 'is', null)
-      .limit(50)
+    // 2. Cria novo lead com os dados do WhatsApp
+    const { nome, sobrenome } = splitName(contactName)
 
-    const matchedClient = (clients ?? []).find(c => phoneMatches(c.telefone as string))
-
-    if (matchedClient?.lead_id) {
-      // Cliente já tem lead — só vincula a conversa
-      leadId = matchedClient.lead_id
-      console.log(`[WA webhook] cliente já vinculado ao lead: ${leadId}`)
-    } else {
-      // 3. Cria lead (com base no cliente existente ou nos dados do WhatsApp)
-      const { nome, sobrenome } = matchedClient
-        ? { nome: matchedClient.nome as string, sobrenome: matchedClient.sobrenome as string | null }
-        : splitName(contactName)
-
-      const defaultStage = await getDefaultStage(supabase, unitId)
-      if (!defaultStage) {
-        console.error('[WA webhook] nenhum funil/estágio encontrado para criar lead')
-        return null
-      }
-
-      const { data: newLead, error: leadErr } = await supabase
-        .from('leads')
-        .insert({
-          unit_id:   unitId,
-          nome,
-          sobrenome,
-          telefone:  formatPhone(waPhone),
-          origem:    'whatsapp',
-          funnel_id: defaultStage.funnel_id,
-          stage_id:  defaultStage.stage_id,
-          arquivado: false,
-          ...(matchedClient ? { client_id: matchedClient.id } : {}),
-        })
-        .select('id')
-        .single()
-
-      if (leadErr || !newLead) {
-        console.error('[WA webhook] erro ao criar lead:', leadErr)
-        return null
-      }
-
-      leadId = newLead.id
-      console.log(`[WA webhook] novo lead criado: ${leadId} (${nome})`)
-
-      // Se veio de cliente existente, fecha o ciclo: client.lead_id → novo lead
-      if (matchedClient) {
-        await supabase
-          .from('clients')
-          .update({ lead_id: leadId })
-          .eq('id', matchedClient.id)
-        console.log(`[WA webhook] cliente ${matchedClient.id} vinculado ao lead ${leadId}`)
-      }
+    const defaultStage = await getDefaultStage(supabase, unitId)
+    if (!defaultStage) {
+      console.error('[WA webhook] nenhum funil/estágio encontrado para criar lead')
+      return null
     }
+
+    const { data: newLead, error: leadErr } = await supabase
+      .from('leads')
+      .insert({
+        unit_id:   unitId,
+        nome,
+        sobrenome,
+        telefone:  formatPhone(waPhone),
+        origem:    'whatsapp',
+        funnel_id: defaultStage.funnel_id,
+        stage_id:  defaultStage.stage_id,
+        arquivado: false,
+      })
+      .select('id')
+      .single()
+
+    if (leadErr || !newLead) {
+      console.error('[WA webhook] erro ao criar lead:', leadErr)
+      return null
+    }
+
+    leadId = newLead.id
+    console.log(`[WA webhook] novo lead criado: ${leadId} (${nome})`)
   }
 
   // Vincula a conversa ao lead

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   // ── 1. Buscar o orçamento pelo token ──────────────────────────────────────
   const { data: quote, error: fetchErr } = await supabase
     .from('quotes')
-    .select('id, unit_id, lead_id, client_id, status, responsavel_id, numero, total_calculado, lead:leads(nome,sobrenome), client:clients(nome,sobrenome)')
+    .select('id, unit_id, lead_id, status, responsavel_id, numero, total_calculado, lead:leads(nome,sobrenome)')
     .eq('token_publico', token)
     .single()
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       .from('quotes')
       .update(quoteUpdate)
       .eq('token_publico', token)
-      .select('*, quote_items(*), template:quote_templates(*), lead:leads(nome,sobrenome,telefone), client:clients(nome,sobrenome,telefone)')
+      .select('*, quote_items(*), template:quote_templates(*), lead:leads(nome,sobrenome,telefone)')
       .single()
 
     if (updateErr) {
@@ -82,11 +82,10 @@ export async function POST(req: NextRequest) {
     type QuoteRelation = { nome: string; sobrenome: string | null }
     type QuoteRow = typeof quote & {
       lead:            QuoteRelation | null
-      client:          QuoteRelation | null
       responsavel_id:  string | null
     }
     const q          = quote as QuoteRow
-    const patient    = q.lead ?? q.client
+    const patient    = q.lead
     const patientName = patient
       ? `${patient.nome}${patient.sobrenome ? ` ${patient.sobrenome}` : ''}`
       : 'Paciente'
@@ -112,7 +111,6 @@ export async function POST(req: NextRequest) {
       items:    updatedQuote.quote_items ?? [],
       template: updatedQuote.template    ?? null,
       lead:     updatedQuote.lead        ?? null,
-      client:   updatedQuote.client      ?? null,
     } : null,
   })
 }

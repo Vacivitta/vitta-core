@@ -50,8 +50,6 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
   const numStr       = String(quote.numero ?? 0).padStart(4, '0')
   const patientName  = quote.lead
     ? `${quote.lead.nome}${quote.lead.sobrenome ? ` ${quote.lead.sobrenome}` : ''}`
-    : quote.client
-    ? `${quote.client.nome}${quote.client.sobrenome ? ` ${quote.client.sobrenome}` : ''}`
     : '—'
 
   const canRespond = !['aceito', 'recusado', 'expirado'].includes(quote.status)

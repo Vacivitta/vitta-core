@@ -34,17 +34,17 @@ export default async function OrcamentosPage({
     { data: productsData },
     { data: templatesData },
     { data: leadsData },
-    { data: clientsData },
   ] = await Promise.all([
     supabase
       .from('quotes')
-      .select('*, lead:leads(nome,sobrenome,telefone), client:clients(nome,sobrenome,telefone), template:quote_templates(*)')
+      .select('*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*)')
       .order('criado_em', { ascending: false }),
     supabase.from('products').select('*').eq('ativo', true).order('nome'),
     supabase.from('quote_templates').select('*').eq('ativo', true).order('nome'),
     supabase.from('leads').select('id,nome,sobrenome,telefone').eq('arquivado', false).order('nome'),
-    supabase.from('clients').select('id,nome,sobrenome,telefone').order('nome'),
   ])
+
+  const initialLeadIdResolved = initialLeadId ?? initialClientId ?? null
 
   return (
     <OrcamentosClient
@@ -53,9 +53,7 @@ export default async function OrcamentosPage({
       products={(productsData ?? []) as Product[]}
       templates={(templatesData ?? []) as QuoteTemplate[]}
       leads={(leadsData ?? []) as PatientOption[]}
-      clients={(clientsData ?? []) as PatientOption[]}
-      initialLeadId={initialLeadId}
-      initialClientId={initialClientId}
+      initialLeadId={initialLeadIdResolved}
       initialQuoteId={initialQuoteId}
     />
   )

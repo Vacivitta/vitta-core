@@ -118,10 +118,13 @@ export interface Lead {
   motivo_perda:    string | null
   ordem:           number
   unit_id:         string | null
-  client_id:       string | null   // preenchido ao converter em cliente
-  wa_optin_at:     string | null   // quando consentiu receber mensagens WA
-  wa_optout_at:    string | null   // quando pediu PARAR
-  campanha_id:     string | null   // campanha de origem
+  is_converted:    boolean
+  data_nascimento: string | null
+  cpf:             string | null
+  observacoes_cli: string | null
+  wa_optin_at:     string | null
+  wa_optout_at:    string | null
+  campanha_id:     string | null
   stage_changed_at: string
   created_at:      string
   updated_at:      string
@@ -207,35 +210,6 @@ export interface LeadResponsibleHistory {
   responsavel_anterior?:    Profile
   novo_responsavel?:        Profile
   trocado_por?:             Profile
-}
-
-// ---- Clientes --------------------------------------------------------------
-
-export interface Client {
-  id:              string
-  unit_id:         string
-  lead_id:         string | null
-  nome:            string
-  sobrenome:       string | null
-  telefone:        string | null
-  email:           string | null
-  data_nascimento: string | null
-  cpf:             string | null
-  observacoes:     string | null
-  criado_em:       string
-  atualizado_em:   string
-}
-
-export interface ClientContact {
-  id:         string
-  client_id:  string
-  unit_id:    string
-  nome:       string
-  telefone:   string | null
-  email:      string | null
-  cargo:      string | null
-  observacao: string | null
-  criado_em:  string
 }
 
 // ---- Produtos --------------------------------------------------------------
@@ -329,7 +303,6 @@ export const PACOTE_DEFAULTS: PacoteOpcao[] = [
 export interface Quote {
   id:              string
   unit_id:         string
-  client_id:       string | null
   lead_id:         string | null
   template_id:     string | null
   numero:          number | null
@@ -412,7 +385,6 @@ export interface QuoteWithItems extends Quote {
   items:    QuoteItem[]
   template: QuoteTemplate | null
   lead?:    { nome: string; sobrenome: string | null; telefone: string | null } | null
-  client?:  { nome: string; sobrenome: string | null; telefone: string | null } | null
 }
 
 // ---- Histórico de stages ---------------------------------------------------
