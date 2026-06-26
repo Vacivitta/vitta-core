@@ -106,12 +106,13 @@ export async function POST(req: NextRequest) {
     // Não retorna erro — a mensagem já foi enviada ao Meta
   }
 
-  // Atualiza last_message_at, prévia e auto-atribui ao atendente se conversa não tiver responsável
+  // Atualiza last_message_at, prévia, zera unread e auto-atribui ao atendente se não tiver responsável
   const lastContent = type === 'template' ? `📋 ${template_name}` : (content?.trim() ?? '')
   const convUpdate: Record<string, unknown> = {
     last_message_at:        new Date().toISOString(),
     last_message_content:   lastContent,
     last_message_direction: 'outbound',
+    unread_count:           0,
   }
   if (!conv.assigned_to) convUpdate.assigned_to = user.id
   await supabase

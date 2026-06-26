@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
       last_message_at:        new Date().toISOString(),
       last_message_content:   file.name,
       last_message_direction: 'outbound',
+      unread_count:           0,
     }).eq('id', conversation_id)
 
     await runWaAutomation(admin, 'outbound_message', conv.unit_id, conversation_id)
