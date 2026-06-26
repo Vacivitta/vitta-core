@@ -45,6 +45,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   const [deleting,   setDeleting]   = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Form state
   const [form, setForm] = useState({
@@ -104,9 +105,22 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   async function handleDelete(name: string) {
     if (!confirm(`Deletar o template "${name}" permanentemente? Esta ação não pode ser desfeita.`)) return
     setDeleting(name)
-    await fetch(`/api/whatsapp/meta-templates?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
-    setDeleting(null)
-    void loadTemplates()
+    setDeleteError(null)
+    try {
+      const res  = await fetch(`/api/whatsapp/meta-templates?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
+      const data = await res.json() as { success?: boolean; error?: string }
+      if (!res.ok || data.error) {
+        setDeleteError(data.error ?? `Erro ao deletar (${res.status})`)
+      } else {
+        setSuccessMsg(`Template "${name}" deletado com sucesso.`)
+        setTimeout(() => setSuccessMsg(null), 4000)
+        void loadTemplates()
+      }
+    } catch {
+      setDeleteError('Erro de conexão ao deletar o template.')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   const filtered = filterStatus === 'all' ? templates : templates.filter(t => t.status === filterStatus)
@@ -147,6 +161,14 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
       {successMsg && (
         <div style={{ padding: '12px 16px', background: '#E8F7EE', border: '1px solid #A7F3D0', borderRadius: 10, marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: '#1D9E75', margin: 0, fontWeight: 600 }}>{successMsg}</p>
+        </div>
+      )}
+
+      {/* Delete error */}
+      {deleteError && (
+        <div style={{ padding: '12px 16px', background: '#FEECEC', border: '1px solid #FECACA', borderRadius: 10, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <p style={{ fontSize: 13, color: '#C0392B', margin: 0, fontWeight: 600 }}>Erro ao deletar: {deleteError}</p>
+          <button onClick={() => setDeleteError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C0392B', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
         </div>
       )}
 

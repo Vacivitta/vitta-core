@@ -146,13 +146,14 @@ export async function DELETE(req: NextRequest) {
     method: 'DELETE', headers: metaHeaders(accessToken),
   })
 
-  await admin.from('wa_message_templates').update({ ativo: false })
-    .eq('template_name', name).eq('category', 'meta_api')
-
   if (!res.ok) {
     const err = await res.json() as { error?: { message: string } }
     return NextResponse.json({ error: err.error?.message ?? 'Erro ao deletar no Meta' }, { status: res.status })
   }
+
+  // Só desativa no banco após confirmação da Meta
+  await admin.from('wa_message_templates').update({ ativo: false })
+    .eq('template_name', name).eq('category', 'meta_api')
 
   return NextResponse.json({ success: true })
 }
