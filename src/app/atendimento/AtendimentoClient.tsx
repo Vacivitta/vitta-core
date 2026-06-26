@@ -107,6 +107,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [signatureEnabled,  setSignatureEnabled]  = useState(() =>
     typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1'
   )
+  const [soundEnabled, setSoundEnabled] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('wa_sound') !== '0' : true
+  )
+  const soundEnabledRef = useRef(soundEnabled)
+  useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
   const msgsEndRef        = useRef<HTMLDivElement>(null)
   const selectedConvIdRef = useRef<string | null>(null)
 
@@ -137,6 +142,54 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       return next
     })
   }
+
+  function toggleSound() {
+    setSoundEnabled(v => {
+      const next = !v
+      localStorage.setItem('wa_sound', next ? '1' : '0')
+      return next
+    })
+  }
+
+  function playNotificationSound() {
+    if (!soundEnabledRef.current) return
+    try {
+      const ctx = new AudioContext()
+      const gain = ctx.createGain()
+      gain.connect(ctx.destination)
+      // Dois tons curtos — estilo notificação WhatsApp
+      ;[0, 0.18].forEach((delay, i) => {
+        const osc = ctx.createOscillator()
+        osc.connect(gain)
+        osc.type = 'sine'
+        osc.frequency.value = i === 0 ? 880 : 1100
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + delay)
+        gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + delay + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.22)
+        osc.start(ctx.currentTime + delay)
+        osc.stop(ctx.currentTime + delay + 0.22)
+      })
+    } catch { /* AudioContext bloqueado antes de interação do usuário */ }
+  }
+
+  // Subscription global — toca som em qualquer nova mensagem inbound da unidade
+  useEffect(() => {
+    if (!currentUser.unit_id) return
+    const ch = supabase
+      .channel('wa_sound_notify')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'wa_messages',
+        filter: `unit_id=eq.${currentUser.unit_id}`,
+      }, payload => {
+        const msg = payload.new as { direction: string }
+        if (msg.direction === 'inbound') playNotificationSound()
+      })
+      .subscribe()
+    return () => { void supabase.removeChannel(ch) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, currentUser.unit_id])
 
   const isOutside24hWindow = useMemo(() => {
     if (!msgsLoaded || chatItems.length === 0) return false
@@ -474,7 +527,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           search={convSearch} onSearch={setConvSearch} filterStatus={filterStatus} onFilterStatus={setFilterStatus}
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
           filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread}
-          onNewConv={() => setNewConvOpen(true)} />
+          onNewConv={() => setNewConvOpen(true)} soundEnabled={soundEnabled} onToggleSound={toggleSound} />
 
         {/* Chat */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F8FAFB', minWidth: 0, position: 'relative' }}>
@@ -617,11 +670,12 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
 
 // ── ConvList ──────────────────────────────────────────────────────────────────
 
-function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv }: {
+function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound }: {
   convs: WaConversation[]; loaded: boolean; selected: WaConversation | null; onSelect: (c: WaConversation) => void
   search: string; onSearch: (q: string) => void; filterStatus: ConvStatus; onFilterStatus: (s: ConvStatus) => void
   filterQueue: string; onFilterQueue: (q: string) => void; queues: WaQueue[]; filterMine: boolean
   onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number; onNewConv: () => void
+  soundEnabled: boolean; onToggleSound: () => void
 }) {
   return (
     <div style={{ width: 300, minWidth: 300, borderRight: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
@@ -634,6 +688,21 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, borderRadius: 6, border: '1px solid', cursor: 'pointer',
                 background: filterMine ? '#0098DA' : 'transparent', color: filterMine ? '#fff' : '#8FA0AF', borderColor: filterMine ? '#0098DA' : '#E8EDF2' }}>
               Minhas
+            </button>
+            <button onClick={onToggleSound} title={soundEnabled ? 'Silenciar notificações' : 'Ativar notificações sonoras'}
+              style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: soundEnabled ? '#F0F8FF' : '#F8FAFB', color: soundEnabled ? '#0098DA' : '#B0BEC9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {soundEnabled ? (
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+              ) : (
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+              )}
             </button>
             <button onClick={onNewConv} title="Nova conversa"
               style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: '#F0F8FF', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
