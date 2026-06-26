@@ -141,7 +141,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     .maybeSingle()
 
   if (convErr || !conv) {
-    console.error('[WA webhook] erro ao upsert conversa:', convErr)
+    console.error('[WA webhook] erro ao upsert conversa de', waPhone, contactName ?? '', convErr)
     return
   }
 
