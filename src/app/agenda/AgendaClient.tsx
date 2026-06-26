@@ -83,9 +83,7 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
   const [view,              setView]              = useState<CalView>('week')
   const [currentDate,       setCurrentDate]       = useState(new Date())
   const [tasks,             setTasks]             = useState<TaskWithLead[]>(initialTasks)
-  const [filterResponsavel, setFilterResponsavel] = useState(
-    currentUser.perfil !== 'atendente' ? '' : currentUser.id
-  )
+  const [filterResponsavel, setFilterResponsavel] = useState('')
   const [selectedTask,      setSelectedTask]      = useState<TaskWithLead | null>(null)
   const [showNewForm,       setShowNewForm]       = useState(false)
   const [newFormDate,       setNewFormDate]       = useState<Date | null>(null)
@@ -185,17 +183,15 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
         {/* Period title */}
         <span className="text-sm font-semibold text-gray-800 capitalize flex-1 min-w-0 truncate">{headerTitle()}</span>
 
-        {/* Responsável filter — gestors only */}
-        {currentUser.perfil !== 'atendente' && (
-          <select
-            value={filterResponsavel}
-            onChange={e => setFilterResponsavel(e.target.value)}
-            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shrink-0"
-          >
-            <option value="">Todos responsáveis</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
-          </select>
-        )}
+        {/* Responsável filter */}
+        <select
+          value={filterResponsavel}
+          onChange={e => setFilterResponsavel(e.target.value)}
+          className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shrink-0"
+        >
+          <option value="">Todos responsáveis</option>
+          {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
+        </select>
 
         {/* New task */}
         <button
