@@ -102,13 +102,14 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     void loadTemplates()
   }
 
-  async function handleDelete(name: string) {
+  async function handleDelete(name: string, id: string) {
     if (!confirm(`Deletar o template "${name}" permanentemente? Esta ação não pode ser desfeita.`)) return
     setDeleting(name)
     setDeleteError(null)
     try {
-      const res  = await fetch(`/api/whatsapp/meta-templates?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
-      const data = await res.json() as { success?: boolean; error?: string }
+      const params = new URLSearchParams({ name, hsm_id: id })
+      const res    = await fetch(`/api/whatsapp/meta-templates?${params.toString()}`, { method: 'DELETE' })
+      const data   = await res.json() as { success?: boolean; error?: string }
       if (!res.ok || data.error) {
         setDeleteError(data.error ?? `Erro ao deletar (${res.status})`)
       } else {
@@ -236,7 +237,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                       <p style={{ fontSize: 11, color: '#C0392B', margin: '6px 0 0' }}>Motivo da reprovação: {t.rejected_reason}</p>
                     )}
                   </div>
-                  <button onClick={() => void handleDelete(t.name)} disabled={deleting === t.name}
+                  <button onClick={() => void handleDelete(t.name, t.id)} disabled={deleting === t.name}
                     style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, border: '1px solid #FECACA', borderRadius: 8, background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', flexShrink: 0, opacity: deleting === t.name ? 0.6 : 1 }}>
                     {deleting === t.name ? '...' : 'Deletar'}
                   </button>

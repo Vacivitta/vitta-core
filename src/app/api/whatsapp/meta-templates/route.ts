@@ -139,16 +139,24 @@ export async function DELETE(req: NextRequest) {
   if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 500 })
   if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
 
-  const name = req.nextUrl.searchParams.get('name')
+  const name   = req.nextUrl.searchParams.get('name')
+  const hsmId  = req.nextUrl.searchParams.get('hsm_id')
   if (!name) return NextResponse.json({ error: 'name é obrigatório' }, { status: 400 })
 
-  const res = await fetch(`${META}/${wabaId}/message_templates?name=${encodeURIComponent(name)}`, {
+  // hsm_id identifica a variante exata; sem ele a Meta pode rejeitar com 400
+  const deleteParams = new URLSearchParams({ name })
+  if (hsmId) deleteParams.set('hsm_id', hsmId)
+
+  const res = await fetch(`${META}/${wabaId}/message_templates?${deleteParams.toString()}`, {
     method: 'DELETE', headers: metaHeaders(accessToken),
   })
 
   if (!res.ok) {
-    const err = await res.json() as { error?: { message: string } }
-    return NextResponse.json({ error: err.error?.message ?? 'Erro ao deletar no Meta' }, { status: res.status })
+    const body = await res.text()
+    let msg = 'Erro ao deletar no Meta'
+    try { msg = (JSON.parse(body) as { error?: { message: string } }).error?.message ?? msg } catch { /* raw text */ }
+    console.error(`[meta-templates DELETE] status=${res.status} name=${name} body=${body}`)
+    return NextResponse.json({ error: msg }, { status: res.status })
   }
 
   // Só desativa no banco após confirmação da Meta
