@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Profile } from '@/types/database'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -14,9 +14,9 @@ interface MetaTemplate {
 interface Props { currentUser: Profile }
 
 const CATEGORIES = [
-  { value: 'UTILITY',        label: 'Utilidade',       desc: 'Confirmações, atualizações, alertas de conta' },
-  { value: 'MARKETING',      label: 'Marketing',        desc: 'Promoções, ofertas, conteúdo de engajamento' },
-  { value: 'AUTHENTICATION', label: 'Autenticação',    desc: 'OTP, senhas temporárias, verificação' },
+  { value: 'UTILITY',        label: 'Utilidade',    desc: 'Confirmações, atualizações, alertas de conta' },
+  { value: 'MARKETING',      label: 'Marketing',    desc: 'Promoções, ofertas, conteúdo de engajamento' },
+  { value: 'AUTHENTICATION', label: 'Autenticação', desc: 'OTP, senhas temporárias, verificação' },
 ]
 
 const LANGUAGES = [
@@ -34,18 +34,136 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> 
   DISABLED: { bg: '#F1F4F7', text: '#8FA0AF', label: 'Desativado' },
 }
 
+// Variáveis disponíveis para inserção
+const VARIABLES = [
+  { id: 'nome_cliente',    label: 'Nome do cliente',    example: 'Maria Silva' },
+  { id: 'nome_atendente',  label: 'Nome do atendente',  example: 'João' },
+  { id: 'data',            label: 'Data',               example: '26/06/2026' },
+  { id: 'horario',         label: 'Horário',            example: '14:30' },
+]
+
+// ── Preview WhatsApp ──────────────────────────────────────────────────────────
+
+function resolveVars(text: string, varOrder: string[]): string {
+  return text.replace(/\{\{(\d+)\}\}/g, (_, n) => {
+    const idx = parseInt(n, 10) - 1
+    const varId = varOrder[idx]
+    const v = VARIABLES.find(x => x.id === varId)
+    return v ? v.example : `{{${n}}}`
+  })
+}
+
+function WhatsAppPreview({
+  header, body, footer, varOrder,
+}: {
+  header: string; body: string; footer: string; varOrder: string[]
+}) {
+  const resolvedHeader = resolveVars(header, varOrder)
+  const resolvedBody   = resolveVars(body,   varOrder)
+  const resolvedFooter = resolveVars(footer, varOrder)
+  const hasContent = header || body || footer
+
+  return (
+    <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#5A7184', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>Preview</p>
+
+      {/* Phone shell */}
+      <div style={{
+        background: '#ECE5DD',
+        borderRadius: 24,
+        padding: '32px 12px 20px',
+        minHeight: 360,
+        position: 'relative',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+        border: '6px solid #1A1A1A',
+      }}>
+        {/* Status bar */}
+        <div style={{ position: 'absolute', top: 8, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: '0 14px', fontSize: 9, color: '#1A1A1A', fontWeight: 700 }}>
+          <span>9:41</span>
+          <span>●●●</span>
+        </div>
+
+        {/* WA header bar */}
+        <div style={{ background: '#128C7E', margin: '-32px -12px 10px', padding: '10px 12px 8px', borderRadius: '18px 18px 0 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>🏥</div>
+          <div>
+            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#fff' }}>Clínica Vitta</p>
+            <p style={{ margin: 0, fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>online</p>
+          </div>
+        </div>
+
+        {/* Chat area */}
+        <div style={{ padding: '0 4px' }}>
+          {!hasContent ? (
+            <p style={{ fontSize: 11, color: '#8FA0AF', textAlign: 'center', marginTop: 40 }}>Preencha o formulário para ver o preview</p>
+          ) : (
+            <div style={{
+              background: '#fff',
+              borderRadius: '0 10px 10px 10px',
+              padding: '8px 10px',
+              maxWidth: '85%',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+              position: 'relative',
+            }}>
+              {/* Triangle */}
+              <div style={{ position: 'absolute', top: 0, left: -7, width: 0, height: 0, borderTop: '8px solid #fff', borderLeft: '7px solid transparent' }} />
+
+              {resolvedHeader && (
+                <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
+                  {resolvedHeader}
+                </p>
+              )}
+              {resolvedBody && (
+                <p style={{ margin: 0, fontSize: 11.5, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {resolvedBody}
+                </p>
+              )}
+              {resolvedFooter && (
+                <p style={{ margin: '6px 0 0', fontSize: 10, color: '#8FA0AF', lineHeight: 1.4 }}>
+                  {resolvedFooter}
+                </p>
+              )}
+              <p style={{ margin: '4px 0 0', fontSize: 9, color: '#8FA0AF', textAlign: 'right' }}>14:30 ✓✓</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Legenda de variáveis */}
+      {varOrder.length > 0 && (
+        <div style={{ background: '#F0F8FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Variáveis no template</p>
+          {varOrder.map((varId, i) => {
+            const v = VARIABLES.find(x => x.id === varId)
+            if (!v) return null
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <code style={{ fontSize: 10, background: '#DBEAFE', color: '#1E40AF', padding: '1px 5px', borderRadius: 4 }}>{`{{${i + 1}}}`}</code>
+                <span style={{ fontSize: 11, color: '#374151' }}>= {v.label}</span>
+              </div>
+            )
+          })}
+          <p style={{ fontSize: 10, color: '#6B7280', margin: '6px 0 0', lineHeight: 1.4 }}>
+            Ao enviar pelo chat, os valores reais serão preenchidos automaticamente.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
-  const [templates,  setTemplates]  = useState<MetaTemplate[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [error,      setError]      = useState<string | null>(null)
-  const [showForm,   setShowForm]   = useState(false)
-  const [saving,     setSaving]     = useState(false)
-  const [deleting,   setDeleting]   = useState<string | null>(null)
+  const [templates,    setTemplates]    = useState<MetaTemplate[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState<string | null>(null)
+  const [showForm,     setShowForm]     = useState(false)
+  const [saving,       setSaving]       = useState(false)
+  const [deleting,     setDeleting]     = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [successMsg,   setSuccessMsg]   = useState<string | null>(null)
+  const [deleteError,  setDeleteError]  = useState<string | null>(null)
 
   // Form state
   const [form, setForm] = useState({
@@ -58,7 +176,9 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   })
   const [formError, setFormError] = useState<string | null>(null)
 
-  const wabaConfigured = typeof process !== 'undefined'
+  // Variáveis inseridas (em ordem de aparição)
+  const [varOrder, setVarOrder] = useState<string[]>([])
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   async function loadTemplates() {
     setLoading(true); setError(null)
@@ -70,6 +190,65 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   }
 
   useEffect(() => { void loadTemplates() }, [])
+
+  function resetForm() {
+    setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header_text: '', body_text: '', footer_text: '' })
+    setVarOrder([])
+    setFormError(null)
+  }
+
+  // Inserção de variável no cursor do textarea
+  function insertVariable(varId: string) {
+    const textarea = bodyRef.current
+    if (!textarea) return
+
+    // Calcular próximo número de variável baseado na ordem atual no texto
+    const currentText  = form.body_text
+    const cursorStart  = textarea.selectionStart ?? currentText.length
+    const cursorEnd    = textarea.selectionEnd   ?? currentText.length
+
+    // Contar quantas {{N}} já existem antes do cursor para determinar nova posição
+    const textBefore = currentText.slice(0, cursorStart)
+    const existingVars = (textBefore.match(/\{\{\d+\}\}/g) ?? []).length
+    const nextN = existingVars + 1
+
+    // Remapear variáveis existentes após o ponto de inserção
+    // Inserir a nova variável e re-numerar todo o texto
+    const before = currentText.slice(0, cursorStart)
+    const after  = currentText.slice(cursorEnd)
+    const inserted = `{{${nextN}}}`
+
+    // Recalcular o mapa de variáveis re-numerando as que vêm depois
+    const newText = before + inserted + after
+
+    // Reindexar: percorre o novo texto e reconstrói varOrder
+    const newVarOrder = [...varOrder]
+    // Inserir na posição correta (nextN - 1)
+    newVarOrder.splice(nextN - 1, 0, varId)
+    // Re-numerar variáveis no texto após a inserção
+    let counter = 0
+    const renumbered = newText.replace(/\{\{\d+\}\}/g, () => `{{${++counter}}}`)
+
+    setForm(f => ({ ...f, body_text: renumbered }))
+    setVarOrder(newVarOrder)
+
+    // Restaurar foco e posição do cursor
+    setTimeout(() => {
+      textarea.focus()
+      const pos = cursorStart + inserted.length
+      textarea.setSelectionRange(pos, pos)
+    }, 0)
+  }
+
+  // Sincroniza varOrder quando usuário edita o texto manualmente
+  function handleBodyChange(text: string) {
+    // Conta variáveis {{N}} presentes no texto
+    const matches = [...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => parseInt(m[1], 10))
+    const maxN = matches.length > 0 ? Math.max(...matches) : 0
+    // Truncar varOrder se variáveis foram removidas
+    setVarOrder(prev => prev.slice(0, maxN))
+    setForm(f => ({ ...f, body_text: text }))
+  }
 
   async function handleCreate() {
     setFormError(null)
@@ -96,7 +275,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     if (result.error) { setFormError(result.error); return }
 
     setShowForm(false)
-    setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header_text: '', body_text: '', footer_text: '' })
+    resetForm()
     setSuccessMsg('Template enviado para aprovação do Meta. Pode levar até 24h.')
     setTimeout(() => setSuccessMsg(null), 6000)
     void loadTemplates()
@@ -142,21 +321,12 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
             style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 9, background: '#F8FAFB', cursor: 'pointer', color: '#5A7184' }}>
             {loading ? '...' : '↻ Atualizar'}
           </button>
-          <button onClick={() => setShowForm(true)}
+          <button onClick={() => { resetForm(); setShowForm(true) }}
             style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 9, background: '#0098DA', color: '#fff', cursor: 'pointer' }}>
             + Novo template
           </button>
         </div>
       </div>
-
-      {/* Env warning */}
-      {!process.env.NEXT_PUBLIC_SUPABASE_URL && (
-        <div style={{ padding: '12px 16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 16 }}>
-          <p style={{ fontSize: 12, color: '#92400E', margin: 0, fontWeight: 600 }}>
-            Configure <code>WHATSAPP_WABA_ID</code> e <code>WHATSAPP_ACCESS_TOKEN</code> no seu <code>.env.local</code> para conectar ao Meta.
-          </p>
-        </div>
-      )}
 
       {/* Success msg */}
       {successMsg && (
@@ -213,8 +383,8 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
             </div>
           )}
           {filtered.map(t => {
-            const st = STATUS_STYLE[t.status] ?? STATUS_STYLE.PENDING
-            const body = t.components?.find(c => c.type === 'BODY')?.text ?? ''
+            const st     = STATUS_STYLE[t.status] ?? STATUS_STYLE.PENDING
+            const body   = t.components?.find(c => c.type === 'BODY')?.text   ?? ''
             const header = t.components?.find(c => c.type === 'HEADER')?.text ?? ''
             const footer = t.components?.find(c => c.type === 'FOOTER')?.text ?? ''
             return (
@@ -227,7 +397,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                       <span style={{ fontSize: 10, color: '#B0BEC9', background: '#F1F4F7', padding: '2px 7px', borderRadius: 99 }}>{t.category}</span>
                       <span style={{ fontSize: 10, color: '#B0BEC9', background: '#F1F4F7', padding: '2px 7px', borderRadius: 99 }}>{t.language}</span>
                     </div>
-                    {/* WhatsApp-style preview */}
+                    {/* Preview */}
                     <div style={{ background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 10, padding: '10px 12px', maxWidth: 420 }}>
                       {header && <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: '0 0 6px' }}>{header}</p>}
                       <p style={{ fontSize: 12, color: '#0E2C3D', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body || '(sem corpo)'}</p>
@@ -248,93 +418,148 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
         </div>
       )}
 
-      {/* Modal de criação */}
+      {/* ── Modal de criação ── */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, boxShadow: '0 16px 48px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 18, width: '100%', maxWidth: 920, boxShadow: '0 20px 60px rgba(0,0,0,0.22)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid #F1F4F7', flexShrink: 0 }}>
               <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Novo template WhatsApp</h2>
-              <button onClick={() => { setShowForm(false); setFormError(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', fontSize: 18, lineHeight: 1 }}>×</button>
+              <button onClick={() => { setShowForm(false); resetForm() }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Name */}
-              <div>
-                <label style={labelStyle}>Nome do template *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
-                  placeholder="ex: boas_vindas_clinica"
-                  style={inputStyle} />
-                <p style={{ fontSize: 10, color: '#B0BEC9', margin: '3px 0 0' }}>Apenas letras minúsculas, números e underscore. Imutável após criação.</p>
-              </div>
+            {/* Two-column body */}
+            <div style={{ display: 'flex', gap: 0, flex: 1, overflow: 'hidden' }}>
 
-              {/* Category */}
-              <div>
-                <label style={labelStyle}>Categoria *</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {CATEGORIES.map(c => (
-                    <label key={c.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', border: `1.5px solid ${form.category === c.value ? '#0098DA' : '#E8EDF2'}`, borderRadius: 9, cursor: 'pointer', background: form.category === c.value ? '#F0F8FF' : '#fff' }}>
-                      <input type="radio" name="category" value={c.value} checked={form.category === c.value} onChange={() => setForm(f => ({ ...f, category: c.value as typeof f.category }))} style={{ accentColor: '#0098DA', marginTop: 2, flexShrink: 0 }} />
-                      <div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D' }}>{c.label}</span>
-                        <p style={{ fontSize: 11, color: '#8FA0AF', margin: '1px 0 0' }}>{c.desc}</p>
+              {/* Left: form */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                  {/* Name */}
+                  <div>
+                    <label style={labelStyle}>Nome do template *</label>
+                    <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                      placeholder="ex: confirmacao_consulta"
+                      style={inputStyle} />
+                    <p style={{ fontSize: 10, color: '#B0BEC9', margin: '3px 0 0' }}>Apenas letras minúsculas, números e underscore. Imutável após criação.</p>
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <label style={labelStyle}>Categoria *</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {CATEGORIES.map(c => (
+                        <label key={c.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', border: `1.5px solid ${form.category === c.value ? '#0098DA' : '#E8EDF2'}`, borderRadius: 9, cursor: 'pointer', background: form.category === c.value ? '#F0F8FF' : '#fff' }}>
+                          <input type="radio" name="category" value={c.value} checked={form.category === c.value} onChange={() => setForm(f => ({ ...f, category: c.value as typeof f.category }))} style={{ accentColor: '#0098DA', marginTop: 2, flexShrink: 0 }} />
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D' }}>{c.label}</span>
+                            <p style={{ fontSize: 11, color: '#8FA0AF', margin: '1px 0 0' }}>{c.desc}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Language */}
+                  <div>
+                    <label style={labelStyle}>Idioma *</label>
+                    <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))} style={{ ...inputStyle, background: '#F8FAFB' }}>
+                      {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Header */}
+                  <div>
+                    <label style={labelStyle}>Cabeçalho (opcional)</label>
+                    <input value={form.header_text} onChange={e => setForm(f => ({ ...f, header_text: e.target.value }))}
+                      placeholder="Texto em negrito no topo..."
+                      style={inputStyle} />
+                  </div>
+
+                  {/* Body */}
+                  <div>
+                    <label style={labelStyle}>Corpo da mensagem *</label>
+                    <textarea
+                      ref={bodyRef}
+                      value={form.body_text}
+                      onChange={e => handleBodyChange(e.target.value)}
+                      placeholder={'Olá, {{1}}! Sua consulta foi confirmada para {{2}} às {{3}}.\nQualquer dúvida, estamos aqui.'}
+                      rows={5}
+                      style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' }}
+                    />
+
+                    {/* Variable chips */}
+                    <div style={{ marginTop: 8 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Inserir variável no cursor:</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {VARIABLES.map(v => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => insertVariable(v.id)}
+                            style={{
+                              padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                              border: '1px solid #BFDBFE', borderRadius: 99,
+                              background: '#EFF6FF', color: '#1D4ED8',
+                              cursor: 'pointer', transition: 'all 0.1s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#DBEAFE' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#EFF6FF' }}
+                          >
+                            + {v.label}
+                          </button>
+                        ))}
                       </div>
-                    </label>
-                  ))}
+                      <p style={{ fontSize: 10, color: '#B0BEC9', margin: '5px 0 0' }}>
+                        Clique no botão com o cursor posicionado no texto para inserir <code>{'{{N}}'}</code>. Os valores são preenchidos automaticamente ao enviar.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div>
+                    <label style={labelStyle}>Rodapé (opcional)</label>
+                    <input value={form.footer_text} onChange={e => setForm(f => ({ ...f, footer_text: e.target.value }))}
+                      placeholder="ex: Não responda a este número."
+                      style={inputStyle} />
+                  </div>
+
+                  {formError && <p style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', padding: '8px 12px', borderRadius: 8, margin: 0 }}>{formError}</p>}
+
+                  {/* Info */}
+                  <div style={{ padding: '10px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 9 }}>
+                    <p style={{ fontSize: 11, color: '#1D4ED8', margin: 0, lineHeight: 1.5 }}>
+                      ℹ️ Após criar, o template vai para revisão do Meta (geralmente 1–24h). Quando aprovado, aparece automaticamente disponível no chat.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* Language */}
-              <div>
-                <label style={labelStyle}>Idioma *</label>
-                <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))} style={{ ...inputStyle, background: '#F8FAFB' }}>
-                  {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                </select>
-              </div>
+              {/* Divider */}
+              <div style={{ width: 1, background: '#F1F4F7', flexShrink: 0 }} />
 
-              {/* Header */}
-              <div>
-                <label style={labelStyle}>Cabeçalho (opcional)</label>
-                <input value={form.header_text} onChange={e => setForm(f => ({ ...f, header_text: e.target.value }))}
-                  placeholder="Texto em negrito no topo da mensagem..."
-                  style={inputStyle} />
+              {/* Right: preview */}
+              <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', padding: '20px 20px', background: '#F8FAFB' }}>
+                <WhatsAppPreview
+                  header={form.header_text}
+                  body={form.body_text}
+                  footer={form.footer_text}
+                  varOrder={varOrder}
+                />
               </div>
+            </div>
 
-              {/* Body */}
-              <div>
-                <label style={labelStyle}>Corpo da mensagem *</label>
-                <textarea value={form.body_text} onChange={e => setForm(f => ({ ...f, body_text: e.target.value }))}
-                  placeholder={'Olá, {{1}}! Sua consulta foi confirmada para {{2}}.\nQualquer dúvida, estamos aqui.'}
-                  rows={5} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' }} />
-                <p style={{ fontSize: 10, color: '#B0BEC9', margin: '3px 0 0' }}>Use {'{{1}}'}, {'{{2}}'} para variáveis (ex: nome do paciente, data).</p>
-              </div>
-
-              {/* Footer */}
-              <div>
-                <label style={labelStyle}>Rodapé (opcional)</label>
-                <input value={form.footer_text} onChange={e => setForm(f => ({ ...f, footer_text: e.target.value }))}
-                  placeholder="ex: Não responda a este número."
-                  style={inputStyle} />
-              </div>
-
-              {formError && <p style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', padding: '8px 12px', borderRadius: 8, margin: 0 }}>{formError}</p>}
-
-              {/* Info box */}
-              <div style={{ padding: '10px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 9 }}>
-                <p style={{ fontSize: 11, color: '#1D4ED8', margin: 0, lineHeight: 1.5 }}>
-                  ℹ️ Após criar, o template vai para revisão do Meta (geralmente 1-24h). Quando aprovado, aparece automaticamente disponível no chat.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => { setShowForm(false); setFormError(null) }}
-                  style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>
-                  Cancelar
-                </button>
-                <button onClick={() => void handleCreate()} disabled={saving}
-                  style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10, cursor: saving ? 'default' : 'pointer', background: '#0098DA', color: '#fff', opacity: saving ? 0.7 : 1 }}>
-                  {saving ? 'Enviando...' : 'Enviar para aprovação →'}
-                </button>
-              </div>
+            {/* Modal footer */}
+            <div style={{ display: 'flex', gap: 8, padding: '14px 24px', borderTop: '1px solid #F1F4F7', flexShrink: 0 }}>
+              <button onClick={() => { setShowForm(false); resetForm() }}
+                style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>
+                Cancelar
+              </button>
+              <button onClick={() => void handleCreate()} disabled={saving}
+                style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10, cursor: saving ? 'default' : 'pointer', background: '#0098DA', color: '#fff', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Enviando...' : 'Enviar para aprovação →'}
+              </button>
             </div>
           </div>
         </div>
