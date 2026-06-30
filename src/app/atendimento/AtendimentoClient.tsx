@@ -406,9 +406,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (!selectedConv) return
     if (t.category === 'custom') { setChatInput(t.content); return }
 
-    // Monta os parâmetros das variáveis {{N}} do corpo, se houver
+    // Monta os parâmetros das variáveis {{N}} do corpo e o texto já renderizado para exibir no chat
     const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
     let components: object[] | undefined
+    let renderedText = t.content
     if (varCount > 0) {
       const clientName = selectedConv.lead
         ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
@@ -428,14 +429,16 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       const order = t.variable_order && t.variable_order.length === varCount
         ? t.variable_order
         : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
-      components = [{ type: 'body', parameters: order.map(id => ({ type: 'text', text: resolveVar(id) })) }]
+      const values = order.map(resolveVar)
+      components = [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }]
+      renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
     }
 
     setSending(true)
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR', components }),
+        body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string }
@@ -1014,12 +1017,8 @@ function MediaContent({ msg, isOut, unitId }: { msg: WaMessage; isOut: boolean; 
   const sc = isOut ? '#ffffffaa' : '#8FA0AF'
   const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
   if (msg.type === 'template')
-    return (
-      <div>
-        <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, color: isOut ? '#ffffff99' : '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template</p>
-        <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content ?? msg.template_name}</p>
-      </div>
-    )
+    return <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content ?? msg.template_name}</p>
+
   if (msg.type === 'text' || (!msg.media_url && msg.content))
     return <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</p>
   if (msg.type === 'image' && msg.media_url)

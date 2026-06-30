@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const body = await req.json() as SendBody
-  const { conversation_id, type = 'text', content, template_name, language = 'pt_BR', components = [] } = body
+  const { conversation_id, type = 'text', content, template_name, language = 'pt_BR', components = [], rendered_text } = body
 
   if (!conversation_id) {
     return NextResponse.json({ error: 'conversation_id obrigatório' }, { status: 400 })
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       wa_message_id: waMessageId,
       direction:     'outbound',
       type,
-      content:       type === 'text' ? content : null,
+      content:       type === 'text' ? content : (rendered_text ?? null),
       template_name: type === 'template' ? template_name : null,
       status:        'sent',
       sent_by:       user.id,
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Atualiza last_message_at, prévia, zera unread e auto-atribui ao atendente se não tiver responsável
-  const lastContent = type === 'template' ? `📋 ${template_name}` : (content?.trim() ?? '')
+  const lastContent = type === 'template' ? (rendered_text ?? `📋 ${template_name}`) : (content?.trim() ?? '')
   const convUpdate: Record<string, unknown> = {
     last_message_at:        new Date().toISOString(),
     last_message_content:   lastContent,
@@ -200,6 +200,7 @@ interface SendBody {
   template_name?:  string
   language?:       string
   components?:     object[]
+  rendered_text?:  string
 }
 
 interface MetaResponse {
