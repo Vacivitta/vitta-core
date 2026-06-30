@@ -14,7 +14,7 @@ import QuickLeadForm from '@/components/leads/QuickLeadForm'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WaQueue     { id: string; nome: string; cor: string; auto_assign?: boolean }
-interface WaTemplate  { id: string; name: string; content: string; category: 'custom' | 'meta_api'; template_name: string | null; language: string | null }
+interface WaTemplate  { id: string; name: string; content: string; category: 'custom' | 'meta_api'; template_name: string | null; language: string | null; variable_order?: string[] }
 interface WaQuickReply{ id: string; shortcut: string; content: string }
 
 interface WaConversation {
@@ -236,16 +236,17 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       try {
         // Busca templates aprovados direto da Meta (sempre atualizados)
         const metaRes  = await fetch('/api/whatsapp/meta-templates')
-        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }> }> }
+        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }>; variable_order?: string[] }> }
         const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
           .filter(t => t.status === 'APPROVED')
           .map(t => ({
-            id:            t.name,
-            name:          t.name,
-            content:       t.components?.find(c => c.type === 'BODY')?.text ?? '',
-            category:      'meta_api' as const,
-            template_name: t.name,
-            language:      t.language,
+            id:             t.name,
+            name:           t.name,
+            content:        t.components?.find(c => c.type === 'BODY')?.text ?? '',
+            category:       'meta_api' as const,
+            template_name:  t.name,
+            language:       t.language,
+            variable_order: t.variable_order ?? [],
           }))
         // Carrega templates custom do banco
         const { data: custom } = await supabase.from('wa_message_templates')
@@ -404,9 +405,44 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   async function handleTemplateSend(t: WaTemplate) {
     if (!selectedConv) return
     if (t.category === 'custom') { setChatInput(t.content); return }
+
+    // Monta os parâmetros das variáveis {{N}} do corpo, se houver
+    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
+    let components: object[] | undefined
+    if (varCount > 0) {
+      const clientName = selectedConv.lead
+        ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
+        : (selectedConv.wa_contact_name ?? selectedConv.wa_phone)
+      const agentName = displayName(currentUser)
+      const now = new Date()
+      const resolveVar = (id: string): string => {
+        switch (id) {
+          case 'nome_cliente':   return clientName
+          case 'nome_atendente': return agentName
+          case 'data':           return format(now, 'dd/MM/yyyy')
+          case 'horario':        return format(now, 'HH:mm')
+          default:                return ''
+        }
+      }
+      // Usa a ordem salva na criação do template; se não houver, assume a ordem padrão
+      const order = t.variable_order && t.variable_order.length === varCount
+        ? t.variable_order
+        : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+      components = [{ type: 'body', parameters: order.map(id => ({ type: 'text', text: resolveVar(id) })) }]
+    }
+
     setSending(true)
     try {
-      await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR' }) })
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR', components }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        alert(data.error ?? 'Erro ao enviar template')
+      }
+    } catch {
+      alert('Erro ao enviar template')
     } finally { setSending(false) }
   }
 
@@ -603,10 +639,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 onTemplatesReload={async () => {
                   try {
                     const metaRes  = await fetch('/api/whatsapp/meta-templates')
-                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }> }> }
+                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }>; variable_order?: string[] }> }
                     const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
                       .filter(t => t.status === 'APPROVED')
-                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language }))
+                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [] }))
                     const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).eq('category', 'custom').order('name')
                     setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
                   } catch {

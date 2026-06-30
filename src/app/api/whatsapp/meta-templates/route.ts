@@ -72,7 +72,20 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ templates })
+  // Enriquece com a ordem de variáveis nomeadas salva na criação (nome_cliente, data, etc.)
+  let varOrderMap = new Map<string, string[]>()
+  if (unitId && templates.length > 0) {
+    const { data: localRows } = await admin
+      .from('wa_message_templates')
+      .select('template_name, variable_order')
+      .eq('unit_id', unitId)
+      .eq('category', 'meta_api')
+    varOrderMap = new Map((localRows ?? []).map(r => [r.template_name as string, (r.variable_order ?? []) as string[]]))
+  }
+
+  const templatesWithVars = templates.map(t => ({ ...t, variable_order: varOrderMap.get(t.name) ?? [] }))
+
+  return NextResponse.json({ templates: templatesWithVars })
 }
 
 // ── POST — cria template no Meta + salva localmente ───────────────────────────
@@ -134,6 +147,7 @@ export async function POST(req: NextRequest) {
     await admin.from('wa_message_templates').upsert({
       unit_id: unitId, name: body.name, content: body.body_text.trim(),
       category: 'meta_api', template_name: body.name, language: body.language ?? 'pt_BR', ativo: false,
+      variable_order: body.body_variable_order ?? [],
     }, { onConflict: 'unit_id,name,category' })
   }
 
@@ -206,6 +220,7 @@ interface CreateTemplateBody {
   header_variable_examples?: string[]
   body_text:   string
   body_variable_examples?: string[]
+  body_variable_order?: string[]
   footer_text?: string
   buttons?:    MetaButton[]
 }
