@@ -19,8 +19,26 @@ export interface TaskWithLead extends Omit<LeadTask, 'responsavel'> {
   lead?: { id: string; nome: string; sobrenome: string | null } | null
 }
 
+export interface ScheduledMsg {
+  id:              string
+  conversation_id: string
+  content:         string | null
+  type:            'text' | 'template'
+  template_name:   string | null
+  scheduled_for:   string
+  status:          'pending' | 'sent' | 'failed'
+  created_by:      string | null
+  conversation:    { wa_contact_name: string | null; lead: { nome: string; sobrenome: string | null } | null } | null
+}
+
+// Item unificado para exibição no calendário (tarefa ou mensagem agendada)
+type AgendaItem =
+  | { kind: 'task';    id: string; date: string; task: TaskWithLead }
+  | { kind: 'message'; id: string; date: string; message: ScheduledMsg }
+
 interface Props {
   initialTasks: TaskWithLead[]
+  initialMessages: ScheduledMsg[]
   profiles: Profile[]
   currentUser: Profile
 }
@@ -57,6 +75,39 @@ function taskColor(task: TaskWithLead) {
   return { bg: '', text: '', barColor: '#0098DA', style: { background: 'var(--color-brand-subtle)', color: 'var(--color-brand)' } }
 }
 
+function msgColor(msg: ScheduledMsg) {
+  if (msg.status === 'sent')
+    return { barColor: '#4EB46B', style: { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' } }
+  if (msg.status === 'failed')
+    return { barColor: '#E5484D', style: { background: 'var(--color-danger-subtle)', color: 'var(--color-danger-text)' } }
+  return { barColor: '#8B5CF6', style: { background: '#F5F3FF', color: '#6D28D9' } }
+}
+
+function itemColor(item: AgendaItem) {
+  return item.kind === 'task' ? taskColor(item.task) : msgColor(item.message)
+}
+
+function itemDate(item: AgendaItem): Date {
+  return parseISO(item.date)
+}
+
+function itemTitle(item: AgendaItem): string {
+  if (item.kind === 'task') return item.task.titulo
+  if (item.message.type === 'template') return `📋 ${item.message.template_name ?? 'Template'}`
+  return item.message.content ?? 'Mensagem agendada'
+}
+
+function itemSubtitle(item: AgendaItem): string | null {
+  if (item.kind === 'task') {
+    const lead = item.task.lead
+    return lead ? `${lead.nome}${lead.sobrenome ? ` ${lead.sobrenome}` : ''}` : null
+  }
+  const conv = item.message.conversation
+  if (!conv) return null
+  if (conv.lead) return `${conv.lead.nome}${conv.lead.sobrenome ? ` ${conv.lead.sobrenome}` : ''}`
+  return conv.wa_contact_name
+}
+
 function taskTop(dt: Date): number {
   const raw = (dt.getHours() - START_HOUR) * HOUR_HEIGHT + (dt.getMinutes() / 60) * HOUR_HEIGHT
   return Math.max(0, Math.min(raw, TOTAL_H - EVENT_H))
@@ -77,14 +128,16 @@ function getMonthGrid(date: Date): Date[] {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function AgendaClient({ initialTasks, profiles, currentUser }: Props) {
+export default function AgendaClient({ initialTasks, initialMessages, profiles, currentUser }: Props) {
   const supabase = createClient()
 
   const [view,              setView]              = useState<CalView>('week')
   const [currentDate,       setCurrentDate]       = useState(new Date())
   const [tasks,             setTasks]             = useState<TaskWithLead[]>(initialTasks)
+  const [messages,          setMessages]          = useState<ScheduledMsg[]>(initialMessages)
   const [filterResponsavel, setFilterResponsavel] = useState('')
   const [selectedTask,      setSelectedTask]      = useState<TaskWithLead | null>(null)
+  const [selectedMsg,       setSelectedMsg]       = useState<ScheduledMsg | null>(null)
   const [showNewForm,       setShowNewForm]       = useState(false)
   const [newFormDate,       setNewFormDate]       = useState<Date | null>(null)
   const [now,               setNow]               = useState(new Date())
@@ -104,12 +157,32 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
     if (data) setTasks(data as TaskWithLead[])
   }
 
-  const filtered = filterResponsavel
-    ? tasks.filter(t => t.responsavel_id === filterResponsavel)
-    : tasks
+  async function reloadMessages() {
+    const { data } = await supabase
+      .from('wa_scheduled_messages')
+      .select('id, conversation_id, content, type, template_name, scheduled_for, status, created_by, conversation:wa_conversations(wa_contact_name, lead:leads(nome, sobrenome))')
+      .neq('status', 'cancelled')
+      .order('scheduled_for')
+    if (data) setMessages(data as unknown as ScheduledMsg[])
+  }
 
-  function tasksForDay(day: Date) {
-    return filtered.filter(t => t.data_limite && isSameDay(parseISO(t.data_limite), day))
+  const items: AgendaItem[] = [
+    ...tasks
+      .filter(t => !filterResponsavel || t.responsavel_id === filterResponsavel)
+      .filter(t => t.data_limite)
+      .map(t => ({ kind: 'task' as const, id: t.id, date: t.data_limite!, task: t })),
+    ...messages
+      .filter(m => !filterResponsavel || m.created_by === filterResponsavel)
+      .map(m => ({ kind: 'message' as const, id: m.id, date: m.scheduled_for, message: m })),
+  ]
+
+  function itemsForDay(day: Date) {
+    return items.filter(it => isSameDay(itemDate(it), day))
+  }
+
+  function handleItemClick(item: AgendaItem) {
+    if (item.kind === 'task') setSelectedTask(item.task)
+    else setSelectedMsg(item.message)
   }
 
   function prev() {
@@ -211,18 +284,18 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
         {view === 'month' && (
           <MonthView
             currentDate={currentDate}
-            tasksForDay={tasksForDay}
+            itemsForDay={itemsForDay}
             onDayClick={d => { setCurrentDate(d); setView('day') }}
-            onTaskClick={setSelectedTask}
+            onItemClick={handleItemClick}
             onNewTask={d => { setNewFormDate(d); setShowNewForm(true) }}
           />
         )}
         {(view === 'week' || view === 'day') && (
           <TimeGridView
             days={view === 'week' ? getWeekDays(currentDate) : [currentDate]}
-            tasksForDay={tasksForDay}
+            itemsForDay={itemsForDay}
             now={now}
-            onTaskClick={setSelectedTask}
+            onItemClick={handleItemClick}
             onSlotClick={d => { setNewFormDate(d); setShowNewForm(true) }}
           />
         )}
@@ -234,6 +307,14 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
           profiles={profiles}
           onClose={() => setSelectedTask(null)}
           onUpdated={() => { reloadTasks(); setSelectedTask(null) }}
+        />
+      )}
+
+      {selectedMsg && (
+        <ScheduledMessageModal
+          msg={selectedMsg}
+          onClose={() => setSelectedMsg(null)}
+          onCancelled={() => { reloadMessages(); setSelectedMsg(null) }}
         />
       )}
 
@@ -254,15 +335,15 @@ export default function AgendaClient({ initialTasks, profiles, currentUser }: Pr
 
 function MonthView({
   currentDate,
-  tasksForDay,
+  itemsForDay,
   onDayClick,
-  onTaskClick,
+  onItemClick,
   onNewTask,
 }: {
   currentDate: Date
-  tasksForDay: (d: Date) => TaskWithLead[]
+  itemsForDay: (d: Date) => AgendaItem[]
   onDayClick: (d: Date) => void
-  onTaskClick: (t: TaskWithLead) => void
+  onItemClick: (item: AgendaItem) => void
   onNewTask: (d: Date) => void
 }) {
   const grid  = getMonthGrid(currentDate)
@@ -285,7 +366,7 @@ function MonthView({
         style={{ gridTemplateRows: `repeat(${weeks}, 1fr)` }}
       >
         {grid.map(day => {
-          const dayTasks = tasksForDay(day)
+          const dayItems = itemsForDay(day)
           const inMonth  = isSameMonth(day, currentDate)
           const today    = isToday(day)
 
@@ -318,29 +399,28 @@ function MonthView({
                 </button>
               </div>
 
-              {dayTasks.slice(0, 3).map(task => {
-                const c = taskColor(task)
+              {dayItems.slice(0, 3).map(item => {
+                const c = itemColor(item)
                 return (
                   <button
-                    key={task.id}
-                    onClick={() => onTaskClick(task)}
+                    key={item.id}
+                    onClick={() => onItemClick(item)}
                     className="w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate font-medium border"
                     style={{ ...c.style, borderColor: c.barColor + '55' }}
                   >
-                    {task.data_limite && (
-                      <span className="opacity-70 mr-1">{format(parseISO(task.data_limite), 'HH:mm')}</span>
-                    )}
-                    {task.titulo}
+                    <span className="opacity-70 mr-1">{format(itemDate(item), 'HH:mm')}</span>
+                    {item.kind === 'message' && <span className="mr-0.5">💬</span>}
+                    {itemTitle(item)}
                   </button>
                 )
               })}
 
-              {dayTasks.length > 3 && (
+              {dayItems.length > 3 && (
                 <button
                   onClick={() => onDayClick(day)}
                   className="text-[10px] text-gray-400 hover:text-blue-500 text-left pl-1 transition-colors"
                 >
-                  +{dayTasks.length - 3} mais
+                  +{dayItems.length - 3} mais
                 </button>
               )}
             </div>
@@ -355,15 +435,15 @@ function MonthView({
 
 function TimeGridView({
   days,
-  tasksForDay,
+  itemsForDay,
   now,
-  onTaskClick,
+  onItemClick,
   onSlotClick,
 }: {
   days: Date[]
-  tasksForDay: (d: Date) => TaskWithLead[]
+  itemsForDay: (d: Date) => AgendaItem[]
   now: Date
-  onTaskClick: (t: TaskWithLead) => void
+  onItemClick: (item: AgendaItem) => void
   onSlotClick: (d: Date) => void
 }) {
   const gridRef = useRef<HTMLDivElement>(null)
@@ -416,7 +496,7 @@ function TimeGridView({
 
           {/* Day columns */}
           {days.map(day => {
-            const dayTasks = tasksForDay(day)
+            const dayItems = itemsForDay(day)
             const showNow  = isToday(day) && nowTop >= 0 && nowTop <= TOTAL_H
 
             return (
@@ -467,13 +547,15 @@ function TimeGridView({
                 )}
 
                 {/* Events */}
-                {dayTasks.map(task => {
-                  const dt  = parseISO(task.data_limite!)
+                {dayItems.map(item => {
+                  const dt  = itemDate(item)
                   const top = taskTop(dt)
-                  const c   = taskColor(task)
+                  const c   = itemColor(item)
+                  const done = item.kind === 'task' ? item.task.concluida : item.message.status === 'sent'
+                  const subtitle = itemSubtitle(item)
                   return (
                     <div
-                      key={task.id}
+                      key={item.id}
                       className="absolute left-1 right-1 rounded-lg px-2 py-1 cursor-pointer hover:z-10 hover:shadow-md transition-shadow"
                       style={{
                         ...c.style,
@@ -481,19 +563,17 @@ function TimeGridView({
                         height: `${EVENT_H}px`,
                         borderLeft: `3px solid ${c.barColor}`,
                       }}
-                      onClick={e => { e.stopPropagation(); onTaskClick(task) }}
+                      onClick={e => { e.stopPropagation(); onItemClick(item) }}
                     >
-                      <p className={`text-[11px] font-semibold truncate ${task.concluida ? 'line-through opacity-60' : ''}`}>
-                        {format(dt, 'HH:mm')} · {task.titulo}
+                      <p className={`text-[11px] font-semibold truncate ${done ? 'line-through opacity-60' : ''}`}>
+                        {format(dt, 'HH:mm')} · {item.kind === 'message' && '💬 '}{itemTitle(item)}
                       </p>
-                      {task.lead && (
-                        <p className="text-[10px] truncate opacity-75 mt-0.5">
-                          {task.lead.nome}{task.lead.sobrenome ? ` ${task.lead.sobrenome}` : ''}
-                        </p>
+                      {subtitle && (
+                        <p className="text-[10px] truncate opacity-75 mt-0.5">{subtitle}</p>
                       )}
-                      {task.responsavel && (
+                      {item.kind === 'task' && item.task.responsavel && (
                         <p className="text-[10px] truncate opacity-60">
-                          {displayName(task.responsavel)}
+                          {displayName(item.task.responsavel)}
                         </p>
                       )}
                     </div>
@@ -717,6 +797,100 @@ function TaskDetailModal({
             </>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Scheduled message modal ─────────────────────────────────────────────────
+
+function ScheduledMessageModal({
+  msg,
+  onClose,
+  onCancelled,
+}: {
+  msg: ScheduledMsg
+  onClose: () => void
+  onCancelled: () => void
+}) {
+  const [cancelling, setCancelling] = useState(false)
+  const [confirm,    setConfirm]    = useState(false)
+
+  const contactName = msg.conversation?.lead
+    ? `${msg.conversation.lead.nome}${msg.conversation.lead.sobrenome ? ` ${msg.conversation.lead.sobrenome}` : ''}`
+    : msg.conversation?.wa_contact_name
+
+  const statusLabel = { pending: 'Agendada', sent: 'Enviada', failed: 'Falhou' }[msg.status]
+  const statusColor = { pending: 'text-violet-600', sent: 'text-emerald-600', failed: 'text-red-600' }[msg.status]
+
+  async function handleCancel() {
+    setCancelling(true)
+    await fetch(`/api/whatsapp/schedule?id=${msg.id}`, { method: 'DELETE' })
+    setCancelling(false)
+    onCancelled()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="w-3 h-3 rounded-full mt-1 shrink-0 bg-violet-400" />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-gray-900">
+                {msg.type === 'template' ? `📋 ${msg.template_name}` : 'Mensagem agendada'}
+              </h3>
+              {contactName && <p className="text-xs text-gray-500 mt-0.5">{contactName}</p>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors shrink-0 ml-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {format(parseISO(msg.scheduled_for), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+          </div>
+          <p className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</p>
+          {msg.content && (
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2 whitespace-pre-wrap">{msg.content}</p>
+          )}
+        </div>
+
+        {/* Actions */}
+        {msg.status === 'pending' && (
+          <div className="flex items-center gap-2 px-5 pb-5">
+            {confirm ? (
+              <>
+                <p className="text-xs text-gray-500 flex-1">Cancelar este agendamento?</p>
+                <button onClick={handleCancel} disabled={cancelling} className="py-1.5 px-3 bg-red-500 text-white rounded-xl text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+                  {cancelling ? 'Cancelando…' : 'Confirmar'}
+                </button>
+                <button onClick={() => setConfirm(false)} className="py-1.5 px-3 border border-gray-200 text-gray-600 rounded-xl text-xs hover:bg-gray-50 transition-colors">
+                  Não
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirm(true)}
+                className="flex-1 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
+              >
+                Cancelar agendamento
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
