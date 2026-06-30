@@ -117,13 +117,18 @@ export async function POST(req: NextRequest) {
 
   const payload = { name: body.name, category: body.category ?? 'UTILITY', language: body.language ?? 'pt_BR', components }
 
-  const res    = await fetch(`${META}/${wabaId}/message_templates`, {
+  const res     = await fetch(`${META}/${wabaId}/message_templates`, {
     method: 'POST', headers: metaHeaders(accessToken), body: JSON.stringify(payload),
   })
-  const result = await res.json() as { id?: string; status?: string; error?: { message: string } }
+  const rawText = await res.text()
+  let result: { id?: string; status?: string; error?: { message: string; error_user_msg?: string; error_subcode?: number } } = {}
+  try { result = JSON.parse(rawText) } catch { /* raw text fallback abaixo */ }
 
-  if (result.error || !res.ok)
-    return NextResponse.json({ error: result.error?.message ?? 'Erro ao criar template no Meta' }, { status: res.status })
+  if (result.error || !res.ok) {
+    console.error(`[meta-templates POST] status=${res.status} payload=${JSON.stringify(payload)} response=${rawText}`)
+    const msg = result.error?.error_user_msg ?? result.error?.message ?? 'Erro ao criar template no Meta'
+    return NextResponse.json({ error: msg }, { status: res.status })
+  }
 
   if (unitId) {
     await admin.from('wa_message_templates').upsert({
