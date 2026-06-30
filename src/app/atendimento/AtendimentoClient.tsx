@@ -455,6 +455,59 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setChatInput('')
   }
 
+  async function handleScheduleTemplate(t: WaTemplate, scheduledFor: string) {
+    if (!selectedConv) return
+
+    if (t.category === 'custom') {
+      await fetch('/api/whatsapp/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: t.content, scheduled_for: scheduledFor }) })
+      return
+    }
+
+    // Monta os parâmetros das variáveis {{N}} e o texto renderizado, usando a data agendada para data/horário
+    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
+    let components: object[] | undefined
+    let renderedText = t.content
+    if (varCount > 0) {
+      const clientName = selectedConv.lead
+        ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
+        : (selectedConv.wa_contact_name ?? selectedConv.wa_phone)
+      const agentName = displayName(currentUser)
+      const sendAt = new Date(scheduledFor)
+      const resolveVar = (id: string): string => {
+        switch (id) {
+          case 'nome_cliente':   return clientName
+          case 'nome_atendente': return agentName
+          case 'data':           return format(sendAt, 'dd/MM/yyyy')
+          case 'horario':        return format(sendAt, 'HH:mm')
+          default:                return ''
+        }
+      }
+      const order = t.variable_order && t.variable_order.length === varCount
+        ? t.variable_order
+        : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+      const values = order.map(resolveVar)
+      components = [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }]
+      renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
+    }
+
+    const res = await fetch('/api/whatsapp/schedule', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: selectedConv.id,
+        type:             'template',
+        template_name:    t.template_name,
+        language:         t.language ?? 'pt_BR',
+        components,
+        content:          renderedText,
+        scheduled_for:    scheduledFor,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      alert(data.error ?? 'Erro ao agendar template')
+    }
+  }
+
   // ── Status ──────────────────────────────────────────────────────────────────
   async function updateStatus(status: 'open' | 'pending' | 'resolved') {
     if (!selectedConv) return
@@ -636,7 +689,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 <div ref={msgsEndRef} />
               </div>
               <ChatInput value={chatInput} onChange={setChatInput} onSend={handleSend}
-                onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend}
+                onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
                 templates={templates} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
                 unitId={currentUser.unit_id ?? ''}
                 onTemplatesReload={async () => {
@@ -1056,10 +1109,11 @@ function InternalNoteBubble({ note }: { note: WaNote }) {
 
 // ── ChatInput ─────────────────────────────────────────────────────────────────
 
-function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onScheduleSend, templates, quickReplies, sending, mode, onModeChange, unitId, onTemplatesReload, onQuickRepliesReload, isOutside24hWindow, signatureEnabled, onToggleSignature, signerName }: {
+function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onScheduleSend, onScheduleTemplate, templates, quickReplies, sending, mode, onModeChange, unitId, onTemplatesReload, onQuickRepliesReload, isOutside24hWindow, signatureEnabled, onToggleSignature, signerName }: {
   value: string; onChange: (v: string) => void; onSend: () => void
   onMediaUpload: (file: File) => void; onTemplateSend: (t: WaTemplate) => void
   onScheduleSend: (content: string, scheduledFor: string) => void
+  onScheduleTemplate: (t: WaTemplate, scheduledFor: string) => void
   templates: WaTemplate[]; quickReplies: WaQuickReply[]
   sending: boolean; mode: InputMode; onModeChange: (m: InputMode) => void
   unitId: string; onTemplatesReload: () => Promise<void>; onQuickRepliesReload: () => void
@@ -1078,6 +1132,7 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   const [showQuickReplies, setShowQuickReplies]  = useState(false)
   const [scheduleMode,     setScheduleMode]      = useState(false)
   const [scheduleFor,      setScheduleFor]       = useState('')
+  const [scheduleTemplate, setScheduleTemplate]  = useState<WaTemplate | null>(null)
   const [tmplSearch,       setTmplSearch]        = useState('')
   const [qrFilter,         setQrFilter]          = useState('')
   const [showNewTmpl,      setShowNewTmpl]       = useState(false)
@@ -1165,7 +1220,15 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   }
 
   function pickTemplate(t: WaTemplate) {
-    if (t.category === 'meta_api') onTemplateSend(t); else onChange(t.content)
+    if (scheduleMode && t.category === 'meta_api') {
+      // No modo agendar, templates Meta só ficam selecionados — o envio acontece ao clicar "Agendar"
+      setScheduleTemplate(t)
+    } else if (!scheduleMode && t.category === 'meta_api') {
+      onTemplateSend(t)
+    } else {
+      onChange(t.content)
+      setScheduleTemplate(null)
+    }
     setShowTemplates(false)
   }
 
@@ -1319,11 +1382,11 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
 
       {/* Mode toggle */}
       <div style={{ padding: '6px 14px 0', display: 'flex', gap: 4, alignItems: 'center' }}>
-        <button onClick={() => { onModeChange('text'); setScheduleMode(false) }}
+        <button onClick={() => { onModeChange('text'); setScheduleMode(false); setScheduleTemplate(null) }}
           style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: !isNote ? '#0098DA' : '#F1F4F7', color: !isNote ? '#fff' : '#8FA0AF' }}>
           Mensagem
         </button>
-        <button onClick={() => { onModeChange('note'); setScheduleMode(false); setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) }}
+        <button onClick={() => { onModeChange('note'); setScheduleMode(false); setScheduleTemplate(null); setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) }}
           style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: isNote ? '#F59E0B' : '#F1F4F7', color: isNote ? '#fff' : '#8FA0AF' }}>
           Nota interna
         </button>
@@ -1350,7 +1413,19 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
               minNow
             />
           </div>
-          <button onClick={() => { setScheduleMode(false); setScheduleFor('') }} style={{ fontSize: 13, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={() => { setScheduleMode(false); setScheduleFor(''); setScheduleTemplate(null) }} style={{ fontSize: 13, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
+      {/* Template selecionado para agendamento */}
+      {scheduleMode && scheduleTemplate && (
+        <div style={{ margin: '6px 14px 0', padding: '8px 12px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <IconTemplate />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#5B21B6', margin: 0 }}>{scheduleTemplate.name}</p>
+            <p style={{ fontSize: 11, color: '#7C3AED', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scheduleTemplate.content}</p>
+          </div>
+          <button onClick={() => setScheduleTemplate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7C3AED', fontSize: 14, lineHeight: 1 }}>×</button>
         </div>
       )}
 
@@ -1404,17 +1479,27 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
           </>
         ) : (
           <>
-            <textarea value={value} onChange={e => onChange(e.target.value)}
+            <textarea value={scheduleTemplate ? '' : value} onChange={e => onChange(e.target.value)}
+              disabled={!!scheduleTemplate}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !scheduleMode) { e.preventDefault(); onSend() } if (e.key === 'Escape') { setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) } }}
-              placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}
+              placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleTemplate ? 'Template selecionado acima — escolha a data e clique em Agendar' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}
               rows={1}
-              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#E8EDF2'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto', background: isNote ? '#FFFBEB' : '#F8FAFB' }}
+              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#E8EDF2'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#F8FAFB' }}
             />
 
             {scheduleMode ? (
-              <button onClick={() => { if (!value.trim() || !scheduleFor) return; onScheduleSend(value.trim(), new Date(scheduleFor).toISOString()); setScheduleMode(false); setScheduleFor('') }}
-                disabled={!value.trim() || !scheduleFor}
-                style={{ padding: '0 14px', height: 38, borderRadius: 9, flexShrink: 0, cursor: value.trim() && scheduleFor ? 'pointer' : 'default', background: value.trim() && scheduleFor ? '#8B5CF6' : '#E8EDF2', border: 'none', fontSize: 11, fontWeight: 700, color: value.trim() && scheduleFor ? '#fff' : '#B0BEC9', whiteSpace: 'nowrap' }}>
+              <button onClick={() => {
+                  if (!scheduleFor) return
+                  if (scheduleTemplate) {
+                    onScheduleTemplate(scheduleTemplate, new Date(scheduleFor).toISOString())
+                  } else {
+                    if (!value.trim()) return
+                    onScheduleSend(value.trim(), new Date(scheduleFor).toISOString())
+                  }
+                  setScheduleMode(false); setScheduleFor(''); setScheduleTemplate(null)
+                }}
+                disabled={!scheduleFor || (!value.trim() && !scheduleTemplate)}
+                style={{ padding: '0 14px', height: 38, borderRadius: 9, flexShrink: 0, cursor: scheduleFor && (value.trim() || scheduleTemplate) ? 'pointer' : 'default', background: scheduleFor && (value.trim() || scheduleTemplate) ? '#8B5CF6' : '#E8EDF2', border: 'none', fontSize: 11, fontWeight: 700, color: scheduleFor && (value.trim() || scheduleTemplate) ? '#fff' : '#B0BEC9', whiteSpace: 'nowrap' }}>
                 Agendar ▶
               </button>
             ) : value.trim() ? (

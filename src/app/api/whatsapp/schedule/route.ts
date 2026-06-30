@@ -10,17 +10,24 @@ function adminClient() {
 }
 
 // POST /api/whatsapp/schedule
-// Body: { conversation_id, content, scheduled_for (ISO) }
+// Body texto:    { conversation_id, content, scheduled_for (ISO) }
+// Body template: { conversation_id, type: "template", template_name, language, components, content (texto renderizado p/ exibição), scheduled_for }
 export async function POST(req: NextRequest) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const body = await req.json() as { conversation_id: string; content: string; scheduled_for: string }
-  const { conversation_id, content, scheduled_for } = body
+  const body = await req.json() as {
+    conversation_id: string; content: string; scheduled_for: string
+    type?: 'text' | 'template'; template_name?: string; language?: string; components?: object[]
+  }
+  const { conversation_id, content, scheduled_for, type = 'text', template_name, language, components } = body
 
   if (!conversation_id || !content?.trim() || !scheduled_for) {
     return NextResponse.json({ error: 'conversation_id, content e scheduled_for são obrigatórios' }, { status: 400 })
+  }
+  if (type === 'template' && !template_name) {
+    return NextResponse.json({ error: 'template_name obrigatório para agendar template' }, { status: 400 })
   }
   if (new Date(scheduled_for) <= new Date()) {
     return NextResponse.json({ error: 'A data de agendamento deve ser no futuro' }, { status: 400 })
@@ -36,7 +43,10 @@ export async function POST(req: NextRequest) {
     conversation_id,
     unit_id:       conv.unit_id,
     content:       content.trim(),
-    type:          'text',
+    type,
+    template_name: type === 'template' ? template_name : null,
+    language:      type === 'template' ? (language ?? 'pt_BR') : null,
+    components:    type === 'template' ? (components ?? []) : null,
     scheduled_for: new Date(scheduled_for).toISOString(),
     status:        'pending',
     created_by:    user.id,
@@ -45,11 +55,12 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // System note in chat so the team can see it
+  const label = type === 'template' ? `📋 Template "${template_name}"` : 'Mensagem agendada'
   await admin.from('wa_internal_notes').insert({
     conversation_id,
     unit_id:   conv.unit_id,
     author_id: user.id,
-    content:   `🕐 Mensagem agendada para ${new Date(scheduled_for).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}:\n"${content.trim()}"`,
+    content:   `🕐 ${label} para ${new Date(scheduled_for).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}:\n"${content.trim()}"`,
   })
 
   return NextResponse.json({ success: true, id: data.id, scheduled_for: data.scheduled_for })
