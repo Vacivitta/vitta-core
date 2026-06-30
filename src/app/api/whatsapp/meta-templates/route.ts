@@ -97,9 +97,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Corpo da mensagem é obrigatório' }, { status: 400 })
 
   const components: MetaComponent[] = []
-  if (body.header_type && body.header_text?.trim())
-    components.push({ type: 'HEADER', format: body.header_type, text: body.header_text.trim() })
-  components.push({ type: 'BODY', text: body.body_text.trim() })
+
+  if (body.header_type && body.header_text?.trim()) {
+    const headerComponent: MetaComponent = { type: 'HEADER', format: body.header_type, text: body.header_text.trim() }
+    if (/\{\{\d+\}\}/.test(body.header_text) && body.header_variable_examples?.length)
+      headerComponent.example = { header_text: body.header_variable_examples }
+    components.push(headerComponent)
+  }
+
+  const bodyComponent: MetaComponent = { type: 'BODY', text: body.body_text.trim() }
+  if (/\{\{\d+\}\}/.test(body.body_text) && body.body_variable_examples?.length)
+    bodyComponent.example = { body_text: [body.body_variable_examples] }
+  components.push(bodyComponent)
+
   if (body.footer_text?.trim())
     components.push({ type: 'FOOTER', text: body.footer_text.trim() })
   if (body.buttons && body.buttons.length > 0)
@@ -175,6 +185,7 @@ interface MetaTemplate {
 
 interface MetaComponent {
   type: string; format?: string; text?: string; buttons?: MetaButton[]
+  example?: { header_text?: string[]; body_text?: string[][] }
 }
 
 interface MetaButton {
@@ -187,7 +198,9 @@ interface CreateTemplateBody {
   language:    string
   header_type?: 'TEXT'
   header_text?: string
+  header_variable_examples?: string[]
   body_text:   string
+  body_variable_examples?: string[]
   footer_text?: string
   buttons?:    MetaButton[]
 }

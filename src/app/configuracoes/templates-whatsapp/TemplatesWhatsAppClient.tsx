@@ -256,6 +256,8 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     if (!/^[a-z0-9_]+$/.test(form.name)) { setFormError('Nome: apenas letras minúsculas, números e underscore'); return }
     if (!form.body_text.trim()) { setFormError('Corpo da mensagem é obrigatório'); return }
 
+    const bodyVariableExamples = varOrder.map(id => VARIABLES.find(v => v.id === id)?.example ?? '')
+
     setSaving(true)
     const res = await fetch('/api/whatsapp/meta-templates', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -266,6 +268,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
         header_text: form.header_text || undefined,
         header_type: form.header_text ? 'TEXT' : undefined,
         body_text:   form.body_text,
+        body_variable_examples: bodyVariableExamples.length > 0 ? bodyVariableExamples : undefined,
         footer_text: form.footer_text || undefined,
       }),
     })
