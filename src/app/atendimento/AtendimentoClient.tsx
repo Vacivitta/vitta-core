@@ -227,6 +227,27 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, currentUser.unit_id])
 
+  type RenderItem = ChatItem | { kind: 'date'; label: string; key: string }
+  const chatRenderItems = useMemo<RenderItem[]>(() => {
+    const result: RenderItem[] = []
+    let lastDate = ''
+    for (const item of chatItems) {
+      const d = new Date(item.created_at)
+      const dateKey = format(d, 'yyyy-MM-dd')
+      if (dateKey !== lastDate) {
+        const label = isToday(d) ? 'Hoje'
+          : isYesterday(d) ? 'Ontem'
+          : d.getFullYear() === new Date().getFullYear()
+            ? format(d, "d 'de' MMM", { locale: ptBR })
+            : format(d, 'dd/MM/yyyy')
+        result.push({ kind: 'date', label, key: `date-${dateKey}` })
+        lastDate = dateKey
+      }
+      result.push(item)
+    }
+    return result
+  }, [chatItems])
+
   const isOutside24hWindow = useMemo(() => {
     if (!msgsLoaded || chatItems.length === 0) return false
     const msgs = chatItems.filter(i => i.kind === 'message')
@@ -710,9 +731,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#0098DA" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#B0BEC9', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
-                {msgsLoaded && chatItems.map(item => item.kind === 'message'
-                  ? <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} />
-                  : <InternalNoteBubble key={item.id} note={item.note!} />)}
+                {msgsLoaded && chatRenderItems.map(item =>
+                  item.kind === 'date'
+                    ? <DateSeparator key={item.key} label={item.label} />
+                    : item.kind === 'message'
+                      ? <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} />
+                      : <InternalNoteBubble key={item.id} note={item.note!} />
+                )}
                 <div ref={msgsEndRef} />
               </div>
               <ChatInput value={chatInput} onChange={setChatInput} onSend={handleSend}
@@ -1256,6 +1281,20 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
           </svg>
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── DateSeparator ─────────────────────────────────────────────────────────────
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', flexShrink: 0 }}>
+      <div style={{ flex: 1, height: 1, background: '#F1F4F7' }} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: '#A0ADB8', background: '#F4F6F8', borderRadius: 99, padding: '3px 12px', border: '1px solid #EDF0F3', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
+      <div style={{ flex: 1, height: 1, background: '#F1F4F7' }} />
     </div>
   )
 }
