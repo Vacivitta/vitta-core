@@ -938,25 +938,68 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
   soundEnabled: boolean; onToggleSound: () => void
   unitTags: ConvTag[]; filterTag: string; onFilterTag: (t: string) => void
 }) {
+  const [openDrop, setOpenDrop] = useState<'status' | 'queue' | 'tag' | null>(null)
+  const filterBarRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onOut(e: MouseEvent) {
+      if (filterBarRef.current && !filterBarRef.current.contains(e.target as Node)) setOpenDrop(null)
+    }
+    document.addEventListener('mousedown', onOut)
+    return () => document.removeEventListener('mousedown', onOut)
+  }, [])
+
+  function toggleDrop(name: 'status' | 'queue' | 'tag') {
+    setOpenDrop(prev => prev === name ? null : name)
+  }
+
+  const STATUS_DOT: Record<string, string> = { all: '#B0BEC9', open: '#25D366', pending: '#F59E0B', resolved: '#E5484D' }
+  const activeQueue = queues.find(q => q.id === filterQueue)
+  const activeTag   = unitTags.find(t => t.id === filterTag)
+
+  const pillBase: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+    borderRadius: 99, border: '1px solid #E8EDF2', background: '#F8FAFB',
+    fontSize: 11, fontWeight: 600, color: '#8FA0AF', cursor: 'pointer',
+    whiteSpace: 'nowrap', userSelect: 'none' as const,
+  }
+  const pillActive: React.CSSProperties = {
+    ...pillBase, background: '#F0F8FF', borderColor: '#0098DA', color: '#0098DA',
+  }
+
+  const dropBase: React.CSSProperties = {
+    position: 'absolute', top: 'calc(100% + 5px)', left: 0,
+    background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.10)', padding: 6, zIndex: 300, minWidth: 150,
+  }
+
+  const dropItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
+    background: active ? '#F0F8FF' : 'none', border: 'none', cursor: 'pointer',
+    borderRadius: 7, fontSize: 12, fontWeight: active ? 600 : 400,
+    color: active ? '#0098DA' : '#0E2C3D', textAlign: 'left' as const,
+  })
+
+  const ChevronDown = () => (
+    <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  )
+
   return (
     <div style={{ width: 300, minWidth: 300, borderRight: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
-      <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid #F1F4F7', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Topo: título + ações */}
+      <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #F1F4F7', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Conversas</p>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {totalUnread > 0 && <span style={{ background: '#25D366', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 7px' }}>{totalUnread}</span>}
-            <button onClick={() => onFilterMine(!filterMine)}
-              style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, borderRadius: 6, border: '1px solid', cursor: 'pointer',
-                background: filterMine ? '#0098DA' : 'transparent', color: filterMine ? '#fff' : '#8FA0AF', borderColor: filterMine ? '#0098DA' : '#E8EDF2' }}>
-              Minhas
-            </button>
-            <button onClick={onToggleSound} title={soundEnabled ? 'Silenciar notificações' : 'Ativar notificações sonoras'}
-              style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: soundEnabled ? '#F0F8FF' : '#F8FAFB', color: soundEnabled ? '#0098DA' : '#B0BEC9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <button onClick={onToggleSound} title={soundEnabled ? 'Silenciar' : 'Ativar som'}
+              style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: soundEnabled ? '#F0F8FF' : '#F8FAFB', color: soundEnabled ? '#0098DA' : '#B0BEC9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               {soundEnabled ? (
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
                 </svg>
               ) : (
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -966,11 +1009,13 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               )}
             </button>
             <button onClick={onNewConv} title="Nova conversa"
-              style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: '#F0F8FF', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: '#F0F8FF', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
         </div>
+
+        {/* Search */}
         <div style={{ position: 'relative' }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#B0BEC9', pointerEvents: 'none' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -978,47 +1023,90 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           <input type="text" placeholder="Buscar contato..." value={search} onChange={e => onSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 28, paddingRight: 8, paddingTop: 6, paddingBottom: 6, fontSize: 12, border: '1px solid #E8EDF2', borderRadius: 8, background: '#F8FAFB', outline: 'none', boxSizing: 'border-box' }} />
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {(['all', 'open', 'pending', 'resolved'] as ConvStatus[]).map(s => (
-            <button key={s} onClick={() => onFilterStatus(s)}
-              style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer',
-                background: filterStatus === s ? '#0E2C3D' : 'transparent', color: filterStatus === s ? '#fff' : '#8FA0AF', borderColor: filterStatus === s ? '#0E2C3D' : '#E8EDF2' }}>
-              {STATUS_LABELS[s]}
+
+        {/* Filter pill bar */}
+        <div ref={filterBarRef} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+
+          {/* Status pill */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => toggleDrop('status')} style={filterStatus !== 'all' ? pillActive : pillBase}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[filterStatus] ?? '#B0BEC9', flexShrink: 0 }} />
+              {filterStatus === 'all' ? 'Status' : STATUS_LABELS[filterStatus]}
+              <ChevronDown />
             </button>
-          ))}
+            {openDrop === 'status' && (
+              <div style={dropBase}>
+                {(['all', 'open', 'pending', 'resolved'] as ConvStatus[]).map(s => (
+                  <button key={s} onClick={() => { onFilterStatus(s); setOpenDrop(null) }} style={dropItem(filterStatus === s)}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_DOT[s], flexShrink: 0 }} />
+                    {STATUS_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Fila pill */}
+          {queues.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => toggleDrop('queue')} style={filterQueue !== 'all' ? { ...pillActive, borderColor: activeQueue?.cor ?? '#0098DA', color: activeQueue?.cor ?? '#0098DA', background: (activeQueue?.cor ?? '#0098DA') + '15' } : pillBase}>
+                {activeQueue && <span style={{ width: 7, height: 7, borderRadius: '50%', background: activeQueue.cor, flexShrink: 0 }} />}
+                {filterQueue === 'all' ? 'Fila' : activeQueue?.nome ?? 'Fila'}
+                <ChevronDown />
+              </button>
+              {openDrop === 'queue' && (
+                <div style={dropBase}>
+                  <button onClick={() => { onFilterQueue('all'); setOpenDrop(null) }} style={dropItem(filterQueue === 'all')}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B0BEC9', flexShrink: 0 }} />
+                    Todas
+                  </button>
+                  <div style={{ height: 1, background: '#F1F4F7', margin: '4px 0' }} />
+                  {queues.map(q => (
+                    <button key={q.id} onClick={() => { onFilterQueue(q.id); setOpenDrop(null) }} style={dropItem(filterQueue === q.id)}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: q.cor, flexShrink: 0 }} />
+                      {q.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tag pill */}
+          {unitTags.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => toggleDrop('tag')} style={filterTag !== 'all' ? { ...pillActive, borderColor: activeTag?.color ?? '#0098DA', color: activeTag?.color ?? '#0098DA', background: (activeTag?.color ?? '#0098DA') + '15' } : pillBase}>
+                {activeTag && <span style={{ width: 7, height: 7, borderRadius: '50%', background: activeTag.color, flexShrink: 0 }} />}
+                {filterTag === 'all' ? 'Tag' : activeTag?.name ?? 'Tag'}
+                <ChevronDown />
+              </button>
+              {openDrop === 'tag' && (
+                <div style={dropBase}>
+                  <button onClick={() => { onFilterTag('all'); setOpenDrop(null) }} style={dropItem(filterTag === 'all')}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B0BEC9', flexShrink: 0 }} />
+                    Todas
+                  </button>
+                  <div style={{ height: 1, background: '#F1F4F7', margin: '4px 0' }} />
+                  {unitTags.map(tag => (
+                    <button key={tag.id} onClick={() => { onFilterTag(filterTag === tag.id ? 'all' : tag.id); setOpenDrop(null) }} style={dropItem(filterTag === tag.id)}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
+                      {tag.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Minhas — ícone à direita */}
+          <button onClick={() => onFilterMine(!filterMine)} title={filterMine ? 'Ver todas' : 'Ver apenas minhas'}
+            style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 99, border: '1px solid', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s',
+              background: filterMine ? '#0098DA' : 'transparent', borderColor: filterMine ? '#0098DA' : '#E8EDF2', color: filterMine ? '#fff' : '#B0BEC9' }}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </button>
         </div>
-        {queues.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button onClick={() => onFilterQueue('all')} style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer', background: filterQueue === 'all' ? '#F1F4F7' : 'transparent', color: '#8FA0AF', borderColor: '#E8EDF2' }}>
-              Todas filas
-            </button>
-            {queues.map(q => (
-              <button key={q.id} onClick={() => onFilterQueue(q.id)}
-                style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer',
-                  background: filterQueue === q.id ? q.cor + '22' : 'transparent', color: filterQueue === q.id ? q.cor : '#8FA0AF', borderColor: filterQueue === q.id ? q.cor : '#E8EDF2' }}>
-                {q.nome}
-              </button>
-            ))}
-          </div>
-        )}
-        {unitTags.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button onClick={() => onFilterTag('all')}
-              style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer',
-                background: filterTag === 'all' ? '#F1F4F7' : 'transparent', color: '#8FA0AF', borderColor: '#E8EDF2' }}>
-              🏷️ Todas
-            </button>
-            {unitTags.map(tag => (
-              <button key={tag.id} onClick={() => onFilterTag(filterTag === tag.id ? 'all' : tag.id)}
-                style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer',
-                  background: filterTag === tag.id ? tag.color + '33' : 'transparent',
-                  color: filterTag === tag.id ? tag.color : '#8FA0AF',
-                  borderColor: filterTag === tag.id ? tag.color : '#E8EDF2' }}>
-                {tag.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {!loaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100 }}><Spinner size={20} color="#0098DA" /></div>}
