@@ -591,7 +591,7 @@ function TemplateCard({ template, onEdit, onDelete, onToggleDefault }: {
     numero: 1, status: 'rascunho' as const, motivo_recusa: null, responsavel_id: null,
     validade_ate: null, observacoes: null, total_calculado: 450,
     token_publico: 'preview', enviado_em: null, visualizado_em: null, aceito_em: null,
-    pacote_ativo: false, pacote_opcoes: null,
+    pacote_ativo: false, pacote_opcoes: null, paciente_nome: null,
     criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString(),
     items: [
       { id: '1', quote_id: 'preview', unit_id: template.unit_id, product_id: '1', nome_snapshot: 'Vacina Gripe Quadrivalente', descricao_snapshot: 'Proteção contra influenza A (H1N1, H3N2) e influenza B. Recomendada anualmente.', valor_snapshot: 150, quantidade: 1, desconto: 0, valor_final: 150, observacao: null, criado_em: '' },

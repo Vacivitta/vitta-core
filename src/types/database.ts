@@ -319,6 +319,7 @@ export interface Quote {
   aceito_em:       string | null
   pacote_ativo:    boolean
   pacote_opcoes:   PacoteOpcao[] | null
+  paciente_nome:   string | null
   criado_em:       string
   atualizado_em:   string
 }
@@ -397,6 +398,16 @@ export interface LeadStageHistory {
   para_stage_id: string
   movido_por:    string | null
   criado_em:     string
+}
+
+// ---- Tags de conversas WhatsApp --------------------------------------------
+
+export interface WaTag {
+  id:         string
+  unit_id:    string
+  name:       string
+  color:      string
+  created_at: string
 }
 
 // ---- Notificações ----------------------------------------------------------

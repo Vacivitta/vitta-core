@@ -111,7 +111,12 @@ export async function POST(req: NextRequest) {
 
   const components: MetaComponent[] = []
 
-  if (body.header_type && body.header_text?.trim()) {
+  if (body.header_type === 'IMAGE' && body.header_image_handle) {
+    components.push({
+      type: 'HEADER', format: 'IMAGE',
+      example: { header_handle: [body.header_image_handle] },
+    })
+  } else if (body.header_type === 'TEXT' && body.header_text?.trim()) {
     const headerComponent: MetaComponent = { type: 'HEADER', format: body.header_type, text: body.header_text.trim() }
     if (/\{\{\d+\}\}/.test(body.header_text) && body.header_variable_examples?.length)
       headerComponent.example = { header_text: body.header_variable_examples }
@@ -204,7 +209,7 @@ interface MetaTemplate {
 
 interface MetaComponent {
   type: string; format?: string; text?: string; buttons?: MetaButton[]
-  example?: { header_text?: string[]; body_text?: string[][] }
+  example?: { header_text?: string[]; header_handle?: string[]; body_text?: string[][] }
 }
 
 interface MetaButton {
@@ -215,8 +220,9 @@ interface CreateTemplateBody {
   name:        string
   category:    'MARKETING' | 'UTILITY' | 'AUTHENTICATION'
   language:    string
-  header_type?: 'TEXT'
+  header_type?: 'TEXT' | 'IMAGE'
   header_text?: string
+  header_image_handle?: string
   header_variable_examples?: string[]
   body_text:   string
   body_variable_examples?: string[]

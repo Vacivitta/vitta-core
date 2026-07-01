@@ -10,12 +10,16 @@ import { createClient } from '@/lib/supabase/client'
 import LeadModal from '@/components/leads/LeadModal'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
+import dynamic from 'next/dynamic'
+
+const EmojiPicker = dynamic(() => import('@emoji-mart/react'), { ssr: false })
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WaQueue     { id: string; nome: string; cor: string; auto_assign?: boolean }
 interface WaTemplate  { id: string; name: string; content: string; category: 'custom' | 'meta_api'; template_name: string | null; language: string | null; variable_order?: string[] }
 interface WaQuickReply{ id: string; shortcut: string; content: string }
+interface ConvTag     { id: string; name: string; color: string }
 
 interface WaConversation {
   id: string; wa_phone: string; wa_contact_name: string | null
@@ -26,6 +30,7 @@ interface WaConversation {
   last_message_content?: string | null
   last_message_direction?: 'inbound' | 'outbound' | null
   lead?: { nome: string; sobrenome: string | null } | null
+  tags?: { tag: ConvTag }[]
 }
 
 interface WaMessage {
@@ -99,6 +104,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [filterStatus,  setFilterStatus]  = useState<ConvStatus>('all')
   const [filterQueue,   setFilterQueue]   = useState<string>('all')
   const [filterMine,    setFilterMine]    = useState(false)
+  const [filterTag,     setFilterTag]     = useState<string>('all')
+  const [unitTags,      setUnitTags]      = useState<ConvTag[]>([])
+  const [convTags,      setConvTags]      = useState<ConvTag[]>([])
   const [selectedConv,  setSelectedConv]  = useState<WaConversation | null>(null)
 
   const [chatItems,  setChatItems]  = useState<ChatItem[]>([])
@@ -120,6 +128,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   function selectConv(conv: WaConversation | null) {
     selectedConvIdRef.current = conv?.id ?? null
     setSelectedConv(conv)
+    setConvTags((conv?.tags ?? []).map(t => t.tag))
   }
 
   const [leadDetail,    setLeadDetail]    = useState<LeadDetail | null>(null)
@@ -262,13 +271,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     })()
     void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
+    void fetch('/api/whatsapp/tags').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
   }, [supabase])
 
   // ── Load conversations ──────────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
     const { data } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome)')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     const list = (data ?? []) as unknown as WaConversation[]
     // Garante que a conversa aberta não mostre badge de não lidas (race condition)
@@ -655,6 +665,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (filterStatus !== 'all' && c.status !== filterStatus) return false
     if (filterQueue !== 'all' && c.queue_id !== filterQueue) return false
     if (filterMine && c.assigned_to !== currentUser.id) return false
+    if (filterTag !== 'all' && !(c.tags ?? []).some(t => t.tag.id === filterTag)) return false
     const q = convSearch.toLowerCase()
     return !q
       || (c.wa_contact_name ?? c.wa_phone).toLowerCase().includes(q)
@@ -671,7 +682,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           search={convSearch} onSearch={setConvSearch} filterStatus={filterStatus} onFilterStatus={setFilterStatus}
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
           filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread}
-          onNewConv={() => setNewConvOpen(true)} soundEnabled={soundEnabled} onToggleSound={toggleSound} />
+          onNewConv={() => setNewConvOpen(true)} soundEnabled={soundEnabled} onToggleSound={toggleSound}
+          unitTags={unitTags} filterTag={filterTag} onFilterTag={setFilterTag} />
 
         {/* Chat */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F8FAFB', minWidth: 0, position: 'relative' }}>
@@ -680,6 +692,21 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
                 onStatusChange={updateStatus} onAssignAgent={assignAgent} onAssignQueue={assignQueue}
                 contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)} />
+              <ConvTagsBar
+                convId={selectedConv.id}
+                convTags={convTags}
+                unitTags={unitTags}
+                onTagAdded={tag => {
+                  setConvTags(prev => [...prev, tag])
+                  setConversations(prev => prev.map(c => c.id === selectedConv.id
+                    ? { ...c, tags: [...(c.tags ?? []), { tag }] } : c))
+                }}
+                onTagRemoved={tagId => {
+                  setConvTags(prev => prev.filter(t => t.id !== tagId))
+                  setConversations(prev => prev.map(c => c.id === selectedConv.id
+                    ? { ...c, tags: (c.tags ?? []).filter(t => t.tag.id !== tagId) } : c))
+                }}
+              />
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#0098DA" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#B0BEC9', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
@@ -825,14 +852,91 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
   )
 }
 
+// ── ConvTagsBar ───────────────────────────────────────────────────────────────
+
+function ConvTagsBar({ convId, convTags, unitTags, onTagAdded, onTagRemoved }: {
+  convId: string; convTags: ConvTag[]; unitTags: ConvTag[]
+  onTagAdded: (tag: ConvTag) => void; onTagRemoved: (tagId: string) => void
+}) {
+  const [showPicker, setShowPicker] = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowPicker(false)
+    }
+    if (showPicker) document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [showPicker])
+
+  async function addTag(tag: ConvTag) {
+    if (convTags.some(t => t.id === tag.id)) { setShowPicker(false); return }
+    setSaving(true)
+    await fetch('/api/whatsapp/conversation-tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: convId, tag_id: tag.id }),
+    })
+    onTagAdded(tag)
+    setSaving(false)
+    setShowPicker(false)
+  }
+
+  async function removeTag(tagId: string) {
+    await fetch(`/api/whatsapp/conversation-tags?conversation_id=${convId}&tag_id=${tagId}`, { method: 'DELETE' })
+    onTagRemoved(tagId)
+  }
+
+  const availableTags = unitTags.filter(t => !convTags.some(ct => ct.id === t.id))
+
+  if (unitTags.length === 0) return null
+
+  return (
+    <div style={{ padding: '6px 14px', borderBottom: '1px solid #F1F4F7', background: '#fff', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+      {convTags.map(tag => (
+        <span key={tag.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: tag.color + '22', color: tag.color, border: `1px solid ${tag.color}44` }}>
+          {tag.name}
+          <button onClick={() => void removeTag(tag.id)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: tag.color, fontSize: 11, fontWeight: 700, opacity: 0.7 }}>
+            ×
+          </button>
+        </span>
+      ))}
+      <div style={{ position: 'relative' }} ref={pickerRef}>
+        <button onClick={() => setShowPicker(v => !v)} disabled={saving}
+          style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, border: '1px dashed #C5D4DE', cursor: 'pointer', background: 'transparent', color: '#8FA0AF', display: 'flex', alignItems: 'center', gap: 3 }}>
+          🏷️ {convTags.length === 0 ? 'Adicionar tag' : '+'}
+        </button>
+        {showPicker && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 8, zIndex: 200, minWidth: 160 }}>
+            {availableTags.length === 0 ? (
+              <p style={{ fontSize: 11, color: '#B0BEC9', margin: 0, padding: '4px 6px' }}>Todas as tags já foram adicionadas</p>
+            ) : availableTags.map(tag => (
+              <button key={tag.id} onClick={() => void addTag(tag)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 7, fontSize: 12, color: '#0E2C3D', textAlign: 'left' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F1F4F7' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── ConvList ──────────────────────────────────────────────────────────────────
 
-function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound }: {
+function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag }: {
   convs: WaConversation[]; loaded: boolean; selected: WaConversation | null; onSelect: (c: WaConversation) => void
   search: string; onSearch: (q: string) => void; filterStatus: ConvStatus; onFilterStatus: (s: ConvStatus) => void
   filterQueue: string; onFilterQueue: (q: string) => void; queues: WaQueue[]; filterMine: boolean
   onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number; onNewConv: () => void
   soundEnabled: boolean; onToggleSound: () => void
+  unitTags: ConvTag[]; filterTag: string; onFilterTag: (t: string) => void
 }) {
   return (
     <div style={{ width: 300, minWidth: 300, borderRight: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
@@ -897,6 +1001,24 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
             ))}
           </div>
         )}
+        {unitTags.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            <button onClick={() => onFilterTag('all')}
+              style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer',
+                background: filterTag === 'all' ? '#F1F4F7' : 'transparent', color: '#8FA0AF', borderColor: '#E8EDF2' }}>
+              🏷️ Todas
+            </button>
+            {unitTags.map(tag => (
+              <button key={tag.id} onClick={() => onFilterTag(filterTag === tag.id ? 'all' : tag.id)}
+                style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 99, border: '1px solid', cursor: 'pointer',
+                  background: filterTag === tag.id ? tag.color + '33' : 'transparent',
+                  color: filterTag === tag.id ? tag.color : '#8FA0AF',
+                  borderColor: filterTag === tag.id ? tag.color : '#E8EDF2' }}>
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {!loaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100 }}><Spinner size={20} color="#0098DA" /></div>}
@@ -933,6 +1055,15 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                   </span>
                   {conv.unread_count > 0 && <span style={{ background: '#25D366', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
                 </div>
+                {(conv.tags ?? []).length > 0 && (
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
+                    {(conv.tags ?? []).map(({ tag }) => (
+                      <span key={tag.id} style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: tag.color + '22', color: tag.color, border: `1px solid ${tag.color}44`, letterSpacing: '0.02em' }}>
+                        {tag.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </button>
           )
@@ -1120,13 +1251,17 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
   isOutside24hWindow: boolean; signatureEnabled: boolean
   onToggleSignature: () => void; signerName: string
 }) {
-  const imageRef = useRef<HTMLInputElement>(null)
-  const videoRef = useRef<HTMLInputElement>(null)
-  const audioRef = useRef<HTMLInputElement>(null)
-  const docRef   = useRef<HTMLInputElement>(null)
-  const isNote   = mode === 'note'
+  const imageRef       = useRef<HTMLInputElement>(null)
+  const videoRef       = useRef<HTMLInputElement>(null)
+  const audioRef       = useRef<HTMLInputElement>(null)
+  const docRef         = useRef<HTMLInputElement>(null)
+  const textareaRef    = useRef<HTMLTextAreaElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const cursorPosRef   = useRef<number>(0)
+  const isNote         = mode === 'note'
 
   const [attachOpen,       setAttachOpen]       = useState(false)
+  const [showEmoji,        setShowEmoji]        = useState(false)
   const [showTemplates,    setShowTemplates]     = useState(false)
   const [tmplLoading,      setTmplLoading]       = useState(false)
   const [showQuickReplies, setShowQuickReplies]  = useState(false)
@@ -1152,6 +1287,38 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
     if (!isNote && value.startsWith('/')) { setQrFilter(value.slice(1).toLowerCase()); setShowQuickReplies(true); setAttachOpen(false) }
     else if (showQuickReplies && !value.startsWith('/')) setShowQuickReplies(false)
   }, [value, isNote]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!value && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [value])
+
+  useEffect(() => {
+    if (!showEmoji) return
+    function onOutsideClick(e: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmoji(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutsideClick)
+    return () => document.removeEventListener('mousedown', onOutsideClick)
+  }, [showEmoji])
+
+  function handleEmojiSelect(emoji: { native: string }) {
+    const pos = cursorPosRef.current
+    const newVal = value.slice(0, pos) + emoji.native + value.slice(pos)
+    onChange(newVal)
+    const newPos = pos + emoji.native.length
+    cursorPosRef.current = newPos
+    setShowEmoji(false)
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(newPos, newPos)
+      }
+    })
+  }
 
   useEffect(() => {
     return () => {
@@ -1460,6 +1627,21 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
           </div>
         )}
 
+        {/* Emoji picker */}
+        {!isNote && (
+          <div ref={emojiPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button onClick={() => setShowEmoji(v => !v)} title="Emoji"
+              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${showEmoji ? '#0098DA' : '#E8EDF2'}`, background: showEmoji ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
+              😊
+            </button>
+            {showEmoji && (
+              <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, zIndex: 300 }}>
+                <EmojiPicker data={async () => { const r = await import('@emoji-mart/data'); return r.default }} onEmojiSelect={handleEmojiSelect} locale="pt" theme="light" previewPosition="none" skinTonePosition="none" />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Recording UI */}
         {recording ? (
           <>
@@ -1479,12 +1661,14 @@ function ChatInput({ value, onChange, onSend, onMediaUpload, onTemplateSend, onS
           </>
         ) : (
           <>
-            <textarea value={scheduleTemplate ? '' : value} onChange={e => onChange(e.target.value)}
+            <textarea ref={textareaRef} value={scheduleTemplate ? '' : value} onChange={e => onChange(e.target.value)}
               disabled={!!scheduleTemplate}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !scheduleMode) { e.preventDefault(); onSend() } if (e.key === 'Escape') { setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) } }}
+              onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px' }}
+              onBlur={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
+              onSelect={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleTemplate ? 'Template selecionado acima — escolha a data e clique em Agendar' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}
-              rows={1}
-              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#E8EDF2'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#F8FAFB' }}
+              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#E8EDF2'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, minHeight: 38, maxHeight: 200, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#F8FAFB' }}
             />
 
             {scheduleMode ? (

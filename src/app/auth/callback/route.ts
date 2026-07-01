@@ -35,7 +35,10 @@ export async function GET(request: NextRequest) {
   // Flow token_hash — convites, recuperação de senha, confirmação de e-mail
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ token_hash, type })
-    if (!error) return NextResponse.redirect(`${origin}${next}`)
+    if (!error) {
+      const dest = type === 'recovery' ? '/auth/reset-password' : next
+      return NextResponse.redirect(`${origin}${dest}`)
+    }
   }
 
   return NextResponse.redirect(`${origin}/login?error=link_invalido`)

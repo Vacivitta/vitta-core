@@ -68,7 +68,8 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function patientName(q: { lead: PatientOption | null }): string {
+function patientName(q: { lead: PatientOption | null; paciente_nome?: string | null }): string {
+  if (q.paciente_nome?.trim()) return q.paciente_nome.trim()
   const p = q.lead
   if (!p) return '—'
   return `${p.nome}${p.sobrenome ? ` ${p.sobrenome}` : ''}`
@@ -140,6 +141,9 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
   const [motivoRecusa, setMotivoRecusa] = useState(editing?.motivo_recusa ?? '')
   const [observacoes,  setObservacoes]  = useState(editing?.observacoes ?? '')
   const [validadeAte,  setValidadeAte]  = useState(editing?.validade_ate ?? '')
+
+  const [pacienteNome,          setPacienteNome]          = useState(editing?.paciente_nome ?? '')
+  const [usarNomePersonalizado, setUsarNomePersonalizado] = useState(!!(editing?.paciente_nome?.trim()))
 
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
@@ -281,6 +285,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
       total_calculado: total,
       pacote_ativo:    pacoteAtivo,
       pacote_opcoes:   pacoteAtivo ? pacoteOpcoes : null,
+      paciente_nome:   usarNomePersonalizado && pacienteNome.trim() ? pacienteNome.trim() : null,
     }
 
     const SELECT = '*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*)'
@@ -376,6 +381,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
       aceito_em:       null,
       pacote_ativo:    pacoteAtivo,
       pacote_opcoes:   pacoteAtivo ? pacoteOpcoes : null,
+      paciente_nome:   usarNomePersonalizado && pacienteNome.trim() ? pacienteNome.trim() : null,
       criado_em:       editing?.criado_em ?? new Date().toISOString(),
       atualizado_em:   new Date().toISOString(),
       items: items.map(i => ({
@@ -473,6 +479,45 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
                   >
                     Trocar
                   </button>
+                </div>
+              )}
+
+              {/* Nome no orçamento */}
+              {selectedPatient && (
+                <div style={{ background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 12, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#5B7A8A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Nome no orçamento
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#0E2C3D' }}>
+                      <input
+                        type="radio"
+                        checked={!usarNomePersonalizado}
+                        onChange={() => { setUsarNomePersonalizado(false); setPacienteNome('') }}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      Nome do cliente ({selectedPatient.nome}{selectedPatient.sobrenome ? ` ${selectedPatient.sobrenome}` : ''})
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#0E2C3D' }}>
+                      <input
+                        type="radio"
+                        checked={usarNomePersonalizado}
+                        onChange={() => setUsarNomePersonalizado(true)}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      Outro nome (filho, dependente...)
+                    </label>
+                    {usarNomePersonalizado && (
+                      <input
+                        type="text"
+                        value={pacienteNome}
+                        onChange={e => setPacienteNome(e.target.value)}
+                        placeholder="Ex: Maria Silva (filha)"
+                        autoFocus
+                        style={{ marginTop: 4, padding: '8px 12px', fontSize: 13, border: '1.5px solid var(--color-brand)', borderRadius: 8, outline: 'none', color: '#0E2C3D', background: '#fff' }}
+                      />
+                    )}
+                  </div>
                 </div>
               )}
 

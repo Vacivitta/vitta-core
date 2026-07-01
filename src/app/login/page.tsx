@@ -1,13 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 type View = 'login' | 'forgot' | 'forgot-sent'
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginContent() {
   const [view, setView]         = useState<View>('login')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -15,8 +23,20 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
-  const router   = useRouter()
-  const supabase = createClient()
+  const [linkExpired, setLinkExpired] = useState(false)
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const supabase     = createClient()
+
+  useEffect(() => {
+    const urlError = searchParams.get('error')
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const isExpired =
+      urlError === 'link_invalido' ||
+      hash.includes('error_code=otp_expired') ||
+      hash.includes('error=access_denied')
+    if (isExpired) setLinkExpired(true)
+  }, [searchParams])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -204,6 +224,23 @@ export default function LoginPage() {
           {/* ─ Login view ─ */}
           {view === 'login' && (
             <>
+              {linkExpired && (
+                <div style={{ background: '#FFF8E6', border: '1.5px solid #F5C842', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: 13, color: '#7A5A00', margin: 0, fontWeight: 600 }}>
+                    Link de recuperação expirado
+                  </p>
+                  <p style={{ fontSize: 13, color: '#7A5A00', margin: 0 }}>
+                    O link enviado por e-mail expirou ou já foi usado. Solicite um novo abaixo.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setLinkExpired(false); setView('forgot') }}
+                    style={{ alignSelf: 'flex-start', fontSize: 13, fontWeight: 700, color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}
+                  >
+                    Solicitar novo link →
+                  </button>
+                </div>
+              )}
               <div style={{ marginBottom: 32 }}>
                 <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.01em' }}>
                   Login do Operador

@@ -7,7 +7,7 @@ import type { Profile } from '@/types/database'
 
 interface MetaTemplate {
   id: string; name: string; status: string; category: string; language: string
-  components?: { type: string; text?: string }[]
+  components?: { type: string; format?: string; text?: string; example?: { header_handle?: string[] } }[]
   rejected_reason?: string
 }
 
@@ -54,14 +54,15 @@ function resolveVars(text: string, varOrder: string[]): string {
 }
 
 function WhatsAppPreview({
-  header, body, footer, varOrder,
+  header, body, footer, varOrder, headerType, headerImageUrl,
 }: {
   header: string; body: string; footer: string; varOrder: string[]
+  headerType: 'NONE' | 'TEXT' | 'IMAGE'; headerImageUrl?: string | null
 }) {
   const resolvedHeader = resolveVars(header, varOrder)
   const resolvedBody   = resolveVars(body,   varOrder)
   const resolvedFooter = resolveVars(footer, varOrder)
-  const hasContent = header || body || footer
+  const hasContent = headerType !== 'NONE' || body || footer
 
   return (
     <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -100,30 +101,43 @@ function WhatsAppPreview({
             <div style={{
               background: '#fff',
               borderRadius: '0 10px 10px 10px',
-              padding: '8px 10px',
               maxWidth: '85%',
               boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
               position: 'relative',
+              overflow: 'hidden',
             }}>
               {/* Triangle */}
               <div style={{ position: 'absolute', top: 0, left: -7, width: 0, height: 0, borderTop: '8px solid #fff', borderLeft: '7px solid transparent' }} />
 
-              {resolvedHeader && (
-                <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
-                  {resolvedHeader}
-                </p>
+              {/* Image header */}
+              {headerType === 'IMAGE' && (
+                headerImageUrl ? (
+                  <img src={headerImageUrl} alt="Header" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', display: 'block' }} />
+                ) : (
+                  <div style={{ width: '100%', height: 80, background: '#F1F4F7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#B0BEC9' }}>📷 Imagem do cabeçalho</span>
+                  </div>
+                )
               )}
-              {resolvedBody && (
-                <p style={{ margin: 0, fontSize: 11.5, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {resolvedBody}
-                </p>
-              )}
-              {resolvedFooter && (
-                <p style={{ margin: '6px 0 0', fontSize: 10, color: '#8FA0AF', lineHeight: 1.4 }}>
-                  {resolvedFooter}
-                </p>
-              )}
-              <p style={{ margin: '4px 0 0', fontSize: 9, color: '#8FA0AF', textAlign: 'right' }}>14:30 ✓✓</p>
+
+              <div style={{ padding: '8px 10px' }}>
+                {headerType === 'TEXT' && resolvedHeader && (
+                  <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
+                    {resolvedHeader}
+                  </p>
+                )}
+                {resolvedBody && (
+                  <p style={{ margin: 0, fontSize: 11.5, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {resolvedBody}
+                  </p>
+                )}
+                {resolvedFooter && (
+                  <p style={{ margin: '6px 0 0', fontSize: 10, color: '#8FA0AF', lineHeight: 1.4 }}>
+                    {resolvedFooter}
+                  </p>
+                )}
+                <p style={{ margin: '4px 0 0', fontSize: 9, color: '#8FA0AF', textAlign: 'right' }}>14:30 ✓✓</p>
+              </div>
             </div>
           )}
         </div>
@@ -170,11 +184,16 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     name:        '',
     category:    'UTILITY' as 'MARKETING' | 'UTILITY' | 'AUTHENTICATION',
     language:    'pt_BR',
+    header_type: 'NONE' as 'NONE' | 'TEXT' | 'IMAGE',
     header_text: '',
     body_text:   '',
     footer_text: '',
   })
-  const [formError, setFormError] = useState<string | null>(null)
+  const [formError,        setFormError]        = useState<string | null>(null)
+  const [headerImageFile,  setHeaderImageFile]  = useState<File | null>(null)
+  const [headerImageUrl,   setHeaderImageUrl]   = useState<string | null>(null)
+  const [headerImageHandle, setHeaderImageHandle] = useState<string | null>(null)
+  const [uploadingImage,   setUploadingImage]   = useState(false)
 
   // Variáveis inseridas (em ordem de aparição)
   const [varOrder, setVarOrder] = useState<string[]>([])
@@ -192,9 +211,33 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   useEffect(() => { void loadTemplates() }, [])
 
   function resetForm() {
-    setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header_text: '', body_text: '', footer_text: '' })
+    setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header_type: 'NONE', header_text: '', body_text: '', footer_text: '' })
     setVarOrder([])
     setFormError(null)
+    setHeaderImageFile(null)
+    setHeaderImageUrl(null)
+    setHeaderImageHandle(null)
+  }
+
+  async function handleImageUpload(file: File) {
+    setHeaderImageFile(file)
+    setHeaderImageUrl(URL.createObjectURL(file))
+    setHeaderImageHandle(null)
+    setFormError(null)
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/whatsapp/upload-template-media', { method: 'POST', body: fd })
+      const data = await res.json() as { handle?: string; error?: string }
+      if (!res.ok || data.error) {
+        setFormError(data.error ?? 'Erro ao fazer upload da imagem')
+        return
+      }
+      setHeaderImageHandle(data.handle ?? null)
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   // Inserção de variável no cursor do textarea
@@ -255,6 +298,9 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     if (!form.name.trim()) { setFormError('Nome é obrigatório'); return }
     if (!/^[a-z0-9_]+$/.test(form.name)) { setFormError('Nome: apenas letras minúsculas, números e underscore'); return }
     if (!form.body_text.trim()) { setFormError('Corpo da mensagem é obrigatório'); return }
+    if (form.header_type === 'IMAGE' && !headerImageHandle) {
+      setFormError('Aguardando upload da imagem ou falha no upload. Tente novamente.'); return
+    }
 
     const bodyVariableExamples = varOrder.map(id => VARIABLES.find(v => v.id === id)?.example ?? '')
 
@@ -262,15 +308,16 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     const res = await fetch('/api/whatsapp/meta-templates', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name:        form.name,
-        category:    form.category,
-        language:    form.language,
-        header_text: form.header_text || undefined,
-        header_type: form.header_text ? 'TEXT' : undefined,
-        body_text:   form.body_text,
+        name:                   form.name,
+        category:               form.category,
+        language:               form.language,
+        header_type:            form.header_type === 'NONE' ? undefined : form.header_type,
+        header_text:            form.header_type === 'TEXT' ? (form.header_text || undefined) : undefined,
+        header_image_handle:    form.header_type === 'IMAGE' ? headerImageHandle : undefined,
+        body_text:              form.body_text,
         body_variable_examples: bodyVariableExamples.length > 0 ? bodyVariableExamples : undefined,
         body_variable_order:    varOrder.length > 0 ? varOrder : undefined,
-        footer_text: form.footer_text || undefined,
+        footer_text:            form.footer_text || undefined,
       }),
     })
     const result = await res.json() as { success?: boolean; error?: string }
@@ -387,10 +434,12 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
             </div>
           )}
           {filtered.map(t => {
-            const st     = STATUS_STYLE[t.status] ?? STATUS_STYLE.PENDING
-            const body   = t.components?.find(c => c.type === 'BODY')?.text   ?? ''
-            const header = t.components?.find(c => c.type === 'HEADER')?.text ?? ''
-            const footer = t.components?.find(c => c.type === 'FOOTER')?.text ?? ''
+            const st          = STATUS_STYLE[t.status] ?? STATUS_STYLE.PENDING
+            const headerComp  = t.components?.find(c => c.type === 'HEADER')
+            const body        = t.components?.find(c => c.type === 'BODY')?.text   ?? ''
+            const headerText  = headerComp?.text ?? ''
+            const headerFmt   = headerComp?.format ?? ''
+            const footer      = t.components?.find(c => c.type === 'FOOTER')?.text ?? ''
             return (
               <div key={t.id} style={{ background: '#fff', border: '1px solid #F1F4F7', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -400,12 +449,18 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: st.bg, color: st.text }}>{st.label}</span>
                       <span style={{ fontSize: 10, color: '#B0BEC9', background: '#F1F4F7', padding: '2px 7px', borderRadius: 99 }}>{t.category}</span>
                       <span style={{ fontSize: 10, color: '#B0BEC9', background: '#F1F4F7', padding: '2px 7px', borderRadius: 99 }}>{t.language}</span>
+                      {headerFmt === 'IMAGE' && <span style={{ fontSize: 10, color: '#0098DA', background: '#EFF6FF', padding: '2px 7px', borderRadius: 99 }}>📷 Imagem</span>}
                     </div>
                     {/* Preview */}
-                    <div style={{ background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 10, padding: '10px 12px', maxWidth: 420 }}>
-                      {header && <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: '0 0 6px' }}>{header}</p>}
-                      <p style={{ fontSize: 12, color: '#0E2C3D', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body || '(sem corpo)'}</p>
-                      {footer && <p style={{ fontSize: 11, color: '#8FA0AF', margin: '6px 0 0' }}>{footer}</p>}
+                    <div style={{ background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 10, overflow: 'hidden', maxWidth: 420 }}>
+                      {headerFmt === 'IMAGE' && (
+                        <div style={{ padding: '8px 12px 0', fontSize: 11, color: '#8FA0AF' }}>📷 <em>Cabeçalho com imagem</em></div>
+                      )}
+                      <div style={{ padding: '10px 12px' }}>
+                        {headerText && <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: '0 0 6px' }}>{headerText}</p>}
+                        <p style={{ fontSize: 12, color: '#0E2C3D', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body || '(sem corpo)'}</p>
+                        {footer && <p style={{ fontSize: 11, color: '#8FA0AF', margin: '6px 0 0' }}>{footer}</p>}
+                      </div>
                     </div>
                     {t.rejected_reason && (
                       <p style={{ fontSize: 11, color: '#C0392B', margin: '6px 0 0' }}>Motivo da reprovação: {t.rejected_reason}</p>
@@ -473,13 +528,72 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                     </select>
                   </div>
 
-                  {/* Header */}
+                  {/* Header type */}
                   <div>
-                    <label style={labelStyle}>Cabeçalho (opcional)</label>
-                    <input value={form.header_text} onChange={e => setForm(f => ({ ...f, header_text: e.target.value }))}
-                      placeholder="Texto em negrito no topo..."
-                      style={inputStyle} />
+                    <label style={labelStyle}>Tipo de cabeçalho</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {([
+                        { value: 'NONE',  label: 'Nenhum' },
+                        { value: 'TEXT',  label: 'Texto' },
+                        { value: 'IMAGE', label: '📷 Imagem' },
+                      ] as const).map(opt => (
+                        <button key={opt.value} type="button" onClick={() => setForm(f => ({ ...f, header_type: opt.value }))}
+                          style={{ flex: 1, padding: '7px 10px', fontSize: 12, fontWeight: 600, border: `1.5px solid ${form.header_type === opt.value ? '#0098DA' : '#E8EDF2'}`,
+                            borderRadius: 8, cursor: 'pointer', background: form.header_type === opt.value ? '#F0F8FF' : '#fff',
+                            color: form.header_type === opt.value ? '#0098DA' : '#5A7184' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Header text */}
+                  {form.header_type === 'TEXT' && (
+                    <div>
+                      <label style={labelStyle}>Texto do cabeçalho</label>
+                      <input value={form.header_text} onChange={e => setForm(f => ({ ...f, header_text: e.target.value }))}
+                        placeholder="Texto em negrito no topo..."
+                        style={inputStyle} />
+                    </div>
+                  )}
+
+                  {/* Header image */}
+                  {form.header_type === 'IMAGE' && (
+                    <div>
+                      <label style={labelStyle}>Imagem do cabeçalho</label>
+                      {headerImageUrl ? (
+                        <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid #E8EDF2' }}>
+                          <img src={headerImageUrl} alt="Header" style={{ width: '100%', maxHeight: 140, objectFit: 'cover', display: 'block' }} />
+                          <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 6 }}>
+                            {uploadingImage && (
+                              <span style={{ fontSize: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '3px 8px', borderRadius: 6 }}>Fazendo upload...</span>
+                            )}
+                            {!uploadingImage && headerImageHandle && (
+                              <span style={{ fontSize: 10, background: 'rgba(29,158,117,0.9)', color: '#fff', padding: '3px 8px', borderRadius: 6 }}>✓ Upload concluído</span>
+                            )}
+                            <label style={{ fontSize: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '3px 8px', borderRadius: 6, cursor: 'pointer' }}>
+                              Trocar
+                              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+                                onChange={e => { const f = e.target.files?.[0]; if (f) void handleImageUpload(f) }} style={{ display: 'none' }} />
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, border: '2px dashed #E8EDF2', borderRadius: 10, padding: '24px 16px', cursor: 'pointer', background: '#F8FAFB' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#0098DA'; e.currentTarget.style.background = '#F0F8FF' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8EDF2'; e.currentTarget.style.background = '#F8FAFB' }}>
+                          <span style={{ fontSize: 22 }}>📷</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#5A7184' }}>Clique para fazer upload</span>
+                          <span style={{ fontSize: 10, color: '#B0BEC9' }}>JPEG, PNG ou WebP</span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) void handleImageUpload(f) }} style={{ display: 'none' }} />
+                        </label>
+                      )}
+                      <p style={{ fontSize: 10, color: '#B0BEC9', margin: '4px 0 0', lineHeight: 1.5 }}>
+                        Requer <code>WHATSAPP_APP_ID</code> nas variáveis de ambiente. A imagem é enviada ao Meta como exemplo para revisão do template.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Body */}
                   <div>
@@ -550,6 +664,8 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                   body={form.body_text}
                   footer={form.footer_text}
                   varOrder={varOrder}
+                  headerType={form.header_type}
+                  headerImageUrl={headerImageUrl}
                 />
               </div>
             </div>
