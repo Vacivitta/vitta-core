@@ -10,11 +10,12 @@ interface Props {
   leads: LeadKanban[]
   onLeadClick: (lead: LeadKanban) => void
   onAddLead: (stage: FunnelStage) => void
+  unreadByLead?: Record<string, number>
 }
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 })
 
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }: Props) {
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {} }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   const countStyle = { backgroundColor: `${stage.cor}22`, color: stage.cor }
@@ -69,7 +70,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead }: P
       >
         <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
           {leads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
+            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} />
           ))}
         </SortableContext>
 

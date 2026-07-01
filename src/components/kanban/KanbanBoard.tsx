@@ -23,6 +23,7 @@ interface Props {
   stages: FunnelStage[]
   onLeadClick: (lead: LeadKanban) => void
   onAddLead: (stage: FunnelStage) => void
+  unreadByLead?: Record<string, number>
 }
 
 function groupByStage(leads: LeadKanban[], stages: FunnelStage[]): Record<string, LeadKanban[]> {
@@ -34,7 +35,7 @@ function groupByStage(leads: LeadKanban[], stages: FunnelStage[]): Record<string
   return groups
 }
 
-export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead }: Props) {
+export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {} }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
   // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
@@ -126,6 +127,7 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
             leads={grouped[stage.id] ?? []}
             onLeadClick={onLeadClick}
             onAddLead={onAddLead}
+            unreadByLead={unreadByLead}
           />
         ))}
       </div>

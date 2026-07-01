@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import LeadModal from '@/components/leads/LeadModal'
@@ -39,6 +39,38 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     stage_id:       '',
   })
   const [showFilters, setShowFilters]     = useState(false)
+  const [unreadByLead, setUnreadByLead]   = useState<Record<string, number>>({})
+
+  // Carrega conversas com não lidas e assina atualizações em tempo real
+  useEffect(() => {
+    void supabase.from('wa_conversations')
+      .select('lead_id, unread_count')
+      .gt('unread_count', 0)
+      .not('lead_id', 'is', null)
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, number> = {}
+        for (const row of data) {
+          if (row.lead_id) map[row.lead_id] = (map[row.lead_id] ?? 0) + (row.unread_count ?? 0)
+        }
+        setUnreadByLead(map)
+      })
+
+    const ch = supabase.channel('funil_wa_unread')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_conversations' },
+        payload => {
+          const conv = payload.new as { lead_id: string | null; unread_count: number }
+          if (!conv.lead_id) return
+          setUnreadByLead(prev => {
+            const next = { ...prev }
+            if (conv.unread_count > 0) next[conv.lead_id!] = conv.unread_count
+            else delete next[conv.lead_id!]
+            return next
+          })
+        })
+      .subscribe()
+    return () => { void supabase.removeChannel(ch) }
+  }, [supabase])
 
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId) ?? funnels[0]
 
@@ -251,6 +283,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           stages={selectedFunnel.stages}
           onLeadClick={handleLeadClick}
           onAddLead={handleAddLead}
+          unreadByLead={unreadByLead}
         />
       </main>
 
