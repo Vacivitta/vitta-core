@@ -150,9 +150,9 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     void fetchAndStoreProfilePicture(supabase, conv.id, waPhone, phoneNumberId, accessToken)
   }
 
-  // 2. Inserir mensagem (ignora duplicatas)
+  // 2. Inserir mensagem — retorna id somente se for nova (duplicatas ignoradas)
   const content = extractContent(msg)
-  const { error: msgErr } = await supabase
+  const { data: newMsg, error: msgErr } = await supabase
     .from('wa_messages')
     .upsert(
       {
@@ -168,9 +168,17 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
       },
       { onConflict: 'wa_message_id', ignoreDuplicates: true }
     )
+    .select('id')
+    .maybeSingle()
 
   if (msgErr) {
     console.error('[WA webhook] erro ao inserir mensagem:', msgErr)
+    return
+  }
+
+  // Mensagem duplicada: Meta reenviou o mesmo webhook — para o processamento aqui
+  if (!newMsg) {
+    console.log('[WA webhook] mensagem duplicada ignorada:', msg.id)
     return
   }
 
