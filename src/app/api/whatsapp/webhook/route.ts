@@ -176,23 +176,26 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     return
   }
 
-  // Mensagem duplicada: Meta reenviou o mesmo webhook — para o processamento aqui
-  if (!newMsg) {
-    console.log('[WA webhook] mensagem duplicada ignorada:', msg.id)
-    return
+  // Mensagem duplicada: Meta reenviou o mesmo webhook. Pula apenas o incremento de
+  // unread e a atualização da última mensagem (não-idempotentes); os passos seguintes
+  // (opt-out, vínculo de lead, campanha, auto-assign) são idempotentes e devem rodar
+  // mesmo em retries, caso a primeira tentativa tenha falhado no meio.
+  const isDuplicate = !newMsg
+  if (isDuplicate) console.log('[WA webhook] mensagem duplicada — pulando increment de unread:', msg.id)
+
+  if (!isDuplicate) {
+    // 3. Atualiza last_message_at, prévia da última mensagem e unread
+    const lastContent = content.text
+      ?? (msg.type === 'image' ? '📷 Imagem' : msg.type === 'audio' ? '🎤 Áudio' : msg.type === 'video' ? '🎬 Vídeo' : msg.type === 'document' ? '📎 Documento' : '📎 Anexo')
+    const { error: updErr } = await supabase
+      .from('wa_conversations')
+      .update({ last_message_at: new Date().toISOString(), status: 'open', last_message_content: lastContent, last_message_direction: 'inbound' })
+      .eq('id', conv.id)
+    if (updErr) console.error('[WA webhook] update last_message_at:', updErr.message)
+
+    const { error: unreadErr } = await supabase.rpc('increment_wa_unread', { p_conversation_id: conv.id })
+    if (unreadErr) console.error('[WA webhook] increment_wa_unread:', unreadErr.message)
   }
-
-  // 3. Atualiza last_message_at, prévia da última mensagem e unread
-  const lastContent = content.text
-    ?? (msg.type === 'image' ? '📷 Imagem' : msg.type === 'audio' ? '🎤 Áudio' : msg.type === 'video' ? '🎬 Vídeo' : msg.type === 'document' ? '📎 Documento' : '📎 Anexo')
-  const { error: updErr } = await supabase
-    .from('wa_conversations')
-    .update({ last_message_at: new Date().toISOString(), status: 'open', last_message_content: lastContent, last_message_direction: 'inbound' })
-    .eq('id', conv.id)
-  if (updErr) console.error('[WA webhook] update last_message_at:', updErr.message)
-
-  const { error: unreadErr } = await supabase.rpc('increment_wa_unread', { p_conversation_id: conv.id })
-  if (unreadErr) console.error('[WA webhook] increment_wa_unread:', unreadErr.message)
 
   // 3b. Detecta opt-out ANTES de criar/vincular lead — aplica para contatos novos e existentes
   const textNorm = (content.text ?? '').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')

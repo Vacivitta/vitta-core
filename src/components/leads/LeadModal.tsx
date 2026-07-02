@@ -16,7 +16,7 @@ import type {
 } from '@/types/database'
 import {
   CONTACT_ROLE_LABELS, ARCHIVE_REASONS, ORIGEM_OPTIONS,
-  QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS,
+  QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, displayName,
   type ArchiveReason,
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
@@ -223,20 +223,24 @@ function LeadDrawer({
   }, [waMessages.length])
 
   async function handleWaSend() {
-    if ((!waInput.trim() && waInputMode !== 'note') || !waConversation || waSending) return
+    if (!waInput.trim() || !waConversation || waSending) return
     const text = waInput.trim()
     setWaInput('')
     setWaSending(true)
     try {
-      await fetch('/api/whatsapp/send', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          conversation_id: waConversation.id,
-          content: text,
-          ...(waInputMode === 'note' ? { note: true } : {}),
-        }),
-      })
+      if (waInputMode === 'note') {
+        await fetch('/api/whatsapp/notes', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ conversation_id: waConversation.id, content: text }),
+        })
+      } else {
+        await fetch('/api/whatsapp/send', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ conversation_id: waConversation.id, content: text }),
+        })
+      }
     } finally {
       setWaSending(false)
     }
@@ -244,19 +248,66 @@ function LeadDrawer({
 
   async function handleWaMediaUpload(file: File) {
     if (!waConversation) return
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('conversation_id', waConversation.id)
-    await fetch('/api/whatsapp/send', { method: 'POST', body: fd })
+    setWaSending(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('conversation_id', waConversation.id)
+      const res = await fetch('/api/whatsapp/send-media', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        alert(data.error ?? 'Erro ao enviar mídia')
+      }
+    } catch {
+      alert('Erro ao enviar mídia')
+    } finally { setWaSending(false) }
+  }
+
+  // Resolve variáveis {{N}} do template usando o nome do lead e do atendente
+  function resolveWaTemplateVars(t: WaTemplate, refDate: Date): { components: object[] | undefined; renderedText: string } {
+    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
+    if (varCount === 0) return { components: undefined, renderedText: t.content }
+    const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+    const agentName  = displayName(currentUser)
+    const resolveVar = (id: string): string => {
+      switch (id) {
+        case 'nome_cliente':   return clientName
+        case 'nome_atendente': return agentName
+        case 'data':           return format(refDate, 'dd/MM/yyyy')
+        case 'horario':        return format(refDate, 'HH:mm')
+        default:                return ''
+      }
+    }
+    const order = t.variable_order && t.variable_order.length === varCount
+      ? t.variable_order
+      : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+    const values = order.map(resolveVar)
+    return {
+      components:   [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }],
+      renderedText: t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`),
+    }
   }
 
   async function handleWaTemplateSend(t: WaTemplate) {
     if (!waConversation) return
-    await fetch('/api/whatsapp/send', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ conversation_id: waConversation.id, template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR' }),
-    })
+    // Templates custom são texto livre: preenchem o input para edição antes do envio
+    if (t.category === 'custom') { setWaInput(t.content); return }
+
+    const { components, renderedText } = resolveWaTemplateVars(t, new Date())
+    setWaSending(true)
+    try {
+      const res = await fetch('/api/whatsapp/send', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        alert(data.error ?? 'Erro ao enviar template')
+      }
+    } catch {
+      alert('Erro ao enviar template')
+    } finally { setWaSending(false) }
   }
 
   async function handleWaScheduleSend(content: string, scheduledFor: string) {
@@ -270,10 +321,21 @@ function LeadDrawer({
 
   async function handleWaScheduleTemplate(t: WaTemplate, scheduledFor: string) {
     if (!waConversation) return
+    // Templates custom são texto livre: agenda como mensagem de texto
+    if (t.category === 'custom') {
+      await fetch('/api/whatsapp/schedule', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ conversation_id: waConversation.id, content: t.content, scheduled_for: scheduledFor }),
+      })
+      return
+    }
+    // Variáveis de data/horário usam a data agendada, não a atual
+    const { components, renderedText } = resolveWaTemplateVars(t, new Date(scheduledFor))
     await fetch('/api/whatsapp/schedule', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ conversation_id: waConversation.id, template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', scheduled_for: scheduledFor, type: 'template' }),
+      body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, content: renderedText, scheduled_for: scheduledFor }),
     })
   }
 
