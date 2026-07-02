@@ -93,6 +93,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [queues,       setQueues]       = useState<WaQueue[]>([])
   const [templates,    setTemplates]    = useState<WaTemplate[]>([])
   const [quickReplies, setQuickReplies] = useState<WaQuickReply[]>([])
+  const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
 
   const [conversations, setConversations] = useState<WaConversation[]>([])
   const conversationsRef = useRef<WaConversation[]>([])
@@ -291,6 +292,12 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
     void fetch('/api/whatsapp/tags').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
+    void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
+      if (!data) return
+      const map: Record<string, string> = {}
+      for (const c of data) { map[c.lead_id] = map[c.lead_id] ? `${map[c.lead_id]} ${c.nome}` : c.nome }
+      setContactNamesByLead(map)
+    })
   }, [supabase])
 
   // ── Load conversations ──────────────────────────────────────────────────────
@@ -690,6 +697,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       || (c.wa_contact_name ?? c.wa_phone).toLowerCase().includes(q)
       || c.wa_phone.includes(q)
       || (c.lead ? `${c.lead.nome} ${c.lead.sobrenome ?? ''}`.toLowerCase().includes(q) : false)
+      || (c.lead_id && (contactNamesByLead[c.lead_id] ?? '').toLowerCase().includes(q))
   })
   const totalUnread  = conversations.reduce((s, c) => s + (c.unread_count ?? 0), 0)
   const defaultStage = funnels[0]?.stages[0]

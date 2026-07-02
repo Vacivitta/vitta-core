@@ -41,6 +41,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [showFilters, setShowFilters]     = useState(false)
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>({})
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>({})
+  const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
 
   // Carrega conversas (unread + last_message_at) e assina atualizações em tempo real
   useEffect(() => {
@@ -83,6 +84,18 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     return () => { void supabase.removeChannel(ch) }
   }, [supabase])
 
+  // Carrega nomes dos contatos vinculados (dependentes/pacientes) para busca
+  useEffect(() => {
+    void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
+      if (!data) return
+      const map: Record<string, string> = {}
+      for (const c of data) {
+        map[c.lead_id] = map[c.lead_id] ? `${map[c.lead_id]} ${c.nome}` : c.nome
+      }
+      setContactNamesByLead(map)
+    })
+  }, [supabase])
+
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId) ?? funnels[0]
 
   const filteredLeads = useMemo(() => {
@@ -91,7 +104,8 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       if (filters.search) {
         const q = filters.search.toLowerCase()
         const fullName = `${l.nome} ${l.sobrenome ?? ''}`.toLowerCase()
-        if (!fullName.includes(q) && !l.profissao?.toLowerCase().includes(q) && !l.cidade?.toLowerCase().includes(q)) return false
+        const contacts = (contactNamesByLead[l.id] ?? '').toLowerCase()
+        if (!fullName.includes(q) && !l.profissao?.toLowerCase().includes(q) && !l.cidade?.toLowerCase().includes(q) && !contacts.includes(q)) return false
       }
       if (filters.responsavel_id && l.responsavel_id !== filters.responsavel_id) return false
       if (filters.cidade    && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase()))       return false
@@ -99,7 +113,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       if (filters.stage_id  && l.stage_id !== filters.stage_id)                                        return false
       return true
     })
-  }, [leads, selectedFunnelId, filters])
+  }, [leads, selectedFunnelId, filters, contactNamesByLead])
 
   const activeFiltersCount = Object.values(filters).filter(Boolean).length
 
