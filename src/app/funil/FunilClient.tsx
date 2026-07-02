@@ -41,19 +41,22 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [showFilters, setShowFilters]     = useState(false)
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>({})
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>({})
+  const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>({})
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
 
-  // Carrega conversas (unread + last_message_at) e assina atualizações em tempo real
+  // Carrega conversas (unread + last_message_at + id) e assina atualizações em tempo real
   useEffect(() => {
     void supabase.from('wa_conversations')
-      .select('lead_id, unread_count, last_message_at')
+      .select('id, lead_id, unread_count, last_message_at')
       .not('lead_id', 'is', null)
       .then(({ data }) => {
         if (!data) return
         const unread: Record<string, number> = {}
         const lastMsg: Record<string, string> = {}
+        const convIds: Record<string, string> = {}
         for (const row of data) {
           if (!row.lead_id) continue
+          convIds[row.lead_id] = row.id
           if (row.unread_count > 0) unread[row.lead_id] = (unread[row.lead_id] ?? 0) + row.unread_count
           if (row.last_message_at) {
             if (!lastMsg[row.lead_id] || row.last_message_at > lastMsg[row.lead_id]) {
@@ -63,6 +66,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         }
         setUnreadByLead(unread)
         setLastMsgByLead(lastMsg)
+        setConvIdByLead(convIds)
       })
 
     const ch = supabase.channel('funil_wa_unread')
@@ -310,6 +314,12 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           onAddLead={handleAddLead}
           unreadByLead={unreadByLead}
           lastMsgByLead={lastMsgByLead}
+          onMarkUnread={leadId => {
+            const convId = convIdByLead[leadId]
+            if (!convId) return
+            void fetch('/api/whatsapp/mark-read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: convId, unread: true }) })
+            setUnreadByLead(prev => ({ ...prev, [leadId]: 1 }))
+          }}
         />
       </main>
 

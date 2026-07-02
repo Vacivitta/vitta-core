@@ -1153,8 +1153,14 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
+          const previewText = conv.last_message_content
+            ? (conv.last_message_direction === 'outbound' ? `Você: ${conv.last_message_content}` : conv.last_message_content)
+            : null
+          const previewTitle = previewText
+            ? `${name}\n${conv.last_message_at ? formatConvTime(conv.last_message_at) : ''}\n─────\n${previewText.slice(0, 200)}${previewText.length > 200 ? '…' : ''}`
+            : name
           return (
-            <button key={conv.id} onClick={() => onSelect(conv)} className="group"
+            <button key={conv.id} onClick={() => onSelect(conv)} className="group" title={previewTitle}
               style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F8FAFB', background: isSelected ? '#F0F8FF' : 'transparent', cursor: 'pointer', transition: 'background 0.1s' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 {conv.profile_picture_url ? (
@@ -1186,9 +1192,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 1 }}>
                   <span style={{ fontSize: 11, color: '#8FA0AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                    {conv.last_message_content
-                      ? (conv.last_message_direction === 'outbound' ? `Você: ${conv.last_message_content}` : conv.last_message_content)
-                      : (assignee ? `↳ ${displayName(assignee)}` : conv.wa_phone)}
+                    {previewText ?? (assignee ? `↳ ${displayName(assignee)}` : conv.wa_phone)}
                   </span>
                   {conv.unread_count > 0 && <span style={{ background: '#25D366', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
                 </div>

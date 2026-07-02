@@ -372,6 +372,25 @@ export default function ChatInput({
         </div>
       )}
 
+      {/* Formatting toolbar */}
+      {!isNote && (
+        <div style={{ padding: '0 14px 2px', display: 'flex', gap: 2 }}>
+          {([['*', 'B', 'Negrito (Ctrl+B)', { fontWeight: 700 }], ['_', 'I', 'Itálico (Ctrl+I)', { fontStyle: 'italic' as const }], ['~', 'S', 'Riscado (Ctrl+Shift+X)', { textDecoration: 'line-through' }]] as const).map(([marker, label, title, css]) => (
+            <button key={marker} title={title as string}
+              onClick={() => {
+                const ta = textareaRef.current; if (!ta) return
+                ta.focus()
+                const s = ta.selectionStart, end = ta.selectionEnd
+                if (s === end) { onChange(value.slice(0, s) + marker + marker + value.slice(s)); requestAnimationFrame(() => { ta.setSelectionRange(s + 1, s + 1) }); return }
+                onChange(value.slice(0, s) + marker + value.slice(s, end) + marker + value.slice(end))
+                requestAnimationFrame(() => { ta.setSelectionRange(s + 1, end + 1) })
+              }}
+              style={{ width: 26, height: 22, borderRadius: 4, border: '1px solid #E8EDF2', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#667781', ...(css as React.CSSProperties) }}
+            >{label}</button>
+          ))}
+        </div>
+      )}
+
       {/* Input row */}
       <div style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         {!isNote && (
@@ -440,7 +459,24 @@ export default function ChatInput({
           <>
             <textarea ref={textareaRef} value={scheduleTemplate ? '' : value} onChange={e => onChange(e.target.value)}
               disabled={!!scheduleTemplate}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !scheduleMode) { e.preventDefault(); onSend() } if (e.key === 'Escape') { setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) } }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey && !scheduleMode) { e.preventDefault(); onSend() }
+                if (e.key === 'Escape') { setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) }
+                if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+                  const wrap = (marker: string) => {
+                    e.preventDefault()
+                    const ta = e.currentTarget
+                    const s = ta.selectionStart, end = ta.selectionEnd
+                    if (s === end) return
+                    const before = value.slice(0, s), sel = value.slice(s, end), after = value.slice(end)
+                    onChange(before + marker + sel + marker + after)
+                    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + marker.length, end + marker.length) })
+                  }
+                  if (e.key === 'b') wrap('*')
+                  else if (e.key === 'i') wrap('_')
+                  else if (e.key === 'x' && e.shiftKey) wrap('~')
+                }
+              }}
               onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px' }}
               onBlur={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               onSelect={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}

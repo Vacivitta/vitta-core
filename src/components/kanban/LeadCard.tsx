@@ -9,9 +9,10 @@ interface Props {
   lead: LeadKanban
   onClick: () => void
   unread?: number
+  onMarkUnread?: (leadId: string) => void
 }
 
-export default function LeadCard({ lead, onClick, unread = 0 }: Props) {
+export default function LeadCard({ lead, onClick, unread = 0, onMarkUnread }: Props) {
   const [hovered, setHovered] = useState(false)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -46,6 +47,7 @@ export default function LeadCard({ lead, onClick, unread = 0 }: Props) {
   return (
     <div
       ref={setNodeRef}
+      className="group"
       style={cardStyle}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
@@ -112,6 +114,17 @@ export default function LeadCard({ lead, onClick, unread = 0 }: Props) {
 
           {/* Badges */}
           <div className="flex items-center gap-1.5">
+            {unread === 0 && onMarkUnread && (
+              <span
+                role="button"
+                title="Marcar como não lida"
+                className="group-hover:opacity-100!"
+                onClick={e => { e.stopPropagation(); onMarkUnread(lead.id) }}
+                style={{ opacity: 0, cursor: 'pointer', padding: 2, borderRadius: 4, display: 'inline-flex', transition: 'opacity 0.15s' }}
+              >
+                <svg width="12" height="12" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+              </span>
+            )}
             {unread > 0 && (
               <span
                 className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
