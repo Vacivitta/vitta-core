@@ -12,12 +12,13 @@ interface Props {
   onAddLead: (stage: FunnelStage) => void
   unreadByLead?: Record<string, number>
   lastMsgByLead?: Record<string, string>
+  tagsByLead?: Record<string, Array<{ id: string; name: string; color: string }>>
   onMarkUnread?: (leadId: string) => void
 }
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 })
 
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, onMarkUnread }: Props) {
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, tagsByLead = {}, onMarkUnread }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   const countStyle = { backgroundColor: `${stage.cor}22`, color: stage.cor }
@@ -94,7 +95,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unr
       >
         <SortableContext items={sortedLeads.map(l => l.id)} strategy={verticalListSortingStrategy}>
           {sortedLeads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} onMarkUnread={onMarkUnread} />
+            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} tags={tagsByLead[lead.id]} onMarkUnread={onMarkUnread} />
           ))}
         </SortableContext>
 

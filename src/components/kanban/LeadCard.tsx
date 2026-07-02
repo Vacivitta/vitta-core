@@ -5,14 +5,17 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { LeadKanban } from '@/types/database'
 
+interface TagInfo { id: string; name: string; color: string }
+
 interface Props {
   lead: LeadKanban
   onClick: () => void
   unread?: number
+  tags?: TagInfo[]
   onMarkUnread?: (leadId: string) => void
 }
 
-export default function LeadCard({ lead, onClick, unread = 0, onMarkUnread }: Props) {
+export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread }: Props) {
   const [hovered, setHovered] = useState(false)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -66,6 +69,17 @@ export default function LeadCard({ lead, onClick, unread = 0, onMarkUnread }: Pr
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-muted)' }}>
             {[lead.profissao, lead.cidade].filter(Boolean).join(' · ')}
           </p>
+        )}
+
+        {/* Tags */}
+        {tags && tags.length > 0 && (
+          <div className="flex gap-1 flex-wrap mt-1">
+            {tags.map(tag => (
+              <span key={tag.id} style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: tag.color + '22', color: tag.color, border: `1px solid ${tag.color}44`, letterSpacing: '0.02em' }}>
+                {tag.name}
+              </span>
+            ))}
+          </div>
         )}
 
         {/* Alerta de tempo na etapa */}

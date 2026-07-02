@@ -42,18 +42,20 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>({})
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>({})
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>({})
+  const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>({})
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
 
-  // Carrega conversas (unread + last_message_at + id) e assina atualizações em tempo real
+  // Carrega conversas (unread + last_message_at + id + tags) e assina atualizações em tempo real
   useEffect(() => {
     void supabase.from('wa_conversations')
-      .select('id, lead_id, unread_count, last_message_at')
+      .select('id, lead_id, unread_count, last_message_at, tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .not('lead_id', 'is', null)
       .then(({ data }) => {
         if (!data) return
         const unread: Record<string, number> = {}
         const lastMsg: Record<string, string> = {}
         const convIds: Record<string, string> = {}
+        const tags: Record<string, Array<{ id: string; name: string; color: string }>> = {}
         for (const row of data) {
           if (!row.lead_id) continue
           convIds[row.lead_id] = row.id
@@ -63,10 +65,14 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
               lastMsg[row.lead_id] = row.last_message_at
             }
           }
+          const rowTags = ((row.tags ?? []) as unknown as Array<{ tag: { id: string; name: string; color: string } }>)
+            .map(t => t.tag).filter(Boolean)
+          if (rowTags.length > 0) tags[row.lead_id] = rowTags
         }
         setUnreadByLead(unread)
         setLastMsgByLead(lastMsg)
         setConvIdByLead(convIds)
+        setTagsByLead(tags)
       })
 
     const ch = supabase.channel('funil_wa_unread')
@@ -314,6 +320,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           onAddLead={handleAddLead}
           unreadByLead={unreadByLead}
           lastMsgByLead={lastMsgByLead}
+          tagsByLead={tagsByLead}
           onMarkUnread={leadId => {
             const convId = convIdByLead[leadId]
             if (!convId) return
