@@ -702,7 +702,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
           filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread}
           onNewConv={() => setNewConvOpen(true)} soundEnabled={soundEnabled} onToggleSound={toggleSound}
-          unitTags={unitTags} filterTag={filterTag} onFilterTag={setFilterTag} />
+          unitTags={unitTags} filterTag={filterTag} onFilterTag={setFilterTag}
+          onMarkUnread={convId => {
+            void fetch('/api/whatsapp/mark-read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: convId, unread: true }) })
+            setConversations(prev => prev.map(c => c.id === convId ? { ...c, unread_count: 1 } : c))
+          }} />
 
         {/* Chat */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F8FAFB', minWidth: 0, position: 'relative' }}>
@@ -953,13 +957,14 @@ function ConvTagsBar({ convId, convTags, unitTags, onTagAdded, onTagRemoved }: {
 
 // ── ConvList ──────────────────────────────────────────────────────────────────
 
-function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag }: {
+function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag, onMarkUnread }: {
   convs: WaConversation[]; loaded: boolean; selected: WaConversation | null; onSelect: (c: WaConversation) => void
   search: string; onSearch: (q: string) => void; filterStatus: ConvStatus; onFilterStatus: (s: ConvStatus) => void
   filterQueue: string; onFilterQueue: (q: string) => void; queues: WaQueue[]; filterMine: boolean
   onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number; onNewConv: () => void
   soundEnabled: boolean; onToggleSound: () => void
   unitTags: ConvTag[]; filterTag: string; onFilterTag: (t: string) => void
+  onMarkUnread: (convId: string) => void
 }) {
   const [openDrop, setOpenDrop] = useState<'status' | 'queue' | 'tag' | null>(null)
   const filterBarRef = useRef<HTMLDivElement>(null)
@@ -1141,7 +1146,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
           return (
-            <button key={conv.id} onClick={() => onSelect(conv)}
+            <button key={conv.id} onClick={() => onSelect(conv)} className="group"
               style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F8FAFB', background: isSelected ? '#F0F8FF' : 'transparent', cursor: 'pointer', transition: 'background 0.1s' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 {conv.profile_picture_url ? (
@@ -1156,7 +1161,20 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                   <span style={{ fontSize: 12, fontWeight: conv.unread_count > 0 ? 700 : 600, color: '#0E2C3D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-                  <span style={{ fontSize: 10, color: '#B0BEC9', flexShrink: 0 }}>{conv.last_message_at ? formatConvTime(conv.last_message_at) : ''}</span>
+                  <span style={{ fontSize: 10, color: '#B0BEC9', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {conv.last_message_at ? formatConvTime(conv.last_message_at) : ''}
+                    {conv.unread_count === 0 && (
+                      <span
+                        role="button"
+                        title="Marcar como não lida"
+                        className="group-hover:opacity-100!"
+                        onClick={e => { e.stopPropagation(); onMarkUnread(conv.id) }}
+                        style={{ opacity: 0, cursor: 'pointer', padding: 2, borderRadius: 4, display: 'inline-flex', transition: 'opacity 0.15s' }}
+                      >
+                        <svg width="12" height="12" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 1 }}>
                   <span style={{ fontSize: 11, color: '#8FA0AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>

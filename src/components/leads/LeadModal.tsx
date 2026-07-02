@@ -35,7 +35,7 @@ interface Props {
 }
 
 type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
-const TABS: Tab[] = ['Histórico', 'Anotações', 'Tarefas', 'Atendimento', 'Orçamentos']
+const TABS: Tab[] = ['Atendimento', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos']
 const DISABLED_TABS = new Set<Tab>([])
 
 interface WaConversation {
@@ -141,7 +141,7 @@ function LeadDrawer({
   }
 
   // ── Tab ────────────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>('Histórico')
+  const [tab, setTab] = useState<Tab>('Atendimento')
 
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
   const [waConversation, setWaConversation] = useState<WaConversation | null>(null)

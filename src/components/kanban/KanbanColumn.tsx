@@ -11,17 +11,30 @@ interface Props {
   onLeadClick: (lead: LeadKanban) => void
   onAddLead: (stage: FunnelStage) => void
   unreadByLead?: Record<string, number>
+  lastMsgByLead?: Record<string, string>
 }
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 })
 
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {} }: Props) {
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {} }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   const countStyle = { backgroundColor: `${stage.cor}22`, color: stage.cor }
 
   const totalValue  = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? 0), 0)
   const stageUnread = leads.reduce((sum, l) => sum + (unreadByLead[l.id] ?? 0), 0)
+
+  // Ordena: não lidas primeiro, depois por última mensagem mais recente
+  const sortedLeads = [...leads].sort((a, b) => {
+    const ua = unreadByLead[a.id] ?? 0
+    const ub = unreadByLead[b.id] ?? 0
+    if (ua > 0 && ub === 0) return -1
+    if (ub > 0 && ua === 0) return 1
+    const ma = lastMsgByLead[a.id] ?? ''
+    const mb = lastMsgByLead[b.id] ?? ''
+    if (ma || mb) return mb.localeCompare(ma)
+    return 0
+  })
 
   return (
     <div className="flex flex-col shrink-0 snap-start" style={{ width: '290px' }}>
@@ -78,8 +91,8 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unr
           background: isOver ? 'var(--color-brand-subtle)' : '#F3F7FA',
         }}
       >
-        <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map(lead => (
+        <SortableContext items={sortedLeads.map(l => l.id)} strategy={verticalListSortingStrategy}>
+          {sortedLeads.map(lead => (
             <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} />
           ))}
         </SortableContext>

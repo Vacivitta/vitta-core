@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
-  const { conversation_id } = await req.json() as { conversation_id?: unknown }
+  const body = await req.json() as { conversation_id?: unknown; unread?: boolean }
+  const { conversation_id, unread } = body
   if (typeof conversation_id !== 'string' || !conversation_id) {
     return NextResponse.json({ error: 'conversation_id obrigatório' }, { status: 400 })
   }
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   const admin = adminClient()
   const { error } = await admin
     .from('wa_conversations')
-    .update({ unread_count: 0 })
+    .update({ unread_count: unread ? 1 : 0 })
     .eq('id', conversation_id)
 
   if (error) {
