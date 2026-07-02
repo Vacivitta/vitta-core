@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { format } from 'date-fns'
+import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import DateTimePicker from '@/components/ui/DateTimePicker'
+import MediaContent from '@/components/whatsapp/MediaContent'
+import ChatInputComponent from '@/components/whatsapp/ChatInput'
+import type { WaTemplate, WaQuickReply, InputMode } from '@/components/whatsapp/wa-types'
+import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
@@ -41,15 +45,7 @@ interface WaConversation {
   unread_count: number
 }
 
-interface WaMessage {
-  id:         string
-  direction:  'inbound' | 'outbound'
-  type:       string
-  content:    string | null
-  status:     string
-  created_at: string
-  sent_by:    string | null
-}
+type WaMessage = SharedWaMessage
 
 interface LeadQuote {
   id:              string
@@ -153,6 +149,9 @@ function LeadDrawer({
   const [waLoaded,       setWaLoaded]       = useState(false)
   const [waInput,        setWaInput]        = useState('')
   const [waSending,      setWaSending]      = useState(false)
+  const [waInputMode,    setWaInputMode]    = useState<InputMode>('text')
+  const [waTemplates,    setWaTemplates]    = useState<WaTemplate[]>([])
+  const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
   const waMsgsEndRef = useRef<HTMLDivElement>(null)
 
   // Carrega conversa quando abre a aba Atendimento
@@ -173,20 +172,23 @@ function LeadDrawer({
         if (!conv) { setWaLoaded(true); return }
         setWaConversation(conv as WaConversation)
 
-        // Carrega mensagens
+        // Carrega mensagens (com mídia)
         const { data: msgs } = await supabase
           .from('wa_messages')
-          .select('id, direction, type, content, status, created_at, sent_by')
+          .select('id, direction, type, content, media_url, media_mime_type, template_name, status, created_at, sent_by')
           .eq('conversation_id', conv.id)
           .order('created_at', { ascending: true })
         if (msgs) setWaMessages(msgs as WaMessage[])
 
-        // Zera unread_count
+        // Carrega templates e quick replies para o ChatInput
+        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+          .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
+        void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
+          .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
+
+        // Zera unread_count via API (admin client garante que o update sempre persiste)
         if (conv.unread_count > 0) {
-          await supabase
-            .from('wa_conversations')
-            .update({ unread_count: 0 })
-            .eq('id', conv.id)
+          void fetch('/api/whatsapp/mark-read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: conv.id }) })
         }
 
         setWaLoaded(true)
@@ -221,7 +223,7 @@ function LeadDrawer({
   }, [waMessages.length])
 
   async function handleWaSend() {
-    if (!waInput.trim() || !waConversation || waSending) return
+    if ((!waInput.trim() && waInputMode !== 'note') || !waConversation || waSending) return
     const text = waInput.trim()
     setWaInput('')
     setWaSending(true)
@@ -229,12 +231,96 @@ function LeadDrawer({
       await fetch('/api/whatsapp/send', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ conversation_id: waConversation.id, content: text }),
+        body:    JSON.stringify({
+          conversation_id: waConversation.id,
+          content: text,
+          ...(waInputMode === 'note' ? { note: true } : {}),
+        }),
       })
     } finally {
       setWaSending(false)
     }
   }
+
+  async function handleWaMediaUpload(file: File) {
+    if (!waConversation) return
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('conversation_id', waConversation.id)
+    await fetch('/api/whatsapp/send', { method: 'POST', body: fd })
+  }
+
+  async function handleWaTemplateSend(t: WaTemplate) {
+    if (!waConversation) return
+    await fetch('/api/whatsapp/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ conversation_id: waConversation.id, template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR' }),
+    })
+  }
+
+  async function handleWaScheduleSend(content: string, scheduledFor: string) {
+    if (!waConversation) return
+    await fetch('/api/whatsapp/schedule', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ conversation_id: waConversation.id, content, scheduled_for: scheduledFor, type: 'text' }),
+    })
+  }
+
+  async function handleWaScheduleTemplate(t: WaTemplate, scheduledFor: string) {
+    if (!waConversation) return
+    await fetch('/api/whatsapp/schedule', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ conversation_id: waConversation.id, template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', scheduled_for: scheduledFor, type: 'template' }),
+    })
+  }
+
+  async function reloadWaTemplates() {
+    try {
+      const res  = await fetch('/api/whatsapp/meta-templates')
+      const data = await res.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }>; variable_order?: string[] }> }
+      const meta: WaTemplate[] = (data.templates ?? [])
+        .filter(t => t.status === 'APPROVED')
+        .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [] }))
+      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).eq('category', 'custom').order('name')
+      setWaTemplates([...meta, ...((custom ?? []) as WaTemplate[])])
+    } catch {
+      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+      setWaTemplates((data ?? []) as WaTemplate[])
+    }
+  }
+
+  // Separadores de data para o chat
+  type WaRenderItem = WaMessage | { kind: 'date'; label: string; key: string }
+  const waRenderItems = useMemo<WaRenderItem[]>(() => {
+    const result: WaRenderItem[] = []
+    let lastDate = ''
+    for (const msg of waMessages) {
+      const d = new Date(msg.created_at)
+      const dateKey = format(d, 'yyyy-MM-dd')
+      if (dateKey !== lastDate) {
+        const label = isToday(d) ? 'Hoje'
+          : isYesterday(d) ? 'Ontem'
+          : d.getFullYear() === new Date().getFullYear()
+            ? format(d, "d 'de' MMM", { locale: ptBR })
+            : format(d, 'dd/MM/yyyy')
+        result.push({ kind: 'date', label, key: `date-${dateKey}` })
+        lastDate = dateKey
+      }
+      result.push(msg)
+    }
+    return result
+  }, [waMessages])
+
+  // isOutside24hWindow para o chat do modal
+  const waIsOutside24h = useMemo(() => {
+    if (!waMessages.length) return false
+    const lastInbound = [...waMessages].reverse().find(m => m.direction === 'inbound')
+    if (!lastInbound) return false
+    return Date.now() - new Date(lastInbound.created_at).getTime() > 24 * 60 * 60 * 1000
+  }, [waMessages])
 
   useEffect(() => {
     if (tab !== 'Orçamentos' || quotesLoaded) return
@@ -1313,33 +1399,40 @@ function LeadDrawer({
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: '-24px -28px -32px', overflow: 'hidden' }}>
                   {/* Messages */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 12px', display: 'flex', flexDirection: 'column', gap: '8px', background: '#F7FAFC' }}>
-                    {waMessages.map(msg => {
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: '6px', background: '#F7FAFC' }}>
+                    {waRenderItems.map(item => {
+                      if ('kind' in item && item.kind === 'date') {
+                        return (
+                          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0', flexShrink: 0 }}>
+                            <div style={{ flex: 1, height: 1, background: '#E8EFF4' }} />
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#A0ADB8', background: '#EDF1F5', borderRadius: 99, padding: '3px 12px', border: '1px solid #E4EBF1', whiteSpace: 'nowrap' }}>{item.label}</span>
+                            <div style={{ flex: 1, height: 1, background: '#E8EFF4' }} />
+                          </div>
+                        )
+                      }
+                      const msg = item as WaMessage
                       const isOut = msg.direction === 'outbound'
                       return (
-                        <div key={msg.id} style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
+                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
                           <div style={{
                             maxWidth: '72%',
                             background:   isOut ? '#0098DA' : '#fff',
-                            color:        isOut ? '#fff' : '#0E2C3D',
-                            borderRadius: isOut ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                            padding:      '10px 14px',
-                            fontSize:     '13.5px',
-                            lineHeight:   1.55,
-                            boxShadow:    '0 2px 8px -4px rgba(16,44,61,0.15)',
+                            borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                            padding:      '8px 12px',
+                            boxShadow:    '0 1px 3px rgba(0,0,0,0.08)',
                             border:       isOut ? 'none' : '1px solid #EDF2F6',
                           }}>
-                            <p style={{ margin: '0 0 4px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                              {msg.content ?? `[${msg.type}]`}
-                            </p>
-                            <p style={{ margin: 0, fontSize: '11px', opacity: 0.65, textAlign: 'right' }}>
-                              {format(new Date(msg.created_at), "HH:mm", { locale: ptBR })}
+                            <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
+                              <span style={{ fontSize: 10, opacity: 0.65, color: isOut ? '#fff' : '#B0BEC9' }}>
+                                {format(new Date(msg.created_at), 'HH:mm')}
+                              </span>
                               {isOut && (
-                                <span style={{ marginLeft: '4px' }}>
-                                  {msg.status === 'read' ? 'visto' : msg.status === 'delivered' ? 'entregue' : 'enviado'}
+                                <span style={{ fontSize: 10, opacity: 0.65, color: '#fff' }}>
+                                  {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
                                 </span>
                               )}
-                            </p>
+                            </div>
                           </div>
                         </div>
                       )
@@ -1347,26 +1440,28 @@ function LeadDrawer({
                     <div ref={waMsgsEndRef} />
                   </div>
 
-                  {/* Input */}
-                  <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #EDF2F6', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                    <textarea
-                      value={waInput}
-                      onChange={e => setWaInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleWaSend() } }}
-                      placeholder="Digite uma mensagem… (Enter para enviar)"
-                      rows={1}
-                      style={{ flex: 1, border: '1px solid #E1EEF7', borderRadius: '12px', padding: '10px 14px', fontSize: '13.5px', color: '#0E2C3D', resize: 'none', outline: 'none', fontFamily: 'inherit', maxHeight: '120px', overflowY: 'auto' }}
-                    />
-                    <button
-                      onClick={handleWaSend}
-                      disabled={!waInput.trim() || waSending}
-                      style={{ width: '42px', height: '42px', flexShrink: 0, borderRadius: '12px', background: '#0098DA', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: !waInput.trim() || waSending ? 'not-allowed' : 'pointer', opacity: !waInput.trim() || waSending ? 0.5 : 1, transition: 'opacity 0.15s', boxShadow: '0 4px 12px -4px rgba(0,152,218,0.5)' }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2">
-                        <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
-                      </svg>
-                    </button>
-                  </div>
+                  {/* Input completo */}
+                  <ChatInputComponent
+                    value={waInput}
+                    onChange={setWaInput}
+                    onSend={() => void handleWaSend()}
+                    onMediaUpload={handleWaMediaUpload}
+                    onTemplateSend={handleWaTemplateSend}
+                    onScheduleSend={handleWaScheduleSend}
+                    onScheduleTemplate={handleWaScheduleTemplate}
+                    templates={waTemplates}
+                    quickReplies={waQuickReplies}
+                    sending={waSending}
+                    mode={waInputMode}
+                    onModeChange={setWaInputMode}
+                    unitId={currentUser.unit_id ?? ''}
+                    onTemplatesReload={reloadWaTemplates}
+                    onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
+                    isOutside24hWindow={waIsOutside24h}
+                    signatureEnabled={false}
+                    onToggleSignature={() => {}}
+                    signerName=""
+                  />
                 </div>
               )
             })()}
