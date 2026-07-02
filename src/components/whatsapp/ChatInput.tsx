@@ -404,8 +404,13 @@ export default function ChatInput({
         {!isNote && (
           <div ref={emojiPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setShowEmoji(v => !v)} title="Emoji"
-              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${showEmoji ? '#0098DA' : '#E8EDF2'}`, background: showEmoji ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
-              😊
+              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${showEmoji ? '#0098DA' : '#E8EDF2'}`, background: showEmoji ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" fill="none" stroke={showEmoji ? '#0098DA' : '#8FA0AF'} viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M8 13.5s1.5 2 4 2 4-2 4-2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="9" cy="9.5" r="0.5" fill={showEmoji ? '#0098DA' : '#8FA0AF'} strokeWidth="1.5" />
+                <circle cx="15" cy="9.5" r="0.5" fill={showEmoji ? '#0098DA' : '#8FA0AF'} strokeWidth="1.5" />
+              </svg>
             </button>
             {showEmoji && (
               <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, zIndex: 300 }}>
