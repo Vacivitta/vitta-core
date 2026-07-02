@@ -61,7 +61,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unr
       {/* Drop area */}
       <div
         ref={setNodeRef}
-        className="flex-1 min-h-[120px] rounded-b-xl p-2 flex flex-col gap-2 transition-colors"
+        className="flex-1 min-h-0 rounded-b-xl p-2 flex flex-col gap-2 transition-colors overflow-y-auto"
         style={{
           border: '1px solid var(--color-border)',
           borderTop: 'none',
