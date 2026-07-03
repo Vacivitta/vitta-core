@@ -177,36 +177,33 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Top bar */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
+      <header style={{ background: '#25402C', padding: '16px 28px' }} className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          {/* Seletor de funil */}
           {funnels.length > 1 ? (
-            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-0.5">
+            <div className="flex items-center gap-1" style={{ background: 'rgba(255,255,255,0.10)', borderRadius: 999, padding: 3 }}>
               {funnels.map(f => (
                 <button
                   key={f.id}
                   onClick={() => setSelectedFunnelId(f.id)}
-                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-medium ${
-                    f.id === selectedFunnelId
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                  style={{
+                    fontSize: 12, padding: '4px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', fontWeight: 700,
+                    background: f.id === selectedFunnelId ? 'rgba(255,255,255,0.20)' : 'transparent',
+                    color: f.id === selectedFunnelId ? '#fff' : '#A8C3AB',
+                  }}
                 >
                   {f.nome}
                 </button>
               ))}
             </div>
           ) : (
-            <span className="text-sm font-semibold text-gray-800">{selectedFunnel.nome}</span>
+            <span style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Funil da clínica</span>
           )}
-
-          <span className="hidden sm:block text-xs text-gray-400">{totalLeads} contatos</span>
+          <span className="hidden sm:block" style={{ fontSize: 12, fontWeight: 700, color: '#A8C3AB' }}>{totalLeads} famílias em acompanhamento</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Search */}
           <div className="relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#A8C3AB' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -214,34 +211,30 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
               placeholder="Buscar..."
               value={filters.search}
               onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+              style={{ paddingLeft: 32, paddingRight: 12, paddingBlock: 6, fontSize: 13, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, color: '#D9E7DA', outline: 'none', width: 160 }}
             />
           </div>
 
-          {/* Filtros */}
           <button
             onClick={() => setShowFilters(v => !v)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl border transition-colors ${
-              activeFiltersCount > 0
-                ? 'bg-blue-50 border-blue-300 text-blue-600'
-                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
+            className="flex items-center gap-1.5"
+            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: activeFiltersCount > 0 ? '1px solid #99C669' : '1px solid rgba(255,255,255,0.16)', background: activeFiltersCount > 0 ? 'rgba(153,198,105,0.15)' : 'rgba(255,255,255,0.10)', color: activeFiltersCount > 0 ? '#99C669' : '#D9E7DA', cursor: 'pointer', fontWeight: 700 }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 12h10M11 20h2" />
             </svg>
             Filtros
             {activeFiltersCount > 0 && (
-              <span className="bg-blue-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+              <span style={{ background: '#99C669', color: '#1E3323', fontSize: 10, fontWeight: 800, width: 16, height: 16, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {activeFiltersCount}
               </span>
             )}
           </button>
 
-          {/* Arquivados */}
           <button
             onClick={() => setShowArchived(true)}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-1.5"
+            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.10)', color: '#D9E7DA', cursor: 'pointer', fontWeight: 700 }}
             title="Ver contatos arquivados"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,10 +243,10 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             <span className="hidden sm:inline">Arquivados</span>
           </button>
 
-          {/* Novo lead */}
           <button
             onClick={() => handleAddLead(selectedFunnel.stages[0])}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+            className="flex items-center gap-1.5"
+            style={{ fontSize: 13, padding: '6px 16px', borderRadius: 999, border: 'none', background: '#99C669', color: '#1E3323', cursor: 'pointer', fontWeight: 900 }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -265,11 +258,11 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
       {/* Barra de filtros */}
       {showFilters && (
-        <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap">
+        <div style={{ background: '#2D4A35', padding: '8px 28px', borderTop: '1px solid rgba(255,255,255,0.08)' }} className="flex items-center gap-3 shrink-0 flex-wrap">
           <select
             value={filters.responsavel_id}
             onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}
-            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none' }}
           >
             <option value="">Todos responsáveis</option>
             {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -280,7 +273,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             placeholder="Cidade..."
             value={filters.cidade}
             onChange={e => setFilters(f => ({ ...f, cidade: e.target.value }))}
-            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
+            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none', width: 120 }}
           />
 
           <input
@@ -288,13 +281,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             placeholder="Profissão..."
             value={filters.profissao}
             onChange={e => setFilters(f => ({ ...f, profissao: e.target.value }))}
-            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none', width: 130 }}
           />
 
           <select
             value={filters.stage_id}
             onChange={e => setFilters(f => ({ ...f, stage_id: e.target.value }))}
-            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none' }}
           >
             <option value="">Todas etapas</option>
             {selectedFunnel.stages.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -303,7 +296,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           {activeFiltersCount > 0 && (
             <button
               onClick={() => setFilters({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '' })}
-              className="text-xs text-red-500 hover:text-red-700 transition-colors"
+              style={{ fontSize: 11, color: '#F0C98A', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
             >
               Limpar filtros
             </button>
@@ -312,7 +305,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       )}
 
       {/* Kanban */}
-      <main className="flex-1 overflow-auto p-4">
+      <main className="flex-1 overflow-auto" style={{ background: '#F2EEE1', padding: 16 }}>
         <KanbanBoard
           initialLeads={filteredLeads}
           stages={selectedFunnel.stages}
