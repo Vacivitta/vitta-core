@@ -638,61 +638,94 @@ function LeadDrawer({
     <>
       {/* Overlay */}
       <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        className={`fixed inset-0 z-40 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        style={{ background: 'rgba(37,64,44,0.35)', backdropFilter: 'blur(3px)' }}
         onClick={handleClose}
       />
 
       {/* Drawer */}
-      <div className={`fixed right-0 top-0 bottom-0 z-50 flex w-full sm:w-[85%] max-w-5xl shadow-2xl transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div
+        className={`fixed right-0 top-0 bottom-0 z-50 flex w-full sm:w-[85%] max-w-5xl transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ borderRadius: '22px 0 0 22px', overflow: 'hidden', boxShadow: '-24px 0 60px -20px rgba(30,51,35,0.5)', background: '#F6F4EC' }}
+      >
 
         {/* ════ LEFT PANEL ════ */}
-        <div className="hidden sm:flex flex-col shrink-0" style={{ width: '344px', background: '#fff', borderRight: '1px solid #EDF2F6', overflowY: 'auto' }}>
+        <div className="hidden sm:flex flex-col shrink-0" style={{ width: '340px', background: '#FBFAF4', borderRight: '1px solid #E9E5D8', overflowY: 'auto' }}>
 
-          {/* Avatar + name */}
-          <div className="shrink-0" style={{ padding: '22px 22px 18px', borderBottom: '1px solid #F1F4F7' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '13px' }}>
-              <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '50%', background: '#EAF6FC', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '19px', fontWeight: 800 }}>
-                {lead.nome[0]?.toUpperCase() ?? '?'}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '-0.01em', color: '#0E2C3D', margin: 0 }}>
-                  {form.nome}{form.sobrenome ? ` ${form.sobrenome}` : ''}
-                </p>
-                {stageNome && (
-                  <span style={{ display: 'inline-block', marginTop: '5px', fontSize: '11px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>
-                    {stageNome}
-                  </span>
-                )}
-              </div>
+          {/* Cover + avatar */}
+          <div className="shrink-0" style={{ position: 'relative' }}>
+            <div style={{ background: '#25402C', padding: '24px 22px 46px' }}>
+              <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase' }}>Ficha do contato</span>
             </div>
+            <div style={{
+              position: 'absolute', bottom: '-28px', left: '22px',
+              width: 62, height: 62, borderRadius: '50%', border: '4px solid #FBFAF4',
+              background: '#D6EBD2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 21, fontWeight: 900, color: '#35853F' }}>
+                {lead.nome[0]?.toUpperCase() ?? '?'}
+              </span>
+            </div>
+          </div>
 
+          {/* Identity */}
+          <div style={{ padding: '36px 22px 0' }}>
+            <p style={{ fontSize: 19, fontWeight: 900, color: '#25402C', margin: 0 }}>
+              {form.nome}{form.sobrenome ? ` ${form.sobrenome}` : ''}
+            </p>
+            {stageNome && (
+              <span style={{ display: 'inline-block', marginTop: 6, fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#E8F4E6', color: '#35853F' }}>
+                {stageNome}
+              </span>
+            )}
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#9AA79C', margin: '6px 0 0' }}>
+              {lead.created_at ? `Chegou ${format(new Date(lead.created_at), "d MMM", { locale: ptBR })}` : ''}
+              {form.origem ? ` pelo ${form.origem}` : ''}
+              {contacts.length === 0 ? ' · ainda sem paciente vinculado' : ` · ${contacts.length} paciente${contacts.length > 1 ? 's' : ''}`}
+            </p>
+          </div>
+
+          {/* Actions row */}
+          <div style={{ padding: '14px 22px 0', display: 'flex', gap: 8 }}>
             {!editing ? (
-              <button
-                onClick={() => setEditing(true)}
-                style={{ width: '100%', marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid #E1EEF7', borderRadius: '11px', padding: '10px', fontSize: '13.5px', fontWeight: 700, color: '#3F5666', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#F4FAFE')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
-                Editar dados
-              </button>
+              <>
+                <button
+                  onClick={() => setEditing(true)}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: '1px solid #E9E5D8', borderRadius: 11, padding: 10, fontSize: '13px', fontWeight: 700, color: '#71856F', cursor: 'pointer', background: 'transparent', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#E8F4E6'; e.currentTarget.style.color = '#35853F'; e.currentTarget.style.borderColor = '#C8D9C4' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#71856F'; e.currentTarget.style.borderColor = '#E9E5D8' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+                  Editar dados
+                </button>
+                {!isArchived && (
+                  <button
+                    onClick={() => setArchiveModal(true)}
+                    title="Arquivar contato"
+                    style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#C4534A'; e.currentTarget.style.borderColor = '#E8B4B0'; e.currentTarget.style.background = '#FDF1F2' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
+                  </button>
+                )}
+              </>
             ) : (
-              <div className="flex gap-2 mt-3">
+              <>
                 <button
                   onClick={handleSave}
                   disabled={saving || !form.nome.trim()}
-                  className="flex-1 py-2 text-xs text-white rounded-xl disabled:opacity-50 font-semibold transition-colors"
-                  style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
+                  style={{ flex: 1, padding: 10, fontSize: 13, fontWeight: 800, color: '#fff', background: '#3E9849', border: 'none', borderRadius: 11, cursor: saving ? 'wait' : 'pointer', opacity: saving || !form.nome.trim() ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
                 >
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex-1 py-2 text-xs border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                  style={{ flex: 1, padding: 10, fontSize: 13, fontWeight: 700, color: '#71856F', background: 'transparent', border: '1px solid #E9E5D8', borderRadius: 11, cursor: 'pointer' }}
                 >
                   Cancelar
                 </button>
-              </div>
+              </>
             )}
           </div>
 
@@ -750,81 +783,84 @@ function LeadDrawer({
             ) : (
               /* ── View mode ── */
               <>
-                {/* Contact */}
-                <LeftSection title="Contato">
+                {/* CONTATO card */}
+                <WarmCard title="Contato">
                   {phone ? (
-                    <InfoRow label="Telefone">
-                      <span>{form.telefone}</span>
-                      <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: '#25D366', flexShrink: 0 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2zm5.3 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-1-.3-1.6-.6-2.9-1.2-4.7-4-4.9-4.3-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.2c.2-.2.5-.3.6-.3h.5c.2 0 .4 0 .6.5l.7 1.8c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.5l.8 1.3c.5.7 1.1 1.1 1.7 1.5.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.6.8c.3.1.4.2.5.3 0 .2 0 .8-.2 1.3z"/></svg>
-                      </a>
-                    </InfoRow>
-                  ) : null}
-                  {form.email    && <InfoRow label="E-mail"><a href={`mailto:${form.email}`} className="text-blue-500 hover:underline truncate">{form.email}</a></InfoRow>}
-                  {form.instagram && <InfoRow label="Instagram"><span>{form.instagram}</span></InfoRow>}
-                  {form.site     && <InfoRow label="Site"><a href={form.site} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate">{form.site}</a></InfoRow>}
-                  {!phone && !form.email && !form.instagram && !form.site && (
-                    <p className="text-xs text-gray-400 italic">Sem contato cadastrado</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#35853F"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2zm5.3 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-1-.3-1.6-.6-2.9-1.2-4.7-4-4.9-4.3-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.2c.2-.2.5-.3.6-.3h.5c.2 0 .4 0 .6.5l.7 1.8c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.5l.8 1.3c.5.7 1.1 1.1 1.7 1.5.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.6.8c.3.1.4.2.5.3 0 .2 0 .8-.2 1.3z"/></svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#25402C' }}>{form.telefone}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#9AA79C' }}>WhatsApp · Brasil</p>
+                      </div>
+                      <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 99, background: '#E8F4E6', color: '#35853F', textDecoration: 'none', transition: 'background 0.15s' }}
+                      >Ligar</a>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 12, color: '#9AA79C', fontStyle: 'italic', margin: 0 }}>Sem contato cadastrado</p>
                   )}
-                </LeftSection>
+                  {form.email && (
+                    <div style={{ marginTop: 8 }}>
+                      <InfoRow label="E-mail"><a href={`mailto:${form.email}`} style={{ color: '#3E9849', textDecoration: 'none', fontSize: 12 }}>{form.email}</a></InfoRow>
+                    </div>
+                  )}
+                </WarmCard>
 
-                {(form.cidade || form.estado || form.pais) && (
-                  <LeftSection title="Localização">
-                    <InfoRow label="Local">
-                      <span>{[form.cidade, form.estado, form.pais].filter(Boolean).join(', ')}</span>
-                    </InfoRow>
-                  </LeftSection>
-                )}
-
-                <LeftSection title="Negócio">
+                {/* SOBRE ESTE CONTATO card */}
+                <WarmCard title="Sobre este contato">
                   <InfoRow label="Cadastrado">
                     <span>{format(new Date(lead.created_at), "d MMM yyyy", { locale: ptBR })}</span>
                   </InfoRow>
                   {form.origem && (
                     <InfoRow label="Origem">
-                      <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: '#FEF4E6', color: '#C77A11' }}>{form.origem}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 99, background: '#E8F4E6', color: '#35853F' }}>{form.origem}</span>
                     </InfoRow>
                   )}
+                  <InfoRow label="Responsável">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {lead.responsavel_avatar ? (
+                        <img src={lead.responsavel_avatar} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#D6EBD2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: '#3E6B38' }}>{(responsavelNome ?? '?')[0]?.toUpperCase()}</span>
+                        </div>
+                      )}
+                      <span>{responsavelNome ? responsavelNome.split(' ')[0] : 'Sem responsável'}</span>
+                    </div>
+                  </InfoRow>
                   {form.profissao && <InfoRow label="Profissão"><span>{form.profissao}</span></InfoRow>}
+                  {(form.cidade || form.estado) && (
+                    <InfoRow label="Local"><span>{[form.cidade, form.estado].filter(Boolean).join(', ')}</span></InfoRow>
+                  )}
                   {lead.campanha_id && (
                     <InfoRow label="Campanha">
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#EDE9FE', color: '#6D28D9' }}>origem: campanha</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#EDE9FE', color: '#6D28D9' }}>origem: campanha</span>
                     </InfoRow>
                   )}
                   <InfoRow label="WhatsApp">
                     {waOptoutAt ? (
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#FEE2E2', color: '#B91C1C' }}>Bloqueado em {format(new Date(waOptoutAt), "d MMM yyyy", { locale: ptBR })}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#FEE2E2', color: '#B91C1C' }}>Bloqueado em {format(new Date(waOptoutAt), "d MMM yyyy", { locale: ptBR })}</span>
                     ) : waOptinAt ? (
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#DCFCE7', color: '#166534' }}>Autorizado WA desde {format(new Date(waOptinAt), "d MMM yyyy", { locale: ptBR })}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#DCFCE7', color: '#166534' }}>Autorizado desde {format(new Date(waOptinAt), "d MMM yyyy", { locale: ptBR })}</span>
                     ) : (
                       <button onClick={() => void handleRegisterOptin()}
-                        style={{ fontSize: '11px', color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
-                        Autorizar WA manualmente
+                        style={{ fontSize: 11, color: '#3E9849', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                        Autorizar manualmente
                       </button>
                     )}
                   </InfoRow>
-                  <InfoRow label="Responsável">
-                    <div className="flex items-center gap-1.5">
-                      {lead.responsavel_avatar ? (
-                        <img src={lead.responsavel_avatar} alt="" className="w-4 h-4 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
-                          <span className="text-[8px] font-bold text-blue-600">{(responsavelNome ?? '?')[0]?.toUpperCase()}</span>
-                        </div>
-                      )}
-                      <span>{responsavelNome ?? 'Sem responsável'}</span>
-                    </div>
-                  </InfoRow>
-                </LeftSection>
+                </WarmCard>
               </>
             )}
 
             {/* ── Pacientes vinculados ── */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pacientes</p>
+            <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.09em', color: '#9AA79C', textTransform: 'uppercase' }}>Pacientes</span>
                 {!addingContact && (
-                  <button onClick={() => setAddingContact(true)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">+ Adicionar</button>
+                  <button onClick={() => setAddingContact(true)} style={{ fontSize: '11.5px', fontWeight: 800, color: '#3E9849', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>+ Adicionar</button>
                 )}
               </div>
 
@@ -853,7 +889,7 @@ function LeadDrawer({
               )}
 
               {contacts.length === 0 && !addingContact && (
-                <p className="text-xs text-gray-400 italic">Nenhum paciente vinculado</p>
+                <p style={{ fontSize: 12, color: '#9AA79C', fontStyle: 'italic', margin: 0 }}>Nenhum paciente vinculado ainda</p>
               )}
 
               <div className="space-y-2">
@@ -926,141 +962,125 @@ function LeadDrawer({
             </div>
           </div>
 
-          {/* ── Pinned footer: Converter + Arquivar ── */}
-          <div style={{ marginTop: 'auto', padding: '18px 22px', borderTop: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* Converter em cliente */}
-            {!isArchived && (
-              isConverted ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 0', fontSize: '12px', color: '#3E9D5A', fontWeight: 600 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Convertido em cliente
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button
-                    onClick={handleConvert}
-                    disabled={converting}
-                    style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 700, color: '#1E86C0', border: '1px solid #E1EEF7', borderRadius: '11px', background: 'transparent', cursor: converting ? 'not-allowed' : 'pointer', opacity: converting ? 0.5 : 1, transition: 'background 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#F4FAFE')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    {converting ? 'Convertendo...' : 'Converter em cliente'}
-                  </button>
-                  {convertError && <p style={{ fontSize: '11px', color: '#D23B40', textAlign: 'center', margin: 0 }}>{convertError}</p>}
-                </div>
-              )
-            )}
-
-            {/* Archive / Restore */}
+          {/* ── Pinned footer: Converter ── */}
+          <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {isArchived ? (
               <button
                 onClick={handleRestore}
-                style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 700, color: '#3E9D5A', border: '1px solid #CFEBD9', borderRadius: '11px', background: 'transparent', cursor: 'pointer', transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#F4FBF6')}
+                style={{ width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#3E9849', border: '1px solid #C8D9C4', borderRadius: 12, background: 'transparent', cursor: 'pointer', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 Restaurar contato
               </button>
+            ) : isConverted ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', fontSize: 12, color: '#35853F', fontWeight: 700 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Convertido em cliente
+              </div>
             ) : (
-              <button
-                onClick={() => setArchiveModal(true)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid #F5C9CB', borderRadius: '11px', padding: '11px', fontSize: '13.5px', fontWeight: 700, color: '#D23B40', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#FDF1F2')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
-                Arquivar contato
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <button
+                  onClick={handleConvert}
+                  disabled={converting}
+                  style={{
+                    width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#fff',
+                    background: '#3E9849', border: 'none', borderRadius: 12, cursor: converting ? 'not-allowed' : 'pointer',
+                    opacity: converting ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
+                >
+                  {converting ? 'Convertendo...' : 'Converter em cliente'}
+                </button>
+                {convertError && <p style={{ fontSize: 11, color: '#C4534A', textAlign: 'center', margin: 0 }}>{convertError}</p>}
+              </div>
             )}
           </div>
         </div>
 
         {/* ════ RIGHT PANEL ════ */}
-        <div className="flex-1 flex flex-col bg-white min-w-0">
+        <div className="flex-1 flex flex-col min-w-0" style={{ background: '#F2EEE1' }}>
 
           {/* Header */}
-          <div className="flex items-center justify-between shrink-0" style={{ padding: '22px 28px 0' }}>
-            <div className="min-w-0">
-              <h2 className="truncate" style={{ fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#0E2C3D' }}>
-                {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
-              </h2>
-              {stageNome && (
-                <span
-                  className="text-[11px] font-medium px-2 py-0.5 rounded-full mt-0.5 inline-block sm:hidden"
-                  style={{ backgroundColor: `${stageCor}22`, color: stageCor }}
-                >
-                  {stageNome}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Mobile-only archive/restore */}
-              <div className="sm:hidden flex items-center gap-1.5">
-                {!isArchived && (
-                  <button onClick={() => setArchiveModal(true)} className="text-xs text-red-500 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors">
-                    Arquivar
-                  </button>
-                )}
-                {isArchived && (
-                  <button onClick={handleRestore} className="text-xs text-emerald-600 hover:bg-emerald-50 px-2.5 py-1 rounded-lg transition-colors font-medium">
-                    Restaurar
-                  </button>
-                )}
+          <div className="shrink-0" style={{ background: '#fff', borderBottom: '1px solid #E9E5D8', padding: '18px 28px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ minWidth: 0 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 900, margin: 0, color: '#25402C', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Conversa com {lead.nome}
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3E9849', flexShrink: 0 }} />
+                </h2>
+                <p style={{ fontSize: '11.5px', fontWeight: 700, color: '#9AA79C', margin: '2px 0 0' }}>online agora</p>
               </div>
-              <button
-                onClick={handleClose}
-                style={{ width: '34px', height: '34px', borderRadius: '9px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8A98A6', flexShrink: 0, transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#F1F4F7')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="shrink-0 overflow-x-auto" style={{ display: 'flex', alignItems: 'center', gap: '26px', padding: '14px 28px 0', borderBottom: '1px solid #EDF2F6' }}>
-            {TABS.map(t => {
-              const disabled = DISABLED_TABS.has(t)
-              function handleTabClick() {
-                if (disabled) return
-                setTab(t)
-              }
-              const isActive = tab === t
-              return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {/* Mobile-only archive/restore */}
+                <div className="sm:hidden" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {!isArchived && (
+                    <button onClick={() => setArchiveModal(true)} style={{ fontSize: 12, color: '#C4534A', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Arquivar
+                    </button>
+                  )}
+                  {isArchived && (
+                    <button onClick={handleRestore} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Restaurar
+                    </button>
+                  )}
+                </div>
                 <button
-                  key={t}
-                  onClick={handleTabClick}
-                  disabled={disabled}
-                  title={disabled ? 'Em breve' : undefined}
-                  style={{
-                    fontSize: '14.5px', fontWeight: 700, paddingBottom: '13px', cursor: disabled ? 'not-allowed' : 'pointer',
-                    color: disabled ? '#CFD8E1' : isActive ? '#0098DA' : '#7A8694',
-                    background: 'none', border: 'none', borderBottom: isActive ? '2px solid #0098DA' : '2px solid transparent',
-                    display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap', transition: 'color 0.15s',
-                  }}
+                  onClick={handleClose}
+                  style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E9E5D8', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#9AA79C', flexShrink: 0, transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#C4534A'; e.currentTarget.style.borderColor = '#E8B4B0'; e.currentTarget.style.background = '#FDF1F2' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
                 >
-                  {t}
-                  {t === 'Tarefas' && pendingTasks > 0 && (
-                    <span style={{ fontSize: '11px', fontWeight: 800, minWidth: '18px', textAlign: 'center', padding: '1px 6px', borderRadius: '999px', background: '#FEF0DD', color: '#C77A11' }}>{pendingTasks}</span>
-                  )}
-                  {t === 'Orçamentos' && quotes.length > 0 && (
-                    <span style={{ fontSize: '11px', fontWeight: 800, minWidth: '18px', textAlign: 'center', padding: '1px 6px', borderRadius: '999px', background: '#E9F5FC', color: '#1E86C0' }}>{quotes.length}</span>
-                  )}
-                  {t === 'Anotações' && notes.length > 0 && (
-                    <span style={{ fontSize: '11px', fontWeight: 800, minWidth: '18px', textAlign: 'center', padding: '1px 6px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>{notes.length}</span>
-                  )}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              )
-            })}
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 22, overflowX: 'auto' }}>
+              {TABS.map(t => {
+                const disabled = DISABLED_TABS.has(t)
+                function handleTabClick() {
+                  if (disabled) return
+                  setTab(t)
+                }
+                const isActive = tab === t
+                return (
+                  <button
+                    key={t}
+                    onClick={handleTabClick}
+                    disabled={disabled}
+                    title={disabled ? 'Em breve' : undefined}
+                    style={{
+                      fontSize: '12.5px', fontWeight: isActive ? 800 : 700, paddingBottom: 12, cursor: disabled ? 'not-allowed' : 'pointer',
+                      color: disabled ? '#D4D0C3' : isActive ? '#3E9849' : '#9AA79C',
+                      background: 'none', border: 'none', borderBottom: isActive ? '3px solid #3E9849' : '3px solid transparent',
+                      display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', transition: 'color 0.15s',
+                    }}
+                  >
+                    {t}
+                    {t === 'Tarefas' && pendingTasks > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#FEF3E2', color: '#C87F1B' }}>{pendingTasks}</span>
+                    )}
+                    {t === 'Orçamentos' && quotes.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#E8F4E6', color: '#35853F' }}>{quotes.length}</span>
+                    )}
+                    {t === 'Anotações' && notes.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{notes.length}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* Tab body */}
-          <div className="flex-1 overflow-y-auto" style={{ padding: '24px 28px 32px', background: '#FBFDFF' }}>
+          <div className="flex-1 overflow-y-auto" style={{ padding: '24px 28px 32px', background: '#F2EEE1' }}>
 
             {/* ═══ HISTÓRICO ═══ */}
             {tab === 'Histórico' && (
@@ -1461,36 +1481,46 @@ function LeadDrawer({
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: '-24px -28px -32px', overflow: 'hidden' }}>
                   {/* Messages */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: '6px', background: '#F7FAFC' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 6, background: '#F2EEE1' }}>
                     {waRenderItems.map(item => {
                       if ('kind' in item && item.kind === 'date') {
                         return (
-                          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0', flexShrink: 0 }}>
-                            <div style={{ flex: 1, height: 1, background: '#E8EFF4' }} />
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#A0ADB8', background: '#EDF1F5', borderRadius: 99, padding: '3px 12px', border: '1px solid #E4EBF1', whiteSpace: 'nowrap' }}>{item.label}</span>
-                            <div style={{ flex: 1, height: 1, background: '#E8EFF4' }} />
+                          <div key={item.key} style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C', background: '#fff', borderRadius: 99, padding: '3px 14px', border: '1px solid #EBE7DA' }}>{item.label}</span>
                           </div>
                         )
                       }
                       const msg = item as WaMessage
                       const isOut = msg.direction === 'outbound'
+                      const isNote = msg.type === 'note'
+                      if (isNote) {
+                        return (
+                          <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', margin: '4px 16px' }}>
+                            <div style={{ background: '#FBF3D9', border: '1px dashed #E4D194', borderRadius: 12, padding: '8px 14px', maxWidth: '80%' }}>
+                              <p style={{ margin: 0, fontSize: '11.5px', color: '#8A733A' }}>{msg.content}</p>
+                            </div>
+                          </div>
+                        )
+                      }
                       return (
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
                           <div style={{
-                            maxWidth: '72%',
-                            background:   isOut ? '#0098DA' : '#fff',
-                            borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                            maxWidth: '60%',
+                            background:   isOut ? '#DCF0D3' : '#fff',
+                            borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
                             padding:      '8px 12px',
-                            boxShadow:    '0 1px 3px rgba(0,0,0,0.08)',
-                            border:       isOut ? 'none' : '1px solid #EDF2F6',
+                            boxShadow:    '0 1px 2px rgba(37,64,44,0.07)',
+                            border:       isOut ? 'none' : '1px solid #EBE7DA',
                           }}>
-                            <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
-                              <span style={{ fontSize: 10, opacity: 0.65, color: isOut ? '#fff' : '#B0BEC9' }}>
+                            <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A' }}>
+                              <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3 }}>
+                              <span style={{ fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2' }}>
                                 {format(new Date(msg.created_at), 'HH:mm')}
                               </span>
                               {isOut && (
-                                <span style={{ fontSize: 10, opacity: 0.65, color: '#fff' }}>
+                                <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
                                   {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
                                 </span>
                               )}
@@ -1573,20 +1603,29 @@ function LeadDrawer({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function WarmCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
+      <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.09em', color: '#9AA79C', marginBottom: 10, textTransform: 'uppercase' }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>{children}</div>
+    </div>
+  )
+}
+
 function LeftSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.09em', color: '#9DB6C7', marginBottom: '12px', textTransform: 'uppercase' }}>{title}</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>{children}</div>
+    <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
+      <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.09em', color: '#9AA79C', marginBottom: 12, textTransform: 'uppercase' }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>{children}</div>
     </div>
   )
 }
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <span style={{ fontSize: '13px', color: '#8A98A6', width: '78px', flexShrink: 0 }}>{label}</span>
-      <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0E2C3D', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>{children}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: '#71856F', width: 78, flexShrink: 0 }}>{label}</span>
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#25402C', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>{children}</div>
     </div>
   )
 }
