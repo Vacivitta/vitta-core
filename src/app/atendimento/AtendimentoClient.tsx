@@ -796,8 +796,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           minWidth: contextPanelOpen ? 280 : 0,
           transition: 'width 0.2s ease, min-width 0.2s ease',
           overflow: 'hidden',
-          borderLeft: contextPanelOpen ? '1px solid #F1F4F7' : 'none',
-          background: '#fff',
+          borderLeft: contextPanelOpen ? '1px solid #E9E5D8' : 'none',
+          background: '#FBFAF4',
           display: 'flex', flexDirection: 'column',
         }}>
           {contextPanelOpen && (
@@ -1416,118 +1416,158 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
   const { lead, latestNote, tasks, contacts } = detail
   const fmtDate = (s: string) => format(new Date(s), "d MMM 'às' HH:mm", { locale: ptBR })
 
+  const cardBase: React.CSSProperties = { background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }
+  const overline: React.CSSProperties = { fontSize: 10.5, fontWeight: 800, letterSpacing: '1px', color: '#9AA79C', textTransform: 'uppercase', marginBottom: 10, marginTop: 0 }
+  const familyAvatarColors = [
+    { bg: '#E3F2FD', color: '#1565C0' },
+    { bg: '#FFF3E0', color: '#E65100' },
+    { bg: '#F3E5F5', color: '#7B1FA2' },
+    { bg: '#E8F5E9', color: '#2E7D32' },
+  ]
+
+  const nextTask = tasks[0]
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid #F1F4F7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Contato vinculado</p>
-        <button onClick={onUnlink} style={{ fontSize: 10, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer' }}>desvincular</button>
-      </div>
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 14 }}>
 
-      <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Identity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#E3F2FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#1565C0' }}>{lead.nome[0]?.toUpperCase()}</span>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
-            </p>
-            {lead.stage_nome && (
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: (lead.stage_cor ?? '#0098DA') + '22', color: lead.stage_cor ?? '#0098DA' }}>
-                {lead.stage_nome}
-              </span>
-            )}
-          </div>
+      {/* ── Card Cliente ── */}
+      <div style={{ ...cardBase, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', position: 'relative' }}>
+        <button onClick={onUnlink} style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer' }} title="Desvincular">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+        </button>
+        <div style={{ width: 56, height: 56, borderRadius: 999, background: 'var(--color-brand-subtle, #E3F2FD)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-brand, #0098DA)' }}>{lead.nome[0]?.toUpperCase()}{lead.sobrenome?.[0]?.toUpperCase() ?? ''}</span>
         </div>
-
-        {/* Info rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {lead.telefone && <InfoRow label="Telefone" value={lead.telefone} />}
-          {lead.email    && <InfoRow label="E-mail"   value={lead.email} />}
-          {lead.responsavel_nome && <InfoRow label="Responsável" value={lead.responsavel_nome} />}
-        </div>
-
-        {/* Pacientes */}
-        <div>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 0 }}>
-            Pacientes {contacts.length > 0 && <span style={{ color: '#0098DA' }}>({contacts.length})</span>}
-          </p>
-          {contacts.length === 0 ? (
-            <p style={{ fontSize: 11, color: '#B0BEC9', margin: 0, fontStyle: 'italic' }}>Nenhum paciente vinculado</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {contacts.map(c => {
-                const age = calcAgeCtx(c.data_nascimento)
-                return (
-                  <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px', background: '#F8FAFB', border: '1px solid #F1F4F7', borderRadius: 8 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</p>
-                      <p style={{ fontSize: 10, color: '#8FA0AF', margin: 0 }}>
-                        {c.relacao ? c.relacao.charAt(0).toUpperCase() + c.relacao.slice(1) : 'Paciente'}
-                        {age !== null && ` · ${age} ano${age !== 1 ? 's' : ''}`}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: '#0E2C3D', textAlign: 'center', lineHeight: 1.2 }}>
+          {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
+        </p>
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#9AA79C', textAlign: 'center' }}>
+          {[lead.profissao, lead.cidade].filter(Boolean).join(' · ') || 'Contato vinculado'}
+          {contacts.length > 0 && ` · ${contacts.length} dependente${contacts.length > 1 ? 's' : ''}`}
+        </p>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {lead.stage_nome && (
+            <span style={{ fontSize: 10, fontWeight: 800, padding: '2.5px 9px', borderRadius: 999, background: (lead.stage_cor ?? '#0098DA') + '18', color: lead.stage_cor ?? '#0098DA' }}>
+              {lead.stage_nome}
+            </span>
+          )}
+          {lead.responsavel_nome && (
+            <span style={{ fontSize: 10, fontWeight: 800, padding: '2.5px 9px', borderRadius: 999, background: '#E3F2FD', color: '#1565C0' }}>
+              {lead.responsavel_nome}
+            </span>
           )}
         </div>
-
-        {/* Ações rápidas */}
-        <div>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 0 }}>Ações Rápidas</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button
-              onClick={onCreateQuote}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 12, fontWeight: 600, color: '#0E2C3D', background: '#fff', border: '1px solid #E8EDF2', borderRadius: 9, cursor: 'pointer', textAlign: 'left' }}>
-              Novo orçamento
-            </button>
-            <button
-              onClick={onSchedule}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 12, fontWeight: 600, color: '#0E2C3D', background: '#fff', border: '1px solid #E8EDF2', borderRadius: 9, cursor: 'pointer', textAlign: 'left' }}>
-              Agendar consulta
-            </button>
-          </div>
-        </div>
-
-        {/* Last note */}
-        {latestNote && (
-          <div>
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, marginTop: 0 }}>Última anotação</p>
-            <div style={{ background: '#F8FAFB', border: '1px solid #F1F4F7', borderRadius: 8, padding: '7px 10px' }}>
-              <p style={{ fontSize: 11, color: '#5A7184', margin: 0, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{latestNote}</p>
-            </div>
+        {(lead.telefone || lead.email) && (
+          <div style={{ width: '100%', borderTop: '1px solid #EBE7DA', paddingTop: 8, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {lead.telefone && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="12" height="12" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                <span style={{ fontSize: 11.5, color: '#5A7184' }}>{lead.telefone}</span>
+              </div>
+            )}
+            {lead.email && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="12" height="12" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <span style={{ fontSize: 11.5, color: '#5A7184', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.email}</span>
+              </div>
+            )}
           </div>
         )}
+      </div>
 
-        {/* Pending tasks */}
-        {tasks.length > 0 && (
-          <div>
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, marginTop: 0 }}>Tarefas ({tasks.length})</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {tasks.slice(0, 3).map(t => {
-                const overdue = t.data_limite && new Date(t.data_limite) < new Date()
-                return (
-                  <div key={t.id} style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: overdue ? '#EF4444' : '#F59E0B', marginTop: 5, flexShrink: 0 }} />
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: '#0E2C3D', margin: 0 }}>{t.titulo}</p>
-                      {t.data_limite && <p style={{ fontSize: 10, color: overdue ? '#EF4444' : '#8FA0AF', margin: 0 }}>{fmtDate(t.data_limite)}</p>}
-                    </div>
+      {/* ── Card Próxima Tarefa ── */}
+      <div style={cardBase}>
+        <p style={overline}>Próxima Tarefa</p>
+        {nextTask ? (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--color-brand-subtle, #E3F2FD)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke="var(--color-brand, #0098DA)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: '#0E2C3D', lineHeight: 1.3 }}>{nextTask.titulo}</p>
+              {nextTask.data_limite && (
+                <p style={{ margin: '2px 0 0', fontSize: 11.5, color: new Date(nextTask.data_limite) < new Date() ? '#EF4444' : '#5A7184' }}>
+                  {fmtDate(nextTask.data_limite)}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p style={{ margin: 0, fontSize: 11.5, color: '#9AA79C' }}>Nenhuma tarefa pendente</p>
+        )}
+        {tasks.length > 1 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {tasks.slice(1, 3).map(t => {
+              const overdue = t.data_limite && new Date(t.data_limite) < new Date()
+              return (
+                <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: overdue ? '#EF4444' : '#F59E0B', flexShrink: 0 }} />
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#0E2C3D', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.titulo}</p>
+                  {t.data_limite && <span style={{ fontSize: 10, color: overdue ? '#EF4444' : '#9AA79C', flexShrink: 0 }}>{format(new Date(t.data_limite), 'd MMM', { locale: ptBR })}</span>}
+                </div>
+              )
+            })}
+            {tasks.length > 3 && <p style={{ margin: 0, fontSize: 10, color: '#9AA79C' }}>+{tasks.length - 3} tarefa{tasks.length - 3 > 1 ? 's' : ''}</p>}
+          </div>
+        )}
+      </div>
+
+      {/* ── Card Família ── */}
+      <div style={cardBase}>
+        <p style={overline}>Família {contacts.length > 0 && <span style={{ color: 'var(--color-brand, #0098DA)' }}>({contacts.length})</span>}</p>
+        {contacts.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 11.5, color: '#9AA79C' }}>Nenhum dependente vinculado</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {contacts.map((c, i) => {
+              const age = calcAgeCtx(c.data_nascimento)
+              const palette = familyAvatarColors[i % familyAvatarColors.length]
+              return (
+                <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 999, background: palette.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: palette.color }}>{c.nome[0]?.toUpperCase()}</span>
                   </div>
-                )
-              })}
-            </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#0E2C3D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</p>
+                    <p style={{ margin: 0, fontSize: 10.5, fontWeight: 600, color: '#9AA79C' }}>
+                      {c.relacao ? c.relacao.charAt(0).toUpperCase() + c.relacao.slice(1) : 'Dependente'}
+                      {age !== null && ` · ${age} ano${age !== 1 ? 's' : ''}`}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
+      </div>
 
+      {/* ── Card Última Anotação ── */}
+      {latestNote && (
+        <div style={cardBase}>
+          <p style={overline}>Última Anotação</p>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#5A7184', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{latestNote}</p>
+        </div>
+      )}
+
+      {/* ── Ações (rodapé) ── */}
+      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
         <button onClick={() => onOpen(lead)}
-          style={{ width: '100%', padding: '8px', fontSize: 12, fontWeight: 600, color: '#0098DA', background: '#F0F8FF', border: '1px solid #B3DFFF', borderRadius: 9, cursor: 'pointer' }}>
-          Ver card completo →
+          style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#fff', background: '#0098DA', border: 'none', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 5px 14px -6px rgba(0,152,218,0.55)' }}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+          Ver card completo
         </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onCreateQuote}
+            style={{ flex: 1, padding: 10, fontSize: 11.5, fontWeight: 800, color: '#5A7184', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Orçamento
+          </button>
+          <button onClick={onSchedule}
+            style={{ flex: 1, padding: 10, fontSize: 11.5, fontWeight: 800, color: '#5A7184', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            Agendar tarefa
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -1540,42 +1580,47 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
   results: LeadKanban[]; searching: boolean; onLink: (l: LeadKanban) => void; onCreate: () => void
 }) {
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 14 }}>
-      <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, marginTop: 0 }}>Cliente</p>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 14 }}>
       {!showPanel ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ textAlign: 'center', padding: '20px 0 12px' }}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#F1F4F7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
-              <svg width="20" height="20" fill="none" stroke="#B0BEC9" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            </div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#5A7184', margin: '0 0 4px' }}>Sem contato vinculado</p>
-            <p style={{ fontSize: 11, color: '#B0BEC9', margin: 0, lineHeight: 1.4 }}>Vincule esta conversa a um contato do CRM</p>
+        <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 999, background: '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="24" height="24" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           </div>
-          <button onClick={onToggle} style={{ padding: '8px', fontSize: 12, fontWeight: 600, color: '#0098DA', background: '#F0F8FF', border: '1px solid #B3DFFF', borderRadius: 9, cursor: 'pointer' }}>Vincular contato</button>
-          <button onClick={onCreate} style={{ padding: '8px', fontSize: 12, fontWeight: 600, color: '#5A7184', background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 9, cursor: 'pointer' }}>+ Criar novo contato</button>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0E2C3D' }}>Sem contato vinculado</p>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#9AA79C', textAlign: 'center', lineHeight: 1.4 }}>Vincule esta conversa a um contato do CRM</p>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+            <button onClick={onToggle}
+              style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#fff', background: '#0098DA', border: 'none', borderRadius: 12, cursor: 'pointer', boxShadow: '0 5px 14px -6px rgba(0,152,218,0.55)' }}>
+              Vincular contato
+            </button>
+            <button onClick={onCreate}
+              style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#5A7184', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer' }}>
+              + Criar novo contato
+            </button>
+          </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8FA0AF', fontSize: 16, lineHeight: 1, padding: 0 }}>←</button>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#0E2C3D', margin: 0 }}>Buscar contato</p>
+        <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 16, lineHeight: 1, padding: 0 }}>←</button>
+            <p style={{ fontSize: 12.5, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Buscar contato</p>
           </div>
           <input type="text" placeholder="Nome ou telefone..." value={searchQ} onChange={e => onSearch(e.target.value)} autoFocus
-            style={{ width: '100%', padding: '7px 10px', fontSize: 12, border: '1px solid #E8EDF2', borderRadius: 8, background: '#F8FAFB', outline: 'none', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 10, background: '#FBFAF4', outline: 'none', boxSizing: 'border-box' }} />
           {searching && <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><Spinner size={18} color="#0098DA" /></div>}
           {!searching && results.map(lead => (
             <button key={lead.id} onClick={() => onLink(lead)}
-              style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #E8EDF2', borderRadius: 9, background: '#fff', cursor: 'pointer' }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#E3F2FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#1565C0' }}>{lead.nome[0]?.toUpperCase()}</span>
+              style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid #EBE7DA', borderRadius: 12, background: '#fff', cursor: 'pointer' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 999, background: '#E3F2FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#1565C0' }}>{lead.nome[0]?.toUpperCase()}</span>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}</p>
-                <p style={{ fontSize: 10, color: '#8FA0AF', margin: 0 }}>{lead.telefone ?? 'Sem telefone'}</p>
+                <p style={{ fontSize: 12, fontWeight: 800, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}</p>
+                <p style={{ fontSize: 10.5, color: '#9AA79C', margin: 0 }}>{lead.telefone ?? 'Sem telefone'}</p>
               </div>
             </button>
           ))}
-          {!searching && searchQ && results.length === 0 && <p style={{ fontSize: 12, color: '#B0BEC9', textAlign: 'center', margin: 0 }}>Nenhum resultado</p>}
+          {!searching && searchQ && results.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', margin: 0 }}>Nenhum resultado</p>}
         </div>
       )}
     </div>
