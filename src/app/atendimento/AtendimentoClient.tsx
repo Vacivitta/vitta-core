@@ -717,7 +717,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           }} />
 
         {/* Chat */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F8FAFB', minWidth: 0, position: 'relative' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F2EEE1', minWidth: 0, position: 'relative' }}>
           {!selectedConv ? <EmptyChatState /> : (
             <>
               <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
@@ -738,9 +738,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     ? { ...c, tags: (c.tags ?? []).filter(t => t.tag.id !== tagId) } : c))
                 }}
               />
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,152,218,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F0F2F5' }}>
-                {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#0098DA" /></div>}
-                {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#B0BEC9', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(37,64,44,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F2EEE1' }}>
+                {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#3E9849" /></div>}
+                {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#9AA79C', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
                 {msgsLoaded && chatRenderItems.map(item =>
                   item.kind === 'date'
                     ? <DateSeparator key={item.key} label={item.label} />
@@ -928,7 +928,7 @@ function ConvTagsBar({ convId, convTags, unitTags, onTagAdded, onTagRemoved }: {
   if (unitTags.length === 0) return null
 
   return (
-    <div style={{ padding: '6px 14px', borderBottom: '1px solid #F1F4F7', background: '#fff', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+    <div style={{ padding: '6px 14px', borderBottom: '1px solid #E9E5D8', background: '#fff', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
       {convTags.map(tag => (
         <span key={tag.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: tag.color + '22', color: tag.color, border: `1px solid ${tag.color}44` }}>
           {tag.name}
@@ -940,17 +940,17 @@ function ConvTagsBar({ convId, convTags, unitTags, onTagAdded, onTagRemoved }: {
       ))}
       <div style={{ position: 'relative' }} ref={pickerRef}>
         <button onClick={() => setShowPicker(v => !v)} disabled={saving}
-          style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, border: '1px dashed #C5D4DE', cursor: 'pointer', background: 'transparent', color: '#8FA0AF', display: 'flex', alignItems: 'center', gap: 3 }}>
+          style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, border: '1px dashed #D1CBBA', cursor: 'pointer', background: 'transparent', color: '#9AA79C', display: 'flex', alignItems: 'center', gap: 3 }}>
           🏷️ {convTags.length === 0 ? 'Adicionar tag' : '+'}
         </button>
         {showPicker && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 8, zIndex: 200, minWidth: 160 }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #E9E5D8', borderRadius: 10, boxShadow: '0 4px 16px rgba(37,64,44,0.12)', padding: 8, zIndex: 200, minWidth: 160 }}>
             {availableTags.length === 0 ? (
-              <p style={{ fontSize: 11, color: '#B0BEC9', margin: 0, padding: '4px 6px' }}>Todas as tags já foram adicionadas</p>
+              <p style={{ fontSize: 11, color: '#9AA79C', margin: 0, padding: '4px 6px' }}>Todas as tags já foram adicionadas</p>
             ) : availableTags.map(tag => (
               <button key={tag.id} onClick={() => void addTag(tag)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 7, fontSize: 12, color: '#0E2C3D', textAlign: 'left' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#F1F4F7' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 7, fontSize: 12, color: '#25402C', textAlign: 'left' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F6F4EC' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
                 {tag.name}
@@ -995,25 +995,25 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
 
   const pillBase: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px',
-    borderRadius: 99, border: '1px solid #E8EDF2', background: '#F8FAFB',
-    fontSize: 11, fontWeight: 600, color: '#8FA0AF', cursor: 'pointer',
+    borderRadius: 99, border: '1px solid #EBE7DA', background: '#F1EFE5',
+    fontSize: 11, fontWeight: 600, color: '#71856F', cursor: 'pointer',
     whiteSpace: 'nowrap', userSelect: 'none' as const,
   }
   const pillActive: React.CSSProperties = {
-    ...pillBase, background: '#F0F8FF', borderColor: '#0098DA', color: '#0098DA',
+    ...pillBase, background: '#25402C', borderColor: '#25402C', color: '#fff',
   }
 
   const dropBase: React.CSSProperties = {
     position: 'absolute', top: 'calc(100% + 5px)', left: 0,
-    background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.10)', padding: 6, zIndex: 300, minWidth: 150,
+    background: '#fff', border: '1px solid #E9E5D8', borderRadius: 10,
+    boxShadow: '0 4px 16px rgba(37,64,44,0.10)', padding: 6, zIndex: 300, minWidth: 150,
   }
 
   const dropItem = (active: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
-    background: active ? '#F0F8FF' : 'none', border: 'none', cursor: 'pointer',
+    background: active ? '#E8F4E6' : 'none', border: 'none', cursor: 'pointer',
     borderRadius: 7, fontSize: 12, fontWeight: active ? 600 : 400,
-    color: active ? '#0098DA' : '#0E2C3D', textAlign: 'left' as const,
+    color: active ? '#3E9849' : '#25402C', textAlign: 'left' as const,
   })
 
   const ChevronDown = () => (
@@ -1023,15 +1023,19 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
   )
 
   return (
-    <div style={{ width: 300, minWidth: 300, borderRight: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
+    <div style={{ width: 316, minWidth: 316, borderRight: '1px solid #E9E5D8', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
       {/* Topo: título + ações */}
-      <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #F1F4F7', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid #E9E5D8', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Conversas</p>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {totalUnread > 0 && <span style={{ background: '#25D366', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 7px' }}>{totalUnread}</span>}
+          <div>
+            <p style={{ fontSize: 19, fontWeight: 900, color: '#25402C', margin: 0 }}>Conversas</p>
+            <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', margin: '2px 0 0' }}>
+              {totalUnread > 0 ? `${totalUnread} famílias esperando por você` : 'Tudo em dia'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button onClick={onToggleSound} title={soundEnabled ? 'Silenciar' : 'Ativar som'}
-              style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: soundEnabled ? '#F0F8FF' : '#F8FAFB', color: soundEnabled ? '#0098DA' : '#B0BEC9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid #E9E5D8', cursor: 'pointer', background: soundEnabled ? '#E8F4E6' : 'transparent', color: soundEnabled ? '#3E9849' : '#9AA79C', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
               {soundEnabled ? (
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -1045,19 +1049,19 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               )}
             </button>
             <button onClick={onNewConv} title="Nova conversa"
-              style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #E8EDF2', cursor: 'pointer', background: '#F0F8FF', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              style={{ width: 38, height: 38, borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#3E9849', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
         </div>
 
         {/* Search */}
         <div style={{ position: 'relative' }}>
-          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#B0BEC9', pointerEvents: 'none' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#9AA79C', pointerEvents: 'none' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <input type="text" placeholder="Buscar contato..." value={search} onChange={e => onSearch(e.target.value)}
-            style={{ width: '100%', paddingLeft: 28, paddingRight: 8, paddingTop: 6, paddingBottom: 6, fontSize: 12, border: '1px solid #E8EDF2', borderRadius: 8, background: '#F8FAFB', outline: 'none', boxSizing: 'border-box' }} />
+          <input type="text" placeholder="Buscar por nome ou telefone…" value={search} onChange={e => onSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: 32, paddingRight: 10, paddingTop: 8, paddingBottom: 8, fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 999, background: '#F6F4EC', outline: 'none', boxSizing: 'border-box', color: '#25402C' }} />
         </div>
 
         {/* Filter pill bar */}
@@ -1096,7 +1100,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B0BEC9', flexShrink: 0 }} />
                     Todas
                   </button>
-                  <div style={{ height: 1, background: '#F1F4F7', margin: '4px 0' }} />
+                  <div style={{ height: 1, background: '#EBE7DA', margin: '4px 0' }} />
                   {queues.map(q => (
                     <button key={q.id} onClick={() => { onFilterQueue(q.id); setOpenDrop(null) }} style={dropItem(filterQueue === q.id)}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: q.cor, flexShrink: 0 }} />
@@ -1122,7 +1126,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B0BEC9', flexShrink: 0 }} />
                     Todas
                   </button>
-                  <div style={{ height: 1, background: '#F1F4F7', margin: '4px 0' }} />
+                  <div style={{ height: 1, background: '#EBE7DA', margin: '4px 0' }} />
                   {unitTags.map(tag => (
                     <button key={tag.id} onClick={() => { onFilterTag(filterTag === tag.id ? 'all' : tag.id); setOpenDrop(null) }} style={dropItem(filterTag === tag.id)}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
@@ -1137,7 +1141,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           {/* Minhas — ícone à direita */}
           <button onClick={() => onFilterMine(!filterMine)} title={filterMine ? 'Ver todas' : 'Ver apenas minhas'}
             style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 99, border: '1px solid', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s',
-              background: filterMine ? '#0098DA' : 'transparent', borderColor: filterMine ? '#0098DA' : '#E8EDF2', color: filterMine ? '#fff' : '#B0BEC9' }}>
+              background: filterMine ? '#25402C' : 'transparent', borderColor: filterMine ? '#25402C' : '#EBE7DA', color: filterMine ? '#fff' : '#9AA79C' }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
             </svg>
@@ -1145,8 +1149,8 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
         </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {!loaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100 }}><Spinner size={20} color="#0098DA" /></div>}
-        {loaded && convs.length === 0 && <div style={{ textAlign: 'center', padding: '32px 16px', color: '#B0BEC9', fontSize: 12 }}>Nenhuma conversa</div>}
+        {!loaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100 }}><Spinner size={20} color="#3E9849" /></div>}
+        {loaded && convs.length === 0 && <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9AA79C', fontSize: 12 }}>Nenhuma conversa</div>}
         {convs.map(conv => {
           const isSelected = selected?.id === conv.id
           const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
@@ -1161,21 +1165,29 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
             : name
           return (
             <button key={conv.id} onClick={() => onSelect(conv)} className="group" title={previewTitle}
-              style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F8FAFB', background: isSelected ? '#F0F8FF' : 'transparent', cursor: 'pointer', transition: 'background 0.1s' }}>
+              style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F4F1E8', background: isSelected ? '#E8F4E6' : 'transparent', cursor: 'pointer', transition: 'background 0.1s', borderLeft: isSelected ? '3px solid #CDE8CB' : '3px solid transparent' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 {conv.profile_picture_url ? (
-                  <img src={conv.profile_picture_url} alt={name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                  <img src={conv.profile_picture_url} alt={name} style={{ width: 42, height: 42, borderRadius: 14, objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: isSelected ? '#0098DA' : '#E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#fff' : '#5A7184' }}>{name.slice(0, 2).toUpperCase()}</span>
-                  </div>
+                  (() => {
+                    const _AVATAR_BG  = ['#D6EBD2', '#DCEFFA', '#F3EBDA'] as const
+                    const _AVATAR_INK = ['#3E6B38', '#2A6B99', '#8B6A2F'] as const
+                    let _h = 0; for (let i = 0; i < name.length; i++) _h = ((_h << 5) - _h + name.charCodeAt(i)) | 0
+                    const _pi = Math.abs(_h) % 3
+                    return (
+                      <div style={{ width: 42, height: 42, borderRadius: 14, background: _AVATAR_BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+                      </div>
+                    )
+                  })()
                 )}
                 <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: sc.text, border: '1.5px solid #fff' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: conv.unread_count > 0 ? 700 : 600, color: '#0E2C3D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-                  <span style={{ fontSize: 10, color: '#B0BEC9', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: conv.unread_count > 0 ? 700 : 600, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  <span style={{ fontSize: 10, color: '#9AA79C', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {conv.last_message_at ? formatConvTime(conv.last_message_at) : ''}
                     {conv.unread_count === 0 && (
                       <span
@@ -1185,16 +1197,16 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                         onClick={e => { e.stopPropagation(); onMarkUnread(conv.id) }}
                         style={{ opacity: 0, cursor: 'pointer', padding: 2, borderRadius: 4, display: 'inline-flex', transition: 'opacity 0.15s' }}
                       >
-                        <svg width="12" height="12" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <svg width="12" height="12" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                       </span>
                     )}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 1 }}>
-                  <span style={{ fontSize: 11, color: '#8FA0AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  <span style={{ fontSize: 11, color: '#8A977F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {previewText ?? (assignee ? `↳ ${displayName(assignee)}` : conv.wa_phone)}
                   </span>
-                  {conv.unread_count > 0 && <span style={{ background: '#25D366', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
+                  {conv.unread_count > 0 && <span style={{ background: '#3E9849', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
                 </div>
                 {(conv.tags ?? []).length > 0 && (
                   <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
@@ -1230,17 +1242,25 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
   const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
 
   return (
-    <div style={{ padding: '10px 14px', borderBottom: '1px solid #F1F4F7', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+    <div style={{ padding: '10px 14px', borderBottom: '1px solid #E9E5D8', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
       {conv.profile_picture_url ? (
-        <img src={conv.profile_picture_url} alt={name} style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+        <img src={conv.profile_picture_url} alt={name} style={{ width: 42, height: 42, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
       ) : (
-        <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{name.slice(0, 2).toUpperCase()}</span>
-        </div>
+        (() => {
+          const _BG  = ['#D6EBD2', '#DCEFFA', '#F3EBDA'] as const
+          const _INK = ['#3E6B38', '#2A6B99', '#8B6A2F'] as const
+          let _h = 0; for (let i = 0; i < name.length; i++) _h = ((_h << 5) - _h + name.charCodeAt(i)) | 0
+          const _pi = Math.abs(_h) % 3
+          return (
+            <div style={{ width: 42, height: 42, borderRadius: 14, background: _BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+            </div>
+          )
+        })()
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
-        <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>{conv.wa_phone}</p>
+        <p style={{ fontSize: 15, fontWeight: 900, color: '#25402C', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
+        <p style={{ fontSize: 11, color: '#9AA79C', margin: 0 }}>{conv.wa_phone}</p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
         {/* Status */}
@@ -1303,7 +1323,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
         )}
         {/* Toggle context panel */}
         <button onClick={onToggleContextPanel} title={contextPanelOpen ? 'Recolher painel' : 'Expandir painel'}
-          style={{ padding: '5px 7px', border: '1px solid #E8EDF2', borderRadius: 8, background: '#F8FAFB', cursor: 'pointer', lineHeight: 0, color: '#8FA0AF', flexShrink: 0 }}>
+          style={{ padding: '5px 7px', border: '1px solid #E9E5D8', borderRadius: 8, background: '#F6F4EC', cursor: 'pointer', lineHeight: 0, color: '#71856F', flexShrink: 0 }}>
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={contextPanelOpen ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
           </svg>
@@ -1317,12 +1337,10 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
 
 function DateSeparator({ label }: { label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', flexShrink: 0 }}>
-      <div style={{ flex: 1, height: 1, background: '#F1F4F7' }} />
-      <span style={{ fontSize: 11, fontWeight: 600, color: '#A0ADB8', background: '#F4F6F8', borderRadius: 99, padding: '3px 12px', border: '1px solid #EDF0F3', whiteSpace: 'nowrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '8px 0', flexShrink: 0 }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: '#8A977F', background: '#fff', borderRadius: 99, padding: '4px 14px', border: '1px solid #EBE7DA', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(37,64,44,0.06)' }}>
         {label}
       </span>
-      <div style={{ flex: 1, height: 1, background: '#F1F4F7' }} />
     </div>
   )
 }
@@ -1334,7 +1352,7 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
   const failed = isOut && msg.status === 'failed'
   const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
   const isAudio = msg.type === 'audio' && msg.media_url
-  const timeColor = failed ? '#B91C1C' : isOut ? 'rgba(255,255,255,0.6)' : '#A0ADB8'
+  const timeColor = failed ? '#B91C1C' : isOut ? '#7FA57F' : '#B4BFB2'
 
   const timestamp = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: timeColor, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
@@ -1349,13 +1367,13 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
       <div style={{
         maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
-        borderRadius: isOut ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-        background: failed ? '#FEE2E2' : isOut ? 'linear-gradient(135deg, #0098DA, #0084BF)' : '#fff',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-        border: failed ? '1px solid #FECACA' : isOut ? 'none' : '1px solid #F0F2F5',
+        borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+        background: failed ? '#FEE2E2' : isOut ? '#DCF0D3' : '#fff',
+        boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
+        border: failed ? '1px solid #FECACA' : isOut ? 'none' : '1px solid #EBE7DA',
       }}>
         {isText ? (
-          <p style={{ margin: 0, fontSize: 13, color: isOut ? '#fff' : '#0E2C3D', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
             <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
           </p>
@@ -1381,13 +1399,13 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
 function InternalNoteBubble({ note }: { note: WaNote }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
-      <div style={{ maxWidth: '80%', padding: '7px 12px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+      <div style={{ maxWidth: '80%', padding: '8px 14px', borderRadius: 12, background: '#FBF3D9', border: '1.5px dashed #E4D194' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#92400E', textTransform: 'uppercase' }}>Nota interna</span>
-          <span style={{ fontSize: 10, color: '#B45309' }}>{note.author_name}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#8A733A', textTransform: 'uppercase' }}>Nota interna</span>
+          <span style={{ fontSize: 10, color: '#8A733A' }}>{note.author_name}</span>
         </div>
-        <p style={{ margin: 0, fontSize: 12, color: '#78350F', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{note.content}</p>
-        <p style={{ margin: '4px 0 0', fontSize: 10, color: '#B45309', textAlign: 'right' }}>{format(new Date(note.created_at), 'HH:mm')}</p>
+        <p style={{ margin: 0, fontSize: 12, color: '#6B5A2B', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{note.content}</p>
+        <p style={{ margin: '4px 0 0', fontSize: 10, color: '#8A733A', textAlign: 'right' }}>{format(new Date(note.created_at), 'HH:mm')}</p>
       </div>
     </div>
   )
@@ -1632,11 +1650,11 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
 function EmptyChatState() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-      <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#F1F4F7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="24" height="24" fill="none" stroke="#B0BEC9" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+      <div style={{ width: 56, height: 56, borderRadius: 18, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="26" height="26" fill="none" stroke="#3E9849" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
       </div>
-      <p style={{ fontSize: 13, fontWeight: 600, color: '#5A7184', margin: 0 }}>Selecione uma conversa</p>
-      <p style={{ fontSize: 12, color: '#B0BEC9', margin: 0 }}>Escolha uma conversa à esquerda</p>
+      <p style={{ fontSize: 14, fontWeight: 700, color: '#25402C', margin: 0 }}>Selecione uma conversa</p>
+      <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Escolha uma conversa à esquerda</p>
     </div>
   )
 }
@@ -1771,7 +1789,7 @@ function NewConversationModal({ unitId, onStart, onClose }: {
 
 function StatusTick({ status }: { status: string }) {
   if (status === 'failed') return <span style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 700 }}>!</span>
-  const c = status === 'read' ? '#fff' : '#ffffffaa'
+  const c = status === 'read' ? '#1E86C0' : '#7FA57F'
   if (status === 'sent') return <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 5l3 3 5-7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
   return <svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M1 5l3 3 5-7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M6 5l3 3 5-7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
@@ -1779,8 +1797,8 @@ function StatusTick({ status }: { status: string }) {
 function InfoRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
-      <span style={{ fontSize: 11, color: '#8FA0AF', width: 72, textAlign: 'right', flexShrink: 0, lineHeight: '18px' }}>{label}</span>
-      <span style={{ fontSize: 11, fontWeight: highlight ? 700 : 400, color: highlight ? '#1D9E75' : '#0E2C3D', flex: 1, wordBreak: 'break-all', lineHeight: '18px' }}>{value}</span>
+      <span style={{ fontSize: 11, color: '#71856F', width: 72, textAlign: 'right', flexShrink: 0, lineHeight: '18px' }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: highlight ? 700 : 400, color: highlight ? '#3E9849' : '#25402C', flex: 1, wordBreak: 'break-all', lineHeight: '18px' }}>{value}</span>
     </div>
   )
 }

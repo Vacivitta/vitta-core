@@ -25,7 +25,24 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(git push *)",
       "mcp__Claude_in_Chrome__get_page_text",
-      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__get_project_url"
+      "mcp__6c22b099-35cb-4d99-9aad-d29f56839d66__get_project_url",
+      "mcp__5cd9041d-1043-46b2-8f7d-ca81ccdb863f__list_deployments",
+      "mcp__5cd9041d-1043-46b2-8f7d-ca81ccdb863f__get_runtime_logs",
+      "Bash(curl -s https://raw.githubusercontent.com/chris-rudmin/opus-recorder/develop/README.md)",
+      "Bash(npm info *)",
+      "Bash(npm pack *)",
+      "Bash(node -e ' *)",
+      "Bash(npm view *)",
+      "Bash(python -c \"import sys; t=sys.stdin.read\\(\\); print\\(t[:2000]\\)\")",
+      "mcp__5cd9041d-1043-46b2-8f7d-ca81ccdb863f__list_projects",
+      "WebFetch(domain:developers.facebook.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.wappbiz.com)",
+      "WebFetch(domain:support.whapi.cloud)",
+      "WebFetch(domain:api.support.vonage.com)",
+      "WebFetch(domain:chattopdf.app)",
+      "Bash(xargs grep -l \"template\\\\|Template\" -i)",
+      "Bash(xargs ls -la)"
     ]
   }
 }
