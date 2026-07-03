@@ -88,7 +88,7 @@ function AudioPlayer({ src, isOut }: { src: string; isOut: boolean }) {
   const text   = isOut ? '#fff' : '#667781'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 180, maxWidth: 240 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 240 }}>
       <audio ref={ref} src={src} preload="metadata" />
 
       <button onClick={toggle} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>

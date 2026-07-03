@@ -328,8 +328,8 @@ export default function ChatInput({
         </div>
       )}
 
-      {/* Mode toggle */}
-      <div style={{ padding: '6px 14px 0', display: 'flex', gap: 4, alignItems: 'center' }}>
+      {/* Mode toggle + formatting toolbar */}
+      <div style={{ padding: '8px 14px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
         <button onClick={() => { onModeChange('text'); setScheduleMode(false); setScheduleTemplate(null) }}
           style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: !isNote ? '#0098DA' : '#F1F4F7', color: !isNote ? '#fff' : '#8FA0AF' }}>
           Mensagem
@@ -338,6 +338,24 @@ export default function ChatInput({
           style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: isNote ? '#F59E0B' : '#F1F4F7', color: isNote ? '#fff' : '#8FA0AF' }}>
           Nota interna
         </button>
+        {!isNote && (
+          <>
+            <div style={{ width: 1, height: 16, background: '#E8EDF2', marginInline: 2 }} />
+            {([['*', 'B', 'Negrito (Ctrl+B)', { fontWeight: 700 }], ['_', 'I', 'Itálico (Ctrl+I)', { fontStyle: 'italic' as const }], ['~', 'S', 'Riscado (Ctrl+Shift+X)', { textDecoration: 'line-through' }]] as const).map(([marker, label, title, css]) => (
+              <button key={marker} title={title as string}
+                onClick={() => {
+                  const ta = textareaRef.current; if (!ta) return
+                  ta.focus()
+                  const s = ta.selectionStart, end = ta.selectionEnd
+                  if (s === end) { onChange(value.slice(0, s) + marker + marker + value.slice(s)); requestAnimationFrame(() => { ta.setSelectionRange(s + 1, s + 1) }); return }
+                  onChange(value.slice(0, s) + marker + value.slice(s, end) + marker + value.slice(end))
+                  requestAnimationFrame(() => { ta.setSelectionRange(s + 1, end + 1) })
+                }}
+                style={{ width: 24, height: 22, borderRadius: 4, border: '1px solid #E8EDF2', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#667781', ...(css as React.CSSProperties) }}
+              >{label}</button>
+            ))}
+          </>
+        )}
         {!isNote && (
           <button onClick={onToggleSignature} title={signatureEnabled ? `Assinatura ativa: "${signerName}: ..."` : 'Ativar assinatura'}
             style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, border: `1px solid ${signatureEnabled ? '#0098DA' : '#E8EDF2'}`, cursor: 'pointer', background: signatureEnabled ? '#EFF7FF' : '#F8FAFB', color: signatureEnabled ? '#0098DA' : '#8FA0AF', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
@@ -372,27 +390,8 @@ export default function ChatInput({
         </div>
       )}
 
-      {/* Formatting toolbar */}
-      {!isNote && (
-        <div style={{ padding: '0 14px 2px', display: 'flex', gap: 2 }}>
-          {([['*', 'B', 'Negrito (Ctrl+B)', { fontWeight: 700 }], ['_', 'I', 'Itálico (Ctrl+I)', { fontStyle: 'italic' as const }], ['~', 'S', 'Riscado (Ctrl+Shift+X)', { textDecoration: 'line-through' }]] as const).map(([marker, label, title, css]) => (
-            <button key={marker} title={title as string}
-              onClick={() => {
-                const ta = textareaRef.current; if (!ta) return
-                ta.focus()
-                const s = ta.selectionStart, end = ta.selectionEnd
-                if (s === end) { onChange(value.slice(0, s) + marker + marker + value.slice(s)); requestAnimationFrame(() => { ta.setSelectionRange(s + 1, s + 1) }); return }
-                onChange(value.slice(0, s) + marker + value.slice(s, end) + marker + value.slice(end))
-                requestAnimationFrame(() => { ta.setSelectionRange(s + 1, end + 1) })
-              }}
-              style={{ width: 26, height: 22, borderRadius: 4, border: '1px solid #E8EDF2', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#667781', ...(css as React.CSSProperties) }}
-            >{label}</button>
-          ))}
-        </div>
-      )}
-
       {/* Input row */}
-      <div style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+      <div style={{ padding: '6px 12px 8px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         {!isNote && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setAttachOpen(v => !v)} title="Anexar / ferramentas"

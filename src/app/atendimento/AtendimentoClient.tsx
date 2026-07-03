@@ -1333,19 +1333,22 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
   const isOut = msg.direction === 'outbound'
   const failed = isOut && msg.status === 'failed'
   const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
+  const isAudio = msg.type === 'audio' && msg.media_url
   const timeColor = failed ? '#B91C1C' : isOut ? 'rgba(255,255,255,0.6)' : '#A0ADB8'
 
   const timestamp = (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: timeColor, marginLeft: 6, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: timeColor, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
       {format(new Date(msg.created_at), 'HH:mm')}
       {isOut && <StatusTick status={msg.status} />}
     </span>
   )
 
+  const bubbleMaxWidth = isAudio ? 280 : 'min(70%, 480px)'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
       <div style={{
-        maxWidth: 'min(70%, 480px)', padding: isText ? '6px 8px 6px 10px' : '6px 8px',
+        maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
         borderRadius: isOut ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
         background: failed ? '#FEE2E2' : isOut ? 'linear-gradient(135deg, #0098DA, #0084BF)' : '#fff',
         boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
@@ -1356,6 +1359,11 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
             <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
             <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
           </p>
+        ) : isAudio ? (
+          <div>
+            <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -2 }}>{timestamp}</div>
+          </div>
         ) : (
           <>
             <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
