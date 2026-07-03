@@ -1360,10 +1360,7 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
             <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
           </p>
         ) : isAudio ? (
-          <div>
-            <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -2 }}>{timestamp}</div>
-          </div>
+          <MediaContent msg={msg} isOut={isOut} unitId={unitId} timestamp={timestamp} />
         ) : (
           <>
             <MediaContent msg={msg} isOut={isOut} unitId={unitId} />

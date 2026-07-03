@@ -7,6 +7,7 @@ interface Props {
   msg: WaMessage
   isOut: boolean
   unitId: string | null
+  timestamp?: React.ReactNode
 }
 
 /* ── WhatsApp text formatting ── */
@@ -33,7 +34,7 @@ function formatWaText(text: string): React.ReactNode[] {
 /* ── Audio player ── */
 const SPEEDS = [1, 1.5, 2] as const
 
-function AudioPlayer({ src, isOut }: { src: string; isOut: boolean }) {
+function AudioPlayer({ src, isOut, timestamp }: { src: string; isOut: boolean; timestamp?: React.ReactNode }) {
   const ref = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying]     = useState(false)
   const [duration, setDuration]   = useState(0)
@@ -120,13 +121,14 @@ function AudioPlayer({ src, isOut }: { src: string; isOut: boolean }) {
           >
             {SPEEDS[speedIdx]}x
           </button>
+          {timestamp}
         </div>
       </div>
     </div>
   )
 }
 
-export default function MediaContent({ msg, isOut, unitId }: Props) {
+export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
   const tc = isOut ? '#fff' : '#0E2C3D'
   const sc = isOut ? '#ffffffaa' : '#8FA0AF'
   const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
@@ -152,7 +154,7 @@ export default function MediaContent({ msg, isOut, unitId }: Props) {
     )
 
   if (msg.type === 'audio' && msg.media_url)
-    return <AudioPlayer src={mediaUrl(msg.media_url)} isOut={isOut} />
+    return <AudioPlayer src={mediaUrl(msg.media_url)} isOut={isOut} timestamp={timestamp} />
 
   if (msg.type === 'video' && msg.media_url)
     return (
