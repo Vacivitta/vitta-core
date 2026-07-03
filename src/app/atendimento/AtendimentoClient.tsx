@@ -738,7 +738,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     ? { ...c, tags: (c.tags ?? []).filter(t => t.tag.id !== tagId) } : c))
                 }}
               />
-              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,152,218,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F0F2F5' }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#0098DA" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#B0BEC9', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
                 {msgsLoaded && chatRenderItems.map(item =>
@@ -1332,14 +1332,36 @@ function DateSeparator({ label }: { label: string }) {
 function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) {
   const isOut = msg.direction === 'outbound'
   const failed = isOut && msg.status === 'failed'
+  const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
+  const timeColor = failed ? '#B91C1C' : isOut ? 'rgba(255,255,255,0.6)' : '#A0ADB8'
+
+  const timestamp = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: timeColor, marginLeft: 6, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
+      {format(new Date(msg.created_at), 'HH:mm')}
+      {isOut && <StatusTick status={msg.status} />}
+    </span>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
-      <div style={{ maxWidth: '70%', padding: '8px 12px', borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: failed ? '#FEE2E2' : isOut ? '#0098DA' : '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: failed ? '1px solid #FECACA' : 'none' }}>
-        <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: failed ? '#B91C1C' : isOut ? '#ffffff99' : '#B0BEC9' }}>{format(new Date(msg.created_at), 'HH:mm')}</span>
-          {isOut && <StatusTick status={msg.status} />}
-        </div>
+      <div style={{
+        maxWidth: 'min(70%, 480px)', padding: isText ? '6px 8px 6px 10px' : '6px 8px',
+        borderRadius: isOut ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+        background: failed ? '#FEE2E2' : isOut ? 'linear-gradient(135deg, #0098DA, #0084BF)' : '#fff',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+        border: failed ? '1px solid #FECACA' : isOut ? 'none' : '1px solid #F0F2F5',
+      }}>
+        {isText ? (
+          <p style={{ margin: 0, fontSize: 13, color: isOut ? '#fff' : '#0E2C3D', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
+            <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
+          </p>
+        ) : (
+          <>
+            <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>{timestamp}</div>
+          </>
+        )}
       </div>
       {failed && (
         <span style={{ fontSize: 10, color: '#B91C1C', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>

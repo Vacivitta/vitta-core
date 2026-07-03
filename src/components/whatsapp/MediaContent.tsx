@@ -88,36 +88,40 @@ function AudioPlayer({ src, isOut }: { src: string; isOut: boolean }) {
   const text   = isOut ? '#fff' : '#667781'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200, maxWidth: 260 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 180, maxWidth: 240 }}>
       <audio ref={ref} src={src} preload="metadata" />
 
-      {/* Play/Pause */}
       <button onClick={toggle} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
         {playing ? (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill={accent}><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="14" fill={accent} opacity={isOut ? 0.25 : 0.15} />
+            <rect x="10" y="9" width="3" height="10" rx="1" fill={accent} />
+            <rect x="15" y="9" width="3" height="10" rx="1" fill={accent} />
+          </svg>
         ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill={accent}><path d="M8 5v14l11-7z" /></svg>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="14" fill={accent} opacity={isOut ? 0.25 : 0.15} />
+            <path d="M11 9v10l8-5z" fill={accent} />
+          </svg>
         )}
       </button>
 
-      {/* Progress */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div onClick={seek} style={{ height: 5, background: track, borderRadius: 3, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 3, transition: 'width 0.1s linear' }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+        <div onClick={seek} style={{ height: 4, background: track, borderRadius: 2, cursor: 'pointer', position: 'relative' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.1s linear' }} />
+          <div style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%, -50%)', width: 10, height: 10, borderRadius: '50%', background: accent, boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.1s linear' }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 10, color: text }}>{fmt(current)}</span>
-          <span style={{ fontSize: 10, color: text }}>{loaded ? fmt(duration) : '--:--'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 10, color: text, minWidth: 28 }}>{fmt(current || duration)}</span>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={cycleSpeed}
+            style={{ background: isOut ? 'rgba(255,255,255,0.2)' : '#E9EDEF', border: 'none', borderRadius: 8, padding: '1px 5px', fontSize: 9, fontWeight: 700, color: text, cursor: 'pointer', lineHeight: '14px' }}
+          >
+            {SPEEDS[speedIdx]}x
+          </button>
         </div>
       </div>
-
-      {/* Speed */}
-      <button
-        onClick={cycleSpeed}
-        style={{ background: isOut ? 'rgba(255,255,255,0.2)' : '#E9EDEF', border: 'none', borderRadius: 10, padding: '2px 6px', fontSize: 10, fontWeight: 700, color: text, cursor: 'pointer', flexShrink: 0 }}
-      >
-        {SPEEDS[speedIdx]}x
-      </button>
     </div>
   )
 }
@@ -128,10 +132,10 @@ export default function MediaContent({ msg, isOut, unitId }: Props) {
   const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
 
   if (msg.type === 'template')
-    return <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content ? formatWaText(msg.content) : msg.template_name}</p>
+    return <>{msg.content ? formatWaText(msg.content) : msg.template_name}</>
 
   if (msg.type === 'text' || (!msg.media_url && msg.content))
-    return <p style={{ margin: 0, fontSize: 13, color: tc, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{formatWaText(msg.content ?? '')}</p>
+    return <>{formatWaText(msg.content ?? '')}</>
 
   if (msg.type === 'image' && msg.media_url)
     return (
