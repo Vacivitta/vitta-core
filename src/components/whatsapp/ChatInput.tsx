@@ -24,7 +24,7 @@ interface Props {
   value: string
   onChange: (v: string) => void
   onSend: () => void
-  onMediaUpload: (file: File) => void
+  onMediaUpload: (file: File, caption?: string) => void
   onTemplateSend: (t: WaTemplate) => void
   onScheduleSend: (content: string, scheduledFor: string) => void
   onScheduleTemplate: (t: WaTemplate, scheduledFor: string) => void
@@ -72,6 +72,9 @@ export default function ChatInput({
   const [newTmplName,      setNewTmplName]       = useState('')
   const [newTmplContent,   setNewTmplContent]    = useState('')
   const [previewTemplate,  setPreviewTemplate]   = useState<WaTemplate | null>(null)
+  const [pendingFile,      setPendingFile]       = useState<File | null>(null)
+  const [pendingCaption,   setPendingCaption]    = useState('')
+  const [pendingPreview,   setPendingPreview]    = useState<string | null>(null)
   const [showNewQr,        setShowNewQr]         = useState(false)
   const [newQrShortcut,    setNewQrShortcut]     = useState('')
   const [newQrContent,     setNewQrContent]      = useState('')
@@ -172,7 +175,38 @@ export default function ChatInput({
   function fmtRecTime(s: number) { return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}` }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (f) { onMediaUpload(f); e.target.value = '' }
+    const f = e.target.files?.[0]
+    if (!f) return
+    e.target.value = ''
+    if (f.type.startsWith('audio/')) {
+      onMediaUpload(f)
+      return
+    }
+    setPendingFile(f)
+    setPendingCaption('')
+    setAttachOpen(false)
+    if (f.type.startsWith('image/')) {
+      const url = URL.createObjectURL(f)
+      setPendingPreview(url)
+    } else {
+      setPendingPreview(null)
+    }
+  }
+
+  function sendPendingFile() {
+    if (!pendingFile) return
+    onMediaUpload(pendingFile, pendingCaption.trim() || undefined)
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+    setPendingFile(null)
+    setPendingCaption('')
+    setPendingPreview(null)
+  }
+
+  function cancelPendingFile() {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+    setPendingFile(null)
+    setPendingCaption('')
+    setPendingPreview(null)
   }
 
   async function syncTemplates() {
@@ -293,6 +327,50 @@ export default function ChatInput({
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* File preview with caption */}
+      {pendingFile && (
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E9E5D8', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(37,64,44,0.10)', zIndex: 96, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Enviar arquivo</p>
+            <button onClick={cancelPendingFile} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ padding: 14 }}>
+            {pendingPreview ? (
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={pendingPreview} alt="Preview" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 10, objectFit: 'contain' }} />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#F6F4EC', borderRadius: 10, marginBottom: 10 }}>
+                <svg width="20" height="20" fill="none" stroke="#6B7F6B" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pendingFile.name}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 10, color: '#9AA79C' }}>{(pendingFile.size / 1024).toFixed(0)} KB</p>
+                </div>
+              </div>
+            )}
+            <input
+              value={pendingCaption}
+              onChange={e => setPendingCaption(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPendingFile() } }}
+              placeholder="Adicionar legenda (opcional)..."
+              style={{ width: '100%', fontSize: 13, border: '1px solid #E9E5D8', borderRadius: 10, padding: '9px 12px', outline: 'none', background: '#F8FAFB', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={cancelPendingFile}
+                style={{ flex: 1, padding: '8px', fontSize: 12, fontWeight: 600, border: '1px solid #E9E5D8', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
+                Cancelar
+              </button>
+              <button onClick={sendPendingFile}
+                style={{ flex: 2, padding: '8px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer', background: '#3E9849', color: '#fff', boxShadow: '0 4px 12px -4px rgba(62,152,73,0.4)' }}>
+                Enviar
+              </button>
+            </div>
           </div>
         </div>
       )}

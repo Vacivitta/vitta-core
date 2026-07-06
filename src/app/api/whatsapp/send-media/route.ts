@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData()
     const file            = form.get('file') as File | null
     const conversation_id = form.get('conversation_id') as string | null
+    const caption         = (form.get('caption') as string | null)?.trim() || null
 
     if (!file || !conversation_id) {
       return NextResponse.json({ error: 'file e conversation_id obrigatórios' }, { status: 400 })
@@ -90,7 +91,11 @@ export async function POST(req: NextRequest) {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
       type: msgType,
-      [msgType]: msgType === 'audio' ? { id: mediaId, voice: true } : { id: mediaId },
+      [msgType]: msgType === 'audio'
+        ? { id: mediaId, voice: true }
+        : caption
+          ? { id: mediaId, caption }
+          : { id: mediaId },
     }
 
     const sendRes  = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
@@ -116,7 +121,7 @@ export async function POST(req: NextRequest) {
       wa_message_id:   waMessageId,
       direction:       'outbound',
       type:            msgType,
-      content:         file.name,
+      content:         caption || file.name,
       media_url:       mediaId,
       media_mime_type: mime,
       status:          'sent',
@@ -125,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     await admin.from('wa_conversations').update({
       last_message_at:        new Date().toISOString(),
-      last_message_content:   file.name,
+      last_message_content:   caption || file.name,
       last_message_direction: 'outbound',
       unread_count:           0,
     }).eq('id', conversation_id)

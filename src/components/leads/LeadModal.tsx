@@ -7,8 +7,9 @@ import { ptBR } from 'date-fns/locale'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
-import type { WaTemplate, WaQuickReply, InputMode } from '@/components/whatsapp/wa-types'
+import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
 import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
+import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
@@ -154,6 +155,8 @@ function LeadDrawer({
   const [waHoveredMsgId, setWaHoveredMsgId] = useState<string | null>(null)
   const [waTemplates,    setWaTemplates]    = useState<WaTemplate[]>([])
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
+  const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
+  const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
   const waMsgsEndRef = useRef<HTMLDivElement>(null)
 
   // Carrega conversa quando abre a aba Atendimento
@@ -182,11 +185,16 @@ function LeadDrawer({
           .order('created_at', { ascending: true })
         if (msgs) setWaMessages(msgs as WaMessage[])
 
-        // Carrega templates e quick replies para o ChatInput
+        // Carrega templates, quick replies e tags para o ChatInput
         void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
           .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
         void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
           .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
+        void supabase.from('wa_conversation_tags').select('tag:wa_tags(id,name,color)').eq('conversation_id', conv.id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .then(({ data }) => setWaConvTags((data ?? []).map((r: any) => r.tag).filter(Boolean)))
+        void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id)
+          .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
 
         // Zera unread_count via API (admin client garante que o update sempre persiste)
         if (conv.unread_count > 0) {
@@ -249,13 +257,14 @@ function LeadDrawer({
     }
   }
 
-  async function handleWaMediaUpload(file: File) {
+  async function handleWaMediaUpload(file: File, caption?: string) {
     if (!waConversation) return
     setWaSending(true)
     try {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('conversation_id', waConversation.id)
+      if (caption) fd.append('caption', caption)
       const res = await fetch('/api/whatsapp/send-media', { method: 'POST', body: fd })
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string }
@@ -1491,6 +1500,16 @@ function LeadDrawer({
               // Chat
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: '-24px -28px -32px', overflow: 'hidden' }}>
+                  {/* Tags */}
+                  {waConversation && (
+                    <ConvTagsBar
+                      convId={waConversation.id}
+                      convTags={waConvTags}
+                      unitTags={waUnitTags}
+                      onTagAdded={tag => setWaConvTags(prev => [...prev, tag])}
+                      onTagRemoved={tagId => setWaConvTags(prev => prev.filter(t => t.id !== tagId))}
+                    />
+                  )}
                   {/* Messages */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 6, background: '#F2EEE1' }}>
                     {waRenderItems.map(item => {

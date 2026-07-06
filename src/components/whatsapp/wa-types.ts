@@ -30,3 +30,9 @@ export interface WaQuickReply {
 }
 
 export type InputMode = 'text' | 'note'
+
+export interface ConvTag {
+  id: string
+  name: string
+  color: string
+}
