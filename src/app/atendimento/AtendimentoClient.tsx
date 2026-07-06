@@ -1373,6 +1373,7 @@ function DateSeparator({ label }: { label: string }) {
 // ── ChatBubble / Media ────────────────────────────────────────────────────────
 
 function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitId: string | null; onReply?: (msg: WaMessage) => void; quotedMsg?: WaMessage | null }) {
+  const [bubbleHovered, setBubbleHovered] = useState(false)
   const isOut = msg.direction === 'outbound'
   const failed = isOut && msg.status === 'failed'
   const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
@@ -1389,7 +1390,8 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
   const bubbleMaxWidth = isAudio ? 280 : 'min(70%, 480px)'
 
   return (
-    <div className="group/bubble" style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}
+      onMouseEnter={() => setBubbleHovered(true)} onMouseLeave={() => setBubbleHovered(false)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexDirection: isOut ? 'row-reverse' : 'row' }}>
         <div style={{
           maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
@@ -1429,9 +1431,8 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
         {onReply && !failed && (
           <button
             onClick={() => onReply(msg)}
-            className="opacity-0 group-hover/bubble:opacity-100!"
             title="Responder"
-            style={{ padding: 4, borderRadius: 6, border: 'none', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(37,64,44,0.10)', transition: 'opacity 0.15s', flexShrink: 0 }}
+            style={{ padding: 4, borderRadius: 6, border: 'none', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(37,64,44,0.10)', transition: 'opacity 0.15s', flexShrink: 0, opacity: bubbleHovered ? 1 : 0, pointerEvents: bubbleHovered ? 'auto' : 'none' }}
           >
             <svg width="14" height="14" fill="none" stroke="#71856F" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v4M3 10l6 6M3 10l6-6" /></svg>
           </button>

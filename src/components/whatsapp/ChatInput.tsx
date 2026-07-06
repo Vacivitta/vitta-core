@@ -88,7 +88,11 @@ export default function ChatInput({
   }, [value, isNote]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!value && textareaRef.current) textareaRef.current.style.height = 'auto'
+    const el = textareaRef.current
+    if (!el) return
+    if (!value) { el.style.height = 'auto'; return }
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
   }, [value])
 
   useEffect(() => {

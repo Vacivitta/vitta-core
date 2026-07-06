@@ -1497,7 +1497,7 @@ function LeadDrawer({
                         return (
                           <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', margin: '4px 16px' }}>
                             <div style={{ background: '#FBF3D9', border: '1px dashed #E4D194', borderRadius: 12, padding: '8px 14px', maxWidth: '80%' }}>
-                              <p style={{ margin: 0, fontSize: '11.5px', color: '#8A733A' }}>{msg.content}</p>
+                              <p style={{ margin: 0, fontSize: '11.5px', color: '#8A733A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</p>
                             </div>
                           </div>
                         )
@@ -1512,7 +1512,7 @@ function LeadDrawer({
                             boxShadow:    '0 1px 2px rgba(37,64,44,0.07)',
                             border:       isOut ? 'none' : '1px solid #EBE7DA',
                           }}>
-                            <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A' }}>
+                            <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                               <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3 }}>
