@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import LeadModal from '@/components/leads/LeadModal'
@@ -15,13 +15,100 @@ interface Props {
   currentUser: Profile
 }
 
+function MultiCheckFilter({ label, selected, options, onChange }: {
+  label: string
+  selected: string[]
+  options: { id: string; label: string; color?: string }[]
+  onChange: (ids: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id])
+  }
+
+  const btnLabel = selected.length === 0
+    ? label
+    : selected.length === 1
+      ? options.find(o => o.id === selected[0])?.label ?? label
+      : `${label} (${selected.length})`
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          fontSize: 12, fontWeight: selected.length ? 700 : 500,
+          background: selected.length ? 'rgba(153,198,105,0.25)' : 'rgba(255,255,255,0.10)',
+          border: `1px solid ${selected.length ? 'rgba(153,198,105,0.5)' : 'rgba(255,255,255,0.16)'}`,
+          borderRadius: 999, padding: '5px 12px', color: '#D9E7DA',
+          cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5,
+        }}
+      >
+        {btnLabel}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points={open ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+        </svg>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 200,
+          background: '#1E3323', border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+          minWidth: 190, maxHeight: 260, overflowY: 'auto', padding: '6px 0',
+        }}>
+          {options.map(opt => {
+            const checked = selected.includes(opt.id)
+            return (
+              <label
+                key={opt.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
+                  cursor: 'pointer', fontSize: 12, color: '#D9E7DA',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{
+                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  border: checked ? 'none' : '1.5px solid rgba(255,255,255,0.3)',
+                  background: checked ? '#99C669' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {checked && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#1E3323" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+                {opt.color && <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color, flexShrink: 0 }} />}
+                <input type="checkbox" checked={checked} onChange={() => toggle(opt.id)} style={{ display: 'none' }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface Filters {
   search: string
-  responsavel_id: string
+  responsavel_ids: string[]
   cidade: string
-  profissao: string
-  stage_id: string
-  tag_id: string
+  stage_ids: string[]
+  tag_ids: string[]
 }
 
 export default function FunilClient({ initialLeads, funnels, profiles, currentUser }: Props) {
@@ -33,12 +120,11 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
   const [showArchived, setShowArchived]   = useState(false)
   const [filters, setFilters]             = useState<Filters>({
-    search:         '',
-    responsavel_id: '',
-    cidade:         '',
-    profissao:      '',
-    stage_id:       '',
-    tag_id:         '',
+    search:          '',
+    responsavel_ids: [],
+    cidade:          '',
+    stage_ids:       [],
+    tag_ids:         [],
   })
   const [showFilters, setShowFilters]     = useState(false)
   const [unitTags, setUnitTags]           = useState<Array<{ id: string; name: string; color: string }>>([])
@@ -126,19 +212,18 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         const contacts = (contactNamesByLead[l.id] ?? '').toLowerCase()
         if (!fullName.includes(q) && !l.profissao?.toLowerCase().includes(q) && !l.cidade?.toLowerCase().includes(q) && !contacts.includes(q)) return false
       }
-      if (filters.responsavel_id && l.responsavel_id !== filters.responsavel_id) return false
-      if (filters.cidade    && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase()))       return false
-      if (filters.profissao && !l.profissao?.toLowerCase().includes(filters.profissao.toLowerCase())) return false
-      if (filters.stage_id  && l.stage_id !== filters.stage_id)                                        return false
-      if (filters.tag_id) {
+      if (filters.responsavel_ids.length && !filters.responsavel_ids.includes(l.responsavel_id ?? '')) return false
+      if (filters.cidade && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase())) return false
+      if (filters.stage_ids.length && !filters.stage_ids.includes(l.stage_id)) return false
+      if (filters.tag_ids.length) {
         const lt = tagsByLead[l.id]
-        if (!lt || !lt.some(t => t.id === filters.tag_id)) return false
+        if (!lt || !filters.tag_ids.some(tid => lt.some(t => t.id === tid))) return false
       }
       return true
     })
   }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead])
 
-  const activeFiltersCount = Object.values(filters).filter(Boolean).length
+  const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
 
   const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
   const totalVendidos = leads.filter(l => l.funnel_id === selectedFunnelId && l.stage_ordem === Math.max(...(selectedFunnel?.stages.map(s => s.ordem) ?? [0])) - 1).length
@@ -272,14 +357,12 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       {/* Barra de filtros */}
       {showFilters && (
         <div style={{ background: '#2D4A35', padding: '8px 28px', borderTop: '1px solid rgba(255,255,255,0.08)' }} className="flex items-center gap-3 shrink-0 flex-wrap">
-          <select
-            value={filters.responsavel_id}
-            onChange={e => setFilters(f => ({ ...f, responsavel_id: e.target.value }))}
-            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none' }}
-          >
-            <option value="">Todos responsáveis</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
+          <MultiCheckFilter
+            label="Responsável"
+            selected={filters.responsavel_ids}
+            options={profiles.map(p => ({ id: p.id, label: p.full_name }))}
+            onChange={ids => setFilters(f => ({ ...f, responsavel_ids: ids }))}
+          />
 
           <input
             type="text"
@@ -289,37 +372,25 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none', width: 120 }}
           />
 
-          <input
-            type="text"
-            placeholder="Profissão..."
-            value={filters.profissao}
-            onChange={e => setFilters(f => ({ ...f, profissao: e.target.value }))}
-            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none', width: 130 }}
+          <MultiCheckFilter
+            label="Etapa"
+            selected={filters.stage_ids}
+            options={selectedFunnel.stages.map(s => ({ id: s.id, label: s.nome, color: s.cor }))}
+            onChange={ids => setFilters(f => ({ ...f, stage_ids: ids }))}
           />
 
-          <select
-            value={filters.stage_id}
-            onChange={e => setFilters(f => ({ ...f, stage_id: e.target.value }))}
-            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none' }}
-          >
-            <option value="">Todas etapas</option>
-            {selectedFunnel.stages.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
-
           {unitTags.length > 0 && (
-            <select
-              value={filters.tag_id}
-              onChange={e => setFilters(f => ({ ...f, tag_id: e.target.value }))}
-              style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none' }}
-            >
-              <option value="">Todas tags</option>
-              {unitTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <MultiCheckFilter
+              label="Tag"
+              selected={filters.tag_ids}
+              options={unitTags.map(t => ({ id: t.id, label: t.name, color: t.color }))}
+              onChange={ids => setFilters(f => ({ ...f, tag_ids: ids }))}
+            />
           )}
 
           {activeFiltersCount > 0 && (
             <button
-              onClick={() => setFilters({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '', tag_id: '' })}
+              onClick={() => setFilters({ search: '', responsavel_ids: [], cidade: '', stage_ids: [], tag_ids: [] })}
               style={{ fontSize: 11, color: '#F0C98A', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
             >
               Limpar filtros
