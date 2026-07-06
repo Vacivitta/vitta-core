@@ -23,31 +23,41 @@ export default function TagsConfigClient({ initialTags }: { initialTags: WaTag[]
     if (!name.trim()) return
     setSaving(true)
     setError('')
-    const res = await fetch('/api/whatsapp/tags', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), color }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error ?? 'Erro ao criar tag'); setSaving(false); return }
-    setTags(prev => [...prev, data as WaTag].sort((a, b) => a.name.localeCompare(b.name)))
-    setName(''); setColor(PRESET_COLORS[4])
-    setSaving(false)
+    try {
+      const res = await fetch('/api/whatsapp/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), color }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Erro ao criar tag'); return }
+      setTags(prev => [...prev, data as WaTag].sort((a, b) => a.name.localeCompare(b.name)))
+      setName(''); setColor(PRESET_COLORS[4])
+    } catch {
+      setError('Erro de conexão ao criar tag')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleSaveEdit(id: string) {
     if (!editName.trim()) return
     setSaving(true)
-    const res = await fetch(`/api/whatsapp/tags?id=${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName.trim(), color: editColor }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error ?? 'Erro ao salvar'); setSaving(false); return }
-    setTags(prev => prev.map(t => t.id === id ? data as WaTag : t).sort((a, b) => a.name.localeCompare(b.name)))
-    setEditId(null)
-    setSaving(false)
+    try {
+      const res = await fetch(`/api/whatsapp/tags?id=${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName.trim(), color: editColor }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Erro ao salvar'); return }
+      setTags(prev => prev.map(t => t.id === id ? data as WaTag : t).sort((a, b) => a.name.localeCompare(b.name)))
+      setEditId(null)
+    } catch {
+      setError('Erro de conexão ao salvar tag')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id: string, tagName: string) {
