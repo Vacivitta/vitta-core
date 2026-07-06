@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import AppSidebar from './AppSidebar'
 import TaskReminder from '@/components/agenda/TaskReminder'
-import InternalChat from '@/components/chat/InternalChat'
+
 import { ProfileProvider } from '@/context/ProfileContext'
 
 const PUBLIC_PATHS = ['/login', '/orcamento/ver/', '/termos', '/privacidade']
@@ -22,7 +22,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
         <TaskReminder />
-        <InternalChat />
       </div>
     </ProfileProvider>
   )

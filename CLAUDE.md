@@ -68,7 +68,7 @@ Migrations live in `supabase/migrations/` as plain SQL files numbered sequential
 `src/types/database.ts` is the single source of truth for all entity shapes. It exports both interfaces and utility types (`displayName`, `QUOTE_STATUS_LABELS`, etc.). Supabase query results are cast to these types at the server component layer before being passed to clients.
 
 ### AppShell & layout
-`src/components/layout/AppShell.tsx` wraps every authenticated page with `ProfileProvider`, `AppSidebar`, `TaskReminder`, and `InternalChat`. Public paths (`/login`, `/orcamento/ver/`, `/termos`, `/privacidade`) skip this wrapper entirely.
+`src/components/layout/AppShell.tsx` wraps every authenticated page with `ProfileProvider`, `AppSidebar`, and `TaskReminder`. Public paths (`/login`, `/orcamento/ver/`, `/termos`, `/privacidade`) skip this wrapper entirely.
 
 ### Key large client components
 - `src/app/atendimento/AtendimentoClient.tsx` — the WhatsApp inbox: conversation list, chat panel, lead context sidebar, quick replies, templates, scheduling, notes. Uses Supabase Realtime for live updates.
