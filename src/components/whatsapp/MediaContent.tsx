@@ -139,6 +139,16 @@ export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
   if (msg.type === 'text' || (!msg.media_url && msg.content))
     return <>{formatWaText(msg.content ?? '')}</>
 
+  if (msg.type === 'sticker' && msg.media_url)
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={mediaUrl(msg.media_url)}
+        alt="Sticker"
+        style={{ width: 128, height: 128, objectFit: 'contain', display: 'block' }}
+      />
+    )
+
   if (msg.type === 'image' && msg.media_url)
     return (
       <div>
