@@ -32,10 +32,11 @@ interface WaConversation {
 }
 
 interface WaMessage {
-  id: string; direction: 'inbound' | 'outbound'; type: string
+  id: string; wa_message_id?: string | null; direction: 'inbound' | 'outbound'; type: string
   content: string | null; media_url: string | null; media_mime_type: string | null
   template_name: string | null
   status: string; created_at: string; sent_by: string | null
+  reply_to_wa_message_id?: string | null
 }
 
 interface WaNote {
@@ -113,6 +114,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [chatInput,         setChatInput]         = useState('')
   const [inputMode,         setInputMode]         = useState<InputMode>('text')
   const [sending,           setSending]           = useState(false)
+  const [replyTo,           setReplyTo]           = useState<WaMessage | null>(null)
   const [signatureEnabled,  setSignatureEnabled]  = useState(() =>
     typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1'
   )
@@ -324,11 +326,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   // ── Load chat ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedConv) { setChatItems([]); setMsgsLoaded(false); setLeadDetail(null); return }
-    setMsgsLoaded(false); setChatItems([])
+    if (!selectedConv) { setChatItems([]); setMsgsLoaded(false); setLeadDetail(null); setReplyTo(null); return }
+    setMsgsLoaded(false); setChatItems([]); setReplyTo(null)
     void Promise.all([
       supabase.from('wa_messages')
-        .select('id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by')
+        .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id')
         .eq('conversation_id', selectedConv.id).order('created_at').limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
         .eq('conversation_id', selectedConv.id).order('created_at'),
@@ -408,12 +410,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (inputMode === 'text' && signatureEnabled) {
       text = `${displayName(currentUser)}: ${text}`
     }
-    setChatInput(''); setSending(true)
+    const replyWaId = replyTo?.wa_message_id ?? undefined
+    setChatInput(''); setReplyTo(null); setSending(true)
     try {
       if (inputMode === 'note') {
         await fetch('/api/whatsapp/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text }) })
       } else {
-        await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text }) })
+        await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text, context_message_id: replyWaId }) })
         // Atualiza preview imediatamente sem esperar realtime
         const convId = selectedConv.id
         setConversations(prev => prev.map(c => c.id === convId
@@ -741,15 +744,32 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(37,64,44,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F2EEE1' }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#3E9849" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#9AA79C', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
-                {msgsLoaded && chatRenderItems.map(item =>
-                  item.kind === 'date'
-                    ? <DateSeparator key={item.key} label={item.label} />
-                    : item.kind === 'message'
-                      ? <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} />
-                      : <InternalNoteBubble key={item.id} note={item.note!} />
-                )}
+                {(() => {
+                  const msgByWaId = new Map<string, WaMessage>()
+                  chatItems.forEach(ci => { if (ci.kind === 'message' && ci.message?.wa_message_id) msgByWaId.set(ci.message.wa_message_id, ci.message) })
+                  return chatRenderItems.map(item =>
+                    item.kind === 'date'
+                      ? <DateSeparator key={item.key} label={item.label} />
+                      : item.kind === 'message'
+                        ? <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} onReply={setReplyTo} quotedMsg={item.message!.reply_to_wa_message_id ? msgByWaId.get(item.message!.reply_to_wa_message_id) ?? null : null} />
+                        : <InternalNoteBubble key={item.id} note={item.note!} />
+                  )
+                })()}
                 <div ref={msgsEndRef} />
               </div>
+              {replyTo && (
+                <div style={{ padding: '8px 14px', background: '#fff', borderTop: '1px solid #E9E5D8', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  <div style={{ flex: 1, padding: '6px 10px', borderRadius: 8, background: '#F6F4EC', borderLeft: '3px solid #3E9849', minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: replyTo.direction === 'outbound' ? '#3E9849' : '#71856F' }}>
+                      {replyTo.direction === 'outbound' ? 'Você' : 'Cliente'}
+                    </p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#71856F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {replyTo.content ?? (replyTo.type === 'image' ? '📷 Imagem' : replyTo.type === 'audio' ? '🎤 Áudio' : replyTo.type === 'video' ? '🎬 Vídeo' : '📎 Anexo')}
+                    </p>
+                  </div>
+                  <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
+                </div>
+              )}
               <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={handleSend}
                 onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
                 templates={templates} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
@@ -772,6 +792,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 isOutside24hWindow={isOutside24hWindow}
                 signatureEnabled={signatureEnabled} onToggleSignature={toggleSignature}
                 signerName={displayName(currentUser)}
+                contactName={selectedConv?.lead ? [selectedConv.lead.nome, selectedConv.lead.sobrenome].filter(Boolean).join(' ') : (selectedConv?.wa_contact_name ?? selectedConv?.wa_phone ?? '')}
               />
             </>
           )}
@@ -1157,11 +1178,15 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
-          const previewText = conv.last_message_content
+          const rawPreview = conv.last_message_content?.replace(/\n+/g, ' ') ?? null
+          const previewText = rawPreview
+            ? (conv.last_message_direction === 'outbound' ? `Você: ${rawPreview}` : rawPreview)
+            : null
+          const tooltipContent = conv.last_message_content
             ? (conv.last_message_direction === 'outbound' ? `Você: ${conv.last_message_content}` : conv.last_message_content)
             : null
-          const previewTitle = previewText
-            ? `${name}\n${conv.last_message_at ? formatConvTime(conv.last_message_at) : ''}\n─────\n${previewText.slice(0, 200)}${previewText.length > 200 ? '…' : ''}`
+          const previewTitle = tooltipContent
+            ? `${name}\n${conv.last_message_at ? formatConvTime(conv.last_message_at) : ''}\n─────\n${tooltipContent.slice(0, 200)}${tooltipContent.length > 200 ? '…' : ''}`
             : name
           return (
             <button key={conv.id} onClick={() => onSelect(conv)} className="group" title={previewTitle}
@@ -1347,7 +1372,7 @@ function DateSeparator({ label }: { label: string }) {
 
 // ── ChatBubble / Media ────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) {
+function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitId: string | null; onReply?: (msg: WaMessage) => void; quotedMsg?: WaMessage | null }) {
   const isOut = msg.direction === 'outbound'
   const failed = isOut && msg.status === 'failed'
   const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
@@ -1364,26 +1389,52 @@ function ChatBubble({ msg, unitId }: { msg: WaMessage; unitId: string | null }) 
   const bubbleMaxWidth = isAudio ? 280 : 'min(70%, 480px)'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
-      <div style={{
-        maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
-        borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-        background: failed ? '#FEE2E2' : isOut ? '#DCF0D3' : '#fff',
-        boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
-        border: failed ? '1px solid #FECACA' : isOut ? 'none' : '1px solid #EBE7DA',
-      }}>
-        {isText ? (
-          <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
-            <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
-          </p>
-        ) : isAudio ? (
-          <MediaContent msg={msg} isOut={isOut} unitId={unitId} timestamp={timestamp} />
-        ) : (
-          <>
-            <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>{timestamp}</div>
-          </>
+    <div className="group/bubble" style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexDirection: isOut ? 'row-reverse' : 'row' }}>
+        <div style={{
+          maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
+          borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+          background: failed ? '#FEE2E2' : isOut ? '#DCF0D3' : '#fff',
+          boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
+          border: failed ? '1px solid #FECACA' : isOut ? 'none' : '1px solid #EBE7DA',
+        }}>
+          {quotedMsg && (
+            <div style={{
+              padding: '6px 10px', marginBottom: 4, borderRadius: 8,
+              background: isOut ? 'rgba(37,64,44,0.08)' : '#F6F4EC',
+              borderLeft: '3px solid #3E9849',
+            }}>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: quotedMsg.direction === 'outbound' ? '#3E9849' : '#71856F' }}>
+                {quotedMsg.direction === 'outbound' ? 'Você' : 'Cliente'}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: '#71856F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+                {quotedMsg.content ?? (quotedMsg.type === 'image' ? '📷 Imagem' : quotedMsg.type === 'audio' ? '🎤 Áudio' : quotedMsg.type === 'video' ? '🎬 Vídeo' : '📎 Anexo')}
+              </p>
+            </div>
+          )}
+          {isText ? (
+            <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
+              <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
+            </p>
+          ) : isAudio ? (
+            <MediaContent msg={msg} isOut={isOut} unitId={unitId} timestamp={timestamp} />
+          ) : (
+            <>
+              <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>{timestamp}</div>
+            </>
+          )}
+        </div>
+        {onReply && !failed && (
+          <button
+            onClick={() => onReply(msg)}
+            className="opacity-0 group-hover/bubble:opacity-100!"
+            title="Responder"
+            style={{ padding: 4, borderRadius: 6, border: 'none', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(37,64,44,0.10)', transition: 'opacity 0.15s', flexShrink: 0 }}
+          >
+            <svg width="14" height="14" fill="none" stroke="#71856F" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v4M3 10l6 6M3 10l6-6" /></svg>
+          </button>
         )}
       </div>
       {failed && (

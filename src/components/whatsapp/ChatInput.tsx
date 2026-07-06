@@ -40,13 +40,14 @@ interface Props {
   signatureEnabled: boolean
   onToggleSignature: () => void
   signerName: string
+  contactName?: string
 }
 
 export default function ChatInput({
   value, onChange, onSend, onMediaUpload, onTemplateSend,
   onScheduleSend, onScheduleTemplate, templates, quickReplies,
   sending, mode, onModeChange, unitId, onTemplatesReload, onQuickRepliesReload,
-  isOutside24hWindow, signatureEnabled, onToggleSignature, signerName,
+  isOutside24hWindow, signatureEnabled, onToggleSignature, signerName, contactName,
 }: Props) {
   const imageRef       = useRef<HTMLInputElement>(null)
   const videoRef       = useRef<HTMLInputElement>(null)
@@ -70,6 +71,7 @@ export default function ChatInput({
   const [showNewTmpl,      setShowNewTmpl]       = useState(false)
   const [newTmplName,      setNewTmplName]       = useState('')
   const [newTmplContent,   setNewTmplContent]    = useState('')
+  const [previewTemplate,  setPreviewTemplate]   = useState<WaTemplate | null>(null)
   const [showNewQr,        setShowNewQr]         = useState(false)
   const [newQrShortcut,    setNewQrShortcut]     = useState('')
   const [newQrContent,     setNewQrContent]      = useState('')
@@ -176,9 +178,29 @@ export default function ChatInput({
 
   function pickTemplate(t: WaTemplate) {
     if (scheduleMode && t.category === 'meta_api') { setScheduleTemplate(t) }
-    else if (!scheduleMode && t.category === 'meta_api') { onTemplateSend(t) }
+    else if (!scheduleMode && t.category === 'meta_api') { setPreviewTemplate(t) }
     else { onChange(t.content); setScheduleTemplate(null) }
     setShowTemplates(false)
+  }
+
+  function renderTemplatePreview(t: WaTemplate): string {
+    const now = new Date()
+    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
+    if (varCount === 0) return t.content
+    const order = t.variable_order && t.variable_order.length === varCount
+      ? t.variable_order
+      : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+    const resolveVar = (id: string): string => {
+      switch (id) {
+        case 'nome_cliente':   return contactName ?? '—'
+        case 'nome_atendente': return signerName
+        case 'data':           return now.toLocaleDateString('pt-BR')
+        case 'horario':        return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        default:                return ''
+      }
+    }
+    const values = order.map(resolveVar)
+    return t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
   }
 
   function pickQuickReply(qr: WaQuickReply) { onChange(qr.content); setShowQuickReplies(false) }
@@ -271,9 +293,40 @@ export default function ChatInput({
         </div>
       )}
 
+      {/* Template preview */}
+      {previewTemplate && (
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E9E5D8', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(37,64,44,0.10)', zIndex: 95, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <IconTemplate />
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Preview do Template</p>
+            <button onClick={() => setPreviewTemplate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{previewTemplate.name}</span>
+              <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F4E6', color: '#3E9849', borderRadius: 4, padding: '1px 5px' }}>META</span>
+              {previewTemplate.language && <span style={{ fontSize: 9, color: '#9AA79C' }}>{previewTemplate.language}</span>}
+            </div>
+            <div style={{ padding: '10px 14px', background: '#DCF0D3', borderRadius: '16px 4px 16px 16px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#25402C', lineHeight: 1.45 }}>
+              {renderTemplatePreview(previewTemplate)}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setPreviewTemplate(null)}
+                style={{ flex: 1, padding: '8px', fontSize: 12, fontWeight: 600, border: '1px solid #E9E5D8', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
+                Cancelar
+              </button>
+              <button onClick={() => { onTemplateSend(previewTemplate); setPreviewTemplate(null) }}
+                style={{ flex: 2, padding: '8px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer', background: '#3E9849', color: '#fff', boxShadow: '0 4px 12px -4px rgba(62,152,73,0.4)' }}>
+                Enviar template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick replies popup */}
       {showQuickReplies && (
-        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 280, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 380, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F1F4F7', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <IconFlash /> <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: 0, flex: 1 }}>Respostas Rápidas</p>
             <button onClick={() => setShowNewQr(v => !v)} style={{ fontSize: 10, fontWeight: 600, color: '#F59E0B', background: 'none', border: 'none', cursor: 'pointer' }}>+ Nova</button>
@@ -303,7 +356,7 @@ export default function ChatInput({
               <div key={qr.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 14px', borderBottom: '1px solid #F8FAFB', cursor: 'pointer' }} onClick={() => pickQuickReply(qr)}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', fontFamily: 'monospace' }}>{qr.shortcut}</span>
-                  <p style={{ fontSize: 11, color: '#5A7184', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{qr.content}</p>
+                  <p style={{ fontSize: 11, color: '#5A7184', margin: '2px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>{qr.content}</p>
                 </div>
                 <button onClick={e => { e.stopPropagation(); void supabase.from('wa_quick_replies').update({ ativo: false }).eq('id', qr.id).then(onQuickRepliesReload) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', flexShrink: 0, lineHeight: 0, padding: 2 }}>

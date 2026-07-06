@@ -1553,6 +1553,7 @@ function LeadDrawer({
                     signatureEnabled={false}
                     onToggleSignature={() => {}}
                     signerName=""
+                    contactName={[lead.nome, lead.sobrenome].filter(Boolean).join(' ')}
                   />
                 </div>
               )

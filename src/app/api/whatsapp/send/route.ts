@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const body = await req.json() as SendBody
-  const { conversation_id, type = 'text', content, template_name, language = 'pt_BR', components = [], rendered_text } = body
+  const { conversation_id, type = 'text', content, template_name, language = 'pt_BR', components = [], rendered_text, context_message_id } = body
 
   if (!conversation_id) {
     return NextResponse.json({ error: 'conversation_id obrigatório' }, { status: 400 })
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Monta o payload para a API do Meta
-  const metaPayload = buildMetaPayload(conv.wa_phone, type, content, template_name, language, components)
+  const metaPayload = buildMetaPayload(conv.wa_phone, type, content, template_name, language, components, context_message_id)
 
   // Chama a API do Meta — lê credenciais do banco ou fallback env vars
   const creds = await getWaCredentials(conv.unit_id)
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       template_name: type === 'template' ? template_name : null,
       status:        'sent',
       sent_by:       user.id,
+      reply_to_wa_message_id: context_message_id ?? null,
     })
     .select('id, created_at')
     .single()
@@ -168,9 +169,11 @@ function buildMetaPayload(
   templateName?: string,
   language?: string,
   components?: object[],
+  contextMessageId?: string,
 ) {
   if (type === 'template') {
-    return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = {
       messaging_product: 'whatsapp',
       to,
       type: 'template',
@@ -180,15 +183,19 @@ function buildMetaPayload(
         components: components ?? [],
       },
     }
+    if (contextMessageId) payload.context = { message_id: contextMessageId }
+    return payload
   }
 
-  // texto simples (padrão)
-  return {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payload: any = {
     messaging_product: 'whatsapp',
     to,
     type: 'text',
     text: { body: content, preview_url: false },
   }
+  if (contextMessageId) payload.context = { message_id: contextMessageId }
+  return payload
 }
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -201,6 +208,7 @@ interface SendBody {
   language?:       string
   components?:     object[]
   rendered_text?:  string
+  context_message_id?: string
 }
 
 interface MetaResponse {

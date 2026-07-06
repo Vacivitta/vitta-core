@@ -165,6 +165,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
         media_url:       content.mediaUrl,
         media_mime_type: content.mimeType,
         status:          'delivered',
+        reply_to_wa_message_id: msg.context?.id ?? null,
       },
       { onConflict: 'wa_message_id', ignoreDuplicates: true }
     )
@@ -634,6 +635,7 @@ interface WAMessage {
   video?:    { id: string; caption?: string; mime_type: string }
   document?: { id: string; filename: string; mime_type: string }
   sticker?:  { id: string; mime_type: string }
+  context?:  { id?: string; from?: string }
 }
 interface WAStatus {
   id: string; status: string; timestamp: string

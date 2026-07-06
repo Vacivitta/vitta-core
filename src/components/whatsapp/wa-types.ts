@@ -1,5 +1,6 @@
 export interface WaMessage {
   id: string
+  wa_message_id?: string | null
   direction: 'inbound' | 'outbound'
   type: string
   content: string | null
@@ -9,6 +10,7 @@ export interface WaMessage {
   status: string
   created_at: string
   sent_by: string | null
+  reply_to_wa_message_id?: string | null
 }
 
 export interface WaTemplate {
