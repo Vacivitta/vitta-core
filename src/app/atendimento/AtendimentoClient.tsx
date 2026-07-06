@@ -51,6 +51,7 @@ interface ChatItem {
 
 interface LastQuote {
   id: string; status: string; total_calculado: number | null; criado_em: string
+  items_summary?: string | null
 }
 
 interface LeadDetail {
@@ -358,7 +359,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       supabase.from('leads').select('*').eq('id', leadId).single(),
       supabase.from('lead_notes').select('conteudo').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
       supabase.from('lead_tasks').select('*').eq('lead_id', leadId).eq('concluida', false).order('data_limite', { nullsFirst: false }),
-      supabase.from('quotes').select('id,status,total_calculado,criado_em').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
+      supabase.from('quotes').select('id,status,total_calculado,criado_em,quote_items(quantidade,nome_produto)').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
       supabase.from('lead_stage_history').select('created_at').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
       supabase.from('lead_contacts').select('*').eq('lead_id', leadId).order('created_at'),
     ])
@@ -366,7 +367,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       lead: lead as LeadKanban,
       latestNote:   notes?.[0]?.conteudo ?? null,
       tasks:        (tasks ?? []) as LeadTask[],
-      lastQuote:    (quotes?.[0] ?? null) as LastQuote | null,
+      lastQuote:    quotes?.[0] ? {
+        ...quotes[0],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        items_summary: ((quotes[0] as any).quote_items ?? []).map((i: any) => `${i.quantidade}× ${i.nome_produto}`).join(', ') || null,
+      } as LastQuote : null,
       stageEntryAt: stageHistory?.[0]?.created_at ?? null,
       contacts:     (contacts ?? []) as LeadContact[],
     })
@@ -1408,18 +1413,36 @@ function calcAgeCtx(dob: string | null): number | null {
 }
 
 
+function quoteStatusLabel(s: string): string {
+  const map: Record<string, string> = { rascunho: 'Rascunho', enviado: 'Enviado', visualizado: 'Visualizado', aceito: 'Aceito', recusado: 'Recusado', em_negociacao: 'Em Negociação', expirado: 'Expirado' }
+  return map[s] ?? s
+}
+
+function quoteStatusStyle(s: string): React.CSSProperties {
+  const map: Record<string, React.CSSProperties> = {
+    rascunho:      { background: '#F1F0EC', color: '#8A98A6' },
+    enviado:       { background: '#E8F4E6', color: '#3E9849' },
+    visualizado:   { background: '#FEF4E6', color: '#D17F0E' },
+    aceito:        { background: '#E8F4E6', color: '#2E7D32' },
+    recusado:      { background: '#FDEBEC', color: '#D23B40' },
+    em_negociacao: { background: '#F3E5F5', color: '#7B1FA2' },
+    expirado:      { background: '#FEF4E6', color: '#E65100' },
+  }
+  return map[s] ?? { background: '#F1F0EC', color: '#8A98A6' }
+}
+
 function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSchedule }: {
   detail: LeadDetail; conv: WaConversation
   onOpen: (l: LeadKanban) => void; onUnlink: () => void
   onCreateQuote: () => void; onSchedule: () => void
 }) {
-  const { lead, latestNote, tasks, contacts } = detail
+  const { lead, latestNote, tasks, contacts, lastQuote } = detail
   const fmtDate = (s: string) => format(new Date(s), "d MMM 'às' HH:mm", { locale: ptBR })
 
   const cardBase: React.CSSProperties = { background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }
   const overline: React.CSSProperties = { fontSize: 10.5, fontWeight: 800, letterSpacing: '1px', color: '#9AA79C', textTransform: 'uppercase', marginBottom: 10, marginTop: 0 }
   const familyAvatarColors = [
-    { bg: '#E3F2FD', color: '#1565C0' },
+    { bg: '#E8F4E6', color: '#25402C' },
     { bg: '#FFF3E0', color: '#E65100' },
     { bg: '#F3E5F5', color: '#7B1FA2' },
     { bg: '#E8F5E9', color: '#2E7D32' },
@@ -1435,8 +1458,8 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
         <button onClick={onUnlink} style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer' }} title="Desvincular">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
         </button>
-        <div style={{ width: 56, height: 56, borderRadius: 999, background: 'var(--color-brand-subtle, #E3F2FD)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-brand, #0098DA)' }}>{lead.nome[0]?.toUpperCase()}{lead.sobrenome?.[0]?.toUpperCase() ?? ''}</span>
+        <div style={{ width: 56, height: 56, borderRadius: 999, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 19, fontWeight: 800, color: '#3E9849' }}>{lead.nome[0]?.toUpperCase()}{lead.sobrenome?.[0]?.toUpperCase() ?? ''}</span>
         </div>
         <p style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: '#0E2C3D', textAlign: 'center', lineHeight: 1.2 }}>
           {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
@@ -1452,7 +1475,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             </span>
           )}
           {lead.responsavel_nome && (
-            <span style={{ fontSize: 10, fontWeight: 800, padding: '2.5px 9px', borderRadius: 999, background: '#E3F2FD', color: '#1565C0' }}>
+            <span style={{ fontSize: 10, fontWeight: 800, padding: '2.5px 9px', borderRadius: 999, background: '#E8F4E6', color: '#25402C' }}>
               {lead.responsavel_nome}
             </span>
           )}
@@ -1480,8 +1503,8 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
         <p style={overline}>Próxima Tarefa</p>
         {nextTask ? (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--color-brand-subtle, #E3F2FD)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="16" height="16" fill="none" stroke="var(--color-brand, #0098DA)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke="#3E9849" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             </div>
             <div style={{ minWidth: 0 }}>
               <p style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: '#0E2C3D', lineHeight: 1.3 }}>{nextTask.titulo}</p>
@@ -1514,7 +1537,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
 
       {/* ── Card Família ── */}
       <div style={cardBase}>
-        <p style={overline}>Família {contacts.length > 0 && <span style={{ color: 'var(--color-brand, #0098DA)' }}>({contacts.length})</span>}</p>
+        <p style={overline}>Família {contacts.length > 0 && <span style={{ color: '#3E9849' }}>({contacts.length})</span>}</p>
         {contacts.length === 0 ? (
           <p style={{ margin: 0, fontSize: 11.5, color: '#9AA79C' }}>Nenhum dependente vinculado</p>
         ) : (
@@ -1549,10 +1572,33 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
         </div>
       )}
 
+      {/* ── Card Último Orçamento ── */}
+      {lastQuote && (
+        <div style={cardBase}>
+          <p style={overline}>Último Orçamento</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 18, fontWeight: 900, color: '#25402C' }}>
+              {lastQuote.total_calculado != null ? `R$ ${lastQuote.total_calculado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+            </span>
+            <span style={{
+              fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 999,
+              ...quoteStatusStyle(lastQuote.status),
+            }}>
+              {quoteStatusLabel(lastQuote.status)}
+            </span>
+          </div>
+          {lastQuote.items_summary && (
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: '#9AA79C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {lastQuote.items_summary}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* ── Ações (rodapé) ── */}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
         <button onClick={() => onOpen(lead)}
-          style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#fff', background: '#0098DA', border: 'none', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 5px 14px -6px rgba(0,152,218,0.55)' }}>
+          style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#fff', background: '#3E9849', border: 'none', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}>
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
           Ver card completo
         </button>
@@ -1590,7 +1636,7 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
           <p style={{ margin: 0, fontSize: 11.5, color: '#9AA79C', textAlign: 'center', lineHeight: 1.4 }}>Vincule esta conversa a um contato do CRM</p>
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
             <button onClick={onToggle}
-              style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#fff', background: '#0098DA', border: 'none', borderRadius: 12, cursor: 'pointer', boxShadow: '0 5px 14px -6px rgba(0,152,218,0.55)' }}>
+              style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#fff', background: '#3E9849', border: 'none', borderRadius: 12, cursor: 'pointer', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}>
               Vincular contato
             </button>
             <button onClick={onCreate}
@@ -1611,8 +1657,8 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
           {!searching && results.map(lead => (
             <button key={lead.id} onClick={() => onLink(lead)}
               style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid #EBE7DA', borderRadius: 12, background: '#fff', cursor: 'pointer' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 999, background: '#E3F2FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#1565C0' }}>{lead.nome[0]?.toUpperCase()}</span>
+              <div style={{ width: 32, height: 32, borderRadius: 999, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#25402C' }}>{lead.nome[0]?.toUpperCase()}</span>
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 800, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}</p>
