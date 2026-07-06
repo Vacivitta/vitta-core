@@ -21,6 +21,7 @@ interface Filters {
   cidade: string
   profissao: string
   stage_id: string
+  tag_id: string
 }
 
 export default function FunilClient({ initialLeads, funnels, profiles, currentUser }: Props) {
@@ -37,8 +38,10 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     cidade:         '',
     profissao:      '',
     stage_id:       '',
+    tag_id:         '',
   })
   const [showFilters, setShowFilters]     = useState(false)
+  const [unitTags, setUnitTags]           = useState<Array<{ id: string; name: string; color: string }>>([])
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>({})
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>({})
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>({})
@@ -94,6 +97,12 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     return () => { void supabase.removeChannel(ch) }
   }, [supabase])
 
+  // Carrega tags disponíveis da unidade
+  useEffect(() => {
+    void supabase.from('wa_tags').select('id,name,color').order('name')
+      .then(({ data }) => { if (data) setUnitTags(data) })
+  }, [supabase])
+
   // Carrega nomes dos contatos vinculados (dependentes/pacientes) para busca
   useEffect(() => {
     void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
@@ -121,9 +130,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       if (filters.cidade    && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase()))       return false
       if (filters.profissao && !l.profissao?.toLowerCase().includes(filters.profissao.toLowerCase())) return false
       if (filters.stage_id  && l.stage_id !== filters.stage_id)                                        return false
+      if (filters.tag_id) {
+        const lt = tagsByLead[l.id]
+        if (!lt || !lt.some(t => t.id === filters.tag_id)) return false
+      }
       return true
     })
-  }, [leads, selectedFunnelId, filters, contactNamesByLead])
+  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead])
 
   const activeFiltersCount = Object.values(filters).filter(Boolean).length
 
@@ -293,9 +306,20 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             {selectedFunnel.stages.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
 
+          {unitTags.length > 0 && (
+            <select
+              value={filters.tag_id}
+              onChange={e => setFilters(f => ({ ...f, tag_id: e.target.value }))}
+              style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none' }}
+            >
+              <option value="">Todas tags</option>
+              {unitTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          )}
+
           {activeFiltersCount > 0 && (
             <button
-              onClick={() => setFilters({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '' })}
+              onClick={() => setFilters({ search: '', responsavel_id: '', cidade: '', profissao: '', stage_id: '', tag_id: '' })}
               style={{ fontSize: 11, color: '#F0C98A', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
             >
               Limpar filtros
