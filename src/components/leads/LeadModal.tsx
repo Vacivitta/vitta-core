@@ -150,6 +150,8 @@ function LeadDrawer({
   const [waInput,        setWaInput]        = useState('')
   const [waSending,      setWaSending]      = useState(false)
   const [waInputMode,    setWaInputMode]    = useState<InputMode>('text')
+  const [waReplyTo,      setWaReplyTo]      = useState<WaMessage | null>(null)
+  const [waHoveredMsgId, setWaHoveredMsgId] = useState<string | null>(null)
   const [waTemplates,    setWaTemplates]    = useState<WaTemplate[]>([])
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
   const waMsgsEndRef = useRef<HTMLDivElement>(null)
@@ -175,7 +177,7 @@ function LeadDrawer({
         // Carrega mensagens (com mídia)
         const { data: msgs } = await supabase
           .from('wa_messages')
-          .select('id, direction, type, content, media_url, media_mime_type, template_name, status, created_at, sent_by')
+          .select('id, wa_message_id, direction, type, content, media_url, media_mime_type, template_name, status, created_at, sent_by, reply_to_wa_message_id')
           .eq('conversation_id', conv.id)
           .order('created_at', { ascending: true })
         if (msgs) setWaMessages(msgs as WaMessage[])
@@ -225,7 +227,8 @@ function LeadDrawer({
   async function handleWaSend() {
     if (!waInput.trim() || !waConversation || waSending) return
     const text = waInput.trim()
-    setWaInput('')
+    const replyWaId = waReplyTo?.wa_message_id ?? undefined
+    setWaInput(''); setWaReplyTo(null)
     setWaSending(true)
     try {
       if (waInputMode === 'note') {
@@ -238,7 +241,7 @@ function LeadDrawer({
         await fetch('/api/whatsapp/send', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ conversation_id: waConversation.id, content: text }),
+          body:    JSON.stringify({ conversation_id: waConversation.id, content: text, context_message_id: replyWaId }),
         })
       }
     } finally {
@@ -374,6 +377,14 @@ function LeadDrawer({
       result.push(msg)
     }
     return result
+  }, [waMessages])
+
+  const waMsgByWaId = useMemo(() => {
+    const map = new Map<string, WaMessage>()
+    for (const m of waMessages) {
+      if (m.wa_message_id) map.set(m.wa_message_id, m)
+    }
+    return map
   }, [waMessages])
 
   // isOutside24hWindow para o chat do modal
@@ -1502,35 +1513,95 @@ function LeadDrawer({
                           </div>
                         )
                       }
-                      return (
-                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
-                          <div style={{
-                            maxWidth: '60%',
-                            background:   isOut ? '#DCF0D3' : '#fff',
-                            borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-                            padding:      '8px 12px',
-                            boxShadow:    '0 1px 2px rgba(37,64,44,0.07)',
-                            border:       isOut ? 'none' : '1px solid #EBE7DA',
-                          }}>
-                            <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                              <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3 }}>
-                              <span style={{ fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2' }}>
-                                {format(new Date(msg.created_at), 'HH:mm')}
-                              </span>
-                              {isOut && (
-                                <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
-                                  {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
-                                </span>
-                              )}
+                      return (() => {
+                        const quotedMsg = msg.reply_to_wa_message_id ? waMsgByWaId.get(msg.reply_to_wa_message_id) : undefined
+                        const hovered = waHoveredMsgId === msg.id
+                        return (
+                          <div
+                            key={msg.id}
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start', position: 'relative' }}
+                            onMouseEnter={() => setWaHoveredMsgId(msg.id)}
+                            onMouseLeave={() => setWaHoveredMsgId(null)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexDirection: isOut ? 'row' : 'row-reverse', maxWidth: '75%' }}>
+                              {/* Reply button */}
+                              <button
+                                onClick={() => setWaReplyTo(msg)}
+                                title="Responder"
+                                style={{
+                                  opacity: hovered ? 1 : 0,
+                                  transition: 'opacity 0.15s',
+                                  background: 'rgba(255,255,255,0.85)',
+                                  border: '1px solid #E9E5D8',
+                                  borderRadius: 99,
+                                  width: 26, height: 26,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  cursor: 'pointer', flexShrink: 0,
+                                }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7F6B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
+                              </button>
+                              {/* Bubble */}
+                              <div style={{
+                                background:   isOut ? '#DCF0D3' : '#fff',
+                                borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                                padding:      '8px 12px',
+                                boxShadow:    '0 1px 2px rgba(37,64,44,0.07)',
+                                border:       isOut ? 'none' : '1px solid #EBE7DA',
+                                minWidth: 0, flex: '0 1 auto',
+                              }}>
+                                {quotedMsg && (
+                                  <div style={{
+                                    background: isOut ? 'rgba(37,64,44,0.08)' : 'rgba(62,152,73,0.08)',
+                                    borderLeft: '3px solid #3E9849',
+                                    borderRadius: 6, padding: '5px 10px', marginBottom: 6,
+                                  }}>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: '#3E9849' }}>
+                                      {quotedMsg.direction === 'outbound' ? 'Você' : (lead.nome || 'Contato')}
+                                    </span>
+                                    <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#5A6E5A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                                      {quotedMsg.content || (quotedMsg.type === 'image' ? '📷 Imagem' : quotedMsg.type === 'audio' ? '🎤 Áudio' : quotedMsg.type === 'document' ? '📎 Documento' : quotedMsg.type === 'video' ? '🎥 Vídeo' : '💬 Mensagem')}
+                                    </p>
+                                  </div>
+                                )}
+                                <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                  <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3 }}>
+                                  <span style={{ fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2' }}>
+                                    {format(new Date(msg.created_at), 'HH:mm')}
+                                  </span>
+                                  {isOut && (
+                                    <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
+                                      {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )
+                        )
+                      })()
                     })}
                     <div ref={waMsgsEndRef} />
                   </div>
+
+                  {/* Reply bar */}
+                  {waReplyTo && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#F7F5EE', borderTop: '1px solid #E9E5D8' }}>
+                      <div style={{ flex: 1, borderLeft: '3px solid #3E9849', paddingLeft: 10, overflow: 'hidden' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#3E9849' }}>
+                          {waReplyTo.direction === 'outbound' ? 'Você' : (lead.nome || 'Contato')}
+                        </span>
+                        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7F6B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {waReplyTo.content || '💬 Mensagem'}
+                        </p>
+                      </div>
+                      <button onClick={() => setWaReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9AA79C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      </button>
+                    </div>
+                  )}
 
                   {/* Input completo */}
                   <ChatInputComponent
