@@ -152,6 +152,9 @@ function LeadDrawer({
   const [waSending,      setWaSending]      = useState(false)
   const [waInputMode,    setWaInputMode]    = useState<InputMode>('text')
   const [waReplyTo,      setWaReplyTo]      = useState<WaMessage | null>(null)
+  const [waSignature,    setWaSignature]    = useState(() =>
+    typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1'
+  )
   const [waHoveredMsgId, setWaHoveredMsgId] = useState<string | null>(null)
   const [waTemplates,    setWaTemplates]    = useState<WaTemplate[]>([])
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
@@ -234,7 +237,10 @@ function LeadDrawer({
 
   async function handleWaSend() {
     if (!waInput.trim() || !waConversation || waSending) return
-    const text = waInput.trim()
+    let text = waInput.trim()
+    if (waInputMode === 'text' && waSignature) {
+      text = `*${displayName(currentUser)}*: ${text}`
+    }
     const replyWaId = waReplyTo?.wa_message_id ?? undefined
     setWaInput(''); setWaReplyTo(null)
     setWaSending(true)
@@ -1640,9 +1646,9 @@ function LeadDrawer({
                     onTemplatesReload={reloadWaTemplates}
                     onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
                     isOutside24hWindow={waIsOutside24h}
-                    signatureEnabled={false}
-                    onToggleSignature={() => {}}
-                    signerName=""
+                    signatureEnabled={waSignature}
+                    onToggleSignature={() => { setWaSignature(p => { const v = !p; localStorage.setItem('wa_signature', v ? '1' : '0'); return v }); }}
+                    signerName={displayName(currentUser)}
                     contactName={[lead.nome, lead.sobrenome].filter(Boolean).join(' ')}
                   />
                 </div>

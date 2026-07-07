@@ -414,7 +414,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (!selectedConv || !chatInput.trim() || sending) return
     let text = chatInput.trim()
     if (inputMode === 'text' && signatureEnabled) {
-      text = `${displayName(currentUser)}: ${text}`
+      text = `*${displayName(currentUser)}*: ${text}`
     }
     const replyWaId = replyTo?.wa_message_id ?? undefined
     setChatInput(''); setReplyTo(null); setSending(true)
