@@ -180,7 +180,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           }
         })
       .subscribe()
-    return () => { void supabase.removeChannel(ch) }
+
+    const chLeads = supabase.channel('funil_leads_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' },
+        () => { void reloadLeads() })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(ch); void supabase.removeChannel(chLeads) }
   }, [supabase])
 
   // Carrega tags disponíveis da unidade
