@@ -727,7 +727,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           }} />
 
         {/* Chat */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#F2EEE1', minWidth: 0, position: 'relative' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff', minWidth: 0, position: 'relative' }}>
           {!selectedConv ? <EmptyChatState /> : (
             <>
               <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
