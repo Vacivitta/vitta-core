@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+import Drawer from '@/components/ui/Drawer'
 import type {
   Profile, Product, QuoteTemplate, Quote, QuoteStatus, QuoteItem, QuoteWithItems, PacoteOpcao,
 } from '@/types/database'
@@ -13,7 +14,7 @@ const PdfButton = dynamic(
   {
     ssr: false,
     loading: () => (
-      <button className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 text-gray-400 rounded-xl">
+      <button className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-[#EBE7DA] text-[#9AA79C] rounded-xl">
         PDF...
       </button>
     ),
@@ -412,451 +413,13 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
   ] as const
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-6" style={{ background: 'rgba(14,44,61,0.42)' }}>
-      <div className="bg-white flex flex-col w-full" style={{ maxWidth: '640px', maxHeight: '88vh', borderRadius: '18px', boxShadow: '0 40px 90px -30px rgba(14,44,61,0.55)', overflow: 'hidden' }}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between shrink-0" style={{ padding: '20px 24px 0' }}>
-          <div>
-            <h2 style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '-0.01em', margin: 0, color: '#0E2C3D' }}>
-              {editing
-                ? `Orçamento #${String(editing.numero ?? 0).padStart(4, '0')}`
-                : 'Novo orçamento'}
-            </h2>
-            {editing && <div className="mt-0.5"><StatusBadge status={editing.status} /></div>}
-          </div>
-          <button
-            onClick={onClose}
-            style={{ width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8A98A6', background: 'none', border: 'none', transition: 'background 0.15s' }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#F1F4F7')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="shrink-0" style={{ display: 'flex', alignItems: 'center', gap: '26px', padding: '14px 24px 0', borderBottom: '1px solid #EDF2F6' }}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                fontSize: '14px', fontWeight: 700, paddingBottom: '12px', cursor: 'pointer',
-                color: tab === t.id ? 'var(--color-brand)' : '#7A8694',
-                background: 'none', border: 'none', borderBottom: tab === t.id ? '2px solid var(--color-brand)' : '2px solid transparent',
-                transition: 'color 0.15s',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
-
-          {/* ── Paciente ── */}
-          {tab === 'paciente' && (
-            <div className="space-y-3">
-              {/* Selected patient display */}
-              {selectedPatient && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-brand)' }}>
-                    <span className="text-xs font-bold text-white">{selectedPatient.nome[0]}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-blue-900">
-                      {selectedPatient.nome}{selectedPatient.sobrenome ? ` ${selectedPatient.sobrenome}` : ''}
-                    </p>
-                    {selectedPatient.telefone && (
-                      <p className="text-xs text-blue-600">{selectedPatient.telefone}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setSelectedLead(null)}
-                    className="text-xs text-blue-400 hover:text-blue-600 shrink-0"
-                  >
-                    Trocar
-                  </button>
-                </div>
-              )}
-
-              {/* Nome no orçamento */}
-              {selectedPatient && (
-                <div style={{ background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 12, padding: '14px 16px' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#5B7A8A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Nome no orçamento
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#0E2C3D' }}>
-                      <input
-                        type="radio"
-                        checked={!usarNomePersonalizado}
-                        onChange={() => { setUsarNomePersonalizado(false); setPacienteNome('') }}
-                        style={{ accentColor: 'var(--color-brand)' }}
-                      />
-                      Nome do cliente ({selectedPatient.nome}{selectedPatient.sobrenome ? ` ${selectedPatient.sobrenome}` : ''})
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#0E2C3D' }}>
-                      <input
-                        type="radio"
-                        checked={usarNomePersonalizado}
-                        onChange={() => setUsarNomePersonalizado(true)}
-                        style={{ accentColor: 'var(--color-brand)' }}
-                      />
-                      Outro nome (filho, dependente...)
-                    </label>
-                    {usarNomePersonalizado && (
-                      <input
-                        type="text"
-                        value={pacienteNome}
-                        onChange={e => setPacienteNome(e.target.value)}
-                        placeholder="Ex: Maria Silva (filha)"
-                        autoFocus
-                        style={{ marginTop: 4, padding: '8px 12px', fontSize: 13, border: '1.5px solid var(--color-brand)', borderRadius: 8, outline: 'none', color: '#0E2C3D', background: '#fff' }}
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="relative">
-                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Buscar paciente por nome ou telefone..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="space-y-1 max-h-56 overflow-y-auto">
-                {filteredPatients.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">
-                    Nenhum paciente encontrado
-                  </p>
-                ) : (
-                  filteredPatients.map((p: PatientOption) => {
-                    const isSelected = selectedLead?.id === p.id
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedLead(p)
-                          setSearch('')
-                        }}
-                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left transition-colors ${
-                          isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'
-                        }`}
-                      >
-                        <div
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                          style={isSelected ? { background: 'var(--color-brand)', color: '#fff' } : { background: 'var(--color-track)', color: 'var(--color-text)' }}
-                        >
-                          {p.nome[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {p.nome}{p.sobrenome ? ` ${p.sobrenome}` : ''}
-                          </p>
-                          {p.telefone && <p className="text-xs text-gray-400">{p.telefone}</p>}
-                        </div>
-                        {isSelected && (
-                          <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── Itens ── */}
-          {tab === 'itens' && (
-            <div className="space-y-3">
-              {loadingItems ? (
-                <div className="text-center py-8 text-sm text-gray-400">Carregando itens...</div>
-              ) : (
-                <>
-                  {/* Product search */}
-                  <div className="relative">
-                    <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Buscar e adicionar vacina ou serviço..."
-                      value={prodSearch}
-                      onChange={e => setProdSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Product list — always visible, filtered by search */}
-                  <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                    {filteredProducts.map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => addProduct(p)}
-                          className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">{p.nome}</p>
-                            <p className="text-xs text-gray-400">
-                              {p.tipo ? PRODUCT_TIPO_LABELS[p.tipo] : ''}
-                              {p.descricao ? ` · ${p.descricao.slice(0, 40)}` : ''}
-                            </p>
-                          </div>
-                          <span className="text-sm font-semibold text-gray-700 shrink-0 ml-4">
-                            {p.valor_venda != null ? fmtBRL.format(p.valor_venda) : '—'}
-                          </span>
-                        </button>
-                    ))}
-                  </div>
-
-                  {/* Items list */}
-                  {items.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <svg className="w-8 h-8 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <p className="text-sm">Clique em uma vacina acima para adicionar</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {items.map(item => {
-                        const vf = calcValorFinal(item.valor_snapshot, item.quantidade, item.desconto)
-                        return (
-                          <div key={item.key} className="border border-gray-200 rounded-xl p-3 space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">{item.nome_snapshot}</p>
-                                <p className="text-xs text-gray-400">{fmtBRL.format(item.valor_snapshot)} / un.</p>
-                              </div>
-                              <button
-                                onClick={() => removeItem(item.key)}
-                                className="p-1 text-gray-300 hover:text-red-500 transition-colors shrink-0"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] text-gray-500 uppercase tracking-wide">Qtd</span>
-                                <input
-                                  type="number" min="1"
-                                  value={item.quantidade}
-                                  onChange={e => setQty(item.key, parseInt(e.target.value) || 1)}
-                                  className="w-14 text-sm border border-gray-200 rounded-lg px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] text-gray-500 uppercase tracking-wide">Desc.</span>
-                                <div className="relative">
-                                  <input
-                                    type="number" min="0" max="100" step="0.5"
-                                    value={item.desconto}
-                                    onChange={e => setDisc(item.key, parseFloat(e.target.value) || 0)}
-                                    className="w-16 text-sm border border-gray-200 rounded-lg pl-2 pr-5 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  />
-                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
-                                </div>
-                              </div>
-                              <span className="ml-auto text-sm font-semibold text-gray-900">
-                                {fmtBRL.format(vf)}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-
-                      {/* Total */}
-                      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-xl">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</span>
-                        <span className="text-base font-bold text-gray-900">{fmtBRL.format(total)}</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ── Configurações ── */}
-          {tab === 'config' && (
-            <div className="space-y-4">
-
-              {/* Template selector */}
-              {templates.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Template de PDF</label>
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => setTemplateId('')}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
-                        !templateId ? 'border-blue-200 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="w-6 h-6 bg-gray-200 rounded-lg flex items-center justify-center shrink-0">
-                        <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">Padrão do sistema</p>
-                        <p className="text-xs text-gray-400">Layout limpo sem imagens personalizadas</p>
-                      </div>
-                      {!templateId && (
-                        <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                    {templates.map(t => (
-                      <button
-                        key={t.id}
-                        onClick={() => setTemplateId(t.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
-                          templateId === t.id ? 'border-blue-200 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div
-                          className="w-6 h-6 rounded-lg shrink-0"
-                          style={{ background: `linear-gradient(135deg, ${t.cor_primaria}, ${t.cor_secundaria})` }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900">{t.nome}</p>
-                          <p className="text-xs text-gray-400">
-                            {t.nome_clinica ?? ''}
-                            {t.is_default ? ' · Padrão' : ''}
-                          </p>
-                        </div>
-                        {templateId === t.id && (
-                          <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Status — only when editing */}
-              {editing && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                  <select
-                    value={status}
-                    onChange={e => setStatus(e.target.value as QuoteStatus)}
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {(Object.keys(QUOTE_STATUS_LABELS) as QuoteStatus[]).map(s => (
-                      <option key={s} value={s}>{QUOTE_STATUS_LABELS[s]}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Motivo recusa */}
-              {status === 'recusado' && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Motivo da recusa <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={motivoRecusa}
-                    onChange={e => setMotivoRecusa(e.target.value)}
-                    rows={3}
-                    placeholder="Descreva o motivo..."
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  />
-                </div>
-              )}
-
-              {/* Validade */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Válido até <span className="text-gray-400">(opcional)</span>
-                </label>
-                <input
-                  type="date"
-                  value={validadeAte}
-                  onChange={e => setValidadeAte(e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Observações */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Observações <span className="text-gray-400">(opcional)</span>
-                </label>
-                <textarea
-                  value={observacoes}
-                  onChange={e => setObservacoes(e.target.value)}
-                  rows={3}
-                  placeholder="Anotações internas, condições especiais..."
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-
-              {/* Pacote de pagamento */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-xs font-medium text-gray-700">Pacote de Pagamento</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Exibe opções de desconto por forma de pagamento</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => togglePacote(!pacoteAtivo)}
-                    className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
-                    style={{ background: pacoteAtivo ? 'var(--color-brand)' : 'var(--color-track)' }}
-                  >
-                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                      pacoteAtivo ? 'translate-x-4' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-
-                {pacoteAtivo && (
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center px-3 py-2 bg-gray-50 border-b border-gray-200">
-                      <span className="text-[10px] text-gray-400 flex-1">Grupo</span>
-                      <span className="text-[10px] text-gray-400 w-14 text-center">Desconto</span>
-                      <span className="text-[10px] text-gray-400 w-24 text-right">Total</span>
-                    </div>
-                    {pacoteOpcoes.map(opcao => (
-                      <PacoteRow key={opcao.id} opcao={opcao} total={total} onDesconto={setDesconto} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mt-4">
-              {error}
-            </p>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between shrink-0" style={{ padding: '16px 24px', borderTop: '1px solid #EDF2F6' }}>
+    <Drawer
+      open={true}
+      onClose={onClose}
+      title={editing ? `Orçamento #${String(editing.numero ?? 0).padStart(4, '0')}` : 'Novo orçamento'}
+      width={620}
+      footer={
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
             {quoteForPdf && (
               <PdfButton quote={quoteForPdf} label="Prévia PDF" variant="preview" />
@@ -865,8 +428,8 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              style={{ border: '1px solid #E1EEF7', borderRadius: '11px', padding: '11px 22px', fontSize: '13.5px', fontWeight: 700, color: '#3F5666', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#F4FAFE')}
+              style={{ border: '1px solid #EBE7DA', borderRadius: '11px', padding: '11px 22px', fontSize: '13.5px', fontWeight: 700, color: '#35543B', cursor: 'pointer', background: 'transparent', transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#FBFAF4')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               Cancelar
@@ -886,8 +449,430 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
             </button>
           </div>
         </div>
+      }
+    >
+      {editing && <div className="mb-3"><StatusBadge status={editing.status} /></div>}
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '26px', marginBottom: 16, borderBottom: '1px solid #EBE7DA' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              fontSize: '12.5px', fontWeight: tab === t.id ? 800 : 700, paddingBottom: '12px', cursor: 'pointer',
+              color: tab === t.id ? '#3E9849' : '#9AA79C',
+              background: 'none', border: 'none', borderBottom: tab === t.id ? '3px solid #3E9849' : '3px solid transparent',
+              transition: 'color 0.15s',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
-    </div>
+
+      {/* Body */}
+      <div>
+
+          {/* ── Paciente ── */}
+          {tab === 'paciente' && (
+            <div className="space-y-3">
+              {/* Selected patient display */}
+              {selectedPatient && (
+                <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: '#E8F4E6', border: '1px solid #CDE8CB' }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#D6EBD2' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{selectedPatient.nome[0]}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>
+                      {selectedPatient.nome}{selectedPatient.sobrenome ? ` ${selectedPatient.sobrenome}` : ''}
+                    </p>
+                    {selectedPatient.telefone && (
+                      <p style={{ fontSize: '11.5px', color: '#35853F' }}>{selectedPatient.telefone}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedLead(null)}
+                    className="text-xs text-[#9AA79C] hover:text-[#3E9849] shrink-0"
+                  >
+                    Trocar
+                  </button>
+                </div>
+              )}
+
+              {/* Nome no orçamento */}
+              {selectedPatient && (
+                <div style={{ background: '#FBFAF4', border: '1px solid #EBE7DA', borderRadius: 12, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#5B7A8A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Nome no orçamento
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#25402C' }}>
+                      <input
+                        type="radio"
+                        checked={!usarNomePersonalizado}
+                        onChange={() => { setUsarNomePersonalizado(false); setPacienteNome('') }}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      Nome do cliente ({selectedPatient.nome}{selectedPatient.sobrenome ? ` ${selectedPatient.sobrenome}` : ''})
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#25402C' }}>
+                      <input
+                        type="radio"
+                        checked={usarNomePersonalizado}
+                        onChange={() => setUsarNomePersonalizado(true)}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      Outro nome (filho, dependente...)
+                    </label>
+                    {usarNomePersonalizado && (
+                      <input
+                        type="text"
+                        value={pacienteNome}
+                        onChange={e => setPacienteNome(e.target.value)}
+                        placeholder="Ex: Maria Silva (filha)"
+                        autoFocus
+                        style={{ marginTop: 4, padding: '8px 12px', fontSize: 13, border: '1.5px solid var(--color-brand)', borderRadius: 8, outline: 'none', color: '#25402C', background: '#fff' }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="relative">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9AA79C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Buscar paciente por nome ou telefone..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-[#EBE7DA] rounded-xl focus:outline-none focus:ring-0"
+                />
+              </div>
+
+              <div className="space-y-1 max-h-56 overflow-y-auto">
+                {filteredPatients.length === 0 ? (
+                  <p className="text-xs text-[#9AA79C] text-center py-4">
+                    Nenhum paciente encontrado
+                  </p>
+                ) : (
+                  filteredPatients.map((p: PatientOption) => {
+                    const isSelected = selectedLead?.id === p.id
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedLead(p)
+                          setSearch('')
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left transition-colors ${
+                          isSelected ? 'bg-[#E8F4E6] border border-[#CDE8CB]' : 'hover:bg-[#FBFAF4] border border-transparent'
+                        }`}
+                      >
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                          style={isSelected ? { background: 'var(--color-brand)', color: '#fff' } : { background: 'var(--color-track)', color: 'var(--color-text)' }}
+                        >
+                          {p.nome[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[#25402C] truncate">
+                            {p.nome}{p.sobrenome ? ` ${p.sobrenome}` : ''}
+                          </p>
+                          {p.telefone && <p className="text-xs text-[#9AA79C]">{p.telefone}</p>}
+                        </div>
+                        {isSelected && (
+                          <svg className="w-4 h-4 text-[#3E9849] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Itens ── */}
+          {tab === 'itens' && (
+            <div className="space-y-3">
+              {loadingItems ? (
+                <div className="text-center py-8 text-sm text-[#9AA79C]">Carregando itens...</div>
+              ) : (
+                <>
+                  {/* Product search */}
+                  <div className="relative">
+                    <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9AA79C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Buscar e adicionar vacina ou serviço..."
+                      value={prodSearch}
+                      onChange={e => setProdSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 text-sm border border-[#EBE7DA] rounded-xl focus:outline-none focus:ring-0"
+                    />
+                  </div>
+
+                  {/* Product list — always visible, filtered by search */}
+                  <div className="border border-[#EBE7DA] rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                    {filteredProducts.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => addProduct(p)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-[#FBFAF4] border-b border-[#EBE7DA] last:border-0 transition-colors"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-[#25402C] truncate">{p.nome}</p>
+                            <p className="text-xs text-[#9AA79C]">
+                              {p.tipo ? PRODUCT_TIPO_LABELS[p.tipo] : ''}
+                              {p.descricao ? ` · ${p.descricao.slice(0, 40)}` : ''}
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-[#35543B] shrink-0 ml-4">
+                            {p.valor_venda != null ? fmtBRL.format(p.valor_venda) : '—'}
+                          </span>
+                        </button>
+                    ))}
+                  </div>
+
+                  {/* Items list */}
+                  {items.length === 0 ? (
+                    <div className="text-center py-8 text-[#9AA79C]">
+                      <svg className="w-8 h-8 mx-auto mb-2 text-[#9AA79C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <p className="text-sm">Clique em uma vacina acima para adicionar</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {items.map(item => {
+                        const vf = calcValorFinal(item.valor_snapshot, item.quantidade, item.desconto)
+                        return (
+                          <div key={item.key} className="border border-[#EBE7DA] rounded-xl p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-[#25402C] truncate">{item.nome_snapshot}</p>
+                                <p className="text-xs text-[#9AA79C]">{fmtBRL.format(item.valor_snapshot)} / un.</p>
+                              </div>
+                              <button
+                                onClick={() => removeItem(item.key)}
+                                className="p-1 text-[#9AA79C] hover:text-[#C05B3A] transition-colors shrink-0"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] text-[#71856F] uppercase tracking-wide">Qtd</span>
+                                <input
+                                  type="number" min="1"
+                                  value={item.quantidade}
+                                  onChange={e => setQty(item.key, parseInt(e.target.value) || 1)}
+                                  className="w-14 text-sm border border-[#EBE7DA] rounded-lg px-2 py-1 text-center focus:outline-none focus:ring-0"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] text-[#71856F] uppercase tracking-wide">Desc.</span>
+                                <div className="relative">
+                                  <input
+                                    type="number" min="0" max="100" step="0.5"
+                                    value={item.desconto}
+                                    onChange={e => setDisc(item.key, parseFloat(e.target.value) || 0)}
+                                    className="w-16 text-sm border border-[#EBE7DA] rounded-lg pl-2 pr-5 py-1 text-center focus:outline-none focus:ring-0"
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#9AA79C]">%</span>
+                                </div>
+                              </div>
+                              <span className="ml-auto text-sm font-semibold text-[#25402C]">
+                                {fmtBRL.format(vf)}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {/* Total */}
+                      <div className="flex items-center justify-between px-3 py-2 bg-[#FBFAF4] rounded-xl">
+                        <span className="text-xs font-semibold text-[#71856F] uppercase tracking-wide">Total</span>
+                        <span className="text-base font-bold text-[#25402C]">{fmtBRL.format(total)}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Configurações ── */}
+          {tab === 'config' && (
+            <div className="space-y-4">
+
+              {/* Template selector */}
+              {templates.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-[#71856F] mb-2">Template de PDF</label>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setTemplateId('')}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                        !templateId ? 'border-[#CDE8CB] bg-[#E8F4E6]' : 'border-gray-200 hover:bg-[#FBFAF4]'
+                      }`}
+                    >
+                      <div className="w-6 h-6 bg-[#EBE7DA] rounded-lg flex items-center justify-center shrink-0">
+                        <svg className="w-3.5 h-3.5 text-[#71856F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#25402C]">Padrão do sistema</p>
+                        <p className="text-xs text-[#9AA79C]">Layout limpo sem imagens personalizadas</p>
+                      </div>
+                      {!templateId && (
+                        <svg className="w-4 h-4 text-[#3E9849] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                    {templates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTemplateId(t.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                          templateId === t.id ? 'border-[#CDE8CB] bg-[#E8F4E6]' : 'border-gray-200 hover:bg-[#FBFAF4]'
+                        }`}
+                      >
+                        <div
+                          className="w-6 h-6 rounded-lg shrink-0"
+                          style={{ background: `linear-gradient(135deg, ${t.cor_primaria}, ${t.cor_secundaria})` }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[#25402C]">{t.nome}</p>
+                          <p className="text-xs text-[#9AA79C]">
+                            {t.nome_clinica ?? ''}
+                            {t.is_default ? ' · Padrão' : ''}
+                          </p>
+                        </div>
+                        {templateId === t.id && (
+                          <svg className="w-4 h-4 text-[#3E9849] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Status — only when editing */}
+              {editing && (
+                <div>
+                  <label className="block text-xs font-medium text-[#71856F] mb-1">Status</label>
+                  <select
+                    value={status}
+                    onChange={e => setStatus(e.target.value as QuoteStatus)}
+                    className="w-full text-sm border border-[#EBE7DA] rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-0"
+                  >
+                    {(Object.keys(QUOTE_STATUS_LABELS) as QuoteStatus[]).map(s => (
+                      <option key={s} value={s}>{QUOTE_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Motivo recusa */}
+              {status === 'recusado' && (
+                <div>
+                  <label className="block text-xs font-medium text-[#71856F] mb-1">
+                    Motivo da recusa <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={motivoRecusa}
+                    onChange={e => setMotivoRecusa(e.target.value)}
+                    rows={3}
+                    placeholder="Descreva o motivo..."
+                    className="w-full text-sm border border-[#EBE7DA] rounded-xl px-3 py-2 focus:outline-none focus:ring-0 resize-none"
+                  />
+                </div>
+              )}
+
+              {/* Validade */}
+              <div>
+                <label className="block text-xs font-medium text-[#71856F] mb-1">
+                  Válido até <span className="text-[#9AA79C]">(opcional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={validadeAte}
+                  onChange={e => setValidadeAte(e.target.value)}
+                  className="w-full text-sm border border-[#EBE7DA] rounded-xl px-3 py-2 focus:outline-none focus:ring-0"
+                />
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-xs font-medium text-[#71856F] mb-1">
+                  Observações <span className="text-[#9AA79C]">(opcional)</span>
+                </label>
+                <textarea
+                  value={observacoes}
+                  onChange={e => setObservacoes(e.target.value)}
+                  rows={3}
+                  placeholder="Anotações internas, condições especiais..."
+                  className="w-full text-sm border border-[#EBE7DA] rounded-xl px-3 py-2 focus:outline-none focus:ring-0 resize-none"
+                />
+              </div>
+
+              {/* Pacote de pagamento */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs font-medium text-[#35543B]">Pacote de Pagamento</p>
+                    <p className="text-[11px] text-[#9AA79C] mt-0.5">Exibe opções de desconto por forma de pagamento</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => togglePacote(!pacoteAtivo)}
+                    className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
+                    style={{ background: pacoteAtivo ? 'var(--color-brand)' : 'var(--color-track)' }}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      pacoteAtivo ? 'translate-x-4' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+
+                {pacoteAtivo && (
+                  <div className="border border-[#EBE7DA] rounded-xl overflow-hidden">
+                    <div className="flex items-center px-3 py-2 bg-[#FBFAF4] border-b border-gray-200">
+                      <span className="text-[10px] text-[#9AA79C] flex-1">Grupo</span>
+                      <span className="text-[10px] text-[#9AA79C] w-14 text-center">Desconto</span>
+                      <span className="text-[10px] text-[#9AA79C] w-24 text-right">Total</span>
+                    </div>
+                    {pacoteOpcoes.map(opcao => (
+                      <PacoteRow key={opcao.id} opcao={opcao} total={total} onDesconto={setDesconto} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mt-4">
+              {error}
+            </p>
+          )}
+        </div>
+    </Drawer>
   )
 }
 
@@ -902,11 +887,11 @@ function PacoteRow({ opcao, total, onDesconto }: {
   const fmtBRL     = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
   return (
-    <div className="px-3 py-3 border-b border-gray-100 last:border-0">
+    <div className="px-3 py-3 border-b border-[#EBE7DA] last:border-0">
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <span className="text-xs font-medium text-gray-800">{opcao.label}</span>
-          <p className="text-[11px] text-gray-400 mt-0.5">{opcao.metodos.join(' · ')}</p>
+          <span className="text-xs font-medium text-[#25402C]">{opcao.label}</span>
+          <p className="text-[11px] text-[#9AA79C] mt-0.5">{opcao.metodos.join(' · ')}</p>
         </div>
         <div className="relative flex items-center shrink-0">
           <input
@@ -916,11 +901,11 @@ function PacoteRow({ opcao, total, onDesconto }: {
             step={1}
             value={opcao.desconto}
             onChange={e => onDesconto(opcao.id, parseFloat(e.target.value) || 0)}
-            className="w-14 text-xs text-center border border-gray-200 rounded-lg pl-2 pr-5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-14 text-xs text-center border border-[#EBE7DA] rounded-lg pl-2 pr-5 py-1 focus:outline-none focus:ring-0"
           />
-          <span className="absolute right-2 text-[11px] text-gray-400">%</span>
+          <span className="absolute right-2 text-[11px] text-[#9AA79C]">%</span>
         </div>
-        <span className="text-xs font-semibold text-emerald-700 w-24 text-right shrink-0">
+        <span className="text-xs font-semibold text-[#35853F] w-24 text-right shrink-0">
           {valorFinal != null ? fmtBRL.format(valorFinal) : '—'}
         </span>
       </div>
@@ -930,13 +915,13 @@ function PacoteRow({ opcao, total, onDesconto }: {
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, color = 'text-gray-900' }: {
-  label: string; value: string | number; color?: string
+function StatCard({ label, value, valueColor }: {
+  label: string; value: string | number; valueColor?: string
 }) {
   return (
     <div>
-      <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">{label}</p>
-      <p className={`text-lg font-bold mt-0.5 ${color}`}>{value}</p>
+      <p style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+      <p style={{ fontSize: '18px', fontWeight: 900, marginTop: 2, color: valueColor ?? '#25402C' }}>{value}</p>
     </div>
   )
 }
@@ -1040,15 +1025,18 @@ export default function OrcamentosClient({
     <div className="flex flex-col flex-1 overflow-hidden">
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
+      <header className="bg-white shrink-0" style={{ padding: '16px 26px', borderBottom: '1px solid #E9E5D8' }}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-semibold text-gray-900">Orçamentos</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Crie e gerencie propostas de vacinas e serviços</p>
+            <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#25402C' }}>Orçamentos</h1>
+            <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: 2 }}>Crie e acompanhe propostas de vacinas e serviços</p>
           </div>
           <button
             onClick={() => { setEditing(null); setModalOpen(true) }}
-            className="flex items-center gap-1.5 text-sm px-3 py-2 text-white rounded-xl transition-colors font-medium" style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
+            className="flex items-center gap-1.5 text-white transition-colors"
+            style={{ fontSize: '13.5px', fontWeight: 800, padding: '10px 20px', borderRadius: '999px', background: '#3E9849', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1059,47 +1047,49 @@ export default function OrcamentosClient({
       </header>
 
       {/* Stats */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-6 shrink-0">
+      <div className="bg-white flex items-center gap-6 shrink-0" style={{ padding: '12px 26px', borderBottom: '1px solid #E9E5D8' }}>
         <StatCard label="Total" value={stats.total} />
-        <div className="w-px h-8 bg-gray-100" />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
         <StatCard label="Rascunhos" value={stats.rascunhos} />
-        <div className="w-px h-8 bg-gray-100" />
-        <StatCard label="Aguardando" value={stats.enviados} />
-        <div className="w-px h-8 bg-gray-100" />
-        <StatCard label="Aceitos" value={stats.aceitos} color="text-[#4EB46B]" />
-        <div className="w-px h-8 bg-gray-100" />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
+        <StatCard label="Aguardando" value={stats.enviados} valueColor="#1E86C0" />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
+        <StatCard label="Aceitos" value={stats.aceitos} valueColor="#3E9849" />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
         <StatCard
           label="Valor aceito"
           value={stats.totalAceito > 0 ? fmtBRL.format(stats.totalAceito) : '—'}
-          color={stats.totalAceito > 0 ? 'text-[#4EB46B]' : 'text-gray-400'}
+          valueColor={stats.totalAceito > 0 ? '#3E9849' : '#9AA79C'}
         />
       </div>
 
       {/* Filters */}
-      <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex items-center gap-3 shrink-0 flex-wrap">
+      <div className="bg-white flex items-center gap-3 shrink-0 flex-wrap" style={{ padding: '10px 26px', borderBottom: '1px solid #E9E5D8' }}>
         <div className="relative">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#9AA79C' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text"
-            placeholder="Buscar paciente ou nº..."
+            placeholder="Buscar paciente ou nº…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
+            className="focus:outline-none"
+            style={{ paddingLeft: 32, paddingRight: 14, paddingBlock: 7, border: '1px solid #EBE7DA', borderRadius: '999px', fontSize: '12.5px', fontWeight: 600, color: '#35543B', width: 260 }}
           />
         </div>
         <select
           value={filterSt}
           onChange={e => setFilterSt(e.target.value as QuoteStatus | 'todos')}
-          className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="focus:outline-none"
+          style={{ border: '1px solid #EBE7DA', borderRadius: '999px', padding: '7px 12px', fontSize: '12.5px', fontWeight: 700, color: '#71856F', background: '#fff', cursor: 'pointer' }}
         >
           <option value="todos">Todos os status</option>
           {(Object.keys(QUOTE_STATUS_LABELS) as QuoteStatus[]).map(s => (
             <option key={s} value={s}>{QUOTE_STATUS_LABELS[s]}</option>
           ))}
         </select>
-        <span className="text-xs text-gray-400 ml-auto">
+        <span className="ml-auto" style={{ fontSize: '11.5px', fontWeight: 700, color: '#9AA79C' }}>
           {filtered.length} orçamento{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -1108,59 +1098,72 @@ export default function OrcamentosClient({
       <main className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center justify-center mb-4" style={{ width: 64, height: 64, borderRadius: '50%', background: '#F1EFE5' }}>
+              <svg className="w-8 h-8" style={{ color: '#9AA79C' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <p className="text-sm font-medium text-gray-500">Nenhum orçamento encontrado</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p style={{ fontSize: '13px', fontWeight: 700, color: '#71856F' }}>Nenhum orçamento encontrado</p>
+            <p style={{ fontSize: '11.5px', color: '#9AA79C', marginTop: 4 }}>
               Clique em &ldquo;Novo orçamento&rdquo; para começar
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+          <table className="w-full" style={{ fontSize: '13px' }}>
+            <thead className="sticky top-0" style={{ background: '#FBFAF4', borderBottom: '1px solid #EBE7DA' }}>
               <tr>
-                <th className="text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Nº</th>
-                <th className="text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Paciente</th>
-                <th className="text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Status</th>
-                <th className="text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Total</th>
-                <th className="text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Data</th>
-                <th className="text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Ações</th>
+                <th className="text-left uppercase tracking-wide px-6 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Nº</th>
+                <th className="text-left uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Paciente</th>
+                <th className="text-center uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Status</th>
+                <th className="text-right uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Total</th>
+                <th className="text-left uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Data</th>
+                <th className="text-right uppercase tracking-wide px-6 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y bg-white" style={{ borderColor: '#EBE7DA' }}>
               {filtered.map(q => (
-                <tr key={q.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={q.id}
+                  className="transition-colors"
+                  onMouseEnter={e => (e.currentTarget.style.background = '#FBFAF4')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
                   <td className="px-6 py-3.5">
-                    <span className="text-xs font-mono font-semibold text-gray-500">
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#9AA79C' }}>
                       #{String(q.numero ?? 0).padStart(4, '0')}
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="text-sm font-medium text-gray-900">{patientName(q)}</span>
+                    <div className="flex items-center gap-2.5">
+                      <div className="rounded-full flex items-center justify-center shrink-0" style={{ width: 30, height: 30, background: '#D6EBD2' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{patientName(q)[0]?.toUpperCase()}</span>
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>{patientName(q)}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3.5 text-center">
                     <StatusBadge status={q.status} />
                   </td>
                   <td className="px-4 py-3.5 text-right">
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span style={{ fontWeight: 800, color: '#25402C' }}>
                       {q.total_calculado != null
                         ? fmtBRL.format(q.total_calculado)
-                        : <span className="text-gray-300">—</span>}
+                        : <span style={{ color: '#9AA79C' }}>—</span>}
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="text-xs text-gray-500">{fmtDate(q.criado_em)}</span>
+                    <span style={{ fontSize: '12px', color: '#9AA79C' }}>{fmtDate(q.criado_em)}</span>
                   </td>
                   <td className="px-6 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => { setEditing(q); setModalOpen(true) }}
                         title="Editar"
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: '#9AA79C' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -1170,11 +1173,10 @@ export default function OrcamentosClient({
                       <button
                         onClick={() => handleCopyLink(q)}
                         title={copiedId === q.id ? 'Link copiado!' : 'Copiar link do paciente'}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          copiedId === q.id
-                            ? 'text-emerald-600 bg-emerald-50'
-                            : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
-                        }`}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: copiedId === q.id ? '#3E9849' : '#9AA79C', background: copiedId === q.id ? '#E8F4E6' : '' }}
+                        onMouseEnter={e => { if (copiedId !== q.id) { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' } }}
+                        onMouseLeave={e => { if (copiedId !== q.id) { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' } }}
                       >
                         {copiedId === q.id ? (
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1192,7 +1194,10 @@ export default function OrcamentosClient({
                           onClick={() => handleDelete(q)}
                           disabled={deletingId === q.id}
                           title="Excluir orçamento"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
+                          style={{ color: '#9AA79C' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#C05B3A'; e.currentTarget.style.background = '#F9E7E0' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

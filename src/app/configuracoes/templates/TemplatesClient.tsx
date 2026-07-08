@@ -105,7 +105,7 @@ function PageSlot({
             </label>
           </div>
         ) : (
-          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-6 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors">
+          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-6 cursor-pointer hover:border-[#CDE8CB] hover:bg-[#E8F4E6]/30 transition-colors">
             <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
@@ -300,7 +300,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                 value={form.nome}
                 onChange={e => set('nome', e.target.value)}
                 placeholder="Ex: Padrão Adultos"
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
               />
             </div>
             <div>
@@ -308,7 +308,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
               <select
                 value={form.age_group}
                 onChange={e => set('age_group', e.target.value as AgeGroup)}
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
               >
                 {(Object.keys(AGE_GROUP_LABELS) as AgeGroup[]).map(k => (
                   <option key={k} value={k}>{AGE_GROUP_LABELS[k]}</option>
@@ -337,7 +337,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
               onClick={() => setActiveTab(tab.id)}
               className={`text-xs font-medium py-2.5 px-1 mr-4 border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-[#3E9849] text-[#3E9849]'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -362,7 +362,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                     }
                   </div>
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-blue-600 cursor-pointer hover:text-blue-700">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-[#3E9849] cursor-pointer hover:text-[#35853F]">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                       {logoPreview ? 'Trocar logo' : 'Fazer upload'}
                       <input type="file" accept="image/png,image/jpeg" onChange={handleLogoChange} className="sr-only" />
@@ -410,7 +410,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
           {/* ── Páginas ── */}
           {activeTab === 'paginas' && (
             <>
-              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700">
+              <div className="bg-[#E8F4E6] border border-[#CDE8CB] rounded-xl px-4 py-3 text-xs text-[#35853F]">
                 <strong>Como funciona:</strong> faça upload das páginas do seu template. A <strong>página de dados</strong> (vacinas, preços e total) usa automaticamente o gradiente das cores do template — configure as cores na aba <strong>Visual</strong>.
               </div>
 
@@ -428,7 +428,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-gray-700">Páginas de introdução</label>
                   {introCount < 4 && (
-                    <button onClick={addIntroSlot} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    <button onClick={addIntroSlot} className="text-xs text-[#3E9849] hover:text-[#35853F] flex items-center gap-1">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                       Adicionar página
                     </button>
@@ -474,7 +474,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                   <div className="flex gap-2">
                     {['#ffffff', '#1a1a1a', '#1D9E75', '#185FA5'].map(c => (
                       <button key={c} onClick={() => set('cor_texto_conteudo', c)}
-                        className={`w-6 h-6 rounded-full border-2 transition-all ${form.cor_texto_conteudo === c ? 'border-blue-500 scale-110' : 'border-gray-200'}`}
+                        className={`w-6 h-6 rounded-full border-2 transition-all ${form.cor_texto_conteudo === c ? 'border-[#3E9849] scale-110' : 'border-gray-200'}`}
                         style={{ backgroundColor: c }}
                         title={c}
                       />
@@ -511,7 +511,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                     value={form[key as keyof TemplateForm] as string}
                     onChange={e => set(key as keyof TemplateForm, e.target.value)}
                     placeholder={placeholder}
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
                   />
                 </div>
               ))}
@@ -528,7 +528,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                   value={form.texto_cabecalho}
                   onChange={e => set('texto_cabecalho', e.target.value)}
                   placeholder="Proteção para toda a família"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
                 />
               </div>
               <div>
@@ -537,7 +537,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                   value={form.texto_rodape}
                   onChange={e => set('texto_rodape', e.target.value)}
                   rows={4}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849] resize-none"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{validade_dias}'}</code> para inserir o prazo automaticamente.</p>
               </div>
@@ -547,7 +547,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
                   type="number" min="1"
                   value={form.validade_dias}
                   onChange={e => set('validade_dias', e.target.value)}
-                  className="w-24 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-24 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
                 />
               </div>
             </>
@@ -566,7 +566,7 @@ function TemplateModal({ editing, unitId, onClose, onSaved }: TemplateModalProps
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 text-xs font-medium text-white bg-blue-500 rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            className="px-4 py-2 text-xs font-medium text-white bg-[#3E9849] rounded-xl hover:bg-[#35853F] disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >
             {saving && <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
             {editing ? 'Salvar' : 'Criar template'}
@@ -644,7 +644,7 @@ function TemplateCard({ template, onEdit, onDelete, onToggleDefault }: {
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
               </button>
             )}
-            <button onClick={onEdit} title="Editar" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <button onClick={onEdit} title="Editar" className="p-1.5 text-gray-400 hover:text-[#3E9849] hover:bg-[#E8F4E6] rounded-lg transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
             </button>
             <button onClick={onDelete} title="Excluir" className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
@@ -703,7 +703,7 @@ export default function TemplatesClient({ currentUser, initialTemplates }: Props
             </span>
             <button
               onClick={() => { setEditing(null); setModalOpen(true) }}
-              className="flex items-center gap-1.5 text-sm px-3 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
+              className="flex items-center gap-1.5 text-sm px-3 py-2 bg-[#3E9849] text-white rounded-xl hover:bg-[#35853F] transition-colors font-medium"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
               Novo template

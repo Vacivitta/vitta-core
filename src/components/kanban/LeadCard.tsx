@@ -17,7 +17,7 @@ interface Props {
 }
 
 const AVATAR_BG   = ['#D6EBD2', '#DCEFFA', '#F3EBDA'] as const
-const AVATAR_INK  = ['#3E6B38', '#2A6B99', '#8B6A2F'] as const
+const AVATAR_INK  = ['#35853F', '#1E86C0', '#B0813C'] as const
 
 function hashIdx(s: string) {
   let h = 0
@@ -63,18 +63,18 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     borderRadius: 16,
     border: isDragging
       ? '2px solid #3E9849'
-      : isUrgent && isOverdue
-        ? '1.5px solid #C87F1B'
-        : hovered ? '1px solid #C8D9C4' : '1px solid #EBE7DA',
+      : '1px solid #EBE7DA',
+    outline: isUrgent && isOverdue && !isDragging ? '2px solid #F0C98A' : 'none',
+    outlineOffset: isUrgent && isOverdue && !isDragging ? '-2px' : undefined,
     boxShadow: isDragging
       ? '0 8px 20px -6px rgba(37,64,44,0.2)'
       : hovered
-        ? '0 6px 16px -4px rgba(37,64,44,0.15)'
+        ? '0 8px 20px -8px rgba(62,152,73,0.4)'
         : '0 2px 6px -2px rgba(37,64,44,0.12)',
     cursor: 'pointer',
     userSelect: 'none',
     opacity: isDragging ? 0.5 : 1,
-    transition: 'box-shadow 0.15s, border-color 0.15s, transform 0.15s',
+    transition: 'box-shadow 0.15s, border-color 0.15s, outline-color 0.15s, transform 0.15s',
     transform: hovered && !isDragging
       ? `${dndStyle.transform ?? ''} translateY(-1px)`.trim()
       : dndStyle.transform ?? undefined,
@@ -107,7 +107,7 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{
-                fontSize: 13.5, fontWeight: 700, color: '#25402C',
+                fontSize: 13, fontWeight: 800, color: '#25402C',
                 flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {lead.nome} {lead.sobrenome ?? ''}
@@ -175,7 +175,7 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
 
       {/* Footer — dashed separator */}
       <div style={{
-        borderTop: '1.5px dashed #E4DFD0', margin: '0 14px', padding: '8px 0 10px',
+        borderTop: '1px dashed #EBE7DA', margin: '0 14px', padding: '8px 0 10px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
@@ -203,8 +203,8 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
             </>
           ) : (
             <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-              background: '#FEF3E2', color: '#C87F1B',
+              fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+              background: '#F3EBDA', color: '#B0813C',
             }}>
               sem responsável
             </span>

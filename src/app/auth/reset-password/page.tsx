@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
           <h1 className="text-2xl font-bold text-gray-900">VittaDesk</h1>
           <p className="text-sm text-gray-500 mt-1">Redefinir senha</p>
         </div>
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-[#EBE7DA] p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nova senha</label>
             <input
@@ -48,7 +48,7 @@ export default function ResetPasswordPage() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
               placeholder="Mínimo 6 caracteres"
             />
           </div>
@@ -59,7 +59,7 @@ export default function ResetPasswordPage() {
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
               required
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
               placeholder="••••••••"
             />
           </div>
@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-500 text-white font-medium rounded-xl text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            className="w-full py-2.5 bg-[#3E9849] text-white font-medium rounded-xl text-sm hover:bg-[#35853F] disabled:opacity-50 transition-colors"
           >
             {loading ? 'Salvando...' : 'Redefinir senha'}
           </button>

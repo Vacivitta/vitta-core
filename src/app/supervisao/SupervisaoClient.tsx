@@ -55,7 +55,7 @@ function initials(name: string | null): string {
 }
 
 function avatarColor(id: string): string {
-  const colors = ['#0098DA', '#4EB46B', '#F39313', '#8B5CF6', '#EC4899', '#14B8A6']
+  const colors = ['#3E9849', '#3E9849', '#F39313', '#8B5CF6', '#EC4899', '#14B8A6']
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
   return colors[Math.abs(hash) % colors.length]
@@ -268,20 +268,20 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
   }
 
   function queueColor(id: string | null): string {
-    if (!id) return '#8FA0AF'
-    return initialQueues.find(q => q.id === id)?.cor ?? '#8FA0AF'
+    if (!id) return '#9AA79C'
+    return initialQueues.find(q => q.id === id)?.cor ?? '#9AA79C'
   }
 
   const isAssignedToMe = selectedConv?.assigned_to === currentUser.id
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const S = {
-    ink:     '#0E2C3D',
-    muted:   '#8FA0AF',
-    border:  '#E8EDF2',
+    ink:     '#25402C',
+    muted:   '#9AA79C',
+    border:  '#EBE7DA',
     surface: '#F4FAFE',
-    card:    { background: '#fff', border: '1px solid #E8EDF2', borderRadius: 14, padding: '16px 18px' } as React.CSSProperties,
-    kpiCard: { background: '#fff', border: '1px solid #E8EDF2', borderRadius: 14, padding: '16px 18px', flex: 1 } as React.CSSProperties,
+    card:    { background: '#fff', border: '1px solid #EBE7DA', borderRadius: 14, padding: '16px 18px' } as React.CSSProperties,
+    kpiCard: { background: '#fff', border: '1px solid #EBE7DA', borderRadius: 14, padding: '16px 18px', flex: 1 } as React.CSSProperties,
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -289,12 +289,12 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Top nav ── */}
-      <header style={{ background: '#fff', borderBottom: '1px solid #E8EDF2', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <header style={{ background: '#fff', borderBottom: '1px solid #EBE7DA', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 800, color: S.ink, margin: 0 }}>Dashboard de Atendimento</h1>
           <p style={{ fontSize: 12, color: S.muted, margin: '2px 0 0' }}>Tempo real · atualização automática</p>
         </div>
-        <div style={{ display: 'flex', gap: 4, background: '#F1F4F7', borderRadius: 10, padding: 4 }}>
+        <div style={{ display: 'flex', gap: 4, background: '#F1EFE5', borderRadius: 10, padding: 4 }}>
           {([['dashboard', 'Painel'], ['conversas', 'Conversas'], ['campanhas', 'Campanhas']] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 7, border: 'none', cursor: 'pointer', background: view === v ? '#fff' : 'transparent', color: view === v ? S.ink : S.muted, boxShadow: view === v ? '0 1px 4px rgba(14,44,61,.08)' : 'none' }}>
@@ -310,21 +310,21 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
 
           {/* KPIs */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-            <div style={{ ...S.kpiCard, borderTop: '3px solid #0098DA' }}>
+            <div style={{ ...S.kpiCard, borderTop: '3px solid #3E9849' }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Em aberto</p>
-              <p style={{ fontSize: 32, fontWeight: 800, color: '#0098DA', margin: 0, letterSpacing: '-0.03em' }}>{kpis.open}</p>
+              <p style={{ fontSize: 32, fontWeight: 800, color: '#3E9849', margin: 0, letterSpacing: '-0.03em' }}>{kpis.open}</p>
             </div>
-            <div style={{ ...S.kpiCard, borderTop: `3px solid ${kpis.waiting > 0 ? '#F39313' : '#E8EDF2'}` }}>
+            <div style={{ ...S.kpiCard, borderTop: `3px solid ${kpis.waiting > 0 ? '#F39313' : '#EBE7DA'}` }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Sem agente</p>
               <p style={{ fontSize: 32, fontWeight: 800, color: kpis.waiting > 0 ? '#F39313' : S.muted, margin: 0, letterSpacing: '-0.03em' }}>{kpis.waiting}</p>
             </div>
-            <div style={{ ...S.kpiCard, borderTop: '3px solid #4EB46B' }}>
+            <div style={{ ...S.kpiCard, borderTop: '3px solid #3E9849' }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Resolvidos hoje</p>
-              <p style={{ fontSize: 32, fontWeight: 800, color: '#4EB46B', margin: 0, letterSpacing: '-0.03em' }}>{kpis.resolvedToday}</p>
+              <p style={{ fontSize: 32, fontWeight: 800, color: '#3E9849', margin: 0, letterSpacing: '-0.03em' }}>{kpis.resolvedToday}</p>
             </div>
 
             {/* WhatsApp billing — por mensagem (Meta pós-jul 2025) */}
-            <div style={{ ...S.kpiCard, minWidth: 260, borderTop: `3px solid ${kpis.totalBrl > 500 ? '#E5484D' : kpis.totalBrl > 200 ? '#F39313' : '#25D366'}` }}>
+            <div style={{ ...S.kpiCard, minWidth: 260, borderTop: `3px solid ${kpis.totalBrl > 500 ? '#C05B3A' : kpis.totalBrl > 200 ? '#F39313' : '#25D366'}` }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: 0, textTransform: 'uppercase', letterSpacing: '.06em' }}>WhatsApp — custo do mês</p>
                 <span style={{ fontSize: 10, color: S.muted }}>{kpis.totalMsgs} msgs</span>
@@ -336,11 +336,11 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
                 {kpis.marketingCount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#E5484D' }} />
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C05B3A' }} />
                       <span style={{ fontSize: 11, color: S.ink }}>Marketing</span>
                       <span style={{ fontSize: 10, color: S.muted }}>{kpis.marketingCount} msgs</span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#E5484D' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#C05B3A' }}>
                       {kpis.marketingBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </span>
                   </div>
@@ -360,11 +360,11 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
                 {kpis.utilityFreeCount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4EB46B' }} />
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3E9849' }} />
                       <span style={{ fontSize: 11, color: S.ink }}>Utility gratuito</span>
                       <span style={{ fontSize: 10, color: S.muted }}>{kpis.utilityFreeCount} msgs</span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#4EB46B' }}>R$ 0,00</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#3E9849' }}>R$ 0,00</span>
                   </div>
                 )}
                 {kpis.authCount > 0 && (
@@ -382,7 +382,7 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
                 {kpis.serviceCount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#B0BEC9' }} />
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#9AA79C' }} />
                       <span style={{ fontSize: 11, color: S.muted }}>Service (atendimento)</span>
                       <span style={{ fontSize: 10, color: S.muted }}>{kpis.serviceCount} msgs</span>
                     </div>
@@ -439,15 +439,15 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: S.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(p)}</span>
                           <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 6 }}>
-                            <span style={{ fontSize: 11, color: '#0098DA', fontWeight: 700 }}>{open} aberta{open !== 1 ? 's' : ''}</span>
-                            <span style={{ fontSize: 11, color: '#4EB46B' }}>{resolved} hoje</span>
+                            <span style={{ fontSize: 11, color: '#3E9849', fontWeight: 700 }}>{open} aberta{open !== 1 ? 's' : ''}</span>
+                            <span style={{ fontSize: 11, color: '#3E9849' }}>{resolved} hoje</span>
                             {avgMin !== null && (
                               <span style={{ fontSize: 11, color: S.muted }} title="Tempo médio de resposta">{Math.round(avgMin)}min</span>
                             )}
                           </div>
                         </div>
                         <div style={{ height: 5, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', background: open >= 8 ? '#E5484D' : open >= 5 ? '#F39313' : '#0098DA', borderRadius: 99, width: `${Math.min(100, open / 10 * 100)}%`, transition: 'width .3s' }} />
+                          <div style={{ height: '100%', background: open >= 8 ? '#C05B3A' : open >= 5 ? '#F39313' : '#3E9849', borderRadius: 99, width: `${Math.min(100, open / 10 * 100)}%`, transition: 'width .3s' }} />
                         </div>
                       </div>
                     </div>
@@ -464,24 +464,24 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
           {/* ── Lista ── */}
-          <div style={{ width: 310, flexShrink: 0, borderRight: '1px solid #E8EDF2', display: 'flex', flexDirection: 'column', background: S.surface }}>
+          <div style={{ width: 310, flexShrink: 0, borderRight: '1px solid #EBE7DA', display: 'flex', flexDirection: 'column', background: S.surface }}>
             {/* Filtros */}
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid #E8EDF2', display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid #EBE7DA', display: 'flex', flexDirection: 'column', gap: 7 }}>
               <input
                 placeholder="Buscar conversa..."
                 value={search} onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', padding: '7px 10px', fontSize: 12, border: '1px solid #E8EDF2', borderRadius: 8, outline: 'none', boxSizing: 'border-box', background: '#fff', color: S.ink }}
+                style={{ width: '100%', padding: '7px 10px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 8, outline: 'none', boxSizing: 'border-box', background: '#fff', color: S.ink }}
               />
               <div style={{ display: 'flex', gap: 5 }}>
                 <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-                  style={{ flex: 1, padding: '5px 8px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, background: '#fff', color: S.ink, cursor: 'pointer' }}>
+                  style={{ flex: 1, padding: '5px 8px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, background: '#fff', color: S.ink, cursor: 'pointer' }}>
                   <option value="all">Todos os status</option>
                   <option value="open">Em aberto</option>
                   <option value="pending">Pendente</option>
                   <option value="resolved">Resolvido</option>
                 </select>
                 <select value={queueFilter} onChange={e => setQueueFilter(e.target.value)}
-                  style={{ flex: 1, padding: '5px 8px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, background: '#fff', color: S.ink, cursor: 'pointer' }}>
+                  style={{ flex: 1, padding: '5px 8px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, background: '#fff', color: S.ink, cursor: 'pointer' }}>
                   <option value="all">Todas as filas</option>
                   {initialQueues.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}
                 </select>
@@ -496,7 +496,7 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
                 const isSelected = conv.id === selectedId
                 return (
                   <button key={conv.id} onClick={() => setSelectedId(conv.id)}
-                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #F1F4F7', background: isSelected ? '#EAF6FC' : 'transparent', borderLeft: isSelected ? '3px solid #0098DA' : '3px solid transparent', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #F1EFE5', background: isSelected ? '#E8F4E6' : 'transparent', borderLeft: isSelected ? '3px solid #3E9849' : '3px solid transparent', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColor(conv.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                       {initials(conv.wa_contact_name)}
                     </div>
@@ -528,18 +528,18 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
           {/* ── Chat ── */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {!selectedConv ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: S.muted, background: '#F8FAFB' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: S.muted, background: '#FBFAF4' }}>
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 12, opacity: .4 }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#5A7184', margin: 0 }}>Selecione uma conversa</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#71856F', margin: 0 }}>Selecione uma conversa</p>
                 <p style={{ fontSize: 12, margin: '4px 0 0' }}>Supervisão em tempo real</p>
               </div>
             ) : (
               <>
                 {/* Header */}
-                <div style={{ background: '#fff', borderBottom: '1px solid #E8EDF2', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <div style={{ background: '#fff', borderBottom: '1px solid #EBE7DA', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarColor(selectedConv.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                     {initials(selectedConv.wa_contact_name)}
                   </div>
@@ -552,7 +552,7 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
 
                   {/* Badge do agente atual */}
                   {isAssignedToMe && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: '#E8F5FD', color: '#0098DA' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: '#E8F4E6', color: '#3E9849' }}>
                       Você está atendendo
                     </span>
                   )}
@@ -560,7 +560,7 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
                   {/* Botão Assumir */}
                   {!isAssignedToMe && selectedConv.status !== 'resolved' && (
                     <button onClick={() => void handleAssume()}
-                      style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 9, cursor: 'pointer', background: '#0E2C3D', color: '#fff', flexShrink: 0 }}>
+                      style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 9, cursor: 'pointer', background: '#25402C', color: '#fff', flexShrink: 0 }}>
                       Assumir conversa
                     </button>
                   )}

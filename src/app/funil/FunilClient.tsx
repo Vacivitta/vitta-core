@@ -281,18 +281,19 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Top bar */}
-      <header style={{ background: '#25402C', padding: '16px 28px' }} className="flex items-center justify-between shrink-0">
+      <header style={{ background: '#fff', padding: '16px 28px', borderBottom: '1px solid #E9E5D8' }} className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           {funnels.length > 1 ? (
-            <div className="flex items-center gap-1" style={{ background: 'rgba(255,255,255,0.10)', borderRadius: 999, padding: 3 }}>
+            <div className="flex items-center gap-1" style={{ background: '#F2EEE1', borderRadius: 999, padding: 3 }}>
               {funnels.map(f => (
                 <button
                   key={f.id}
                   onClick={() => setSelectedFunnelId(f.id)}
                   style={{
                     fontSize: 12, padding: '4px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', fontWeight: 700,
-                    background: f.id === selectedFunnelId ? 'rgba(255,255,255,0.20)' : 'transparent',
-                    color: f.id === selectedFunnelId ? '#fff' : '#A8C3AB',
+                    background: f.id === selectedFunnelId ? '#fff' : 'transparent',
+                    color: f.id === selectedFunnelId ? '#25402C' : '#9AA79C',
+                    boxShadow: f.id === selectedFunnelId ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   }}
                 >
                   {f.nome}
@@ -300,14 +301,14 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
               ))}
             </div>
           ) : (
-            <span style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Funil da clínica</span>
+            <span style={{ fontSize: 20, fontWeight: 900, color: '#25402C' }}>Funil da clínica</span>
           )}
-          <span className="hidden sm:block" style={{ fontSize: 12, fontWeight: 700, color: '#A8C3AB' }}>{totalLeads} famílias em acompanhamento</span>
+          <span className="hidden sm:block" style={{ fontSize: 12, fontWeight: 700, color: '#9AA79C' }}>{totalLeads} famílias em acompanhamento</span>
         </div>
 
         <div className="flex items-center gap-2">
           <div className="relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#A8C3AB' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#9AA79C' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -315,21 +316,21 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
               placeholder="Buscar..."
               value={filters.search}
               onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              style={{ paddingLeft: 32, paddingRight: 12, paddingBlock: 6, fontSize: 13, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, color: '#D9E7DA', outline: 'none', width: 160 }}
+              style={{ paddingLeft: 32, paddingRight: 12, paddingBlock: 6, fontSize: 13, background: '#FBFAF4', border: '1px solid #EBE7DA', borderRadius: 999, color: '#25402C', outline: 'none', width: 160 }}
             />
           </div>
 
           <button
             onClick={() => setShowFilters(v => !v)}
             className="flex items-center gap-1.5"
-            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: activeFiltersCount > 0 ? '1px solid #99C669' : '1px solid rgba(255,255,255,0.16)', background: activeFiltersCount > 0 ? 'rgba(153,198,105,0.15)' : 'rgba(255,255,255,0.10)', color: activeFiltersCount > 0 ? '#99C669' : '#D9E7DA', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: activeFiltersCount > 0 ? '1px solid #3E9849' : '1px solid #EBE7DA', background: activeFiltersCount > 0 ? '#E8F4E6' : '#FBFAF4', color: activeFiltersCount > 0 ? '#3E9849' : '#71856F', cursor: 'pointer', fontWeight: 700 }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 12h10M11 20h2" />
             </svg>
             Filtros
             {activeFiltersCount > 0 && (
-              <span style={{ background: '#99C669', color: '#1E3323', fontSize: 10, fontWeight: 800, width: 16, height: 16, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ background: '#3E9849', color: '#fff', fontSize: 10, fontWeight: 800, width: 16, height: 16, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {activeFiltersCount}
               </span>
             )}
@@ -338,7 +339,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           <button
             onClick={() => setShowArchived(true)}
             className="flex items-center gap-1.5"
-            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.10)', color: '#D9E7DA', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #EBE7DA', background: '#FBFAF4', color: '#71856F', cursor: 'pointer', fontWeight: 700 }}
             title="Ver contatos arquivados"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,8 +350,8 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
           <button
             onClick={() => handleAddLead(selectedFunnel.stages[0])}
-            className="flex items-center gap-1.5"
-            style={{ fontSize: 13, padding: '6px 16px', borderRadius: 999, border: 'none', background: '#99C669', color: '#1E3323', cursor: 'pointer', fontWeight: 900 }}
+            className="flex items-center gap-1.5 text-white"
+            style={{ fontSize: 13, padding: '6px 16px', borderRadius: 999, border: 'none', background: '#3E9849', cursor: 'pointer', fontWeight: 900, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

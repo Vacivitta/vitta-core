@@ -73,9 +73,9 @@ type ConvStatus = 'open' | 'pending' | 'resolved' | 'all'
 
 const STATUS_LABELS: Record<ConvStatus, string> = { all: 'Todas', open: 'Aberta', pending: 'Pendente', resolved: 'Resolvida' }
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  open:     { bg: '#E8F7EE', text: '#1D9E75' },
-  pending:  { bg: '#FFF8E1', text: '#F57F17' },
-  resolved: { bg: '#F1F4F7', text: '#8FA0AF' },
+  open:     { bg: '#E8F4E6', text: '#35853F' },
+  pending:  { bg: '#FCF3E4', text: '#C87F1B' },
+  resolved: { bg: '#F1EFE5', text: '#9AA79C' },
 }
 const RESOLVE_REASONS: Record<string, string> = {
   completed:   'Atendimento concluído',
@@ -806,13 +806,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           {resolveDialogOpen && <ResolveDialog onConfirm={(r, n) => void confirmResolve(r, n)} onCancel={() => setResolveDialogOpen(false)} />}
           {/* Banner de transferência de lead */}
           {transferBanner && (
-            <div style={{ position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 150, background: '#0E2C3D', color: '#fff', borderRadius: 12, padding: '12px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 360, maxWidth: 500 }}>
+            <div style={{ position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 150, background: '#25402C', color: '#fff', borderRadius: 12, padding: '12px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 360, maxWidth: 500 }}>
               <p style={{ fontSize: 12, margin: 0, flex: 1, lineHeight: 1.5 }}>
                 Transferido para <strong>{transferBanner.toName}</strong>. Atualizar o responsável do contato vinculado também?
               </p>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 <button onClick={() => setTransferBanner(null)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #ffffff44', borderRadius: 7, cursor: 'pointer', background: 'transparent', color: '#ffffffcc' }}>Não</button>
-                <button onClick={() => void transferLeadResponsavel(transferBanner.toId)} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700, border: 'none', borderRadius: 7, cursor: 'pointer', background: '#0098DA', color: '#fff' }}>Sim</button>
+                <button onClick={() => void transferLeadResponsavel(transferBanner.toId)} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700, border: 'none', borderRadius: 7, cursor: 'pointer', background: '#3E9849', color: '#fff' }}>Sim</button>
               </div>
             </div>
           )}
@@ -831,10 +831,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           {contextPanelOpen && (
             !selectedConv ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
-                <p style={{ fontSize: 12, color: '#B0BEC9' }}>Selecione uma conversa</p>
+                <p style={{ fontSize: 12, color: '#9AA79C' }}>Selecione uma conversa</p>
               </div>
             ) : loadingLead ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#0098DA" /></div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#3E9849" /></div>
             ) : leadDetail ? (
               <LeadContextView detail={leadDetail} conv={selectedConv} onOpen={lead => setModalLead(lead)} onUnlink={unlinkLead}
                 onCreateQuote={() => router.push('/orcamento')}
@@ -887,26 +887,26 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'rgba(14,44,61,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420, maxWidth: '92vw', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', margin: '0 0 4px' }}>Encerrar conversa</h3>
-        <p style={{ fontSize: 12, color: '#8FA0AF', margin: '0 0 18px' }}>Selecione o motivo para alimentar o histórico e relatórios.</p>
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: '0 0 4px' }}>Encerrar conversa</h3>
+        <p style={{ fontSize: 12, color: '#9AA79C', margin: '0 0 18px' }}>Selecione o motivo para alimentar o histórico e relatórios.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
           {Object.entries(RESOLVE_REASONS).map(([key, label]) => (
             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', cursor: 'pointer',
-              border: `1.5px solid ${reason === key ? '#0098DA' : '#E8EDF2'}`, borderRadius: 10,
-              background: reason === key ? '#F0F8FF' : '#fff', transition: 'all 0.12s' }}>
+              border: `1.5px solid ${reason === key ? '#3E9849' : '#EBE7DA'}`, borderRadius: 10,
+              background: reason === key ? '#E8F4E6' : '#fff', transition: 'all 0.12s' }}>
               <input type="radio" name="resolve_reason" value={key} checked={reason === key} onChange={() => setReason(key)}
-                style={{ accentColor: '#0098DA', width: 15, height: 15, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: reason === key ? 700 : 500, color: reason === key ? '#0E2C3D' : '#5A7184' }}>{label}</span>
+                style={{ accentColor: '#3E9849', width: 15, height: 15, flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: reason === key ? 700 : 500, color: reason === key ? '#25402C' : '#71856F' }}>{label}</span>
             </label>
           ))}
         </div>
         <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Observação adicional (opcional)..." rows={2}
-          style={{ width: '100%', resize: 'none', border: '1px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', background: '#F8FAFB', color: '#0E2C3D' }} />
+          style={{ width: '100%', resize: 'none', border: '1px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', background: '#FBFAF4', color: '#25402C' }} />
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>Cancelar</button>
+          <button onClick={onCancel} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>Cancelar</button>
           <button onClick={() => reason && onConfirm(reason, note)} disabled={!reason}
             style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
-              cursor: reason ? 'pointer' : 'default', background: reason ? '#0098DA' : '#E8EDF2', color: reason ? '#fff' : '#B0BEC9', transition: 'all 0.15s' }}>
+              cursor: reason ? 'pointer' : 'default', background: reason ? '#3E9849' : '#EBE7DA', color: reason ? '#fff' : '#9AA79C', transition: 'all 0.15s' }}>
             Encerrar conversa
           </button>
         </div>
@@ -945,7 +945,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
     setOpenDrop(prev => prev === name ? null : name)
   }
 
-  const STATUS_DOT: Record<string, string> = { all: '#B0BEC9', open: '#25D366', pending: '#F59E0B', resolved: '#E5484D' }
+  const STATUS_DOT: Record<string, string> = { all: '#9AA79C', open: '#25D366', pending: '#F59E0B', resolved: '#C05B3A' }
   const activeQueue = queues.find(q => q.id === filterQueue)
   const activeTag   = unitTags.find(t => t.id === filterTag)
 
@@ -1026,7 +1026,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           {/* Status pill */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => toggleDrop('status')} style={filterStatus !== 'all' ? pillActive : pillBase}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[filterStatus] ?? '#B0BEC9', flexShrink: 0 }} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[filterStatus] ?? '#9AA79C', flexShrink: 0 }} />
               {filterStatus === 'all' ? 'Status' : STATUS_LABELS[filterStatus]}
               <ChevronDown />
             </button>
@@ -1045,7 +1045,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           {/* Fila pill */}
           {queues.length > 0 && (
             <div style={{ position: 'relative' }}>
-              <button onClick={() => toggleDrop('queue')} style={filterQueue !== 'all' ? { ...pillActive, borderColor: activeQueue?.cor ?? '#0098DA', color: activeQueue?.cor ?? '#0098DA', background: (activeQueue?.cor ?? '#0098DA') + '15' } : pillBase}>
+              <button onClick={() => toggleDrop('queue')} style={filterQueue !== 'all' ? { ...pillActive, borderColor: activeQueue?.cor ?? '#3E9849', color: activeQueue?.cor ?? '#3E9849', background: (activeQueue?.cor ?? '#3E9849') + '15' } : pillBase}>
                 {activeQueue && <span style={{ width: 7, height: 7, borderRadius: '50%', background: activeQueue.cor, flexShrink: 0 }} />}
                 {filterQueue === 'all' ? 'Fila' : activeQueue?.nome ?? 'Fila'}
                 <ChevronDown />
@@ -1053,7 +1053,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               {openDrop === 'queue' && (
                 <div style={dropBase}>
                   <button onClick={() => { onFilterQueue('all'); setOpenDrop(null) }} style={dropItem(filterQueue === 'all')}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B0BEC9', flexShrink: 0 }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#9AA79C', flexShrink: 0 }} />
                     Todas
                   </button>
                   <div style={{ height: 1, background: '#EBE7DA', margin: '4px 0' }} />
@@ -1071,7 +1071,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           {/* Tag pill */}
           {unitTags.length > 0 && (
             <div style={{ position: 'relative' }}>
-              <button onClick={() => toggleDrop('tag')} style={filterTag !== 'all' ? { ...pillActive, borderColor: activeTag?.color ?? '#0098DA', color: activeTag?.color ?? '#0098DA', background: (activeTag?.color ?? '#0098DA') + '15' } : pillBase}>
+              <button onClick={() => toggleDrop('tag')} style={filterTag !== 'all' ? { ...pillActive, borderColor: activeTag?.color ?? '#3E9849', color: activeTag?.color ?? '#3E9849', background: (activeTag?.color ?? '#3E9849') + '15' } : pillBase}>
                 {activeTag && <span style={{ width: 7, height: 7, borderRadius: '50%', background: activeTag.color, flexShrink: 0 }} />}
                 {filterTag === 'all' ? 'Tag' : activeTag?.name ?? 'Tag'}
                 <ChevronDown />
@@ -1079,7 +1079,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
               {openDrop === 'tag' && (
                 <div style={dropBase}>
                   <button onClick={() => { onFilterTag('all'); setOpenDrop(null) }} style={dropItem(filterTag === 'all')}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B0BEC9', flexShrink: 0 }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#9AA79C', flexShrink: 0 }} />
                     Todas
                   </button>
                   <div style={{ height: 1, background: '#EBE7DA', margin: '4px 0' }} />
@@ -1125,7 +1125,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
             : name
           return (
             <button key={conv.id} onClick={() => onSelect(conv)} className="group" title={previewTitle}
-              style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F4F1E8', background: isSelected ? '#E8F4E6' : 'transparent', cursor: 'pointer', transition: 'background 0.1s', borderLeft: isSelected ? '3px solid #CDE8CB' : '3px solid transparent' }}>
+              style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #F6F4EC', background: isSelected ? '#E8F4E6' : 'transparent', cursor: 'pointer', transition: 'background 0.1s', borderLeft: isSelected ? '3px solid #CDE8CB' : '3px solid transparent' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 {conv.profile_picture_url ? (
                   <img src={conv.profile_picture_url} alt={name} style={{ width: 42, height: 42, borderRadius: 14, objectFit: 'cover' }} />
@@ -1163,7 +1163,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 1 }}>
-                  <span style={{ fontSize: 11, color: '#8A977F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  <span style={{ fontSize: 11, color: '#71856F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {previewText ?? (assignee ? `↳ ${displayName(assignee)}` : conv.wa_phone)}
                   </span>
                   {conv.unread_count > 0 && <span style={{ background: '#3E9849', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
@@ -1230,12 +1230,12 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
             {STATUS_LABELS[conv.status as ConvStatus] ?? conv.status} ▾
           </button>
           {showStatus && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 140, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 140, overflow: 'hidden' }}>
               {(['open', 'pending', 'resolved'] as const).map(s => (
                 <button key={s} onClick={() => { onStatusChange(s); setShowStatus(false) }}
-                  style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: conv.status === s ? '#F8FAFB' : '#fff', color: STATUS_COLORS[s].text, display: 'block' }}>
+                  style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: conv.status === s ? '#FBFAF4' : '#fff', color: STATUS_COLORS[s].text, display: 'block' }}>
                   {STATUS_LABELS[s as ConvStatus]}
-                  {s === 'resolved' && <span style={{ fontSize: 9, color: '#B0BEC9', display: 'block', fontWeight: 400 }}>Requer motivo</span>}
+                  {s === 'resolved' && <span style={{ fontSize: 9, color: '#9AA79C', display: 'block', fontWeight: 400 }}>Requer motivo</span>}
                 </button>
               ))}
             </div>
@@ -1244,15 +1244,15 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
         {/* Agent */}
         <div style={{ position: 'relative' }}>
           <button onClick={() => { setShowAgent(v => !v); setShowStatus(false); setShowQueue(false) }}
-            style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99, border: '1px solid #E8EDF2', cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+            style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99, border: '1px solid #EBE7DA', cursor: 'pointer', background: '#fff', color: '#71856F' }}>
             {(() => { const p = profiles.find(p => p.id === conv.assigned_to); return p ? displayName(p) : '+ Agente' })()} ▾
           </button>
           {showAgent && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 160, overflow: 'hidden' }}>
-              <button onClick={() => { onAssignAgent(null); setShowAgent(false) }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, border: 'none', cursor: 'pointer', background: '#fff', color: '#8FA0AF', display: 'block' }}>Sem agente</button>
+            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 160, overflow: 'hidden' }}>
+              <button onClick={() => { onAssignAgent(null); setShowAgent(false) }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, border: 'none', cursor: 'pointer', background: '#fff', color: '#9AA79C', display: 'block' }}>Sem agente</button>
               {profiles.map(p => (
                 <button key={p.id} onClick={() => { onAssignAgent(p.id); setShowAgent(false) }}
-                  style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontWeight: conv.assigned_to === p.id ? 700 : 400, border: 'none', cursor: 'pointer', background: conv.assigned_to === p.id ? '#F8FAFB' : '#fff', color: '#0E2C3D', display: 'block' }}>
+                  style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontWeight: conv.assigned_to === p.id ? 700 : 400, border: 'none', cursor: 'pointer', background: conv.assigned_to === p.id ? '#FBFAF4' : '#fff', color: '#25402C', display: 'block' }}>
                   {p.full_name}
                 </button>
               ))}
@@ -1263,14 +1263,14 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
         {queues.length > 0 && (
           <div style={{ position: 'relative' }}>
             <button onClick={() => { setShowQueue(v => !v); setShowStatus(false); setShowAgent(false) }}
-              style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99, border: '1px solid #E8EDF2', cursor: 'pointer',
+              style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99, border: '1px solid #EBE7DA', cursor: 'pointer',
                 background: queues.find(q => q.id === conv.queue_id)?.cor ? queues.find(q => q.id === conv.queue_id)!.cor + '22' : '#fff',
-                color: queues.find(q => q.id === conv.queue_id)?.cor ?? '#8FA0AF' }}>
+                color: queues.find(q => q.id === conv.queue_id)?.cor ?? '#9AA79C' }}>
               {queues.find(q => q.id === conv.queue_id)?.nome ?? 'Fila'} ▾
             </button>
             {showQueue && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 140, overflow: 'hidden' }}>
-                <button onClick={() => { onAssignQueue(null); setShowQueue(false) }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, border: 'none', cursor: 'pointer', background: '#fff', color: '#8FA0AF', display: 'block' }}>Sem fila</button>
+              <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 140, overflow: 'hidden' }}>
+                <button onClick={() => { onAssignQueue(null); setShowQueue(false) }} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, border: 'none', cursor: 'pointer', background: '#fff', color: '#9AA79C', display: 'block' }}>Sem fila</button>
                 {queues.map(q => (
                   <button key={q.id} onClick={() => { onAssignQueue(q.id); setShowQueue(false) }}
                     style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontWeight: conv.queue_id === q.id ? 700 : 400, border: 'none', cursor: 'pointer', background: conv.queue_id === q.id ? q.cor + '11' : '#fff', color: q.cor, display: 'block' }}>
@@ -1298,7 +1298,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
 function DateSeparator({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '8px 0', flexShrink: 0 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: '#8A977F', background: '#fff', borderRadius: 99, padding: '4px 14px', border: '1px solid #EBE7DA', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(37,64,44,0.06)' }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: '#71856F', background: '#fff', borderRadius: 99, padding: '4px 14px', border: '1px solid #EBE7DA', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(37,64,44,0.06)' }}>
         {label}
       </span>
     </div>
@@ -1313,7 +1313,7 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
   const failed = isOut && msg.status === 'failed'
   const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
   const isAudio = msg.type === 'audio' && msg.media_url
-  const timeColor = failed ? '#B91C1C' : isOut ? '#7FA57F' : '#B4BFB2'
+  const timeColor = failed ? '#C05B3A' : isOut ? '#7FA57F' : '#B4BFB2'
 
   const timestamp = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: timeColor, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
@@ -1331,9 +1331,9 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
         <div style={{
           maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
           borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-          background: failed ? '#FEE2E2' : isOut ? '#DCF0D3' : '#fff',
+          background: failed ? '#F6DFD5' : isOut ? '#DCF0D3' : '#fff',
           boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
-          border: failed ? '1px solid #FECACA' : isOut ? 'none' : '1px solid #EBE7DA',
+          border: failed ? '1px solid #E8B4B0' : isOut ? 'none' : '1px solid #EBE7DA',
         }}>
           {quotedMsg && (
             <div style={{
@@ -1374,7 +1374,7 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
         )}
       </div>
       {failed && (
-        <span style={{ fontSize: 10, color: '#B91C1C', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+        <span style={{ fontSize: 10, color: '#C05B3A', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
           <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
           Mensagem não entregue
         </span>
@@ -1420,15 +1420,15 @@ function quoteStatusLabel(s: string): string {
 
 function quoteStatusStyle(s: string): React.CSSProperties {
   const map: Record<string, React.CSSProperties> = {
-    rascunho:      { background: '#F1F0EC', color: '#8A98A6' },
+    rascunho:      { background: '#F1EFE5', color: '#9AA79C' },
     enviado:       { background: '#E8F4E6', color: '#3E9849' },
     visualizado:   { background: '#FEF4E6', color: '#D17F0E' },
     aceito:        { background: '#E8F4E6', color: '#2E7D32' },
-    recusado:      { background: '#FDEBEC', color: '#D23B40' },
+    recusado:      { background: '#FDEBEC', color: '#C05B3A' },
     em_negociacao: { background: '#F3E5F5', color: '#7B1FA2' },
     expirado:      { background: '#FEF4E6', color: '#E65100' },
   }
-  return map[s] ?? { background: '#F1F0EC', color: '#8A98A6' }
+  return map[s] ?? { background: '#F1EFE5', color: '#9AA79C' }
 }
 
 function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSchedule }: {
@@ -1455,13 +1455,13 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
 
       {/* ── Card Cliente ── */}
       <div style={{ ...cardBase, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', position: 'relative' }}>
-        <button onClick={onUnlink} style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer' }} title="Desvincular">
+        <button onClick={onUnlink} style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, color: '#9AA79C', background: 'none', border: 'none', cursor: 'pointer' }} title="Desvincular">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
         </button>
         <div style={{ width: 56, height: 56, borderRadius: 999, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 19, fontWeight: 800, color: '#3E9849' }}>{lead.nome[0]?.toUpperCase()}{lead.sobrenome?.[0]?.toUpperCase() ?? ''}</span>
         </div>
-        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: '#0E2C3D', textAlign: 'center', lineHeight: 1.2 }}>
+        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: '#25402C', textAlign: 'center', lineHeight: 1.2 }}>
           {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
         </p>
         <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#9AA79C', textAlign: 'center' }}>
@@ -1470,7 +1470,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
         </p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
           {lead.stage_nome && (
-            <span style={{ fontSize: 10, fontWeight: 800, padding: '2.5px 9px', borderRadius: 999, background: (lead.stage_cor ?? '#0098DA') + '18', color: lead.stage_cor ?? '#0098DA' }}>
+            <span style={{ fontSize: 10, fontWeight: 800, padding: '2.5px 9px', borderRadius: 999, background: (lead.stage_cor ?? '#3E9849') + '18', color: lead.stage_cor ?? '#3E9849' }}>
               {lead.stage_nome}
             </span>
           )}
@@ -1485,13 +1485,13 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             {lead.telefone && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <svg width="12" height="12" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                <span style={{ fontSize: 11.5, color: '#5A7184' }}>{lead.telefone}</span>
+                <span style={{ fontSize: 11.5, color: '#71856F' }}>{lead.telefone}</span>
               </div>
             )}
             {lead.email && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <svg width="12" height="12" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                <span style={{ fontSize: 11.5, color: '#5A7184', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.email}</span>
+                <span style={{ fontSize: 11.5, color: '#71856F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.email}</span>
               </div>
             )}
           </div>
@@ -1507,9 +1507,9 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
               <svg width="16" height="16" fill="none" stroke="#3E9849" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             </div>
             <div style={{ minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: '#0E2C3D', lineHeight: 1.3 }}>{nextTask.titulo}</p>
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: '#25402C', lineHeight: 1.3 }}>{nextTask.titulo}</p>
               {nextTask.data_limite && (
-                <p style={{ margin: '2px 0 0', fontSize: 11.5, color: new Date(nextTask.data_limite) < new Date() ? '#EF4444' : '#5A7184' }}>
+                <p style={{ margin: '2px 0 0', fontSize: 11.5, color: new Date(nextTask.data_limite) < new Date() ? '#C05B3A' : '#71856F' }}>
                   {fmtDate(nextTask.data_limite)}
                 </p>
               )}
@@ -1524,9 +1524,9 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
               const overdue = t.data_limite && new Date(t.data_limite) < new Date()
               return (
                 <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: overdue ? '#EF4444' : '#F59E0B', flexShrink: 0 }} />
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#0E2C3D', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.titulo}</p>
-                  {t.data_limite && <span style={{ fontSize: 10, color: overdue ? '#EF4444' : '#9AA79C', flexShrink: 0 }}>{format(new Date(t.data_limite), 'd MMM', { locale: ptBR })}</span>}
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: overdue ? '#C05B3A' : '#F59E0B', flexShrink: 0 }} />
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#25402C', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.titulo}</p>
+                  {t.data_limite && <span style={{ fontSize: 10, color: overdue ? '#C05B3A' : '#9AA79C', flexShrink: 0 }}>{format(new Date(t.data_limite), 'd MMM', { locale: ptBR })}</span>}
                 </div>
               )
             })}
@@ -1551,7 +1551,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
                     <span style={{ fontSize: 10.5, fontWeight: 800, color: palette.color }}>{c.nome[0]?.toUpperCase()}</span>
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#0E2C3D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</p>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</p>
                     <p style={{ margin: 0, fontSize: 10.5, fontWeight: 600, color: '#9AA79C' }}>
                       {c.relacao ? c.relacao.charAt(0).toUpperCase() + c.relacao.slice(1) : 'Dependente'}
                       {age !== null && ` · ${age} ano${age !== 1 ? 's' : ''}`}
@@ -1568,7 +1568,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
       {latestNote && (
         <div style={cardBase}>
           <p style={overline}>Última Anotação</p>
-          <p style={{ margin: 0, fontSize: 11.5, color: '#5A7184', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{latestNote}</p>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#71856F', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{latestNote}</p>
         </div>
       )}
 
@@ -1604,12 +1604,12 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onCreateQuote}
-            style={{ flex: 1, padding: 10, fontSize: 11.5, fontWeight: 800, color: '#5A7184', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            style={{ flex: 1, padding: 10, fontSize: 11.5, fontWeight: 800, color: '#71856F', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             Orçamento
           </button>
           <button onClick={onSchedule}
-            style={{ flex: 1, padding: 10, fontSize: 11.5, fontWeight: 800, color: '#5A7184', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            style={{ flex: 1, padding: 10, fontSize: 11.5, fontWeight: 800, color: '#71856F', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             Agendar tarefa
           </button>
@@ -1629,10 +1629,10 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 14 }}>
       {!showPanel ? (
         <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 999, background: '#F5F3EE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 999, background: '#F6F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="24" height="24" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           </div>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0E2C3D' }}>Sem contato vinculado</p>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#25402C' }}>Sem contato vinculado</p>
           <p style={{ margin: 0, fontSize: 11.5, color: '#9AA79C', textAlign: 'center', lineHeight: 1.4 }}>Vincule esta conversa a um contato do CRM</p>
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
             <button onClick={onToggle}
@@ -1640,7 +1640,7 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
               Vincular contato
             </button>
             <button onClick={onCreate}
-              style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#5A7184', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer' }}>
+              style={{ width: '100%', padding: 10, fontSize: 12.5, fontWeight: 800, color: '#71856F', background: '#fff', border: '1px solid #E9E5D8', borderRadius: 12, cursor: 'pointer' }}>
               + Criar novo contato
             </button>
           </div>
@@ -1649,11 +1649,11 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
         <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 16, lineHeight: 1, padding: 0 }}>←</button>
-            <p style={{ fontSize: 12.5, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Buscar contato</p>
+            <p style={{ fontSize: 12.5, fontWeight: 800, color: '#25402C', margin: 0 }}>Buscar contato</p>
           </div>
           <input type="text" placeholder="Nome ou telefone..." value={searchQ} onChange={e => onSearch(e.target.value)} autoFocus
             style={{ width: '100%', padding: '8px 12px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 10, background: '#FBFAF4', outline: 'none', boxSizing: 'border-box' }} />
-          {searching && <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><Spinner size={18} color="#0098DA" /></div>}
+          {searching && <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><Spinner size={18} color="#3E9849" /></div>}
           {!searching && results.map(lead => (
             <button key={lead.id} onClick={() => onLink(lead)}
               style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid #EBE7DA', borderRadius: 12, background: '#fff', cursor: 'pointer' }}>
@@ -1661,7 +1661,7 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#25402C' }}>{lead.nome[0]?.toUpperCase()}</span>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 800, color: '#0E2C3D', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}</p>
+                <p style={{ fontSize: 12, fontWeight: 800, color: '#25402C', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}</p>
                 <p style={{ fontSize: 10.5, color: '#9AA79C', margin: 0 }}>{lead.telefone ?? 'Sem telefone'}</p>
               </div>
             </button>
@@ -1747,27 +1747,27 @@ function NewConversationModal({ unitId, onStart, onClose }: {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 440, maxWidth: '94vw', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Nova conversa</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8FA0AF', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: 0 }}>Nova conversa</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
         </div>
 
-        <label style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Telefone (DDD + número)</label>
+        <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Telefone (DDD + número)</label>
         <input
           type="tel"
           placeholder="Ex: 11999998888"
           value={phone}
           onChange={e => setPhone(e.target.value)}
-          style={{ width: '100%', border: '1.5px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16, color: '#0E2C3D' }}
+          style={{ width: '100%', border: '1.5px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16, color: '#25402C' }}
         />
 
-        <label style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template de abertura</label>
+        <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template de abertura</label>
         {loadingT ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Spinner size={16} color="#0098DA" />
-            <span style={{ fontSize: 12, color: '#8FA0AF' }}>Carregando templates aprovados…</span>
+            <Spinner size={16} color="#3E9849" />
+            <span style={{ fontSize: 12, color: '#9AA79C' }}>Carregando templates aprovados…</span>
           </div>
         ) : noTmpls ? (
-          <p style={{ fontSize: 12, color: '#B0BEC9', marginBottom: 16 }}>
+          <p style={{ fontSize: 12, color: '#9AA79C', marginBottom: 16 }}>
             Nenhum template aprovado na Meta. Acesse <strong>Configurações → Templates</strong> e aguarde a aprovação.
           </p>
         ) : (
@@ -1775,14 +1775,14 @@ function NewConversationModal({ unitId, onStart, onClose }: {
             <select
               value={tmplIdx}
               onChange={e => setTmplIdx(Number(e.target.value))}
-              style={{ width: '100%', border: '1.5px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12, background: '#fff', color: '#0E2C3D', cursor: 'pointer' }}
+              style={{ width: '100%', border: '1.5px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12, background: '#fff', color: '#25402C', cursor: 'pointer' }}
             >
               {(metaTmpls ?? []).map((t, i) => <option key={`${t.name}-${t.language}`} value={i}>{t.name} ({t.language})</option>)}
             </select>
             {selected?.bodyText && (
-              <div style={{ background: '#F0F8FF', border: '1px solid #D0EAFB', borderRadius: 10, padding: '10px 13px', marginBottom: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#0098DA', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prévia</p>
-                <p style={{ fontSize: 13, color: '#0E2C3D', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selected.bodyText}</p>
+              <div style={{ background: '#E8F4E6', border: '1px solid #CDE8CB', borderRadius: 10, padding: '10px 13px', marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#3E9849', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prévia</p>
+                <p style={{ fontSize: 13, color: '#25402C', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selected.bodyText}</p>
               </div>
             )}
           </>
@@ -1790,8 +1790,8 @@ function NewConversationModal({ unitId, onStart, onClose }: {
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer' }}>
           <input type="checkbox" checked={regOptin} onChange={e => setRegOptin(e.target.checked)}
-            style={{ width: 15, height: 15, accentColor: '#0098DA', flexShrink: 0, cursor: 'pointer' }} />
-          <span style={{ fontSize: 12, color: '#5A7184', lineHeight: 1.4 }}>
+            style={{ width: 15, height: 15, accentColor: '#3E9849', flexShrink: 0, cursor: 'pointer' }} />
+          <span style={{ fontSize: 12, color: '#71856F', lineHeight: 1.4 }}>
             Registrar autorização WhatsApp para este contato
           </span>
         </label>
@@ -1799,12 +1799,12 @@ function NewConversationModal({ unitId, onStart, onClose }: {
         {error && <p style={{ fontSize: 12, color: '#E53E3E', marginBottom: 12 }}>{error}</p>}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>Cancelar</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>Cancelar</button>
           <button onClick={handleSend} disabled={sending || noTmpls || loadingT}
             style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
               cursor: sending || noTmpls || loadingT ? 'default' : 'pointer',
-              background: sending || noTmpls || loadingT ? '#E8EDF2' : '#25D366',
-              color: sending || noTmpls || loadingT ? '#B0BEC9' : '#fff', transition: 'all 0.15s' }}>
+              background: sending || noTmpls || loadingT ? '#EBE7DA' : '#25D366',
+              color: sending || noTmpls || loadingT ? '#9AA79C' : '#fff', transition: 'all 0.15s' }}>
             {sending ? 'Enviando…' : 'Iniciar conversa'}
           </button>
         </div>

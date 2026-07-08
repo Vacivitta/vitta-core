@@ -11,6 +11,7 @@ import type { LeadTask, Profile } from '@/types/database'
 import { displayName } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import DateTimePicker from '@/components/ui/DateTimePicker'
+import Drawer from '@/components/ui/Drawer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,18 +70,18 @@ function localInputToISO(s: string): string {
 
 function taskColor(task: TaskWithLead) {
   if (task.concluida)
-    return { bg: '', text: '', barColor: '#4EB46B', style: { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' } }
+    return { bg: '', text: '', barColor: '#9AA79C', style: { background: '#F1EFE5', color: '#71856F' } }
   if (task.data_limite && isBefore(parseISO(task.data_limite), new Date()))
-    return { bg: '', text: '', barColor: '#E5484D', style: { background: 'var(--color-danger-subtle)', color: 'var(--color-danger-text)' } }
-  return { bg: '', text: '', barColor: '#0098DA', style: { background: 'var(--color-brand-subtle)', color: 'var(--color-brand)' } }
+    return { bg: '', text: '', barColor: '#C05B3A', style: { background: '#F6DFD5', color: '#8F3F24' } }
+  return { bg: '', text: '', barColor: '#3E9849', style: { background: '#D6EBD2', color: '#25402C' } }
 }
 
 function msgColor(msg: ScheduledMsg) {
   if (msg.status === 'sent')
-    return { barColor: '#4EB46B', style: { background: 'var(--color-success-subtle)', color: 'var(--color-success-text)' } }
+    return { barColor: '#9AA79C', style: { background: '#F1EFE5', color: '#71856F' } }
   if (msg.status === 'failed')
-    return { barColor: '#E5484D', style: { background: 'var(--color-danger-subtle)', color: 'var(--color-danger-text)' } }
-  return { barColor: '#8B5CF6', style: { background: '#F5F3FF', color: '#6D28D9' } }
+    return { barColor: '#C05B3A', style: { background: '#F6DFD5', color: '#8F3F24' } }
+  return { barColor: '#1E86C0', style: { background: '#DCEFFA', color: '#14608C' } }
 }
 
 function itemColor(item: AgendaItem) {
@@ -210,17 +211,21 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
     <div className="flex flex-col flex-1 overflow-hidden">
 
       {/* ── Top bar ── */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0 flex-wrap">
+      <header className="bg-white flex items-center gap-3 shrink-0 flex-wrap" style={{ padding: '12px 20px', borderBottom: '1px solid #E9E5D8' }}>
 
         {/* View toggle */}
-        <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl p-0.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0" style={{ background: '#F1EFE5', borderRadius: '999px', padding: '3px' }}>
           {(['day', 'week', 'month'] as CalView[]).map(v => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                v === view ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
+              className="transition-colors"
+              style={{
+                fontSize: '12px', fontWeight: v === view ? 800 : 700, padding: '6px 14px', borderRadius: '999px',
+                background: v === view ? '#25402C' : 'transparent',
+                color: v === view ? '#fff' : '#71856F',
+                border: 'none', cursor: 'pointer',
+              }}
             >
               {{ day: 'Dia', week: 'Semana', month: 'Mês' }[v]}
             </button>
@@ -231,7 +236,8 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={prev}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            className="flex items-center justify-center transition-colors"
+            style={{ width: 30, height: 30, borderRadius: 10, color: '#71856F', border: '1px solid #EBE7DA', background: '#fff', cursor: 'pointer' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -239,13 +245,15 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
           </button>
           <button
             onClick={() => setCurrentDate(new Date())}
-            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors font-medium"
+            className="transition-colors"
+            style={{ fontSize: '12px', fontWeight: 800, padding: '6px 12px', borderRadius: 10, border: '1px solid #EBE7DA', color: '#71856F', background: '#fff', cursor: 'pointer' }}
           >
             Hoje
           </button>
           <button
             onClick={next}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            className="flex items-center justify-center transition-colors"
+            style={{ width: 30, height: 30, borderRadius: 10, color: '#71856F', border: '1px solid #EBE7DA', background: '#fff', cursor: 'pointer' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -254,13 +262,14 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
         </div>
 
         {/* Period title */}
-        <span className="text-sm font-semibold text-gray-800 capitalize flex-1 min-w-0 truncate">{headerTitle()}</span>
+        <span className="capitalize flex-1 min-w-0 truncate" style={{ fontSize: '14px', fontWeight: 800, color: '#25402C' }}>{headerTitle()}</span>
 
         {/* Responsável filter */}
         <select
           value={filterResponsavel}
           onChange={e => setFilterResponsavel(e.target.value)}
-          className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shrink-0"
+          className="focus:outline-none shrink-0"
+          style={{ border: '1px solid #EBE7DA', borderRadius: '999px', padding: '6px 12px', fontSize: '12.5px', fontWeight: 700, color: '#71856F', background: '#fff', cursor: 'pointer' }}
         >
           <option value="">Todos responsáveis</option>
           {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
@@ -269,8 +278,8 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
         {/* New task */}
         <button
           onClick={() => { setNewFormDate(null); setShowNewForm(true) }}
-          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors"
-          style={{ background: 'var(--color-brand)', color: '#fff', boxShadow: 'var(--shadow-btn-primary)' }}
+          className="flex items-center gap-1.5 shrink-0 transition-colors text-white"
+          style={{ fontSize: '13px', fontWeight: 800, padding: '8px 16px', borderRadius: '999px', background: '#3E9849', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)', border: 'none', cursor: 'pointer' }}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -352,9 +361,9 @@ function MonthView({
   return (
     <div className="h-full flex flex-col bg-white select-none">
       {/* Day-of-week header */}
-      <div className="grid grid-cols-7 border-b border-gray-200 shrink-0">
+      <div className="grid grid-cols-7 border-b border-[#EBE7DA] shrink-0">
         {WEEK_SHORT.map(d => (
-          <div key={d} className="text-center text-[11px] font-semibold text-gray-400 py-2 uppercase tracking-wide">
+          <div key={d} className="text-center text-[11px] font-semibold text-[#9AA79C] py-2 uppercase tracking-wide">
             {d}
           </div>
         ))}
@@ -373,8 +382,8 @@ function MonthView({
           return (
             <div
               key={day.toISOString()}
-              className={`border-r border-b border-gray-100 p-1.5 flex flex-col gap-0.5 overflow-hidden group ${
-                inMonth ? 'bg-white' : 'bg-gray-50/60'
+              className={`border-r border-b border-[#F4F1E7] p-1.5 flex flex-col gap-0.5 overflow-hidden group ${
+                inMonth ? 'bg-white' : 'bg-[#FBFAF4]/60'
               }`}
             >
               <div className="flex items-center justify-between mb-0.5">
@@ -393,7 +402,7 @@ function MonthView({
                 </button>
                 <button
                   onClick={() => onNewTask(day)}
-                  className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-all text-sm leading-none"
+                  className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-[#9AA79C] hover:text-[#3E9849] hover:bg-[#E8F4E6] transition-all text-sm leading-none"
                 >
                   +
                 </button>
@@ -418,7 +427,7 @@ function MonthView({
               {dayItems.length > 3 && (
                 <button
                   onClick={() => onDayClick(day)}
-                  className="text-[10px] text-gray-400 hover:text-blue-500 text-left pl-1 transition-colors"
+                  className="text-[10px] text-[#9AA79C] hover:text-[#3E9849] text-left pl-1 transition-colors"
                 >
                   +{dayItems.length - 3} mais
                 </button>
@@ -460,11 +469,11 @@ function TimeGridView({
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Day headers */}
-      <div className="flex border-b border-gray-200 shrink-0">
+      <div className="flex border-b border-[#EBE7DA] shrink-0">
         <div className="w-14 shrink-0" />
         {days.map(day => (
-          <div key={day.toISOString()} className="flex-1 text-center py-2 border-l border-gray-100">
-            <div className="text-[10px] uppercase font-semibold text-gray-400 tracking-wide">
+          <div key={day.toISOString()} className="flex-1 text-center py-2 border-l border-[#F4F1E7]">
+            <div className="text-[10px] uppercase font-semibold text-[#9AA79C] tracking-wide">
               {format(day, 'EEE', { locale: ptBR })}
             </div>
             <div
@@ -486,7 +495,7 @@ function TimeGridView({
             {HOURS.map(h => (
               <div
                 key={h}
-                className="absolute right-2 text-[10px] text-gray-400"
+                className="absolute right-2 text-[10px] text-[#9AA79C]"
                 style={{ top: `${(h - START_HOUR) * HOUR_HEIGHT - 8}px` }}
               >
                 {String(h).padStart(2, '0')}:00
@@ -502,7 +511,7 @@ function TimeGridView({
             return (
               <div
                 key={day.toISOString()}
-                className="flex-1 relative border-l border-gray-100 cursor-crosshair"
+                className="flex-1 relative border-l border-[#F4F1E7] cursor-crosshair"
                 onClick={e => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                   const y    = e.clientY - rect.top
@@ -517,7 +526,7 @@ function TimeGridView({
                 {HOURS.map(h => (
                   <div
                     key={h}
-                    className="absolute inset-x-0 border-t border-gray-100 pointer-events-none"
+                    className="absolute inset-x-0 border-t border-[#F4F1E7] pointer-events-none"
                     style={{ top: `${(h - START_HOUR) * HOUR_HEIGHT}px` }}
                   />
                 ))}
@@ -528,7 +537,7 @@ function TimeGridView({
                     className="absolute inset-x-0 pointer-events-none"
                     style={{
                       top: `${(h - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px`,
-                      borderTop: '1px dashed #f3f4f6',
+                      borderTop: '1px dashed #F4F1E7',
                     }}
                   />
                 ))}
@@ -637,110 +646,9 @@ function TaskDetailModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-
-        {/* Header */}
-        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div
-              className={`w-3 h-3 rounded-full mt-1 shrink-0 ${
-                task.concluida ? 'bg-emerald-400' : overdue ? 'bg-red-400' : 'bg-blue-400'
-              }`}
-            />
-            <div className="flex-1 min-w-0">
-              {editing ? (
-                <input
-                  autoFocus
-                  value={form.titulo}
-                  onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
-                  className="w-full text-base font-semibold text-gray-900 border-b border-blue-300 focus:outline-none pb-0.5 bg-transparent"
-                />
-              ) : (
-                <h3 className={`text-base font-semibold text-gray-900 ${task.concluida ? 'line-through text-gray-400' : ''}`}>
-                  {task.titulo}
-                </h3>
-              )}
-              {task.lead && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {task.lead.nome}{task.lead.sobrenome ? ` ${task.lead.sobrenome}` : ''}
-                </p>
-              )}
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors shrink-0 ml-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 space-y-3">
-          {editing ? (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Data e hora</label>
-                <DateTimePicker
-                  value={form.data_limite}
-                  onChange={v => setForm(f => ({ ...f, data_limite: v }))}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Responsável</label>
-                <select
-                  value={form.responsavel_id}
-                  onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">Sem responsável</option>
-                  {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
-                <textarea
-                  value={form.descricao}
-                  onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
-                  rows={2}
-                  placeholder="Detalhes adicionais..."
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              {task.data_limite && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className={overdue ? 'text-red-600 font-medium' : ''}>
-                    {format(parseISO(task.data_limite), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                    {overdue && ' · Vencida'}
-                  </span>
-                </div>
-              )}
-              {task.responsavel && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  {displayName(task.responsavel)}
-                </div>
-              )}
-              {task.descricao && (
-                <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2">{task.descricao}</p>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 px-5 pb-5">
+    <Drawer open={true} onClose={onClose} title={editing ? 'Editar tarefa' : 'Detalhes da tarefa'} width={420}
+      footer={
+        <div className="flex items-center gap-2 w-full">
           {editing ? (
             <>
               <button
@@ -752,18 +660,18 @@ function TaskDetailModal({
               </button>
               <button
                 onClick={() => setEditing(false)}
-                className="py-2 px-4 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+                className="py-2 px-4 border border-[#EBE7DA] text-[#71856F] rounded-xl text-sm font-medium hover:bg-[#FBFAF4] transition-colors"
               >
                 Cancelar
               </button>
             </>
           ) : confirm ? (
             <>
-              <p className="text-xs text-gray-500 flex-1">Excluir esta tarefa?</p>
+              <p className="text-xs text-[#71856F] flex-1">Excluir esta tarefa?</p>
               <button onClick={handleDelete} className="py-1.5 px-3 bg-red-500 text-white rounded-xl text-xs font-medium hover:bg-red-600 transition-colors">
                 Confirmar
               </button>
-              <button onClick={() => setConfirm(false)} className="py-1.5 px-3 border border-gray-200 text-gray-600 rounded-xl text-xs hover:bg-gray-50 transition-colors">
+              <button onClick={() => setConfirm(false)} className="py-1.5 px-3 border border-[#EBE7DA] text-[#71856F] rounded-xl text-xs hover:bg-[#FBFAF4] transition-colors">
                 Não
               </button>
             </>
@@ -781,13 +689,13 @@ function TaskDetailModal({
               </button>
               <button
                 onClick={() => setEditing(true)}
-                className="py-2 px-4 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+                className="py-2 px-4 border border-[#EBE7DA] text-[#71856F] rounded-xl text-sm font-medium hover:bg-[#FBFAF4] transition-colors"
               >
                 Editar
               </button>
               <button
                 onClick={() => setConfirm(true)}
-                className="py-2 px-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                className="py-2 px-3 text-[#9AA79C] hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                 title="Excluir"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -797,8 +705,96 @@ function TaskDetailModal({
             </>
           )}
         </div>
+      }
+    >
+      {/* Task info card */}
+      <div className="flex items-start gap-3 mb-4">
+        <div
+          className={`w-3 h-3 rounded-full mt-1 shrink-0 ${
+            task.concluida ? 'bg-[#3E9849]' : overdue ? 'bg-[#C05B3A]' : 'bg-[#1E86C0]'
+          }`}
+        />
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <input
+              autoFocus
+              value={form.titulo}
+              onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
+              className="w-full text-base font-semibold text-[#25402C] border-b border-[#CDE8CB] focus:outline-none pb-0.5 bg-transparent"
+            />
+          ) : (
+            <h3 className={`text-base font-semibold text-[#25402C] ${task.concluida ? 'line-through text-[#9AA79C]' : ''}`}>
+              {task.titulo}
+            </h3>
+          )}
+          {task.lead && (
+            <p className="text-xs text-[#71856F] mt-0.5">
+              {task.lead.nome}{task.lead.sobrenome ? ` ${task.lead.sobrenome}` : ''}
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+
+      <div className="space-y-3">
+        {editing ? (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-[#71856F] mb-1">Data e hora</label>
+              <DateTimePicker
+                value={form.data_limite}
+                onChange={v => setForm(f => ({ ...f, data_limite: v }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[#71856F] mb-1">Responsável</label>
+              <select
+                value={form.responsavel_id}
+                onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))}
+                className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-0 bg-white"
+              >
+                <option value="">Sem responsável</option>
+                {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[#71856F] mb-1">Descrição</label>
+              <textarea
+                value={form.descricao}
+                onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+                rows={2}
+                placeholder="Detalhes adicionais..."
+                className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-0 resize-none"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            {task.data_limite && (
+              <div className="flex items-center gap-2 text-sm text-[#35543B]">
+                <svg className="w-4 h-4 text-[#9AA79C] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className={overdue ? 'text-red-600 font-medium' : ''}>
+                  {format(parseISO(task.data_limite), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  {overdue && ' · Vencida'}
+                </span>
+              </div>
+            )}
+            {task.responsavel && (
+              <div className="flex items-center gap-2 text-sm text-[#35543B]">
+                <svg className="w-4 h-4 text-[#9AA79C] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {displayName(task.responsavel)}
+              </div>
+            )}
+            {task.descricao && (
+              <p className="text-sm text-[#71856F] bg-[#FBFAF4] rounded-xl px-3 py-2">{task.descricao}</p>
+            )}
+          </>
+        )}
+      </div>
+    </Drawer>
   )
 }
 
@@ -831,68 +827,50 @@ function ScheduledMessageModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        {/* Header */}
-        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="w-3 h-3 rounded-full mt-1 shrink-0 bg-violet-400" />
-            <div className="flex-1 min-w-0">
-              <h3 className="text-base font-semibold text-gray-900">
-                {msg.type === 'template' ? `📋 ${msg.template_name}` : 'Mensagem agendada'}
-              </h3>
-              {contactName && <p className="text-xs text-gray-500 mt-0.5">{contactName}</p>}
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors shrink-0 ml-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {format(parseISO(msg.scheduled_for), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-          </div>
-          <p className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</p>
-          {msg.content && (
-            <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2 whitespace-pre-wrap">{msg.content}</p>
+    <Drawer
+      open={true}
+      onClose={onClose}
+      title={msg.type === 'template' ? `📋 ${msg.template_name}` : 'Mensagem agendada'}
+      width={420}
+      footer={msg.status === 'pending' ? (
+        <div className="flex items-center gap-2 w-full">
+          {confirm ? (
+            <>
+              <p className="text-xs text-[#71856F] flex-1">Cancelar este agendamento?</p>
+              <button onClick={handleCancel} disabled={cancelling} className="py-1.5 px-3 bg-red-500 text-white rounded-xl text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+                {cancelling ? 'Cancelando…' : 'Confirmar'}
+              </button>
+              <button onClick={() => setConfirm(false)} className="py-1.5 px-3 border border-[#EBE7DA] text-[#71856F] rounded-xl text-xs hover:bg-[#FBFAF4] transition-colors">
+                Não
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirm(true)}
+              className="flex-1 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
+            >
+              Cancelar agendamento
+            </button>
           )}
         </div>
-
-        {/* Actions */}
-        {msg.status === 'pending' && (
-          <div className="flex items-center gap-2 px-5 pb-5">
-            {confirm ? (
-              <>
-                <p className="text-xs text-gray-500 flex-1">Cancelar este agendamento?</p>
-                <button onClick={handleCancel} disabled={cancelling} className="py-1.5 px-3 bg-red-500 text-white rounded-xl text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
-                  {cancelling ? 'Cancelando…' : 'Confirmar'}
-                </button>
-                <button onClick={() => setConfirm(false)} className="py-1.5 px-3 border border-gray-200 text-gray-600 rounded-xl text-xs hover:bg-gray-50 transition-colors">
-                  Não
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setConfirm(true)}
-                className="flex-1 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
-              >
-                Cancelar agendamento
-              </button>
-            )}
-          </div>
+      ) : undefined}
+    >
+      {contactName && (
+        <p className="text-sm text-[#71856F] mb-3">{contactName}</p>
+      )}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm text-[#35543B]">
+          <svg className="w-4 h-4 text-[#9AA79C] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          {format(parseISO(msg.scheduled_for), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+        </div>
+        <p className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</p>
+        {msg.content && (
+          <p className="text-sm text-[#71856F] bg-[#FBFAF4] rounded-xl px-3 py-2 whitespace-pre-wrap">{msg.content}</p>
         )}
       </div>
-    </div>
+    </Drawer>
   )
 }
 
@@ -968,102 +946,19 @@ function NewTaskModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">Nova tarefa</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+    <Drawer
+      open={true}
+      onClose={onClose}
+      title="Nova tarefa"
+      width={420}
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="py-2 px-4 border border-[#EBE7DA] text-[#71856F] rounded-xl text-sm font-medium hover:bg-[#FBFAF4] transition-colors"
+          >
+            Cancelar
           </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-3">
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Título *</label>
-            <input
-              autoFocus
-              value={form.titulo}
-              onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
-              placeholder="Ex: Retorno vacina gripe"
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Lead search */}
-          <div className="relative">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Contato *</label>
-            <input
-              value={leadQuery}
-              onChange={e => handleLeadInput(e.target.value)}
-              placeholder="Buscar por nome..."
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {selectedLead && (
-              <div className="absolute right-3 top-[34px] text-emerald-500">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            )}
-            {showDropdown && leadResults.length > 0 && (
-              <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-                {leadResults.map(l => (
-                  <button
-                    key={l.id}
-                    onClick={() => selectLead(l)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
-                  >
-                    {l.nome}{l.sobrenome ? ` ${l.sobrenome}` : ''}
-                  </button>
-                ))}
-              </div>
-            )}
-            {showDropdown && leadResults.length === 0 && leadQuery.length >= 2 && (
-              <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg px-3 py-2 text-xs text-gray-400">
-                Nenhum contato encontrado
-              </div>
-            )}
-          </div>
-
-          {/* Date/time */}
-          <DateTimePicker
-            value={form.data_limite}
-            onChange={v => setForm(f => ({ ...f, data_limite: v }))}
-            label="Data e hora"
-          />
-
-          {/* Responsible */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Responsável</label>
-            <select
-              value={form.responsavel_id}
-              onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
-            </select>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Descrição (opcional)</label>
-            <textarea
-              value={form.descricao}
-              onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
-              rows={2}
-              placeholder="Observações..."
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-2 px-5 pb-5">
           <button
             onClick={handleCreate}
             disabled={saving || !form.titulo.trim() || !selectedLead}
@@ -1071,14 +966,89 @@ function NewTaskModal({
           >
             {saving ? 'Criando…' : 'Criar tarefa'}
           </button>
-          <button
-            onClick={onClose}
-            className="py-2 px-4 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {/* Title */}
+        <div>
+          <label className="block text-xs font-medium text-[#71856F] mb-1">Título *</label>
+          <input
+            autoFocus
+            value={form.titulo}
+            onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
+            placeholder="Ex: Retorno vacina gripe"
+            className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-0"
+          />
+        </div>
+
+        {/* Lead search */}
+        <div className="relative">
+          <label className="block text-xs font-medium text-[#71856F] mb-1">Contato *</label>
+          <input
+            value={leadQuery}
+            onChange={e => handleLeadInput(e.target.value)}
+            placeholder="Buscar por nome..."
+            className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-0"
+          />
+          {selectedLead && (
+            <div className="absolute right-3 top-[34px] text-emerald-500">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          )}
+          {showDropdown && leadResults.length > 0 && (
+            <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white rounded-xl border border-[#EBE7DA] shadow-lg overflow-hidden">
+              {leadResults.map(l => (
+                <button
+                  key={l.id}
+                  onClick={() => selectLead(l)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-[#E8F4E6] transition-colors"
+                >
+                  {l.nome}{l.sobrenome ? ` ${l.sobrenome}` : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          {showDropdown && leadResults.length === 0 && leadQuery.length >= 2 && (
+            <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white rounded-xl border border-[#EBE7DA] shadow-lg px-3 py-2 text-xs text-[#9AA79C]">
+              Nenhum contato encontrado
+            </div>
+          )}
+        </div>
+
+        {/* Date/time */}
+        <DateTimePicker
+          value={form.data_limite}
+          onChange={v => setForm(f => ({ ...f, data_limite: v }))}
+          label="Data e hora"
+        />
+
+        {/* Responsible */}
+        <div>
+          <label className="block text-xs font-medium text-[#71856F] mb-1">Responsável</label>
+          <select
+            value={form.responsavel_id}
+            onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))}
+            className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-0 bg-white"
           >
-            Cancelar
-          </button>
+            {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
+          </select>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="block text-xs font-medium text-[#71856F] mb-1">Descrição (opcional)</label>
+          <textarea
+            value={form.descricao}
+            onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+            rows={2}
+            placeholder="Observações..."
+            className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-0 resize-none"
+          />
         </div>
       </div>
-    </div>
+    </Drawer>
   )
 }

@@ -216,7 +216,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
     admin:            'bg-red-100 text-red-700',
     gestor_vacivitta: 'bg-purple-100 text-purple-700',
     gestor_unidade:   'bg-indigo-100 text-indigo-700',
-    atendente:        'bg-blue-100 text-blue-700',
+    atendente:        'bg-[#E8F4E6] text-[#35853F]',
   }
 
   return (
@@ -234,7 +234,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
               onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 tab === key
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-[#3E9849] text-[#3E9849]'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -257,7 +257,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
               <p className="text-sm text-gray-600">{users.length} usuário{users.length !== 1 ? 's' : ''}</p>
               <button
                 onClick={openInvite}
-                className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#3E9849] text-white text-sm font-medium rounded-xl hover:bg-[#35853F] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -286,7 +286,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                         <div>
                           <p className="font-medium text-gray-900">{u.full_name}</p>
                           {u.apelido
-                            ? <p className="text-xs font-medium text-blue-500">@{u.apelido}</p>
+                            ? <p className="text-xs font-medium text-[#3E9849]">@{u.apelido}</p>
                             : <p className="text-xs text-gray-400">{u.email ?? '—'}</p>
                           }
                         </div>
@@ -322,7 +322,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => openEditUser(u)}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-[#3E9849] hover:bg-[#E8F4E6] rounded-lg transition-colors"
                           title="Editar"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -354,7 +354,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
               <p className="text-sm text-gray-600">{units.length} unidade{units.length !== 1 ? 's' : ''}</p>
               <button
                 onClick={openCreateUnit}
-                className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#3E9849] text-white text-sm font-medium rounded-xl hover:bg-[#35853F] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -416,7 +416,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                       <td className="px-4 py-3">
                         <button
                           onClick={() => openEditUnit(u)}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-[#3E9849] hover:bg-[#E8F4E6] rounded-lg transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -466,7 +466,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                 <div className="flex justify-end px-6 py-4 border-t border-gray-100">
                   <button
                     onClick={() => { setUserModal(null); setCreatedCreds(null) }}
-                    className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors"
+                    className="px-4 py-2 text-sm bg-[#3E9849] text-white font-medium rounded-xl hover:bg-[#35853F] transition-colors"
                   >
                     Concluir
                   </button>
@@ -480,13 +480,13 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                     <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm">
                       <button
                         onClick={() => { setInviteMode('email'); setFormError('') }}
-                        className={`flex-1 py-2 font-medium transition-colors ${inviteMode === 'email' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`flex-1 py-2 font-medium transition-colors ${inviteMode === 'email' ? 'bg-[#3E9849] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
                       >
                         Convidar por e-mail
                       </button>
                       <button
                         onClick={() => { setInviteMode('password'); setFormError('') }}
-                        className={`flex-1 py-2 font-medium transition-colors ${inviteMode === 'password' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`flex-1 py-2 font-medium transition-colors ${inviteMode === 'password' ? 'bg-[#3E9849] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
                       >
                         Criar com senha
                       </button>
@@ -508,7 +508,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                     <select
                       value={userForm.perfil}
                       onChange={e => setUserForm(f => ({ ...f, perfil: e.target.value as UserPerfil }))}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
                     >
                       {PERFIL_OPTIONS.map(p => (
                         <option key={p} value={p}>{PERFIL_LABELS[p]}</option>
@@ -519,14 +519,14 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Unidades com visibilidade
                       {userForm.unit_ids.length > 0 && (
-                        <span className="ml-1.5 text-blue-500">{userForm.unit_ids.length} selecionada{userForm.unit_ids.length !== 1 ? 's' : ''}</span>
+                        <span className="ml-1.5 text-[#3E9849]">{userForm.unit_ids.length} selecionada{userForm.unit_ids.length !== 1 ? 's' : ''}</span>
                       )}
                     </label>
                     <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden max-h-40 overflow-y-auto">
                       {units.filter(u => u.ativo).map(u => {
                         const checked = userForm.unit_ids.includes(u.id)
                         return (
-                          <label key={u.id} className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${checked ? 'bg-blue-50' : ''}`}>
+                          <label key={u.id} className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${checked ? 'bg-[#E8F4E6]' : ''}`}>
                             <input
                               type="checkbox"
                               checked={checked}
@@ -536,11 +536,11 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                                   ? f.unit_ids.filter(id => id !== u.id)
                                   : [...f.unit_ids, u.id],
                               }))}
-                              className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                              className="rounded border-[#C9C3B2] text-[#3E9849] focus:ring-[#3E9849]"
                             />
                             <span className="text-sm text-gray-700">{u.nome}</span>
                             {userForm.unit_ids[0] === u.id && (
-                              <span className="ml-auto text-xs text-blue-500 font-medium">principal</span>
+                              <span className="ml-auto text-xs text-[#3E9849] font-medium">principal</span>
                             )}
                           </label>
                         )
@@ -552,7 +552,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                   </div>
 
                   {userModal === 'invite' && inviteMode === 'email' && (
-                    <p className="text-xs text-gray-500 bg-blue-50 rounded-xl px-3 py-2">
+                    <p className="text-xs text-gray-500 bg-[#E8F4E6] rounded-xl px-3 py-2">
                       O usuário receberá um e-mail de convite para definir sua própria senha.
                     </p>
                   )}
@@ -571,7 +571,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                   <button
                     onClick={handleSaveUser}
                     disabled={saving}
-                    className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 text-sm bg-[#3E9849] text-white font-medium rounded-xl hover:bg-[#35853F] disabled:opacity-50 transition-colors"
                   >
                     {saving ? 'Salvando...' : userModal === 'invite'
                       ? (inviteMode === 'email' ? 'Enviar convite' : 'Criar conta')
@@ -657,7 +657,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
               <button
                 onClick={handleSaveUnit}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 text-sm bg-[#3E9849] text-white font-medium rounded-xl hover:bg-[#35853F] disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
@@ -680,7 +680,7 @@ function UField({ label, value, onChange, type = 'text', placeholder }: {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
       />
     </div>
   )
@@ -698,7 +698,7 @@ function CredField({ label, value }: { label: string; value: string }) {
       <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
       <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
         <span className="flex-1 text-sm font-mono text-gray-800 select-all">{value}</span>
-        <button onClick={copy} className="text-xs text-blue-500 hover:text-blue-700 font-medium shrink-0">
+        <button onClick={copy} className="text-xs text-[#3E9849] hover:text-[#35853F] font-medium shrink-0">
           {copied ? 'Copiado!' : 'Copiar'}
         </button>
       </div>

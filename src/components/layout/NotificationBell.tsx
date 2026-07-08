@@ -21,7 +21,7 @@ interface Toast {
   body:  string | null
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ collapsed = false }: { collapsed?: boolean }) {
   const { profile } = useProfile()
   const supabase    = createClient()
 
@@ -110,13 +110,18 @@ export default function NotificationBell() {
             }
             setOpen(v => !v)
           }}
+          title={collapsed ? 'Notificações' : undefined}
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
-            padding: '11px 13px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+            width: '100%', display: 'flex', alignItems: 'center',
+            gap: collapsed ? 0 : 12,
+            padding: collapsed ? '11px 0' : '11px 13px',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            borderRadius: '12px', border: 'none', cursor: 'pointer',
             fontSize: '14px', fontWeight: 600, textAlign: 'left',
-            transition: 'background 0.15s, color 0.15s',
-            background: open ? '#EAF6FC' : 'transparent',
-            color:      open ? '#0098DA'  : '#3F5666',
+            whiteSpace: 'nowrap' as const, overflow: 'hidden',
+            transition: 'background 0.15s, color 0.15s, gap 0.2s cubic-bezier(0.16,1,0.3,1), padding 0.2s cubic-bezier(0.16,1,0.3,1)',
+            background: open ? '#E8F4E6' : 'transparent',
+            color:      open ? '#3E9849'  : '#35543B',
           }}
           className={!open ? 'nav-item-idle' : ''}
         >
@@ -129,7 +134,7 @@ export default function NotificationBell() {
               <span style={{
                 position: 'absolute', top: '-4px', right: '-4px',
                 minWidth: '14px', height: '14px',
-                background: '#E5484D', color: '#fff',
+                background: '#C05B3A', color: '#fff',
                 fontSize: '9px', fontWeight: 800, borderRadius: '999px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 padding: '0 2px', lineHeight: 1,
@@ -138,15 +143,21 @@ export default function NotificationBell() {
               </span>
             )}
           </div>
-          <span style={{ flex: 1 }}>Notificações</span>
+          <span style={{
+            flex: 1,
+            opacity: collapsed ? 0 : 1,
+            width: collapsed ? 0 : 'auto',
+            overflow: 'hidden',
+            transition: 'opacity 0.15s cubic-bezier(0.16,1,0.3,1)',
+          }}>Notificações</span>
         </button>
 
         {/* ── Dropdown ──────────────────────────────────────────────────── */}
         {open && (
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden" style={{ position: 'fixed', left: dropdownPos.left, bottom: dropdownPos.bottom, width: '320px', zIndex: 200 }}>
+          <div className="bg-white rounded-2xl shadow-xl border border-[#EBE7DA] overflow-hidden" style={{ position: 'fixed', left: dropdownPos.left, bottom: dropdownPos.bottom, width: '320px', zIndex: 200 }}>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <span className="text-sm font-semibold text-gray-900">Notificações</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#EBE7DA]">
+              <span className="text-sm font-semibold text-[#25402C]">Notificações</span>
               {unread > 0 && (
                 <button
                   onClick={markAllRead}
@@ -162,7 +173,7 @@ export default function NotificationBell() {
             <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
               {notifications.length === 0 && (
                 <div className="py-10 text-center">
-                  <p className="text-sm text-gray-400">Nenhuma notificação</p>
+                  <p className="text-sm text-[#9AA79C]">Nenhuma notificação</p>
                 </div>
               )}
               {notifications.map(n => (
@@ -185,13 +196,13 @@ export default function NotificationBell() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${!n.lida ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                    <p className={`text-sm ${!n.lida ? 'font-semibold text-[#25402C]' : 'text-[#71856F]'}`}>
                       {n.title}
                     </p>
                     {n.body && (
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{n.body}</p>
+                      <p className="text-xs text-[#71856F] mt-0.5 truncate">{n.body}</p>
                     )}
-                    <p className="text-[11px] text-gray-400 mt-1">{fmtTime(n.criado_em)}</p>
+                    <p className="text-[11px] text-[#9AA79C] mt-1">{fmtTime(n.criado_em)}</p>
                   </div>
                   {!n.lida && (
                     <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--color-brand)' }} />
@@ -208,11 +219,11 @@ export default function NotificationBell() {
         {toasts.map(t => (
           <div
             key={t.id}
-            className="pointer-events-auto bg-white border border-gray-200 rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 w-72 animate-slide-up"
+            className="pointer-events-auto bg-white border border-[#EBE7DA] rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 w-72 animate-slide-up"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900">{t.title}</p>
-              {t.body && <p className="text-xs text-gray-500 mt-0.5 truncate">{t.body}</p>}
+              <p className="text-sm font-semibold text-[#25402C]">{t.title}</p>
+              {t.body && <p className="text-xs text-[#71856F] mt-0.5 truncate">{t.body}</p>}
             </div>
           </div>
         ))}

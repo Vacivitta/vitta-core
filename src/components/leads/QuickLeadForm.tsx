@@ -113,8 +113,8 @@ export default function QuickLeadForm({
               onChange={e => { setForm(f => ({ ...f, nome: e.target.value })); setError('') }}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSave()}
               placeholder="Nome do contato..."
-              className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                error ? 'border-red-300 ring-1 ring-red-300' : 'border-gray-200'
+              className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849] ${
+                error ? 'border-red-300 ring-1 ring-red-300' : 'border-[#EBE7DA]'
               }`}
             />
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
@@ -129,7 +129,7 @@ export default function QuickLeadForm({
                 value={form.telefone}
                 onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
                 placeholder="(00) 00000-0000"
-                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
               />
             </div>
             <div>
@@ -137,7 +137,7 @@ export default function QuickLeadForm({
               <select
                 value={form.stage_id}
                 onChange={e => setForm(f => ({ ...f, stage_id: e.target.value }))}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
               >
                 {activeFunnel?.stages.map(s => (
                   <option key={s.id} value={s.id}>{s.nome}</option>
@@ -153,7 +153,7 @@ export default function QuickLeadForm({
               <select
                 value={form.funnel_id}
                 onChange={e => handleFunnelChange(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
               >
                 {funnels.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
@@ -164,7 +164,7 @@ export default function QuickLeadForm({
           {!expanded ? (
             <button
               onClick={() => setExpanded(true)}
-              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-1 text-xs text-[#3E9849] hover:text-[#35853F] transition-colors"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -185,7 +185,7 @@ export default function QuickLeadForm({
                   <select
                     value={form.origem}
                     onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
                   >
                     <option value="">Selecionar...</option>
                     {ORIGEM_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -196,7 +196,7 @@ export default function QuickLeadForm({
                   <select
                     value={form.responsavel_id}
                     onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
                   >
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </select>
@@ -218,14 +218,14 @@ export default function QuickLeadForm({
             <button
               onClick={() => handleSave(false)}
               disabled={saving || !form.nome.trim()}
-              className="px-4 py-2 text-sm border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm border border-[#EBE7DA] text-gray-700 font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Salvando...' : 'Salvar'}
             </button>
             <button
               onClick={() => handleSave(true)}
               disabled={saving || !form.nome.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-[#3E9849] text-white font-medium rounded-lg hover:bg-[#35853F] disabled:opacity-50 transition-colors"
             >
               Salvar e abrir
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,7 +249,7 @@ function QField({ label, value, onChange, type = 'text' }: {
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full rounded-xl border border-[#EBE7DA] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
       />
     </div>
   )

@@ -8,37 +8,37 @@ import { useProfile } from '@/hooks/useProfile'
 import { PERFIL_LABELS } from '@/types/database'
 import NotificationBell from './NotificationBell'
 
-// ── Ícones Lucide (stroke 2, 18px) ───────────────────────────────────────────
+// ── Ícones Lucide (stroke 2, 17px) ───────────────────────────────────────────
 
 const IcoDashboard = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>
     <rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
   </svg>
 )
 
 const IcoFunil = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="18" height="18" rx="2"/>
     <path d="M8 7v7M12 7v10M16 7v4"/>
   </svg>
 )
 
 const IcoAtendimento = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
   </svg>
 )
 
 const IcoAgenda = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="18" rx="2"/>
     <path d="M16 2v4M8 2v4M3 10h18"/>
   </svg>
 )
 
 const IcoTarefas = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
     <rect x="9" y="3" width="6" height="4" rx="1"/>
     <path d="m9 12 2 2 4-4"/>
@@ -46,34 +46,34 @@ const IcoTarefas = () => (
 )
 
 const IcoClientes = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="9" cy="8" r="3.2"/>
     <path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M21 20a5 5 0 0 0-4-4.9"/>
   </svg>
 )
 
 const IcoCatalogo = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 2v6.5L4.2 17a2 2 0 0 0 1.8 3h12a2 2 0 0 0 1.8-3L15 8.5V2M8 2h8M7 14h10"/>
   </svg>
 )
 
 const IcoOrcamento = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
     <path d="M14 2v6h6M8 13h8M8 17h5"/>
   </svg>
 )
 
 const IcoSupervisao = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
     <circle cx="12" cy="12" r="3"/>
   </svg>
 )
 
 const IcoSettings = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3"/>
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
   </svg>
@@ -174,31 +174,42 @@ const CONFIG_ITEMS = [
 
 const CONFIG_HREFS = CONFIG_ITEMS.map(i => i.href)
 
+const EASE = 'cubic-bezier(0.16,1,0.3,1)'
+
 // ── Componente NavLink ────────────────────────────────────────────────────────
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
   return (
     <Link
       href={item.href}
+      title={collapsed ? item.label : undefined}
       style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           '12px',
-        padding:       '11px 13px',
-        borderRadius:  '12px',
-        fontSize:      '14px',
-        fontWeight:    600,
-        textDecoration:'none',
-        transition:    'background 0.15s, color 0.15s',
+        display:        'flex',
+        alignItems:     'center',
+        gap:            collapsed ? 0 : 11,
+        padding:        collapsed ? '9px 0' : '9px 12px',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        borderRadius:   12,
+        fontSize:       13.5,
+        fontWeight:     active ? 800 : 700,
+        textDecoration: 'none',
+        whiteSpace:     'nowrap',
+        overflow:       'hidden',
+        transition:     `background 0.15s, color 0.15s, gap 0.2s ${EASE}, padding 0.2s ${EASE}`,
         ...(active
-          ? { background: '#0098DA', color: '#fff', boxShadow: '0 6px 16px -6px rgba(0,152,218,.6)' }
-          : { color: '#3F5666' }
+          ? { background: '#3E9849', color: '#fff', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }
+          : { color: '#71856F' }
         ),
       }}
       className={!active ? 'nav-item-idle' : ''}
     >
-      {item.icon}
-      <span style={{ flex: 1 }}>{item.label}</span>
+      <span style={{ flexShrink: 0, display: 'flex' }}>{item.icon}</span>
+      <span style={{
+        opacity: collapsed ? 0 : 1,
+        width: collapsed ? 0 : 'auto',
+        overflow: 'hidden',
+        transition: `opacity 0.15s ${EASE}`,
+      }}>{item.label}</span>
     </Link>
   )
 }
@@ -211,15 +222,17 @@ export default function AppSidebar() {
   const supabase = createClient()
   const { profile, perfil, isGestor } = useProfile()
 
+  const [expanded, setExpanded] = useState(false)
   const [configOpen, setConfigOpen] = useState(() =>
     CONFIG_HREFS.some(h => pathname.startsWith(h))
   )
 
-  const isActive     = (href: string) => pathname.startsWith(href)
+  const collapsed = !expanded
+
+  const isActive       = (href: string) => pathname.startsWith(href)
   const isConfigActive = CONFIG_HREFS.some(h => isActive(h))
 
   const userName    = profile?.full_name ?? ''
-  const userEmail   = (profile as any)?.email ?? ''
   const initials    = userName
     .split(' ')
     .slice(0, 2)
@@ -234,160 +247,213 @@ export default function AppSidebar() {
   }
 
   return (
-    <>
-      {/* Hover idle: injetado via <style> para evitar prop inline repetida */}
-      <style>{`.nav-item-idle:hover { background: #E8F3FB; }`}</style>
-
-      <aside style={{
-        width:          '248px',
+    <aside
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => { setExpanded(false); if (!isConfigActive) setConfigOpen(false) }}
+      style={{
+        width:          collapsed ? 64 : 224,
         flexShrink:     0,
         display:        'flex',
         flexDirection:  'column',
         height:         '100%',
-        background:     '#F4FAFE',
-        borderRight:    '1px solid #E1EEF7',
-        padding:        '20px 14px 14px',
+        background:     '#FBFAF4',
+        borderRight:    '1px solid #E9E5D8',
+        padding:        collapsed ? '20px 8px 16px' : '20px 14px 16px',
         overflow:       'hidden',
-      }}>
+        transition:     `width 0.25s ${EASE}, padding 0.25s ${EASE}`,
+      }}
+    >
 
-        {/* ── Logo ──────────────────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '11px', marginBottom: '22px' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo-vacivitta-sidebar.svg"
-            alt="VittaDesk"
-            style={{ width: '40px', height: '40px', flexShrink: 0, borderRadius: '11px' }}
-          />
-          <span style={{ fontSize: '17px', fontWeight: 800, color: '#0E2C3D', letterSpacing: '-0.01em' }}>
-            VittaDesk
+      {/* ── Logo ──────────────────────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        gap: collapsed ? 0 : 11,
+        marginBottom: 22,
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        transition: `gap 0.2s ${EASE}`,
+      }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo-vacivitta-sidebar.svg"
+          alt="Vacivitta"
+          style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 11 }}
+        />
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          opacity: collapsed ? 0 : 1,
+          width: collapsed ? 0 : 'auto',
+          overflow: 'hidden', whiteSpace: 'nowrap',
+          transition: `opacity 0.15s ${EASE}`,
+        }}>
+          <span style={{ fontSize: 17, fontWeight: 900, color: '#3E9849', letterSpacing: '-0.01em' }}>
+            vacivitta
+          </span>
+          <span style={{ fontSize: 8.5, fontWeight: 700, color: '#9AA79C', letterSpacing: 1.6, textTransform: 'uppercase' }}>
+            Saúde Integrada
           </span>
         </div>
+      </div>
 
-        {/* ── Nav principal ──────────────────────────────────────────────────── */}
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
-          {NAV_ITEMS.map(item => (
-            <NavLink key={item.href} item={item} active={isActive(item.href)} />
-          ))}
+      {/* ── Nav principal ──────────────────────────────────────────────────── */}
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+        {NAV_ITEMS.map(item => (
+          <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
+        ))}
 
-          {/* Supervisão — gestores only */}
-          {isGestor && (
-            <Link
-              href="/supervisao"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '11px 13px', borderRadius: '12px',
-                fontSize: '14px', fontWeight: 600, textDecoration: 'none',
-                transition: 'background 0.15s, color 0.15s',
-                ...(isActive('/supervisao')
-                  ? { background: '#0098DA', color: '#fff', boxShadow: '0 6px 16px -6px rgba(0,152,218,.6)' }
-                  : { color: '#3F5666' }
-                ),
-              }}
-              className={!isActive('/supervisao') ? 'nav-item-idle' : ''}
-            >
-              <IcoSupervisao />
-              <span style={{ flex: 1 }}>Supervisão</span>
-            </Link>
-          )}
-        </nav>
+        {/* Supervisão — gestores only */}
+        {isGestor && (
+          <Link
+            href="/supervisao"
+            title={collapsed ? 'Supervisão' : undefined}
+            style={{
+              display: 'flex', alignItems: 'center',
+              gap: collapsed ? 0 : 11,
+              padding: collapsed ? '9px 0' : '9px 12px',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              borderRadius: 12, fontSize: 13.5,
+              fontWeight: isActive('/supervisao') ? 800 : 700,
+              textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden',
+              transition: `background 0.15s, color 0.15s, gap 0.2s ${EASE}, padding 0.2s ${EASE}`,
+              ...(isActive('/supervisao')
+                ? { background: '#3E9849', color: '#fff', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }
+                : { color: '#71856F' }
+              ),
+            }}
+            className={!isActive('/supervisao') ? 'nav-item-idle' : ''}
+          >
+            <span style={{ flexShrink: 0, display: 'flex' }}><IcoSupervisao /></span>
+            <span style={{
+              opacity: collapsed ? 0 : 1,
+              width: collapsed ? 0 : 'auto',
+              overflow: 'hidden',
+              transition: `opacity 0.15s ${EASE}`,
+            }}>Supervisão</span>
+          </Link>
+        )}
+      </nav>
 
-        {/* ── Rodapé ────────────────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '8px', borderTop: '1px solid #E1EEF7', paddingTop: '10px' }}>
+      {/* ── Rodapé ────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 8, borderTop: '1px solid #E9E5D8', paddingTop: 10 }}>
 
-          {/* Notificações */}
-          <NotificationBell />
+        {/* Notificações */}
+        <NotificationBell collapsed={collapsed} />
 
-          {/* Configurações com submenu */}
-          <div>
-            <button
-              onClick={() => setConfigOpen(v => !v)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '11px 13px', borderRadius: '12px',
-                fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer',
-                transition: 'background 0.15s, color 0.15s',
-                background: isConfigActive ? '#EAF6FC' : 'transparent',
-                color:      isConfigActive ? '#0098DA'  : '#3F5666',
-              }}
-              className={!isConfigActive ? 'nav-item-idle' : ''}
-            >
-              <IcoSettings />
-              <span style={{ flex: 1, textAlign: 'left' }}>Configurações</span>
+        {/* Configurações com submenu */}
+        <div>
+          <button
+            onClick={() => { if (!collapsed) setConfigOpen(v => !v) }}
+            title={collapsed ? 'Configurações' : undefined}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              gap: collapsed ? 0 : 11,
+              padding: collapsed ? '9px 0' : '9px 12px',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              borderRadius: 12, fontSize: 13.5, fontWeight: 700,
+              border: 'none', cursor: 'pointer',
+              whiteSpace: 'nowrap', overflow: 'hidden',
+              transition: `background 0.15s, color 0.15s, gap 0.2s ${EASE}, padding 0.2s ${EASE}`,
+              background: isConfigActive ? '#E8F4E6' : 'transparent',
+              color:      isConfigActive ? '#3E9849'  : '#71856F',
+            }}
+            className={!isConfigActive ? 'nav-item-idle' : ''}
+          >
+            <span style={{ flexShrink: 0, display: 'flex' }}><IcoSettings /></span>
+            <span style={{
+              flex: 1, textAlign: 'left',
+              opacity: collapsed ? 0 : 1,
+              width: collapsed ? 0 : 'auto',
+              overflow: 'hidden',
+              transition: `opacity 0.15s ${EASE}`,
+            }}>Configurações</span>
+            {!collapsed && (
               <span style={{
                 transition: 'transform 0.2s',
                 transform:  configOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                color: '#8A98A6',
+                color: '#9AA79C',
               }}>
                 <IcoChevronDown />
               </span>
-            </button>
-
-            {configOpen && (
-              <div style={{ marginLeft: '14px', paddingLeft: '10px', borderLeft: '1px solid #E1EEF7', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                {CONFIG_ITEMS.filter(i => !i.gestorOnly || isGestor).map(item => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      padding: '8px 10px', borderRadius: '10px',
-                      fontSize: '13px', fontWeight: isActive(item.href) ? 600 : 500,
-                      textDecoration: 'none', transition: 'background 0.15s',
-                      background: isActive(item.href) ? '#EAF6FC' : 'transparent',
-                      color:      isActive(item.href) ? '#0098DA'  : '#8A98A6',
-                    }}
-                    className={!isActive(item.href) ? 'nav-item-idle' : ''}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </Link>
-                ))}
-              </div>
             )}
+          </button>
+
+          {configOpen && !collapsed && (
+            <div style={{ marginLeft: 14, paddingLeft: 10, borderLeft: '1px solid #E9E5D8', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {CONFIG_ITEMS.filter(i => !i.gestorOnly || isGestor).map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 10,
+                    fontSize: 13, fontWeight: isActive(item.href) ? 700 : 600,
+                    textDecoration: 'none', transition: 'background 0.15s',
+                    background: isActive(item.href) ? '#E8F4E6' : 'transparent',
+                    color:      isActive(item.href) ? '#3E9849'  : '#9AA79C',
+                    whiteSpace: 'nowrap',
+                  }}
+                  className={!isActive(item.href) ? 'nav-item-idle' : ''}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Card do usuário */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          gap: collapsed ? 0 : 10,
+          padding: collapsed ? '10px 0' : '10px 10px',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          marginTop: 4, borderRadius: 12,
+          transition: `gap 0.2s ${EASE}, padding 0.2s ${EASE}`,
+        }}>
+          {/* Avatar */}
+          <div style={{
+            width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+            background: '#D6EBD2',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#35853F' }}>{initials}</span>
           </div>
 
-          {/* Card do usuário */}
+          {/* Info */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            padding: '10px 10px', marginTop: '4px', borderRadius: '12px',
+            flex: 1, minWidth: 0,
+            opacity: collapsed ? 0 : 1,
+            width: collapsed ? 0 : 'auto',
+            overflow: 'hidden', whiteSpace: 'nowrap',
+            transition: `opacity 0.15s ${EASE}`,
           }}>
-            {/* Avatar */}
-            <div style={{
-              width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
-              background: 'linear-gradient(135deg, #0098DA, #54B3E6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff' }}>{initials}</span>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {userName || 'Usuário'}
             </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0E2C3D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {userName || 'Usuário'}
-              </div>
-              <div style={{ fontSize: '11px', color: '#0098DA', fontWeight: 600 }}>
-                {perfilLabel ?? 'Admin'}
-              </div>
+            <div style={{ fontSize: 10.5, color: '#9AA79C', fontWeight: 600 }}>
+              {perfilLabel ?? 'Admin'}
             </div>
+          </div>
 
-            {/* Logout */}
+          {/* Logout */}
+          {!collapsed && (
             <button
               onClick={handleLogout}
               title="Sair"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: '#8A98A6', padding: '4px', borderRadius: '6px',
+                color: '#9AA79C', padding: 4, borderRadius: 6,
                 display: 'flex', alignItems: 'center', transition: 'color 0.15s',
                 flexShrink: 0,
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#3F5666')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#8A98A6')}
+              onMouseEnter={e => (e.currentTarget.style.color = '#25402C')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#9AA79C')}
             >
               <IcoLogout />
             </button>
-          </div>
+          )}
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   )
 }

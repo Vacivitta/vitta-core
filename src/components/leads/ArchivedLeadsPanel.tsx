@@ -45,7 +45,7 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
               <select
                 value={funnelFilter}
                 onChange={e => setFunnelFilter(e.target.value)}
-                className="text-sm border border-gray-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="text-sm border border-[#EBE7DA] rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
               >
                 <option value="">Todos os funis</option>
                 {funnels.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}

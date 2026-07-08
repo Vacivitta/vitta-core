@@ -1,94 +1,106 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
-/* ── Fonte: Plus Jakarta Sans ─────────────────────────────────────────────── */
+/* ── Fonte: Nunito ───────────────────────────────────────────────────────── */
 @theme inline {
-  --font-sans: var(--font-plus-jakarta);
+  --font-sans: var(--font-nunito);
 }
 
-/* ── Tokens VittaDesk / Vacivitta ───────────────────────────────────────── */
+/* ── Tokens Rebranding Vacivitta ─────────────────────────────────────────── */
 :root {
-  /* Marca */
-  --color-brand:          #0098DA;   /* azul primário — CTAs, ativo, links  */
-  --color-brand-hover:    #0086C2;   /* hover do primário                    */
-  --color-brand-sky:      #54B3E6;   /* azul céu secundário — apoio          */
-  --color-brand-subtle:   #EAF6FC;   /* fundo tonal do azul                  */
+  /* Marca — verde principal */
+  --color-brand:              #3E9849;
+  --color-brand-hover:        #35853F;
+  --color-brand-deep:         #25402C;
+  --color-brand-light:        #99C669;
+  --color-brand-subtle:       #E8F4E6;
+  --color-brand-soft:         #D6EBD2;
+
+  /* Azul */
+  --color-brand-blue:         #1E86C0;
+  --color-brand-blue-subtle:  #DCEFFA;
 
   /* Semânticas */
-  --color-success:        #4EB46B;
-  --color-success-subtle: #E9F7EE;
-  --color-success-text:   #2E8E4C;
-  --color-accent:         #F39313;   /* laranja — atenção, margem, conversão */
-  --color-accent-subtle:  #FEF4E6;
-  --color-accent-text:    #D17F0E;
-  --color-danger:         #E5484D;
-  --color-danger-subtle:  #FDEBEC;
-  --color-danger-text:    #D23B40;
+  --color-amber:              #C87F1B;
+  --color-amber-subtle:       #FCF3E4;
+  --color-amber-text:         #B0813C;
+  --color-terracotta:         #C05B3A;
+  --color-terracotta-subtle:  #F9E7E0;
+  --color-danger:             #C05B3A;
+  --color-danger-subtle:      #F9E7E0;
+  --color-danger-text:        #C05B3A;
 
   /* Status de orçamento */
-  --status-rascunho-bg:      #EEF1F5;
-  --status-rascunho-text:    #8A98A6;
-  --status-enviado-bg:       #E9F5FC;
-  --status-enviado-text:     #1E86C0;
-  --status-visualizado-bg:   #EAF6FC;
-  --status-visualizado-text: #3A93C5;
-  --status-aceito-bg:        #E9F7EE;
-  --status-aceito-text:      #3E9D5A;
-  --status-recusado-bg:      #FDEBEC;
-  --status-recusado-text:    #D23B40;
+  --status-rascunho-bg:       #F1EFE5;
+  --status-rascunho-text:     #71856F;
+  --status-enviado-bg:        #DCEFFA;
+  --status-enviado-text:      #1E86C0;
+  --status-visualizado-bg:    #D3E9F6;
+  --status-visualizado-text:  #176FA0;
+  --status-negociacao-bg:     #FCF3E4;
+  --status-negociacao-text:   #C87F1B;
+  --status-aceito-bg:         #E8F4E6;
+  --status-aceito-text:       #35853F;
+  --status-recusado-bg:       #F9E7E0;
+  --status-recusado-text:     #C05B3A;
+  --status-expirado-bg:       #F1EFE5;
+  --status-expirado-text:     #9AA79C;
 
-  /* Neutros / texto */
-  --color-ink:            #0E2C3D;   /* títulos                              */
-  --color-text:           #3F5666;   /* corpo                                */
-  --color-muted:          #8A98A6;   /* labels, overlines                    */
-  --color-muted-alt:      #9DB6C7;   /* placeholders                         */
+  /* Neutros quentes */
+  --color-ink:                #25402C;
+  --color-text:               #35543B;
+  --color-body:               #71856F;
+  --color-muted:              #9AA79C;
 
   /* Superfícies */
-  --color-bg-app:         #FBFDFF;   /* fundo geral do app                   */
-  --color-surface:        #FFFFFF;   /* cartões, modais                      */
-  --color-surface-sidebar:#F4FAFE;   /* fundo da sidebar                     */
-  --color-track:          #F0F3F6;   /* track de barras de progresso         */
+  --color-bg-app:             #F6F4EC;
+  --color-surface:            #FFFFFF;
+  --color-surface-sidebar:    #FBFAF4;
+  --color-track:              #F1EFE5;
+  --color-board-bg:           #F2EEE1;
 
   /* Bordas */
-  --color-border:         #E1EEF7;   /* borda padrão                         */
-  --color-border-strong:  #E9EDF2;   /* borda mais visível                   */
+  --color-border:             #EBE7DA;
+  --color-border-soft:        #E9E5D8;
+  --color-border-strong:      #EFECE0;
+  --color-divider:            #F4F1E7;
 
   /* Sombras */
-  --shadow-btn-primary:   0 6px 16px -6px rgba(0, 152, 218, 0.6);
-  --shadow-card-hover:    0 8px 20px -8px rgba(16, 44, 61, 0.18);
-  --shadow-sm:            0 1px 3px 0 rgba(14, 44, 61, 0.06);
-  --shadow-md:            0 4px 8px -2px rgba(14, 44, 61, 0.08);
+  --shadow-btn-primary:       0 5px 14px -6px rgba(62, 152, 73, 0.55);
+  --shadow-card-hover:        0 8px 20px -8px rgba(37, 64, 44, 0.18);
+  --shadow-sm:                0 1px 3px 0 rgba(37, 64, 44, 0.06);
+  --shadow-md:                0 4px 8px -2px rgba(37, 64, 44, 0.08);
 
   /* Raios */
-  --radius-input:         8px;
-  --radius-btn:           10px;
-  --radius-chip:          11px;      /* chips de ícone nos KPI cards         */
-  --radius-card-sm:       13px;      /* lead cards no kanban                 */
-  --radius-card:          16px;      /* cards padrão                         */
-  --radius-card-lg:       18px;      /* cards maiores                        */
-  --radius-badge:         999px;
+  --radius-input:             11px;
+  --radius-btn:               12px;
+  --radius-chip:              999px;
+  --radius-card-sm:           14px;
+  --radius-card:              16px;
+  --radius-card-lg:           18px;
+  --radius-badge:             999px;
 
-  /* Aliases de compatibilidade (usados pelo código atual) */
-  --color-text-primary:   var(--color-ink);
-  --color-text-secondary: var(--color-text);
-  --color-text-muted:     var(--color-muted);
-  --color-border-default: var(--color-border);
-  --radius-sm:            var(--radius-input);
-  --radius-md:            var(--radius-btn);
-  --radius-lg:            var(--radius-card);
-  --radius-full:          var(--radius-badge);
+  /* Aliases de compatibilidade */
+  --color-text-primary:       var(--color-ink);
+  --color-text-secondary:     var(--color-text);
+  --color-text-muted:         var(--color-muted);
+  --color-border-default:     var(--color-border);
+  --radius-sm:                var(--radius-input);
+  --radius-md:                var(--radius-btn);
+  --radius-lg:                var(--radius-card);
+  --radius-full:              var(--radius-badge);
 }
 
-/* ── Tailwind custom colors (utilities: bg-brand, text-ink, etc.) ─────────── */
+/* ── Tailwind custom colors ──────────────────────────────────────────────── */
 @theme inline {
-  --color-brand:        #0098DA;
-  --color-brand-sky:    #54B3E6;
-  --color-ink:          #0E2C3D;
-  --color-vitta-text:   #3F5666;
-  --color-muted:        #8A98A6;
-  --color-surface-sidebar: #F4FAFE;
-  --color-bg-app:       #FBFDFF;
-  --color-track:        #F0F3F6;
-  --color-border-brand: #E1EEF7;
+  --color-brand:            #3E9849;
+  --color-brand-deep:       #25402C;
+  --color-ink:              #25402C;
+  --color-vitta-text:       #35543B;
+  --color-muted:            #9AA79C;
+  --color-surface-sidebar:  #FBFAF4;
+  --color-bg-app:           #F6F4EC;
+  --color-track:            #F1EFE5;
+  --color-border-brand:     #EBE7DA;
 }
 
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -103,8 +115,8 @@ html {
 }
 
 body {
-  font-family: var(--font-sans, 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif);
-  font-size: 0.875rem;     /* 14px — escala do handoff */
+  font-family: var(--font-sans, 'Nunito', ui-sans-serif, system-ui, sans-serif);
+  font-size: 0.875rem;
   line-height: 1.6;
   color: var(--color-text);
   background-color: var(--color-bg-app);
@@ -113,7 +125,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Números tabulares em campos de dados */
 .tabular-nums,
 [data-tabular] {
   font-variant-numeric: tabular-nums;
@@ -121,7 +132,7 @@ body {
 
 /* ── Acessibilidade: Focus visible ────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid #CDE8CB;
   outline-offset: 2px;
 }
 
@@ -164,12 +175,12 @@ body {
   animation: shimmer 1.6s infinite;
 }
 
-/* ── Botão primário — shadow + hover ─────────────────────────────────────── */
+/* ── Botão primário ──────────────────────────────────────────────────────── */
 .btn-primary {
   background: var(--color-brand);
   color: #fff;
   border-radius: var(--radius-btn);
-  font-weight: 600;
+  font-weight: 800;
   box-shadow: var(--shadow-btn-primary);
   transition: background 0.15s, box-shadow 0.15s;
 }
@@ -193,15 +204,16 @@ textarea {
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid #CDE8CB;
   outline-offset: 0;
-  border-color: var(--color-brand);
+  border-color: #3E9849;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar         { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track   { background: transparent; }
-::-webkit-scrollbar-thumb   { background: var(--color-border-strong); border-radius: var(--radius-badge); }
+::-webkit-scrollbar-thumb   { background: #D9D4C3; border-radius: var(--radius-badge); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
 /* ── Login: floating card animation ─────────────────────────────────────── */
 @keyframes floatY {
@@ -211,4 +223,6 @@ textarea:focus-visible {
 .float-card {
   animation: floatY 6s ease-in-out infinite;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* ── Sidebar hover ───────────────────────────────────────────────────────── */
+.nav-item-idle:hover { background: #F2EFE3; color: #35543B; }

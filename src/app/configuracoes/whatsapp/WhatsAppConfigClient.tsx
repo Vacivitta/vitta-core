@@ -169,15 +169,15 @@ export default function WhatsAppConfigClient({
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 14px', fontSize: 14,
-    border: '1.5px solid #E1EEF7', borderRadius: 10, outline: 'none',
-    color: '#0E2C3D', background: '#FBFDFF', fontFamily: 'inherit',
+    border: '1.5px solid #EBE7DA', borderRadius: 10, outline: 'none',
+    color: '#25402C', background: '#FBFAF4', fontFamily: 'inherit',
   }
   const labelStyle: React.CSSProperties = {
-    display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6,
+    display: 'block', fontSize: 13, fontWeight: 600, color: '#35543B', marginBottom: 6,
   }
-  const hintStyle: React.CSSProperties = { fontSize: 12, color: '#9DB6C7', marginTop: 4 }
-  const focusOn  = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#0098DA' }
-  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#E1EEF7' }
+  const hintStyle: React.CSSProperties = { fontSize: 12, color: '#9AA79C', marginTop: 4 }
+  const focusOn  = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#3E9849' }
+  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#EBE7DA' }
 
   const canTest = !!(config.phone_number_id && config.access_token && !config.access_token.includes('•'))
 
@@ -192,7 +192,7 @@ export default function WhatsAppConfigClient({
           </svg>
         </div>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Integração WhatsApp</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#25402C', margin: 0 }}>Integração WhatsApp</h1>
           <p style={{ fontSize: 13, color: '#8A98A6', margin: 0 }}>API Oficial do Meta (Cloud API)</p>
         </div>
       </div>
@@ -215,9 +215,9 @@ export default function WhatsAppConfigClient({
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.15s',
-                  borderColor:  u.id === selectedUnitId ? '#0098DA' : '#E1EEF7',
-                  background:   u.id === selectedUnitId ? '#EAF6FC'  : '#fff',
-                  color:        u.id === selectedUnitId ? '#0098DA'  : '#3F5666',
+                  borderColor:  u.id === selectedUnitId ? '#3E9849' : '#EBE7DA',
+                  background:   u.id === selectedUnitId ? '#E8F4E6'  : '#fff',
+                  color:        u.id === selectedUnitId ? '#3E9849'  : '#35543B',
                 }}
               >
                 {u.nome}
@@ -228,26 +228,26 @@ export default function WhatsAppConfigClient({
       )}
 
       {/* ── Webhook URL (global, sempre visível) ──────────────────────────── */}
-      <div style={{ background: '#F4FAFE', border: '1.5px solid #E1EEF7', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: '#0098DA', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px' }}>
+      <div style={{ background: '#F0F7EF', border: '1.5px solid #EBE7DA', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#3E9849', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px' }}>
           URL do Webhook — Global
         </p>
         <p style={{ fontSize: 12, color: '#5B7A8A', margin: '0 0 10px' }}>
           Registre esta URL uma única vez no Meta para todas as unidades.
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <code style={{ flex: 1, fontSize: 13, color: '#0E2C3D', background: '#fff', border: '1px solid #E1EEF7', borderRadius: 8, padding: '8px 12px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+          <code style={{ flex: 1, fontSize: 13, color: '#25402C', background: '#fff', border: '1px solid #EBE7DA', borderRadius: 8, padding: '8px 12px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
             {webhookUrl}
           </code>
           <button type="button" onClick={() => copyToClipboard(webhookUrl)}
-            style={{ flexShrink: 0, padding: '8px 14px', border: '1.5px solid #E1EEF7', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#3F5666' }}>
+            style={{ flexShrink: 0, padding: '8px 14px', border: '1.5px solid #EBE7DA', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#35543B' }}>
             Copiar
           </button>
         </div>
       </div>
 
       {/* ── Token de verificação (global, salva independente) ─────────────── */}
-      <div style={{ background: '#fff', border: '1.5px solid #E1EEF7', borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #EBE7DA', borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: '#8A98A6', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 14px' }}>
           Configuração Global do Webhook
         </p>
@@ -272,8 +272,8 @@ export default function WhatsAppConfigClient({
               onClick={handleSaveToken}
               disabled={savingToken || !verifyToken.trim()}
               style={{
-                padding: '9px 20px', border: '1.5px solid #0098DA', borderRadius: 10,
-                background: '#EAF6FC', fontSize: 13, fontWeight: 600, color: '#0098DA',
+                padding: '9px 20px', border: '1.5px solid #3E9849', borderRadius: 10,
+                background: '#E8F4E6', fontSize: 13, fontWeight: 600, color: '#3E9849',
                 cursor: savingToken || !verifyToken.trim() ? 'not-allowed' : 'pointer',
                 opacity: !verifyToken.trim() ? 0.5 : 1,
               }}
@@ -285,7 +285,7 @@ export default function WhatsAppConfigClient({
             )}
           </div>
           {saveError && !saving && (
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FDEBEC', color: '#D23B40', fontSize: 13, fontWeight: 500 }}>
+            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FDE8E2', color: '#C05B3A', fontSize: 13, fontWeight: 500 }}>
               {saveError}
             </div>
           )}
@@ -293,7 +293,7 @@ export default function WhatsAppConfigClient({
       </div>
 
       {loadingUnit ? (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9DB6C7', fontSize: 14 }}>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9AA79C', fontSize: 14 }}>
           Carregando configuração…
         </div>
       ) : (
@@ -313,7 +313,7 @@ export default function WhatsAppConfigClient({
           </div>
 
           {/* ── Campos por unidade ────────────────────────────────────────── */}
-          <div style={{ background: '#fff', border: '1.5px solid #E1EEF7', borderRadius: 16, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ background: '#fff', border: '1.5px solid #EBE7DA', borderRadius: 16, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: '#8A98A6', letterSpacing: '0.06em', textTransform: 'uppercase', margin: 0 }}>
               Configuração por unidade{selectedUnit ? ` — ${selectedUnit.nome}` : ''}
             </p>
@@ -340,7 +340,7 @@ export default function WhatsAppConfigClient({
                 {!tokenEditing && config.configured && (
                   <button type="button"
                     onClick={() => { setConfig(c => ({ ...c, access_token: '' })); setTokenEditing(true) }}
-                    style={{ fontSize: 12, color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
+                    style={{ fontSize: 12, color: '#3E9849', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
                     Substituir token
                   </button>
                 )}
@@ -385,15 +385,15 @@ export default function WhatsAppConfigClient({
           {/* ── Resultado do teste / erro / sucesso ───────────────────────── */}
           {testResult && (
             <div style={{ padding: '12px 16px', borderRadius: 10, fontSize: 13, fontWeight: 500,
-              background: testResult.success ? '#E9F7EE' : '#FDEBEC',
-              color:      testResult.success ? '#2E8E4C' : '#D23B40' }}>
+              background: testResult.success ? '#E9F7EE' : '#FDE8E2',
+              color:      testResult.success ? '#2E8E4C' : '#C05B3A' }}>
               {testResult.success
                 ? `✓ Conectado — ${testResult.name ?? ''} ${testResult.phone ? `(${testResult.phone})` : ''} · Qualidade: ${testResult.quality ?? '—'}`
                 : `✗ ${testResult.error}`}
             </div>
           )}
           {saveError && (
-            <div style={{ padding: '12px 16px', borderRadius: 10, background: '#FDEBEC', color: '#D23B40', fontSize: 13, fontWeight: 500 }}>
+            <div style={{ padding: '12px 16px', borderRadius: 10, background: '#FDE8E2', color: '#C05B3A', fontSize: 13, fontWeight: 500 }}>
               {saveError}
             </div>
           )}
@@ -407,8 +407,8 @@ export default function WhatsAppConfigClient({
           <div style={{ display: 'flex', gap: 12 }}>
             <button type="button" onClick={handleTest} disabled={testing || !canTest}
               style={{
-                padding: '11px 20px', border: '1.5px solid #E1EEF7', borderRadius: 10,
-                background: '#fff', fontSize: 14, fontWeight: 600, color: '#3F5666',
+                padding: '11px 20px', border: '1.5px solid #EBE7DA', borderRadius: 10,
+                background: '#fff', fontSize: 14, fontWeight: 600, color: '#35543B',
                 cursor: testing || !canTest ? 'not-allowed' : 'pointer',
                 opacity: testing || !canTest ? 0.5 : 1,
               }}>
@@ -417,7 +417,7 @@ export default function WhatsAppConfigClient({
             <button type="submit" disabled={saving}
               style={{
                 flex: 1, padding: '11px 0',
-                background: saving ? '#9DB6C7' : 'linear-gradient(135deg, #0098DA 0%, #006FA3 100%)',
+                background: saving ? '#9AA79C' : 'linear-gradient(135deg, #3E9849 0%, #2D7A34 100%)',
                 color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', borderRadius: 10,
                 cursor: saving ? 'not-allowed' : 'pointer',
                 boxShadow: saving ? 'none' : '0 4px 12px -4px rgba(0,152,218,0.5)',
@@ -429,18 +429,18 @@ export default function WhatsAppConfigClient({
       )}
 
       {/* ── Guia ────────────────────────────────────────────────────────────── */}
-      <div style={{ marginTop: 24, padding: '16px 20px', background: '#F4FAFE', border: '1.5px solid #E1EEF7', borderRadius: 14 }}>
+      <div style={{ marginTop: 24, padding: '16px 20px', background: '#F0F7EF', border: '1.5px solid #EBE7DA', borderRadius: 14 }}>
         <p style={{ fontSize: 12, fontWeight: 700, color: '#5B7A8A', margin: '0 0 8px' }}>Como configurar</p>
         <ol style={{ fontSize: 12, color: '#8A98A6', margin: 0, paddingLeft: 18, lineHeight: 2 }}>
-          <li>Crie um app no <strong style={{ color: '#3F5666' }}>Meta for Developers</strong> e adicione o produto WhatsApp</li>
-          <li>Registre o webhook com a URL acima e defina o <strong style={{ color: '#3F5666' }}>Token de verificação</strong> (use o mesmo aqui)</li>
-          <li>Para cada unidade: selecione-a, informe o <strong style={{ color: '#3F5666' }}>Phone Number ID</strong> e o <strong style={{ color: '#3F5666' }}>Access Token</strong></li>
-          <li>Clique em <strong style={{ color: '#3F5666' }}>Testar conexão</strong> e depois <strong style={{ color: '#3F5666' }}>Salvar</strong></li>
+          <li>Crie um app no <strong style={{ color: '#35543B' }}>Meta for Developers</strong> e adicione o produto WhatsApp</li>
+          <li>Registre o webhook com a URL acima e defina o <strong style={{ color: '#35543B' }}>Token de verificação</strong> (use o mesmo aqui)</li>
+          <li>Para cada unidade: selecione-a, informe o <strong style={{ color: '#35543B' }}>Phone Number ID</strong> e o <strong style={{ color: '#35543B' }}>Access Token</strong></li>
+          <li>Clique em <strong style={{ color: '#35543B' }}>Testar conexão</strong> e depois <strong style={{ color: '#35543B' }}>Salvar</strong></li>
         </ol>
       </div>
 
       {config.updated_at && (
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#9DB6C7', marginTop: 16 }}>
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#9AA79C', marginTop: 16 }}>
           Última atualização: {new Date(config.updated_at).toLocaleString('pt-BR')}
         </p>
       )}

@@ -35,9 +35,9 @@ const STATUS_LABEL: Record<string, string> = {
   pausada: 'Pausada', concluida: 'Concluída', cancelada: 'Cancelada',
 }
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
-  rascunho:  { bg: '#F1F4F7', text: '#5A7184' },
+  rascunho:  { bg: '#F1EFE5', text: '#71856F' },
   agendada:  { bg: '#EDE9FE', text: '#6D28D9' },
-  enviando:  { bg: '#E8F5FD', text: '#0098DA' },
+  enviando:  { bg: '#E8F4E6', text: '#3E9849' },
   pausada:   { bg: '#FEF3E2', text: '#C17A0A' },
   concluida: { bg: '#DCFCE7', text: '#166534' },
   cancelada: { bg: '#FEE2E2', text: '#B91C1C' },
@@ -69,21 +69,21 @@ export default function CampanhasClient({ currentUser, initialCampaigns, templat
   }, [supabase])
 
   const S = {
-    ink: '#0E2C3D', muted: '#8FA0AF', border: '#E8EDF2',
-    card: { background: '#fff', border: '1px solid #E8EDF2', borderRadius: 14, padding: '18px 20px' } as React.CSSProperties,
+    ink: '#25402C', muted: '#9AA79C', border: '#EBE7DA',
+    card: { background: '#fff', border: '1px solid #EBE7DA', borderRadius: 14, padding: '18px 20px' } as React.CSSProperties,
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Header — oculto quando embutido dentro de outra página */}
       {!embedded && (
-        <header style={{ background: '#fff', borderBottom: '1px solid #E8EDF2', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <header style={{ background: '#fff', borderBottom: '1px solid #EBE7DA', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <h1 style={{ fontSize: 16, fontWeight: 800, color: S.ink, margin: 0 }}>Campanhas WhatsApp</h1>
             <p style={{ fontSize: 12, color: S.muted, margin: '2px 0 0' }}>Disparos em massa com rastreamento de custo e consentimento</p>
           </div>
           <button onClick={() => setShowWizard(true)}
-            style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, background: '#0E2C3D', color: '#fff', border: 'none', borderRadius: 11, cursor: 'pointer' }}>
+            style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, background: '#25402C', color: '#fff', border: 'none', borderRadius: 11, cursor: 'pointer' }}>
             + Nova campanha
           </button>
         </header>
@@ -94,7 +94,7 @@ export default function CampanhasClient({ currentUser, initialCampaigns, templat
         {embedded && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
             <button onClick={() => setShowWizard(true)}
-              style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, background: '#0E2C3D', color: '#fff', border: 'none', borderRadius: 11, cursor: 'pointer' }}>
+              style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, background: '#25402C', color: '#fff', border: 'none', borderRadius: 11, cursor: 'pointer' }}>
               + Nova campanha
             </button>
           </div>
@@ -104,10 +104,10 @@ export default function CampanhasClient({ currentUser, initialCampaigns, templat
             <svg width="48" height="48" fill="none" stroke="#C8D6E0" viewBox="0 0 24 24" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#5A7184', margin: 0 }}>Nenhuma campanha ainda</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#71856F', margin: 0 }}>Nenhuma campanha ainda</p>
             <p style={{ fontSize: 12, color: S.muted, margin: 0 }}>Crie sua primeira campanha para disparar mensagens em massa</p>
             <button onClick={() => setShowWizard(true)}
-              style={{ marginTop: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, background: '#0E2C3D', color: '#fff', border: 'none', borderRadius: 11, cursor: 'pointer' }}>
+              style={{ marginTop: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, background: '#25402C', color: '#fff', border: 'none', borderRadius: 11, cursor: 'pointer' }}>
               + Nova campanha
             </button>
           </div>
@@ -173,28 +173,28 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
   }
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #E8EDF2', borderRadius: 14, padding: '16px 20px' }}>
+    <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 14, padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#0E2C3D' }}>{c.nome}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#25402C' }}>{c.nome}</span>
             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: sc.bg, color: sc.text }}>
               {STATUS_LABEL[c.status] ?? c.status}
             </span>
-            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: '#F1F4F7', color: '#5A7184' }}>
+            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: '#F1EFE5', color: '#71856F' }}>
               {c.template_category === 'marketing' ? 'Marketing' : 'Utility'}
             </span>
           </div>
-          <p style={{ fontSize: 12, color: '#8FA0AF', margin: 0 }}>
+          <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>
             {c.template_nome ?? 'Template não definido'}
             {c.scheduled_at && ` · Agendada para ${format(new Date(c.scheduled_at), "d MMM 'às' HH:mm", { locale: ptBR })}`}
           </p>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <p style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.02em' }}>
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: 0, letterSpacing: '-0.02em' }}>
             {fmtBrl(c.actual_cost_usd > 0 ? c.actual_cost_usd : c.estimated_cost_usd)}
           </p>
-          <p style={{ fontSize: 10, color: '#8FA0AF', margin: '2px 0 0' }}>
+          <p style={{ fontSize: 10, color: '#9AA79C', margin: '2px 0 0' }}>
             {c.actual_cost_usd > 0 ? 'custo real' : 'estimado'}
           </p>
         </div>
@@ -211,15 +211,15 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
           { label: 'Bloquearam',    val: c.optout_count, warn: c.optout_count > 0 },
         ].map(m => (
           <div key={m.label}>
-            <p style={{ fontSize: 11, color: m.warn ? '#C01C1C' : '#8FA0AF', margin: 0 }}>{m.label}</p>
-            <p style={{ fontSize: 15, fontWeight: 700, color: m.warn ? '#C01C1C' : '#0E2C3D', margin: '1px 0 0', letterSpacing: '-0.02em' }}>{m.val}</p>
+            <p style={{ fontSize: 11, color: m.warn ? '#C01C1C' : '#9AA79C', margin: 0 }}>{m.label}</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: m.warn ? '#C01C1C' : '#25402C', margin: '1px 0 0', letterSpacing: '-0.02em' }}>{m.val}</p>
           </div>
         ))}
         {/* Taxas de conversão */}
         {c.sent_count > 0 && (
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {c.read_count > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 8, background: '#E8F5FD', color: '#0065A0' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 8, background: '#E8F4E6', color: '#0065A0' }}>
                 {Math.round(c.read_count / c.sent_count * 100)}% leitura
               </span>
             )}
@@ -240,7 +240,7 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
       {/* Barra de progresso de envio */}
       {(c.status === 'enviando' || c.status === 'concluida') && c.total_recipients > 0 && (
         <div style={{ height: 4, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden', marginBottom: 10 }}>
-          <div style={{ height: '100%', width: `${sentPct}%`, background: c.status === 'concluida' ? '#4EB46B' : '#0098DA', borderRadius: 99, transition: 'width .5s' }} />
+          <div style={{ height: '100%', width: `${sentPct}%`, background: c.status === 'concluida' ? '#3E9849' : '#3E9849', borderRadius: 99, transition: 'width .5s' }} />
         </div>
       )}
 
@@ -250,15 +250,15 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
           {canDispatch && (
             <button onClick={() => void handleDispatch()} disabled={acting}
               style={{ padding: '7px 16px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 9,
-                cursor: acting ? 'default' : 'pointer', background: acting ? '#E8EDF2' : '#0098DA',
-                color: acting ? '#8FA0AF' : '#fff' }}>
+                cursor: acting ? 'default' : 'pointer', background: acting ? '#EBE7DA' : '#3E9849',
+                color: acting ? '#9AA79C' : '#fff' }}>
               {acting ? 'Processando...' : c.status === 'pausada' ? '▶ Retomar envio' : '▶ Disparar agora'}
             </button>
           )}
           {canPause && (
             <button onClick={() => void handleAction('pause')} disabled={acting}
-              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 9,
-                cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 9,
+                cursor: 'pointer', background: '#fff', color: '#71856F' }}>
               ⏸ Pausar
             </button>
           )}
@@ -269,7 +269,7 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
               Cancelar
             </button>
           )}
-          {actionMsg && <span style={{ fontSize: 11, color: '#5A7184', marginLeft: 4 }}>{actionMsg}</span>}
+          {actionMsg && <span style={{ fontSize: 11, color: '#71856F', marginLeft: 4 }}>{actionMsg}</span>}
         </div>
       )}
     </div>
@@ -457,8 +457,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
         {/* Header */}
         <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Nova campanha</h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8FA0AF', fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: 0 }}>Nova campanha</h2>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
           </div>
           {/* Progress steps */}
           <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
@@ -470,13 +470,13 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                 <div key={s} style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
-                      background: done ? '#4EB46B' : active ? '#0E2C3D' : '#F1F4F7',
-                      color: done || active ? '#fff' : '#8FA0AF', flexShrink: 0 }}>
+                      background: done ? '#3E9849' : active ? '#25402C' : '#F1EFE5',
+                      color: done || active ? '#fff' : '#9AA79C', flexShrink: 0 }}>
                       {done ? '✓' : idx}
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? '#0E2C3D' : done ? '#4EB46B' : '#8FA0AF' }}>{s}</span>
+                    <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? '#25402C' : done ? '#3E9849' : '#9AA79C' }}>{s}</span>
                   </div>
-                  {i < STEPS.length - 1 && <div style={{ flex: 1, height: 1, background: done ? '#4EB46B' : '#E8EDF2', margin: '0 8px' }} />}
+                  {i < STEPS.length - 1 && <div style={{ flex: 1, height: 1, background: done ? '#3E9849' : '#EBE7DA', margin: '0 8px' }} />}
                 </div>
               )
             })}
@@ -496,12 +496,12 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
               </div>
 
               {/* Seletor de source */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: '#F1F4F7', borderRadius: 10, padding: 4 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: '#F1EFE5', borderRadius: 10, padding: 4 }}>
                 {(['crm', 'xls'] as const).map(src => (
                   <button key={src} onClick={() => setAudienceSource(src)}
                     style={{ flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer',
                       background: audienceSource === src ? '#fff' : 'transparent',
-                      color: audienceSource === src ? '#0E2C3D' : '#8FA0AF',
+                      color: audienceSource === src ? '#25402C' : '#9AA79C',
                       boxShadow: audienceSource === src ? '0 1px 4px rgba(0,0,0,0.10)' : 'none' }}>
                     {src === 'crm' ? 'CRM' : 'Importar XLS'}
                   </button>
@@ -542,22 +542,22 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
                   <input type="checkbox" checked={includeNoOptin} onChange={e => setIncludeNoOptin(e.target.checked)}
-                    style={{ accentColor: '#0098DA', width: 14, height: 14 }} />
-                  <span style={{ fontSize: 12, color: '#5A7184' }}>Incluir contatos sem Autorização WA confirmada</span>
+                    style={{ accentColor: '#3E9849', width: 14, height: 14 }} />
+                  <span style={{ fontSize: 12, color: '#71856F' }}>Incluir contatos sem Autorização WA confirmada</span>
                 </label>
 
                 {loadingAudience ? (
-                  <p style={{ fontSize: 12, color: '#8FA0AF', textAlign: 'center', padding: '20px 0' }}>Carregando contatos...</p>
+                  <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '20px 0' }}>Carregando contatos...</p>
                 ) : (
-                  <div style={{ border: '1px solid #E8EDF2', borderRadius: 12, overflow: 'hidden' }}>
-                    <div style={{ padding: '12px 14px', background: '#F8FAFB', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                      <Stat label="Selecionados" val={audience.length} color="#0E2C3D" />
+                  <div style={{ border: '1px solid #EBE7DA', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 14px', background: '#FBFAF4', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                      <Stat label="Selecionados" val={audience.length} color="#25402C" />
                       <Stat label="Autorizados WA" val={withOptin} color="#166534" />
                       {withoutOptin > 0 && <Stat label="Sem autorização" val={withoutOptin} color="#C17A0A" />}
                       {optoutExcluded > 0 && <Stat label="Bloqueados" val={optoutExcluded} color="#B91C1C" />}
                     </div>
                     {withoutOptin > 0 && includeNoOptin && (
-                      <div style={{ padding: '10px 14px', background: withoutOptin / audience.length > 0.6 ? '#FEE2E2' : '#FEF3E2', borderTop: '1px solid #E8EDF2' }}>
+                      <div style={{ padding: '10px 14px', background: withoutOptin / audience.length > 0.6 ? '#FEE2E2' : '#FEF3E2', borderTop: '1px solid #EBE7DA' }}>
                         <p style={{ fontSize: 12, color: withoutOptin / audience.length > 0.6 ? '#B91C1C' : '#92400E', margin: 0, fontWeight: 600 }}>
                           {withoutOptin / audience.length > 0.6
                             ? `Atenção: ${Math.round(withoutOptin / audience.length * 100)}% da audiência não tem Autorização WA — risco elevado de denúncias`
@@ -567,10 +567,10 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                     )}
                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                       {audience.slice(0, 50).map(l => (
-                        <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid #F1F4F7' }}>
-                          <span style={{ fontSize: 12, color: '#0E2C3D' }}>{[l.nome, l.sobrenome].filter(Boolean).join(' ')}</span>
+                        <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid #F1EFE5' }}>
+                          <span style={{ fontSize: 12, color: '#25402C' }}>{[l.nome, l.sobrenome].filter(Boolean).join(' ')}</span>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <span style={{ fontSize: 11, color: '#8FA0AF' }}>{l.telefone}</span>
+                            <span style={{ fontSize: 11, color: '#9AA79C' }}>{l.telefone}</span>
                             {l.wa_optin_at
                               ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: '#DCFCE7', color: '#166534' }}>Autorizado WA</span>
                               : <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: '#FEF3E2', color: '#92400E' }}>Sem autorização</span>}
@@ -578,13 +578,13 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                         </div>
                       ))}
                       {audience.length > 50 && (
-                        <div style={{ padding: '8px 14px', borderTop: '1px solid #F1F4F7', textAlign: 'center' }}>
-                          <span style={{ fontSize: 11, color: '#8FA0AF' }}>... e mais {audience.length - 50} contatos</span>
+                        <div style={{ padding: '8px 14px', borderTop: '1px solid #F1EFE5', textAlign: 'center' }}>
+                          <span style={{ fontSize: 11, color: '#9AA79C' }}>... e mais {audience.length - 50} contatos</span>
                         </div>
                       )}
                       {audience.length === 0 && (
                         <div style={{ padding: '20px 14px', textAlign: 'center' }}>
-                          <span style={{ fontSize: 12, color: '#8FA0AF' }}>Nenhum contato encontrado com os filtros selecionados</span>
+                          <span style={{ fontSize: 12, color: '#9AA79C' }}>Nenhum contato encontrado com os filtros selecionados</span>
                         </div>
                       )}
                     </div>
@@ -600,7 +600,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
               <Label>Selecione o template</Label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
                 {templates.length === 0 && (
-                  <p style={{ fontSize: 12, color: '#8FA0AF', textAlign: 'center', padding: '20px 0' }}>
+                  <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '20px 0' }}>
                     Nenhum template ativo. Crie templates em Configurações → Templates WhatsApp.
                   </p>
                 )}
@@ -609,16 +609,16 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                   const isMkt = t.category !== 'utility'
                   return (
                     <label key={t.id} onClick={() => setTemplateId(t.id)}
-                      style={{ display: 'block', padding: '12px 14px', border: `1.5px solid ${sel ? '#0098DA' : '#E8EDF2'}`, borderRadius: 12,
-                        background: sel ? '#F0F8FF' : '#fff', cursor: 'pointer', transition: 'all .12s' }}>
+                      style={{ display: 'block', padding: '12px 14px', border: `1.5px solid ${sel ? '#3E9849' : '#EBE7DA'}`, borderRadius: 12,
+                        background: sel ? '#E8F4E6' : '#fff', cursor: 'pointer', transition: 'all .12s' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', flex: 1 }}>{t.name}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#25402C', flex: 1 }}>{t.name}</span>
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
                           background: isMkt ? '#FEE2E2' : '#DCFCE7', color: isMkt ? '#B91C1C' : '#166534' }}>
                           {isMkt ? `Marketing · R$0,37/msg` : `Utility · até R$0,04/msg`}
                         </span>
                       </div>
-                      <p style={{ fontSize: 12, color: '#5A7184', margin: 0, lineHeight: 1.4 }}>{t.content}</p>
+                      <p style={{ fontSize: 12, color: '#71856F', margin: 0, lineHeight: 1.4 }}>{t.content}</p>
                     </label>
                   )
                 })}
@@ -652,37 +652,37 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
               )}
 
               {/* Resumo */}
-              <div style={{ border: '1px solid #E8EDF2', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-                <div style={{ padding: '12px 16px', background: '#F8FAFB', borderBottom: '1px solid #E8EDF2' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: 0 }}>{nome}</p>
-                  <p style={{ fontSize: 11, color: '#8FA0AF', margin: '2px 0 0' }}>{selectedTemplate?.name} · {activeAudienceCount} destinatários{audienceSource === 'xls' ? ' (importados XLS)' : ''}</p>
+              <div style={{ border: '1px solid #EBE7DA', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                <div style={{ padding: '12px 16px', background: '#FBFAF4', borderBottom: '1px solid #EBE7DA' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0 }}>{nome}</p>
+                  <p style={{ fontSize: 11, color: '#9AA79C', margin: '2px 0 0' }}>{selectedTemplate?.name} · {activeAudienceCount} destinatários{audienceSource === 'xls' ? ' (importados XLS)' : ''}</p>
                 </div>
                 <div style={{ padding: '14px 16px' }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Custo estimado</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Custo estimado</p>
                   {isMarketing ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: '#0E2C3D' }}>Marketing · {activeAudienceCount} mensagens × R$0,37</span>
+                      <span style={{ fontSize: 12, color: '#25402C' }}>Marketing · {activeAudienceCount} mensagens × R$0,37</span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#B91C1C' }}>{fmtBrl(costEstimate.totalUsd)}</span>
                     </div>
                   ) : (
                     <>
                       {costEstimate.freeCount > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontSize: 12, color: '#0E2C3D' }}>Utility gratuito (janela aberta) · {costEstimate.freeCount} msgs</span>
+                          <span style={{ fontSize: 12, color: '#25402C' }}>Utility gratuito (janela aberta) · {costEstimate.freeCount} msgs</span>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>R$ 0,00</span>
                         </div>
                       )}
                       {costEstimate.paidCount > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontSize: 12, color: '#0E2C3D' }}>Utility cobrado · {costEstimate.paidCount} msgs × R$0,04</span>
+                          <span style={{ fontSize: 12, color: '#25402C' }}>Utility cobrado · {costEstimate.paidCount} msgs × R$0,04</span>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#F39313' }}>{fmtBrl(costEstimate.totalUsd)}</span>
                         </div>
                       )}
                     </>
                   )}
-                  <div style={{ borderTop: '1px solid #E8EDF2', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D' }}>Total estimado</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', letterSpacing: '-0.02em' }}>{fmtBrl(costEstimate.totalUsd)}</span>
+                  <div style={{ borderTop: '1px solid #EBE7DA', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#25402C' }}>Total estimado</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#25402C', letterSpacing: '-0.02em' }}>{fmtBrl(costEstimate.totalUsd)}</span>
                   </div>
                 </div>
               </div>
@@ -692,7 +692,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                 <Label>Agendar envio (opcional)</Label>
                 <input type="datetime-local" value={scheduleFor} onChange={e => setScheduleFor(e.target.value)}
                   style={{ ...inputSt, marginTop: 4 }} />
-                <p style={{ fontSize: 11, color: '#8FA0AF', margin: '4px 0 0' }}>
+                <p style={{ fontSize: 11, color: '#9AA79C', margin: '4px 0 0' }}>
                   Deixe em branco para salvar como rascunho e disparar manualmente.
                 </p>
               </div>
@@ -713,14 +713,14 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             {error && <p style={{ fontSize: 12, color: '#B91C1C', margin: 0 }}>{error}</p>}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 1 && (
               <button onClick={() => { setStep(s => (s - 1) as WizardStep); setError('') }}
-                style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+                style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
                 Voltar
               </button>
             )}
@@ -732,15 +732,15 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                   if (step === 2 && !templateId) { setError('Selecione um template.'); return }
                   setError(''); setStep(s => (s + 1) as WizardStep)
                 }}
-                style={{ padding: '9px 22px', fontSize: 13, fontWeight: 700, background: '#0E2C3D', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer' }}>
+                style={{ padding: '9px 22px', fontSize: 13, fontWeight: 700, background: '#25402C', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer' }}>
                 Próximo
               </button>
             ) : (
               <button onClick={() => void handleCreate()} disabled={saving || exceedsLimit}
                 style={{ padding: '9px 22px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
                   cursor: saving || exceedsLimit ? 'default' : 'pointer',
-                  background: saving || exceedsLimit ? '#E8EDF2' : '#0098DA',
-                  color: saving || exceedsLimit ? '#8FA0AF' : '#fff' }}>
+                  background: saving || exceedsLimit ? '#EBE7DA' : '#3E9849',
+                  color: saving || exceedsLimit ? '#9AA79C' : '#fff' }}>
                 {saving ? 'Salvando...' : scheduleFor ? 'Agendar campanha' : 'Criar rascunho'}
               </button>
             )}
@@ -754,26 +754,26 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
 // ── Helpers UI ────────────────────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <p style={{ fontSize: 12, fontWeight: 700, color: '#5A7184', margin: '0 0 5px' }}>{children}</p>
+  return <p style={{ fontSize: 12, fontWeight: 700, color: '#71856F', margin: '0 0 5px' }}>{children}</p>
 }
 
 function Stat({ label, val, color }: { label: string; val: number; color: string }) {
   return (
     <div>
-      <p style={{ fontSize: 10, color: '#8FA0AF', margin: 0 }}>{label}</p>
+      <p style={{ fontSize: 10, color: '#9AA79C', margin: 0 }}>{label}</p>
       <p style={{ fontSize: 16, fontWeight: 800, color, margin: '1px 0 0', letterSpacing: '-0.02em' }}>{val}</p>
     </div>
   )
 }
 
 const inputSt: React.CSSProperties = {
-  width: '100%', padding: '9px 12px', fontSize: 13, border: '1px solid #E8EDF2',
-  borderRadius: 10, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#0E2C3D',
+  width: '100%', padding: '9px 12px', fontSize: 13, border: '1px solid #EBE7DA',
+  borderRadius: 10, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#25402C',
 }
 
 const selectSt: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', fontSize: 12, border: '1px solid #E8EDF2',
-  borderRadius: 10, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#0E2C3D', cursor: 'pointer',
+  width: '100%', padding: '8px 10px', fontSize: 12, border: '1px solid #EBE7DA',
+  borderRadius: 10, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#25402C', cursor: 'pointer',
 }
 
 // ── XLS Importer ─────────────────────────────────────────────────────────────
@@ -873,22 +873,22 @@ function XlsImporter({ contacts, parsing, error, onParse, onParsing }: {
   return (
     <div>
       {/* Drop zone */}
-      <label style={{ display: 'block', border: '2px dashed #E8EDF2', borderRadius: 12, padding: '20px 16px', textAlign: 'center', cursor: 'pointer', background: '#F8FAFB', marginBottom: 12 }}>
+      <label style={{ display: 'block', border: '2px dashed #EBE7DA', borderRadius: 12, padding: '20px 16px', textAlign: 'center', cursor: 'pointer', background: '#FBFAF4', marginBottom: 12 }}>
         <input type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: 'none' }} />
         <svg width="28" height="28" fill="none" stroke="#C8D6E0" strokeWidth="1.5" viewBox="0 0 24 24" style={{ marginBottom: 6 }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', margin: '0 0 4px' }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: '#25402C', margin: '0 0 4px' }}>
           {parsing ? 'Processando...' : 'Clique para selecionar o arquivo CSV'}
         </p>
-        <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>
+        <p style={{ fontSize: 11, color: '#9AA79C', margin: 0 }}>
           CSV com colunas <strong>nome</strong> e <strong>telefone</strong> · separador ; ou ,
         </p>
       </label>
 
       {/* Modelo de download */}
-      <p style={{ fontSize: 11, color: '#8FA0AF', margin: '0 0 12px' }}>
-        Formato esperado: <code style={{ background: '#F1F4F7', padding: '1px 5px', borderRadius: 4 }}>nome;telefone</code> — uma linha por contato.
+      <p style={{ fontSize: 11, color: '#9AA79C', margin: '0 0 12px' }}>
+        Formato esperado: <code style={{ background: '#F1EFE5', padding: '1px 5px', borderRadius: 4 }}>nome;telefone</code> — uma linha por contato.
         Salve o Excel como "CSV UTF-8" antes de importar.
       </p>
 
@@ -901,10 +901,10 @@ function XlsImporter({ contacts, parsing, error, onParse, onParsing }: {
 
       {/* Preview */}
       {contacts.length > 0 && (
-        <div style={{ border: '1px solid #E8EDF2', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', background: '#F8FAFB', display: 'flex', gap: 16, alignItems: 'center' }}>
+        <div style={{ border: '1px solid #EBE7DA', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', background: '#FBFAF4', display: 'flex', gap: 16, alignItems: 'center' }}>
             <Stat label="Importados" val={contacts.length} color="#166534" />
-            <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0, flex: 1 }}>
+            <p style={{ fontSize: 11, color: '#9AA79C', margin: 0, flex: 1 }}>
               Todos marcados como Autorizado WA · leads criados somente se responderem
             </p>
             <button onClick={() => onParse([], '')}
@@ -914,14 +914,14 @@ function XlsImporter({ contacts, parsing, error, onParse, onParsing }: {
           </div>
           <div style={{ maxHeight: 180, overflowY: 'auto' }}>
             {contacts.slice(0, 50).map((c, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 14px', borderTop: '1px solid #F1F4F7' }}>
-                <span style={{ fontSize: 12, color: '#0E2C3D' }}>{c.nome}</span>
-                <span style={{ fontSize: 11, color: '#8FA0AF' }}>{c.telefone}</span>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 14px', borderTop: '1px solid #F1EFE5' }}>
+                <span style={{ fontSize: 12, color: '#25402C' }}>{c.nome}</span>
+                <span style={{ fontSize: 11, color: '#9AA79C' }}>{c.telefone}</span>
               </div>
             ))}
             {contacts.length > 50 && (
-              <div style={{ padding: '7px 14px', borderTop: '1px solid #F1F4F7', textAlign: 'center' }}>
-                <span style={{ fontSize: 11, color: '#8FA0AF' }}>... e mais {contacts.length - 50} contatos</span>
+              <div style={{ padding: '7px 14px', borderTop: '1px solid #F1EFE5', textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: '#9AA79C' }}>... e mais {contacts.length - 50} contatos</span>
               </div>
             )}
           </div>

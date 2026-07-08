@@ -22,9 +22,9 @@ interface Props {
 }
 
 const PRESET_COLORS = [
-  '#0098DA', '#25D366', '#F59E0B', '#EF4444',
+  '#3E9849', '#25D366', '#F59E0B', '#EF4444',
   '#8B5CF6', '#EC4899', '#14B8A6', '#F97316',
-  '#6366F1', '#84CC16', '#06B6D4', '#0E2C3D',
+  '#6366F1', '#84CC16', '#06B6D4', '#25402C',
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -38,9 +38,9 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
   const [showForm,    setShowForm]    = useState(false)
   const [editingId,   setEditingId]   = useState<string | null>(null)
   const [editNome,    setEditNome]    = useState('')
-  const [editCor,     setEditCor]     = useState('#0098DA')
+  const [editCor,     setEditCor]     = useState('#3E9849')
   const [newNome,     setNewNome]     = useState('')
-  const [newCor,      setNewCor]      = useState('#0098DA')
+  const [newCor,      setNewCor]      = useState('#3E9849')
   const [error,       setError]       = useState<string | null>(null)
 
   const [editAutoAssign, setEditAutoAssign] = useState(false)
@@ -58,7 +58,7 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
     setSaving(null)
     if (err) { setError(err.message); return }
     setFilas(prev => [...prev, data as Fila].sort((a, b) => a.nome.localeCompare(b.nome)))
-    setNewNome(''); setNewCor('#0098DA'); setShowForm(false)
+    setNewNome(''); setNewCor('#3E9849'); setShowForm(false)
   }
 
   function startEdit(f: Fila) {
@@ -131,12 +131,12 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Filas de Atendimento</h1>
-          <p style={{ fontSize: 13, color: '#8FA0AF', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#25402C', margin: 0 }}>Filas de Atendimento</h1>
+          <p style={{ fontSize: 13, color: '#9AA79C', margin: '4px 0 0' }}>
             Organize conversas em filas (ex: Comercial, Financeiro, Suporte). Atribua conversas a filas pelo painel do chat.
           </p>
         </div>
-        <button onClick={() => setShowForm(true)} style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 9, background: '#0098DA', color: '#fff', cursor: 'pointer', flexShrink: 0 }}>
+        <button onClick={() => setShowForm(true)} style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 9, background: '#3E9849', color: '#fff', cursor: 'pointer', flexShrink: 0 }}>
           + Nova fila
         </button>
       </div>
@@ -150,8 +150,8 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
 
       {/* Form nova fila */}
       {showForm && (
-        <div style={{ background: '#F0F8FF', border: '1px solid #B3DFFF', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', marginBottom: 12, marginTop: 0 }}>Nova fila</p>
+        <div style={{ background: '#E8F4E6', border: '1px solid #B5D6B3', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#25402C', marginBottom: 12, marginTop: 0 }}>Nova fila</p>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 200 }}>
               <label style={labelStyle}>Nome</label>
@@ -165,12 +165,12 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <button onClick={() => { setShowForm(false); setNewNome(''); setNewCor('#0098DA') }}
-              style={{ padding: '7px 14px', fontSize: 12, border: '1px solid #E8EDF2', borderRadius: 8, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>
+            <button onClick={() => { setShowForm(false); setNewNome(''); setNewCor('#3E9849') }}
+              style={{ padding: '7px 14px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 8, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>
               Cancelar
             </button>
             <button onClick={() => void createFila()} disabled={saving === 'new' || !newNome.trim()}
-              style={{ padding: '7px 18px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: newNome.trim() ? 'pointer' : 'default', background: newNome.trim() ? '#0098DA' : '#E8EDF2', color: newNome.trim() ? '#fff' : '#B0BEC9', opacity: saving === 'new' ? 0.7 : 1 }}>
+              style={{ padding: '7px 18px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: newNome.trim() ? 'pointer' : 'default', background: newNome.trim() ? '#3E9849' : '#EBE7DA', color: newNome.trim() ? '#fff' : '#9AA79C', opacity: saving === 'new' ? 0.7 : 1 }}>
               {saving === 'new' ? 'Salvando...' : 'Criar fila'}
             </button>
           </div>
@@ -178,15 +178,15 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
       )}
 
       {active.length === 0 && !showForm && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#B0BEC9' }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#5A7184', margin: 0 }}>Nenhuma fila criada</p>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9AA79C' }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#71856F', margin: 0 }}>Nenhuma fila criada</p>
           <p style={{ fontSize: 12, margin: '4px 0 0' }}>Crie filas para organizar o atendimento por equipe ou assunto.</p>
         </div>
       )}
 
       {active.length > 0 && (
         <>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Ativas ({active.length})</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Ativas ({active.length})</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
             {active.map(f => (
               <FilaRow key={f.id} fila={f} editing={editingId === f.id}
@@ -206,7 +206,7 @@ export default function FilasConfig({ currentUser, initialFilas, initialAgents, 
 
       {inactive.length > 0 && (
         <>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#B0BEC9', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Inativas ({inactive.length})</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Inativas ({inactive.length})</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {inactive.map(f => (
               <FilaRow key={f.id} fila={f} editing={editingId === f.id}
@@ -259,7 +259,7 @@ function FilaRow({ fila, editing,
     : []
 
   return (
-    <div style={{ background: '#fff', border: `1.5px solid ${fila.ativo ? '#F1F4F7' : '#F8FAFB'}`, borderRadius: 11, overflow: 'hidden', opacity: fila.ativo ? 1 : 0.6 }}>
+    <div style={{ background: '#fff', border: `1.5px solid ${fila.ativo ? '#F1EFE5' : '#FBFAF4'}`, borderRadius: 11, overflow: 'hidden', opacity: fila.ativo ? 1 : 0.6 }}>
       {editing ? (
         <div style={{ padding: '14px 16px' }}>
           {/* Nome + Cor */}
@@ -274,11 +274,11 @@ function FilaRow({ fila, editing,
           </div>
 
           {/* Distribuição */}
-          <div style={{ background: '#F8FAFB', borderRadius: 9, padding: '12px 14px', marginBottom: 14 }}>
+          <div style={{ background: '#FBFAF4', borderRadius: 9, padding: '12px 14px', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: editAutoAssign ? 12 : 0 }}>
               <div>
-                <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: 0 }}>Distribuição automática</p>
-                <p style={{ fontSize: 11, color: '#8FA0AF', margin: '2px 0 0' }}>Atribui agentes automaticamente ao mover para esta fila</p>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0 }}>Distribuição automática</p>
+                <p style={{ fontSize: 11, color: '#9AA79C', margin: '2px 0 0' }}>Atribui agentes automaticamente ao mover para esta fila</p>
               </div>
               <Toggle checked={editAutoAssign} onChange={onEditAutoAssign} />
             </div>
@@ -302,7 +302,7 @@ function FilaRow({ fila, editing,
                 {availableAgents.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <label style={labelStyle}>Agentes desta fila</label>
-                    <p style={{ fontSize: 11, color: '#8FA0AF', margin: '0 0 8px' }}>
+                    <p style={{ fontSize: 11, color: '#9AA79C', margin: '0 0 8px' }}>
                       {editAgentIds.length === 0 ? 'Nenhum selecionado — todos os atendentes são elegíveis' : `${editAgentIds.length} selecionado(s)`}
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -312,23 +312,23 @@ function FilaRow({ fila, editing,
                           <button key={a.id} onClick={() => toggleAgent(a.id)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
-                              border: `1.5px solid ${selected ? '#0098DA' : '#E8EDF2'}`,
-                              borderRadius: 8, background: selected ? '#F0F8FF' : '#fff',
+                              border: `1.5px solid ${selected ? '#3E9849' : '#EBE7DA'}`,
+                              borderRadius: 8, background: selected ? '#E8F4E6' : '#fff',
                               cursor: 'pointer', textAlign: 'left',
                             }}>
                             <span style={{
                               width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                              border: `2px solid ${selected ? '#0098DA' : '#D1D9E0'}`,
-                              background: selected ? '#0098DA' : 'transparent',
+                              border: `2px solid ${selected ? '#3E9849' : '#C9C3B2'}`,
+                              background: selected ? '#3E9849' : 'transparent',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                               {selected && <svg width="10" height="10" fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                             </span>
-                            <span style={{ fontSize: 12, fontWeight: selected ? 600 : 400, color: selected ? '#0E2C3D' : '#5A7184' }}>
+                            <span style={{ fontSize: 12, fontWeight: selected ? 600 : 400, color: selected ? '#25402C' : '#71856F' }}>
                               {displayName(a)}
                             </span>
                             {a.apelido && (
-                              <span style={{ fontSize: 11, color: '#8FA0AF' }}>{a.full_name}</span>
+                              <span style={{ fontSize: 11, color: '#9AA79C' }}>{a.full_name}</span>
                             )}
                           </button>
                         )
@@ -341,9 +341,9 @@ function FilaRow({ fila, editing,
           </div>
 
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onCancelEdit} style={{ padding: '7px 12px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>Cancelar</button>
+            <button onClick={onCancelEdit} style={{ padding: '7px 12px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>Cancelar</button>
             <button onClick={onSaveEdit} disabled={saving}
-              style={{ padding: '7px 14px', fontSize: 11, fontWeight: 700, border: 'none', borderRadius: 7, cursor: 'pointer', background: '#0098DA', color: '#fff', opacity: saving ? 0.7 : 1 }}>
+              style={{ padding: '7px 14px', fontSize: 11, fontWeight: 700, border: 'none', borderRadius: 7, cursor: 'pointer', background: '#3E9849', color: '#fff', opacity: saving ? 0.7 : 1 }}>
               {saving ? '...' : 'Salvar'}
             </button>
           </div>
@@ -352,16 +352,16 @@ function FilaRow({ fila, editing,
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px' }}>
             <div style={{ width: 12, height: 12, borderRadius: '50%', background: fila.cor, flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#0E2C3D' }}>{fila.nome}</span>
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#25402C' }}>{fila.nome}</span>
             {fila.auto_assign && (
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#E8F5FD', color: '#0086C2' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#E8F4E6', color: '#35853F' }}>
                 AUTO
               </span>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={onStartEdit} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: '#F8FAFB', color: '#5A7184' }}>Editar</button>
+              <button onClick={onStartEdit} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#FBFAF4', color: '#71856F' }}>Editar</button>
               <button onClick={onToggle} disabled={saving}
-                style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: fila.ativo ? '#FFF8E1' : '#E8F7EE', color: fila.ativo ? '#92400E' : '#1D9E75', opacity: saving ? 0.6 : 1 }}>
+                style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: fila.ativo ? '#FFF8E1' : '#E8F7EE', color: fila.ativo ? '#92400E' : '#1D9E75', opacity: saving ? 0.6 : 1 }}>
                 {fila.ativo ? 'Desativar' : 'Reativar'}
               </button>
               <button onClick={onDelete} disabled={deleting}
@@ -371,12 +371,12 @@ function FilaRow({ fila, editing,
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid #F1F4F7', padding: '10px 16px', background: '#FAFCFD' }}>
+          <div style={{ borderTop: '1px solid #F1EFE5', padding: '10px 16px', background: '#FBFAF4' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Toggle checked={fila.auto_assign ?? false} onChange={onToggleAutoAssign} disabled={saving} />
-              <span style={{ fontSize: 12, color: '#5A7184', fontWeight: 500 }}>Distribuição automática</span>
+              <span style={{ fontSize: 12, color: '#71856F', fontWeight: 500 }}>Distribuição automática</span>
               {fila.auto_assign && (
-                <span style={{ fontSize: 11, color: '#8FA0AF' }}>
+                <span style={{ fontSize: 11, color: '#9AA79C' }}>
                   {fila.distribution_method === 'round_robin' ? 'Round-robin' : 'Menor carga'} · máx {fila.max_per_agent ?? 10}/agente
                 </span>
               )}
@@ -385,7 +385,7 @@ function FilaRow({ fila, editing,
             {pinnedNames.length > 0 && (
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
                 {pinnedNames.map(name => (
-                  <span key={name} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: '#F1F4F7', color: '#5A7184' }}>
+                  <span key={name} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: '#F1EFE5', color: '#71856F' }}>
                     {name}
                   </span>
                 ))}
@@ -407,7 +407,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       disabled={disabled}
       style={{
         width: 36, height: 20, borderRadius: 99, border: 'none', cursor: disabled ? 'default' : 'pointer',
-        background: checked ? '#0098DA' : '#D1D9E0', position: 'relative', flexShrink: 0,
+        background: checked ? '#3E9849' : '#C9C3B2', position: 'relative', flexShrink: 0,
         transition: 'background 0.2s', padding: 0, opacity: disabled ? 0.6 : 1,
       }}
     >
@@ -428,7 +428,7 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 180 }}>
         {PRESET_COLORS.map(c => (
           <button key={c} onClick={() => onChange(c)}
-            style={{ width: 22, height: 22, borderRadius: '50%', background: c, border: value === c ? '3px solid #0E2C3D' : '2px solid transparent', cursor: 'pointer', flexShrink: 0, outline: 'none', padding: 0 }} />
+            style={{ width: 22, height: 22, borderRadius: '50%', background: c, border: value === c ? '3px solid #25402C' : '2px solid transparent', cursor: 'pointer', flexShrink: 0, outline: 'none', padding: 0 }} />
         ))}
       </div>
     </div>
@@ -437,5 +437,5 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#5A7184', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }
-const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 9, outline: 'none', boxSizing: 'border-box', color: '#0E2C3D' }
+const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#71856F', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 9, outline: 'none', boxSizing: 'border-box', color: '#25402C' }

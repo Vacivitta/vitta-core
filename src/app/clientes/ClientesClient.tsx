@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
+import Drawer from '@/components/ui/Drawer'
 import { ptBR } from 'date-fns/locale'
 import { useProfile } from '@/hooks/useProfile'
 import type { Lead, Unit } from '@/types/database'
@@ -208,16 +209,18 @@ export default function ClientesClient({
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--color-bg-app)' }}>
       {/* Header */}
-      <div className="bg-white px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <div className="bg-white shrink-0" style={{ borderBottom: '1px solid #E9E5D8', padding: '16px 26px' }}>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Clientes</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
+            <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#25402C', lineHeight: 1.3 }}>Clientes</h1>
+            <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: '2px' }}>{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl transition-colors"
-            style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
+            className="flex items-center gap-2 text-white transition-colors"
+            style={{ background: '#3E9849', fontSize: '13.5px', fontWeight: 800, padding: '10px 20px', borderRadius: '999px', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -227,7 +230,7 @@ export default function ClientesClient({
         </div>
 
         <div className="relative mt-3">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#9AA79C' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -235,7 +238,8 @@ export default function ClientesClient({
             placeholder="Buscar por nome, telefone, e-mail ou CPF..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+            className="w-full focus:outline-none"
+            style={{ border: '1px solid #EBE7DA', borderRadius: '999px', padding: '8px 14px 8px 36px', fontSize: '12.5px', fontWeight: 600, color: '#35543B', background: 'transparent' }}
           />
         </div>
       </div>
@@ -282,61 +286,64 @@ export default function ClientesClient({
       {/* Table */}
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+          <div className="flex flex-col items-center justify-center h-64" style={{ color: '#9AA79C' }}>
             <svg className="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <p className="text-sm">{search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado ainda'}</p>
+            <p style={{ fontSize: '13px', fontWeight: 600 }}>{search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado ainda'}</p>
             {!search && (
-              <button onClick={openCreate} className="mt-3 text-sm text-blue-500 hover:underline">
+              <button onClick={openCreate} className="mt-3 hover:underline" style={{ fontSize: '13px', fontWeight: 700, color: '#3E9849' }}>
                 Cadastrar primeiro cliente
               </button>
             )}
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="sticky top-0" style={{ background: '#F7FAFC', borderBottom: '1px solid var(--color-border)' }}>
+          <table className="w-full" style={{ fontSize: '13px' }}>
+            <thead className="sticky top-0" style={{ background: '#FBFAF4', borderBottom: '1px solid #EBE7DA' }}>
               <tr>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nome</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefone</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">E-mail</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">CPF</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cadastro</th>
+                <th className="text-left px-6 py-3 uppercase tracking-wide" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Nome</th>
+                <th className="text-left px-4 py-3 uppercase tracking-wide" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Telefone</th>
+                <th className="text-left px-4 py-3 uppercase tracking-wide" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>E-mail</th>
+                <th className="text-left px-4 py-3 uppercase tracking-wide" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>CPF</th>
+                <th className="text-left px-4 py-3 uppercase tracking-wide" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Cadastro</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y bg-white" style={{ borderColor: 'var(--color-border)' }}>
+            <tbody className="divide-y bg-white" style={{ borderColor: '#EBE7DA' }}>
               {filtered.map(c => (
                 <tr
                   key={c.id}
                   className="transition-colors"
-                  onMouseEnter={e => (e.currentTarget.style.background = '#F8FBFD')}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#FBFAF4')}
                   onMouseLeave={e => (e.currentTarget.style.background = '')}
                 >
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-brand-subtle)' }}>
-                        <span className="text-xs font-semibold" style={{ color: 'var(--color-brand)' }}>{c.nome[0].toUpperCase()}</span>
+                      <div className="rounded-full flex items-center justify-center shrink-0" style={{ width: 30, height: 30, background: '#D6EBD2' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{c.nome[0].toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{c.nome}{c.sobrenome ? ` ${c.sobrenome}` : ''}</p>
+                        <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>{c.nome}{c.sobrenome ? ` ${c.sobrenome}` : ''}</p>
                         {c.observacoes_cli && (
-                          <p className="text-xs text-gray-400 truncate max-w-xs">{c.observacoes_cli}</p>
+                          <p className="truncate max-w-xs" style={{ fontSize: '10.5px', fontWeight: 600, color: '#9AA79C' }}>{c.observacoes_cli}</p>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{c.telefone ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.cpf ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(c.created_at)}</td>
+                  <td className="px-4 py-3" style={{ color: '#71856F' }}>{c.telefone ?? '—'}</td>
+                  <td className="px-4 py-3" style={{ color: '#71856F' }}>{c.email ?? '—'}</td>
+                  <td className="px-4 py-3" style={{ color: '#71856F' }}>{c.cpf ?? '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap" style={{ fontSize: '12px', color: '#9AA79C' }}>{fmt(c.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       {c.telefone && (
                         <a
                           href={`/atendimento?numero=${c.telefone.replace(/\D/g, '')}`}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1.5 rounded-lg transition-colors"
+                          style={{ color: '#9AA79C' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                           title="Ir para atendimento"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,7 +353,10 @@ export default function ClientesClient({
                       )}
                       <a
                         href={`/orcamento?lead_id=${c.id}`}
-                        className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: '#9AA79C' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                         title="Orçamentos"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -355,7 +365,10 @@ export default function ClientesClient({
                       </a>
                       <button
                         onClick={() => openEdit(c)}
-                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: '#9AA79C' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                         title="Editar"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -365,7 +378,10 @@ export default function ClientesClient({
                       <button
                         onClick={() => handleDelete(c.id)}
                         disabled={deleting === c.id}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                        className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
+                        style={{ color: '#9AA79C' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#C05B3A'; e.currentTarget.style.background = '#F9E7E0' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                         title="Excluir"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -383,94 +399,89 @@ export default function ClientesClient({
 
       {/* Modal confirmação de duplicata */}
       {dupWarning && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(37,64,44,0.35)' }}>
+          <div className="bg-white w-full max-w-sm space-y-4" style={{ borderRadius: '18px', padding: '22px', boxShadow: '0 16px 40px -12px rgba(37,64,44,0.3)' }}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-center shrink-0" style={{ width: 40, height: 40, borderRadius: 12, background: '#FCF3E4' }}>
+                <svg className="w-5 h-5" style={{ color: '#C87F1B' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Possível duplicata detectada</p>
-                <p className="text-xs text-gray-500 mt-0.5">Já existe um cliente com dados similares:</p>
+                <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>Possível duplicata detectada</p>
+                <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: 2 }}>Já existe um cliente com dados similares:</p>
               </div>
             </div>
-            <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-700">
-              <p className="font-medium">{dupWarning.nome}{dupWarning.sobrenome ? ` ${dupWarning.sobrenome}` : ''}</p>
-              {dupWarning.telefone && <p className="text-xs text-gray-500">{dupWarning.telefone}</p>}
-              {dupWarning.email    && <p className="text-xs text-gray-500">{dupWarning.email}</p>}
+            <div style={{ background: '#FBFAF4', borderRadius: 13, padding: '12px 14px', border: '1px solid #EBE7DA' }}>
+              <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>{dupWarning.nome}{dupWarning.sobrenome ? ` ${dupWarning.sobrenome}` : ''}</p>
+              {dupWarning.telefone && <p style={{ fontSize: '11.5px', color: '#9AA79C', marginTop: 2 }}>{dupWarning.telefone}</p>}
+              {dupWarning.email    && <p style={{ fontSize: '11.5px', color: '#9AA79C', marginTop: 2 }}>{dupWarning.email}</p>}
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setDupWarning(null)}
-                className="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex-1 transition-colors"
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, color: '#71856F', border: '1px solid #EBE7DA', borderRadius: '999px' }}
               >
-                Cancelar
+                Revisar dados
               </button>
               <button
                 onClick={() => { setDupWarning(null); void handleSave(true) }}
-                className="flex-1 px-4 py-2 text-sm bg-amber-500 text-white font-medium rounded-xl hover:bg-amber-600 transition-colors"
+                className="flex-1 text-white transition-colors"
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 800, background: '#C87F1B', borderRadius: '999px' }}
               >
-                Criar mesmo assim
+                Cadastrar assim mesmo
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal create/edit */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-900">
-                {modal === 'create' ? 'Novo cliente' : 'Editar cliente'}
-              </h2>
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="px-6 py-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Nome *"             value={form.nome}            onChange={v => setForm(f => ({ ...f, nome: v }))} />
-                <Field label="Sobrenome"           value={form.sobrenome}       onChange={v => setForm(f => ({ ...f, sobrenome: v }))} />
-                <Field label="Telefone"            value={form.telefone}        onChange={v => setForm(f => ({ ...f, telefone: v }))} />
-                <Field label="E-mail"              value={form.email}           onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
-                <Field label="CPF"                 value={form.cpf}             onChange={v => setForm(f => ({ ...f, cpf: v }))} placeholder="000.000.000-00" />
-                <Field label="Data de nascimento"  value={form.data_nascimento} onChange={v => setForm(f => ({ ...f, data_nascimento: v }))} type="date" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
-                <textarea
-                  value={form.observacoes_cli}
-                  onChange={e => setForm(f => ({ ...f, observacoes_cli: e.target.value }))}
-                  rows={3}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-              {error && <p className="text-xs text-red-500">{error}</p>}
-            </div>
-
-            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleSave()}
-                disabled={saving}
-                className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-50 transition-colors"
-                style={{ background: 'var(--color-brand)', boxShadow: 'var(--shadow-btn-primary)' }}
-              >
-                {saving ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
+      {/* Drawer create/edit */}
+      <Drawer
+        open={!!modal}
+        onClose={() => setModal(null)}
+        title={modal === 'create' ? 'Novo cliente' : 'Editar cliente'}
+        width={440}
+        footer={
+          <>
+            <button onClick={() => setModal(null)} className="transition-colors" style={{ padding: '8px 18px', fontSize: '13px', fontWeight: 700, color: '#71856F', borderRadius: '999px', border: '1px solid #EBE7DA' }}>
+              Cancelar
+            </button>
+            <button
+              onClick={() => handleSave()}
+              disabled={saving}
+              className="text-white disabled:opacity-50 transition-colors"
+              style={{ padding: '8px 18px', fontSize: '13px', fontWeight: 800, background: '#3E9849', borderRadius: '999px', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
+            >
+              {saving ? 'Salvando...' : modal === 'create' ? 'Cadastrar cliente' : 'Salvar'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nome *"             value={form.nome}            onChange={v => setForm(f => ({ ...f, nome: v }))} />
+            <Field label="Sobrenome"           value={form.sobrenome}       onChange={v => setForm(f => ({ ...f, sobrenome: v }))} />
+            <Field label="Telefone"            value={form.telefone}        onChange={v => setForm(f => ({ ...f, telefone: v }))} />
+            <Field label="E-mail"              value={form.email}           onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
+            <Field label="CPF"                 value={form.cpf}             onChange={v => setForm(f => ({ ...f, cpf: v }))} placeholder="000.000.000-00" />
+            <Field label="Data de nascimento"  value={form.data_nascimento} onChange={v => setForm(f => ({ ...f, data_nascimento: v }))} type="date" />
           </div>
+          <div>
+            <label className="block mb-1" style={{ fontSize: '11.5px', fontWeight: 700, color: '#71856F' }}>Observações</label>
+            <textarea
+              value={form.observacoes_cli}
+              onChange={e => setForm(f => ({ ...f, observacoes_cli: e.target.value }))}
+              rows={3}
+              placeholder="Alergias, preferências, histórico…"
+              className="w-full resize-none focus:outline-none"
+              style={{ border: '1px solid #EBE7DA', borderRadius: '11px', padding: '8px 12px', fontSize: '13px', color: '#25402C' }}
+            />
+          </div>
+          {error && <p style={{ fontSize: '12px', fontWeight: 700, color: '#C05B3A' }}>{error}</p>}
         </div>
-      )}
+      </Drawer>
     </div>
   )
 }
@@ -480,13 +491,14 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <label className="block mb-1" style={{ fontSize: '11.5px', fontWeight: 700, color: '#71856F' }}>{label}</label>
       <input
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full focus:outline-none"
+        style={{ border: '1px solid #EBE7DA', borderRadius: '11px', padding: '8px 12px', fontSize: '13px', color: '#25402C' }}
       />
     </div>
   )

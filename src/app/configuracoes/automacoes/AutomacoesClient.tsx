@@ -46,14 +46,14 @@ const QUOTE_AUTOMATABLE: AutomationTrigger[] = ['criado', 'enviado', 'aceito', '
 
 const QUOTE_TRIGGER_META: Record<string, { label: string; desc: string; color: string }> = {
   criado:   { label: 'Orçamento Criado',      desc: 'Quando um orçamento é criado para o contato',       color: '#7C3AED' },
-  enviado:  { label: 'Enviado ao Paciente',   desc: 'Quando o link do orçamento é copiado/enviado',      color: '#0098DA' },
+  enviado:  { label: 'Enviado ao Paciente',   desc: 'Quando o link do orçamento é copiado/enviado',      color: '#3E9849' },
   aceito:   { label: 'Aceito pelo Paciente',  desc: 'Quando o paciente aceita o orçamento',              color: '#1D9E75' },
   recusado: { label: 'Recusado pelo Paciente',desc: 'Quando o paciente recusa o orçamento',              color: '#EF4444' },
 }
 
 const WA_TRIGGERS: { key: string; label: string; desc: string; color: string }[] = [
   { key: 'inbound_message',       label: 'Contato envia mensagem',   desc: 'Primeira mensagem recebida — aciona ao chegar no WhatsApp', color: '#25D366' },
-  { key: 'outbound_message',      label: 'Atendente responde',       desc: 'Quando qualquer atendente envia uma resposta ao contato',  color: '#0098DA' },
+  { key: 'outbound_message',      label: 'Atendente responde',       desc: 'Quando qualquer atendente envia uma resposta ao contato',  color: '#3E9849' },
   { key: 'conversation_resolved', label: 'Conversa resolvida',       desc: 'Quando a conversa é marcada como Resolvida',              color: '#1D9E75' },
 ]
 
@@ -152,9 +152,9 @@ export default function AutomacoesClient({ currentUser, stages, initialQuoteAuto
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
 
       {/* ── Page header ── */}
-      <header style={{ background: '#fff', borderBottom: '1px solid #F1F4F7', padding: '18px 28px', flexShrink: 0 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.02em' }}>Automações</h1>
-        <p style={{ fontSize: 12, color: '#8FA0AF', margin: '3px 0 0' }}>
+      <header style={{ background: '#fff', borderBottom: '1px solid #F1EFE5', padding: '18px 28px', flexShrink: 0 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, color: '#25402C', margin: 0, letterSpacing: '-0.02em' }}>Automações</h1>
+        <p style={{ fontSize: 12, color: '#9AA79C', margin: '3px 0 0' }}>
           Configure ações automáticas para movimentar contatos no funil com base em eventos
         </p>
       </header>
@@ -201,13 +201,13 @@ export default function AutomacoesClient({ currentUser, stages, initialQuoteAuto
           {/* ── Seção Orçamentos ── */}
           <Section
             icon={
-              <svg width="18" height="18" fill="none" stroke="#0098DA" viewBox="0 0 24 24">
+              <svg width="18" height="18" fill="none" stroke="#3E9849" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             }
             title="Automações de Orçamento"
             desc="Mova ou arquive o contato quando o status de um orçamento mudar"
-            accentColor="#0098DA"
+            accentColor="#3E9849"
             onSave={saveQuote}
             saving={savingQ}
             saved={savedQ}
@@ -250,8 +250,8 @@ function Section({ icon, title, desc, accentColor, onSave, saving, saved, childr
             {icon}
           </div>
           <div>
-            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.01em' }}>{title}</h2>
-            <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>{desc}</p>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#25402C', margin: 0, letterSpacing: '-0.01em' }}>{title}</h2>
+            <p style={{ fontSize: 11, color: '#9AA79C', margin: 0 }}>{desc}</p>
           </div>
         </div>
         <button
@@ -293,21 +293,21 @@ function AutomationCard({ label, desc, accentColor, row, stages, allStages, onCh
 
   return (
     <div style={{
-      background: '#fff', border: '1px solid #F1F4F7', borderRadius: 14,
+      background: '#fff', border: '1px solid #F1EFE5', borderRadius: 14,
       overflow: 'hidden', borderLeft: `3px solid ${accentColor}`,
     }}>
       {/* Trigger row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid #F8FAFB' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid #FBFAF4' }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: accentColor, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', margin: 0 }}>{label}</p>
-          <p style={{ fontSize: 11, color: '#8FA0AF', margin: 0 }}>{desc}</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#25402C', margin: 0 }}>{label}</p>
+          <p style={{ fontSize: 11, color: '#9AA79C', margin: 0 }}>{desc}</p>
         </div>
         {/* Quick status pill */}
         <span style={{
           fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, flexShrink: 0,
-          background: row.action !== 'none' ? accentColor + '18' : '#F1F4F7',
-          color: row.action !== 'none' ? accentColor : '#B0BEC9',
+          background: row.action !== 'none' ? accentColor + '18' : '#F1EFE5',
+          color: row.action !== 'none' ? accentColor : '#9AA79C',
         }}>
           {row.action === 'move_stage' ? 'Mover' : 'Sem ação'}
         </span>
@@ -315,7 +315,7 @@ function AutomationCard({ label, desc, accentColor, row, stages, allStages, onCh
 
       {/* Action config */}
       <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Ação automática</p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Ação automática</p>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {(['none', 'move_stage'] as Array<'none' | 'move_stage'>).map(a => (
@@ -324,9 +324,9 @@ function AutomationCard({ label, desc, accentColor, row, stages, allStages, onCh
               onClick={() => onChange({ action: a })}
               style={{
                 padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid', cursor: 'pointer', transition: 'all 0.15s',
-                background: row.action === a ? (a === 'none' ? '#F1F4F7' : accentColor) : '#fff',
-                color: row.action === a ? (a === 'none' ? '#5A7184' : '#fff') : '#8FA0AF',
-                borderColor: row.action === a ? (a === 'none' ? '#E8EDF2' : accentColor) : '#E8EDF2',
+                background: row.action === a ? (a === 'none' ? '#F1EFE5' : accentColor) : '#fff',
+                color: row.action === a ? (a === 'none' ? '#71856F' : '#fff') : '#9AA79C',
+                borderColor: row.action === a ? (a === 'none' ? '#EBE7DA' : accentColor) : '#EBE7DA',
               }}
             >
               {a === 'none' ? 'Nenhuma ação' : 'Mover contato para →'}
@@ -340,8 +340,8 @@ function AutomationCard({ label, desc, accentColor, row, stages, allStages, onCh
             onChange={e => onChange({ stage_id: e.target.value })}
             style={{
               width: '100%', fontSize: 13, padding: '8px 12px', borderRadius: 9,
-              border: `1px solid ${row.stage_id ? accentColor + '60' : '#E8EDF2'}`,
-              background: '#F8FAFB', outline: 'none', color: '#0E2C3D', cursor: 'pointer',
+              border: `1px solid ${row.stage_id ? accentColor + '60' : '#EBE7DA'}`,
+              background: '#FBFAF4', outline: 'none', color: '#25402C', cursor: 'pointer',
             }}
           >
             <option value="">Selecione um estágio...</option>
@@ -377,7 +377,7 @@ function AutomationCard({ label, desc, accentColor, row, stages, allStages, onCh
 // ── Shared ────────────────────────────────────────────────────────────────────
 
 function Divider() {
-  return <div style={{ height: 1, background: '#F1F4F7' }} />
+  return <div style={{ height: 1, background: '#F1EFE5' }} />
 }
 
 function Spinner() {

@@ -14,9 +14,9 @@ export default function TermosPage() {
 
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
-          <div className="h-1.5 bg-[#0098DA]" />
+          <div className="h-1.5 bg-[#3E9849]" />
           <div className="px-8 py-6">
-            <p className="text-xs font-semibold text-[#0098DA] uppercase tracking-widest mb-1">Vacivitta Saúde Integrada LTDA</p>
+            <p className="text-xs font-semibold text-[#3E9849] uppercase tracking-widest mb-1">Vacivitta Saúde Integrada LTDA</p>
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">
               Termos e Condições Gerais de Uso e Licenciamento
             </h1>
@@ -164,7 +164,7 @@ export default function TermosPage() {
           <section>
             <h2 className="text-base font-bold text-gray-900 mb-3">9. Privacidade e Proteção de Dados (LGPD)</h2>
             <p className="mb-2">
-              O tratamento de dados pessoais realizado no contexto do uso do Sistema VittaDesk é regido pela Lei Geral de Proteção de Dados Pessoais (LGPD — Lei n.º 13.709/2018) e detalhado no <strong>Aviso de Privacidade</strong> da Vacivitta, disponível em <a href="/privacidade" className="text-[#0098DA] underline">/privacidade</a>.
+              O tratamento de dados pessoais realizado no contexto do uso do Sistema VittaDesk é regido pela Lei Geral de Proteção de Dados Pessoais (LGPD — Lei n.º 13.709/2018) e detalhado no <strong>Aviso de Privacidade</strong> da Vacivitta, disponível em <a href="/privacidade" className="text-[#3E9849] underline">/privacidade</a>.
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Vacivitta como Controladora:</strong> A Vacivitta trata os dados cadastrais do Cliente (razão social, CNPJ, e-mail, telefone) como Controladora, para fins de gestão contratual e prestação do serviço.</li>
@@ -235,13 +235,13 @@ export default function TermosPage() {
             <p><strong>Vacivitta Saúde Integrada LTDA</strong></p>
             <p>CNPJ: 26.915.400/0001-10</p>
             <p>Rua Benjamin Constant, 185, Centro, Salto/SP — CEP: 13320-120</p>
-            <p className="mt-2">Dúvidas: <a href="mailto:contato@vacivitta.com.br" className="text-[#0098DA]">contato@vacivitta.com.br</a></p>
+            <p className="mt-2">Dúvidas: <a href="mailto:contato@vacivitta.com.br" className="text-[#3E9849]">contato@vacivitta.com.br</a></p>
           </div>
 
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6 pb-4">
-          © 2026 Vacivitta Saúde Integrada LTDA · <a href="/privacidade" className="text-[#0098DA]">Política de Privacidade</a>
+          © 2026 Vacivitta Saúde Integrada LTDA · <a href="/privacidade" className="text-[#3E9849]">Política de Privacidade</a>
         </p>
       </div>
     </div>

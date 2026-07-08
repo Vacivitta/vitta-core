@@ -150,21 +150,21 @@ export default function DateTimePicker({
         zIndex: 9999,
         background: '#fff', borderRadius: 16,
         boxShadow: '0 12px 40px rgba(14,44,61,0.18), 0 2px 8px rgba(14,44,61,0.08)',
-        border: '1px solid #E8EDF2', padding: '16px', width: 280,
+        border: '1px solid #EBE7DA', padding: '16px', width: 280,
       }}
     >
       {/* Navegação do mês */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <button type="button" onClick={() => setView(d => subMonths(d, 1))} style={navBtn}>
-          <svg width="13" height="13" fill="none" stroke="#5A7184" viewBox="0 0 24 24">
+          <svg width="13" height="13" fill="none" stroke="#71856F" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', textTransform: 'capitalize' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#25402C', textTransform: 'capitalize' }}>
           {format(view, "MMMM 'de' yyyy", { locale: ptBR })}
         </span>
         <button type="button" onClick={() => setView(d => addMonths(d, 1))} style={navBtn}>
-          <svg width="13" height="13" fill="none" stroke="#5A7184" viewBox="0 0 24 24">
+          <svg width="13" height="13" fill="none" stroke="#71856F" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
           </svg>
         </button>
@@ -173,7 +173,7 @@ export default function DateTimePicker({
       {/* Cabeçalho dias */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 4 }}>
         {['D','S','T','Q','Q','S','S'].map((d, i) => (
-          <div key={i} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#B0BEC9', padding: '2px 0' }}>
+          <div key={i} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#9AA79C', padding: '2px 0' }}>
             {d}
           </div>
         ))}
@@ -194,14 +194,14 @@ export default function DateTimePicker({
               disabled={disabled}
               style={{
                 width: 34, height: 34, borderRadius: 9, border: 'none',
-                background: sel ? '#0098DA' : isToday && !sel ? '#E8F5FD' : 'transparent',
-                color: sel ? '#fff' : !curMonth ? '#D1D9E0' : isToday ? '#0098DA' : '#0E2C3D',
+                background: sel ? '#3E9849' : isToday && !sel ? '#E8F4E6' : 'transparent',
+                color: sel ? '#fff' : !curMonth ? '#D1D9E0' : isToday ? '#3E9849' : '#25402C',
                 fontSize: 12, fontWeight: sel || isToday ? 700 : 400,
                 cursor: disabled ? 'default' : 'pointer',
                 opacity: disabled ? 0.3 : 1,
                 transition: 'background 0.1s',
               }}
-              onMouseEnter={e => { if (!sel && !disabled && curMonth) (e.currentTarget as HTMLElement).style.background = '#F1F4F7' }}
+              onMouseEnter={e => { if (!sel && !disabled && curMonth) (e.currentTarget as HTMLElement).style.background = '#F1EFE5' }}
               onMouseLeave={e => { if (!sel && !disabled) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
             >
               {format(day, 'd')}
@@ -211,11 +211,11 @@ export default function DateTimePicker({
       </div>
 
       {/* Seletor de hora */}
-      <div style={{ borderTop: '1px solid #F1F4F7', marginTop: 14, paddingTop: 14 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px' }}>Horário</p>
+      <div style={{ borderTop: '1px solid #F1EFE5', marginTop: 14, paddingTop: 14 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px' }}>Horário</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <TimeSpinner value={hour} min={0} max={23} onChange={setHour} label="h" />
-          <span style={{ fontSize: 18, fontWeight: 700, color: '#0E2C3D', lineHeight: 1 }}>:</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: '#25402C', lineHeight: 1 }}>:</span>
           <TimeSpinner value={minute} min={0} max={55} step={5} onChange={setMinute} label="min" />
         </div>
       </div>
@@ -223,11 +223,11 @@ export default function DateTimePicker({
       {/* Botões */}
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <button type="button" onClick={handleClear}
-          style={{ flex: 1, padding: '8px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 9, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+          style={{ flex: 1, padding: '8px', fontSize: 12, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 9, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
           Limpar
         </button>
         <button type="button" onClick={handleConfirm} disabled={!selDate}
-          style={{ flex: 2, padding: '8px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 9, cursor: selDate ? 'pointer' : 'default', background: selDate ? '#0098DA' : '#E8EDF2', color: selDate ? '#fff' : '#B0BEC9' }}>
+          style={{ flex: 2, padding: '8px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 9, cursor: selDate ? 'pointer' : 'default', background: selDate ? '#3E9849' : '#EBE7DA', color: selDate ? '#fff' : '#9AA79C' }}>
           Confirmar
         </button>
       </div>
@@ -237,7 +237,7 @@ export default function DateTimePicker({
   return (
     <div style={{ position: 'relative', ...style }}>
       {label && (
-        <p style={{ fontSize: 12, fontWeight: 700, color: '#5A7184', marginBottom: 6, marginTop: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#71856F', marginBottom: 6, marginTop: 0 }}>
           {label}
         </p>
       )}
@@ -249,16 +249,16 @@ export default function DateTimePicker({
         onClick={openPicker}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '9px 12px', border: `1px solid ${open ? '#0098DA' : '#E8EDF2'}`,
+          padding: '9px 12px', border: `1px solid ${open ? '#3E9849' : '#EBE7DA'}`,
           borderRadius: 11, background: '#fff', cursor: 'pointer', gap: 8,
-          boxShadow: open ? '0 0 0 3px rgba(0,152,218,0.12)' : 'none',
+          boxShadow: open ? '0 0 0 3px rgba(62,152,73,0.12)' : 'none',
           transition: 'border-color 0.15s, box-shadow 0.15s',
         }}
       >
-        <span style={{ fontSize: 13, color: displayLabel ? '#0E2C3D' : '#B0BEC9' }}>
+        <span style={{ fontSize: 13, color: displayLabel ? '#25402C' : '#9AA79C' }}>
           {displayLabel || placeholder}
         </span>
-        <svg width="15" height="15" fill="none" stroke={open ? '#0098DA' : '#8FA0AF'} viewBox="0 0 24 24">
+        <svg width="15" height="15" fill="none" stroke={open ? '#3E9849' : '#9AA79C'} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
@@ -282,18 +282,18 @@ function TimeSpinner({ value, min, max, step = 1, onChange, label }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <button type="button" onClick={inc} style={spinBtn}>
-        <svg width="12" height="12" fill="none" stroke="#5A7184" viewBox="0 0 24 24">
+        <svg width="12" height="12" fill="none" stroke="#71856F" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
         </svg>
       </button>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#0E2C3D', lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#25402C', lineHeight: 1, fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>
           {String(value).padStart(2, '0')}
         </div>
-        <div style={{ fontSize: 10, color: '#B0BEC9', fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 10, color: '#9AA79C', fontWeight: 600 }}>{label}</div>
       </div>
       <button type="button" onClick={dec} style={spinBtn}>
-        <svg width="12" height="12" fill="none" stroke="#5A7184" viewBox="0 0 24 24">
+        <svg width="12" height="12" fill="none" stroke="#71856F" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -304,13 +304,13 @@ function TimeSpinner({ value, min, max, step = 1, onChange, label }: {
 // ── Styles compartilhados ─────────────────────────────────────────────────────
 
 const navBtn: React.CSSProperties = {
-  background: '#F1F4F7', border: 'none', borderRadius: 8,
+  background: '#F1EFE5', border: 'none', borderRadius: 8,
   width: 30, height: 30, cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 
 const spinBtn: React.CSSProperties = {
-  background: '#F1F4F7', border: 'none', borderRadius: 7,
+  background: '#F1EFE5', border: 'none', borderRadius: 7,
   width: 28, height: 24, cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }

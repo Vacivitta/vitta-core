@@ -12,13 +12,13 @@ function Spinner({ size, color }: { size: number; color: string }) {
   return <div style={{ width: size, height: size, border: `2px solid ${color}33`, borderTopColor: color, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
 }
 
-function IconPhoto()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> }
-function IconVideo()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> }
-function IconAudio()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg> }
-function IconDocument() { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> }
-function IconTemplate() { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h18M3 12h18M3 16h10" /></svg> }
-function IconFlash()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> }
-function IconClock()    { return <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
+function IconPhoto()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> }
+function IconVideo()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> }
+function IconAudio()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg> }
+function IconDocument() { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> }
+function IconTemplate() { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8h18M3 12h18M3 16h10" /></svg> }
+function IconFlash()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> }
+function IconClock()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
 
 interface Props {
   value: string
@@ -286,40 +286,40 @@ export default function ChatInput({
 
       {/* Template popup */}
       {showTemplates && (
-        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 320, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #EBE7DA', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 320, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F1F4F7', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <IconTemplate /> <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: 0, flex: 1 }}>Modelos de Mensagem</p>
+            <IconTemplate /> <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Modelos de Mensagem</p>
             <button onClick={() => void syncTemplates()} disabled={tmplLoading} style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', opacity: tmplLoading ? 0.5 : 1 }}>{tmplLoading ? '...' : '↻ Meta'}</button>
-            <button onClick={() => setShowNewTmpl(v => !v)} style={{ fontSize: 10, fontWeight: 600, color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer' }}>+ Novo</button>
-            <button onClick={() => setShowTemplates(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', fontSize: 14, lineHeight: 1 }}>×</button>
+            <button onClick={() => setShowNewTmpl(v => !v)} style={{ fontSize: 10, fontWeight: 600, color: '#3E9849', background: 'none', border: 'none', cursor: 'pointer' }}>+ Novo</button>
+            <button onClick={() => setShowTemplates(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
           {showNewTmpl && (
-            <div style={{ padding: '10px 14px', background: '#F0F8FF', borderBottom: '1px solid #E8EDF2', flexShrink: 0 }}>
+            <div style={{ padding: '10px 14px', background: '#E8F4E6', borderBottom: '1px solid #EBE7DA', flexShrink: 0 }}>
               <input value={newTmplName} onChange={e => setNewTmplName(e.target.value)} placeholder="Nome do modelo..."
                 style={{ width: '100%', fontSize: 12, border: '1px solid #B3DFFF', borderRadius: 7, padding: '5px 8px', outline: 'none', marginBottom: 6, boxSizing: 'border-box', background: '#fff' }} />
               <textarea value={newTmplContent} onChange={e => setNewTmplContent(e.target.value)} placeholder="Texto da mensagem..." rows={2}
                 style={{ width: '100%', fontSize: 12, border: '1px solid #B3DFFF', borderRadius: 7, padding: '5px 8px', outline: 'none', resize: 'none', marginBottom: 6, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }} />
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => void saveTmpl()} disabled={saving} style={{ flex: 1, padding: '5px', fontSize: 11, fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? '...' : 'Salvar'}</button>
-                <button onClick={() => setShowNewTmpl(false)} style={{ flex: 1, padding: '5px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>Cancelar</button>
+                <button onClick={() => void saveTmpl()} disabled={saving} style={{ flex: 1, padding: '5px', fontSize: 11, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? '...' : 'Salvar'}</button>
+                <button onClick={() => setShowNewTmpl(false)} style={{ flex: 1, padding: '5px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>Cancelar</button>
               </div>
             </div>
           )}
           <div style={{ padding: '6px 10px', flexShrink: 0 }}>
             <input value={tmplSearch} onChange={e => setTmplSearch(e.target.value.toLowerCase())} placeholder="Buscar modelo..."
-              style={{ width: '100%', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, padding: '4px 8px', outline: 'none', boxSizing: 'border-box', background: '#F8FAFB' }} />
+              style={{ width: '100%', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, padding: '4px 8px', outline: 'none', boxSizing: 'border-box', background: '#F8FAFB' }} />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {tmplLoading && <p style={{ fontSize: 12, color: '#0098DA', textAlign: 'center', padding: '12px 0', margin: 0 }}>Buscando templates Meta...</p>}
-            {!tmplLoading && filtTmpls.length === 0 && <p style={{ fontSize: 12, color: '#B0BEC9', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum modelo — clique em ↻ Meta para sincronizar</p>}
+            {tmplLoading && <p style={{ fontSize: 12, color: '#3E9849', textAlign: 'center', padding: '12px 0', margin: 0 }}>Buscando templates Meta...</p>}
+            {!tmplLoading && filtTmpls.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum modelo — clique em ↻ Meta para sincronizar</p>}
             {filtTmpls.map(t => (
               <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 14px', borderBottom: '1px solid #F8FAFB', cursor: 'pointer' }} onClick={() => pickTemplate(t)}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D' }}>{t.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{t.name}</span>
                     {t.category === 'meta_api' && <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F7EE', color: '#1D9E75', borderRadius: 4, padding: '1px 5px' }}>META</span>}
                   </div>
-                  <p style={{ fontSize: 11, color: '#8FA0AF', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category === 'meta_api' ? `Template: ${t.template_name}` : t.content}</p>
+                  <p style={{ fontSize: 11, color: '#9AA79C', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category === 'meta_api' ? `Template: ${t.template_name}` : t.content}</p>
                 </div>
                 <button onClick={e => { e.stopPropagation(); void supabase.from('wa_message_templates').update({ ativo: false }).eq('id', t.id).then(() => void syncTemplates()) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', flexShrink: 0, lineHeight: 0, padding: 2 }}>
@@ -335,7 +335,7 @@ export default function ChatInput({
       {pendingFile && (
         <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E9E5D8', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(37,64,44,0.10)', zIndex: 96, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+            <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Enviar arquivo</p>
             <button onClick={cancelPendingFile} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
@@ -408,11 +408,11 @@ export default function ChatInput({
 
       {/* Quick replies popup */}
       {showQuickReplies && (
-        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 380, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #EBE7DA', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.10)', zIndex: 90, maxHeight: 380, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F1F4F7', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <IconFlash /> <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: 0, flex: 1 }}>Respostas Rápidas</p>
+            <IconFlash /> <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Respostas Rápidas</p>
             <button onClick={() => setShowNewQr(v => !v)} style={{ fontSize: 10, fontWeight: 600, color: '#F59E0B', background: 'none', border: 'none', cursor: 'pointer' }}>+ Nova</button>
-            <button onClick={() => setShowQuickReplies(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', fontSize: 14, lineHeight: 1 }}>×</button>
+            <button onClick={() => setShowQuickReplies(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
           {showNewQr && (
             <div style={{ padding: '10px 14px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', flexShrink: 0 }}>
@@ -424,21 +424,21 @@ export default function ChatInput({
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => void saveQr()} disabled={saving} style={{ flex: 1, padding: '5px', fontSize: 11, fontWeight: 700, background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? '...' : 'Salvar'}</button>
-                <button onClick={() => setShowNewQr(false)} style={{ flex: 1, padding: '5px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>Cancelar</button>
+                <button onClick={() => setShowNewQr(false)} style={{ flex: 1, padding: '5px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>Cancelar</button>
               </div>
             </div>
           )}
           <div style={{ padding: '6px 10px', flexShrink: 0 }}>
             <input value={qrFilter} onChange={e => setQrFilter(e.target.value.toLowerCase())} placeholder="Buscar atalho ou digite / no chat..."
-              style={{ width: '100%', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, padding: '4px 8px', outline: 'none', boxSizing: 'border-box', background: '#F8FAFB' }} />
+              style={{ width: '100%', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, padding: '4px 8px', outline: 'none', boxSizing: 'border-box', background: '#F8FAFB' }} />
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtQrs.length === 0 && <p style={{ fontSize: 12, color: '#B0BEC9', textAlign: 'center', padding: '12px 0', margin: 0 }}>{quickReplies.length === 0 ? 'Nenhuma ainda. Crie com + Nova.' : 'Nenhum resultado'}</p>}
+            {filtQrs.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '12px 0', margin: 0 }}>{quickReplies.length === 0 ? 'Nenhuma ainda. Crie com + Nova.' : 'Nenhum resultado'}</p>}
             {filtQrs.map(qr => (
               <div key={qr.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 14px', borderBottom: '1px solid #F8FAFB', cursor: 'pointer' }} onClick={() => pickQuickReply(qr)}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', fontFamily: 'monospace' }}>{qr.shortcut}</span>
-                  <p style={{ fontSize: 11, color: '#5A7184', margin: '2px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>{qr.content}</p>
+                  <p style={{ fontSize: 11, color: '#71856F', margin: '2px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>{qr.content}</p>
                 </div>
                 <button onClick={e => { e.stopPropagation(); void supabase.from('wa_quick_replies').update({ ativo: false }).eq('id', qr.id).then(onQuickRepliesReload) }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', flexShrink: 0, lineHeight: 0, padding: 2 }}>
@@ -466,16 +466,16 @@ export default function ChatInput({
       {/* Mode toggle + formatting toolbar */}
       <div style={{ padding: '8px 14px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
         <button onClick={() => { onModeChange('text'); setScheduleMode(false); setScheduleTemplate(null) }}
-          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: !isNote ? '#0098DA' : '#F1F4F7', color: !isNote ? '#fff' : '#8FA0AF' }}>
+          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: !isNote ? '#3E9849' : '#F1F4F7', color: !isNote ? '#fff' : '#9AA79C' }}>
           Mensagem
         </button>
         <button onClick={() => { onModeChange('note'); setScheduleMode(false); setScheduleTemplate(null); setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) }}
-          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: isNote ? '#F59E0B' : '#F1F4F7', color: isNote ? '#fff' : '#8FA0AF' }}>
+          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: isNote ? '#F59E0B' : '#F1F4F7', color: isNote ? '#fff' : '#9AA79C' }}>
           Nota interna
         </button>
         {!isNote && (
           <>
-            <div style={{ width: 1, height: 16, background: '#E8EDF2', marginInline: 2 }} />
+            <div style={{ width: 1, height: 16, background: '#EBE7DA', marginInline: 2 }} />
             {([['*', 'B', 'Negrito (Ctrl+B)', { fontWeight: 700 }], ['_', 'I', 'Itálico (Ctrl+I)', { fontStyle: 'italic' as const }], ['~', 'S', 'Riscado (Ctrl+Shift+X)', { textDecoration: 'line-through' }]] as const).map(([marker, label, title, css]) => (
               <button key={marker} title={title as string}
                 onClick={() => {
@@ -486,14 +486,14 @@ export default function ChatInput({
                   onChange(value.slice(0, s) + marker + value.slice(s, end) + marker + value.slice(end))
                   requestAnimationFrame(() => { ta.setSelectionRange(s + 1, end + 1) })
                 }}
-                style={{ width: 24, height: 22, borderRadius: 4, border: '1px solid #E8EDF2', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#667781', ...(css as React.CSSProperties) }}
+                style={{ width: 24, height: 22, borderRadius: 4, border: '1px solid #EBE7DA', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#667781', ...(css as React.CSSProperties) }}
               >{label}</button>
             ))}
           </>
         )}
         {!isNote && (
           <button onClick={onToggleSignature} title={signatureEnabled ? `Assinatura ativa: "${signerName}: ..."` : 'Ativar assinatura'}
-            style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, border: `1px solid ${signatureEnabled ? '#0098DA' : '#E8EDF2'}`, cursor: 'pointer', background: signatureEnabled ? '#EFF7FF' : '#F8FAFB', color: signatureEnabled ? '#0098DA' : '#8FA0AF', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+            style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, border: `1px solid ${signatureEnabled ? '#3E9849' : '#EBE7DA'}`, cursor: 'pointer', background: signatureEnabled ? '#EFF7FF' : '#F8FAFB', color: signatureEnabled ? '#3E9849' : '#9AA79C', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
@@ -509,7 +509,7 @@ export default function ChatInput({
           <div style={{ flex: 1 }}>
             <DateTimePicker value={scheduleFor} onChange={v => setScheduleFor(v)} placeholder="Selecionar data e hora" minNow />
           </div>
-          <button onClick={() => { setScheduleMode(false); setScheduleFor(''); setScheduleTemplate(null) }} style={{ fontSize: 13, color: '#B0BEC9', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={() => { setScheduleMode(false); setScheduleFor(''); setScheduleTemplate(null) }} style={{ fontSize: 13, color: '#9AA79C', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
       )}
 
@@ -530,19 +530,19 @@ export default function ChatInput({
         {!isNote && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setAttachOpen(v => !v)} title="Anexar / ferramentas"
-              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${attachOpen ? '#0098DA' : '#E8EDF2'}`, background: attachOpen ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" fill="none" stroke={attachOpen ? '#0098DA' : '#8FA0AF'} viewBox="0 0 24 24">
+              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${attachOpen ? '#3E9849' : '#EBE7DA'}`, background: attachOpen ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" fill="none" stroke={attachOpen ? '#3E9849' : '#9AA79C'} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
             </button>
             {attachOpen && (
-              <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, background: '#fff', border: '1px solid #E8EDF2', borderRadius: 12, boxShadow: '0 -4px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 210, overflow: 'hidden', paddingBlock: 4 }}>
+              <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 12, boxShadow: '0 -4px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 210, overflow: 'hidden', paddingBlock: 4 }}>
                 {attachItems.map((item, i) =>
                   item === null
                     ? <div key={`div-${i}`} style={{ height: 1, background: '#F1F4F7', margin: '4px 0' }} />
                     : (
                       <button key={item.key} onClick={item.action}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: '#0E2C3D', fontWeight: 500 }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: '#25402C', fontWeight: 500 }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFB')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                         {item.icon}{item.label}
@@ -557,12 +557,12 @@ export default function ChatInput({
         {!isNote && (
           <div ref={emojiPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setShowEmoji(v => !v)} title="Emoji"
-              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${showEmoji ? '#0098DA' : '#E8EDF2'}`, background: showEmoji ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" fill="none" stroke={showEmoji ? '#0098DA' : '#8FA0AF'} viewBox="0 0 24 24">
+              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${showEmoji ? '#3E9849' : '#EBE7DA'}`, background: showEmoji ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" fill="none" stroke={showEmoji ? '#3E9849' : '#9AA79C'} viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M8 13.5s1.5 2 4 2 4-2 4-2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="9" cy="9.5" r="0.5" fill={showEmoji ? '#0098DA' : '#8FA0AF'} strokeWidth="1.5" />
-                <circle cx="15" cy="9.5" r="0.5" fill={showEmoji ? '#0098DA' : '#8FA0AF'} strokeWidth="1.5" />
+                <circle cx="9" cy="9.5" r="0.5" fill={showEmoji ? '#3E9849' : '#9AA79C'} strokeWidth="1.5" />
+                <circle cx="15" cy="9.5" r="0.5" fill={showEmoji ? '#3E9849' : '#9AA79C'} strokeWidth="1.5" />
               </svg>
             </button>
             {showEmoji && (
@@ -581,8 +581,8 @@ export default function ChatInput({
               <span style={{ fontSize: 11, color: '#F87171', flex: 1 }}>Gravando áudio...</span>
             </div>
             <button onClick={() => stopRecording(false)} title="Cancelar"
-              style={{ width: 38, height: 38, borderRadius: 9, border: '1px solid #E8EDF2', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="14" height="14" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              style={{ width: 38, height: 38, borderRadius: 9, border: '1px solid #EBE7DA', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="14" height="14" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <button onClick={() => stopRecording(true)} title="Enviar áudio"
               style={{ width: 38, height: 38, borderRadius: 9, border: 'none', background: '#25D366', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -615,7 +615,7 @@ export default function ChatInput({
               onBlur={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               onSelect={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleTemplate ? 'Template selecionado acima — escolha a data e clique em Agendar' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}
-              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#E8EDF2'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, minHeight: 38, maxHeight: 200, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#F8FAFB' }}
+              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#EBE7DA'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, minHeight: 38, maxHeight: 200, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#F8FAFB' }}
             />
             {scheduleMode ? (
               <button onClick={() => {
@@ -625,18 +625,18 @@ export default function ChatInput({
                   setScheduleMode(false); setScheduleFor(''); setScheduleTemplate(null)
                 }}
                 disabled={!scheduleFor || (!value.trim() && !scheduleTemplate)}
-                style={{ padding: '0 14px', height: 38, borderRadius: 9, flexShrink: 0, cursor: scheduleFor && (value.trim() || scheduleTemplate) ? 'pointer' : 'default', background: scheduleFor && (value.trim() || scheduleTemplate) ? '#8B5CF6' : '#E8EDF2', border: 'none', fontSize: 11, fontWeight: 700, color: scheduleFor && (value.trim() || scheduleTemplate) ? '#fff' : '#B0BEC9', whiteSpace: 'nowrap' }}>
+                style={{ padding: '0 14px', height: 38, borderRadius: 9, flexShrink: 0, cursor: scheduleFor && (value.trim() || scheduleTemplate) ? 'pointer' : 'default', background: scheduleFor && (value.trim() || scheduleTemplate) ? '#8B5CF6' : '#EBE7DA', border: 'none', fontSize: 11, fontWeight: 700, color: scheduleFor && (value.trim() || scheduleTemplate) ? '#fff' : '#9AA79C', whiteSpace: 'nowrap' }}>
                 Agendar ▶
               </button>
             ) : value.trim() ? (
               <button onClick={onSend} disabled={sending}
-                style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, cursor: !sending ? 'pointer' : 'default', background: isNote ? '#F59E0B' : '#0098DA', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, cursor: !sending ? 'pointer' : 'default', background: isNote ? '#F59E0B' : '#3E9849', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {sending ? <Spinner size={16} color="#fff" /> : <svg width="17" height="17" fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
               </button>
             ) : !isNote ? (
               <button onClick={() => void startRecording()} title="Gravar áudio"
-                style={{ width: 38, height: 38, borderRadius: 9, border: '1px solid #E8EDF2', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="16" height="16" fill="none" stroke="#8FA0AF" viewBox="0 0 24 24">
+                style={{ width: 38, height: 38, borderRadius: 9, border: '1px solid #EBE7DA', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" />
                 </svg>

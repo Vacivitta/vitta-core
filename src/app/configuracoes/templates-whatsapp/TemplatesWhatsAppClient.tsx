@@ -30,8 +30,8 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> 
   APPROVED: { bg: '#E8F7EE', text: '#1D9E75', label: 'Aprovado' },
   PENDING:  { bg: '#FFF8E1', text: '#F57F17', label: 'Pendente' },
   REJECTED: { bg: '#FEECEC', text: '#C0392B', label: 'Reprovado' },
-  PAUSED:   { bg: '#F1F4F7', text: '#8FA0AF', label: 'Pausado' },
-  DISABLED: { bg: '#F1F4F7', text: '#8FA0AF', label: 'Desativado' },
+  PAUSED:   { bg: '#F1EFE5', text: '#9AA79C', label: 'Pausado' },
+  DISABLED: { bg: '#F1EFE5', text: '#9AA79C', label: 'Desativado' },
 }
 
 // Variáveis disponíveis para inserção
@@ -66,7 +66,7 @@ function WhatsAppPreview({
 
   return (
     <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <p style={{ fontSize: 11, fontWeight: 700, color: '#5A7184', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>Preview</p>
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#71856F', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>Preview</p>
 
       {/* Phone shell */}
       <div style={{
@@ -96,7 +96,7 @@ function WhatsAppPreview({
         {/* Chat area */}
         <div style={{ padding: '0 4px' }}>
           {!hasContent ? (
-            <p style={{ fontSize: 11, color: '#8FA0AF', textAlign: 'center', marginTop: 40 }}>Preencha o formulário para ver o preview</p>
+            <p style={{ fontSize: 11, color: '#9AA79C', textAlign: 'center', marginTop: 40 }}>Preencha o formulário para ver o preview</p>
           ) : (
             <div style={{
               background: '#fff',
@@ -114,8 +114,8 @@ function WhatsAppPreview({
                 headerImageUrl ? (
                   <img src={headerImageUrl} alt="Header" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', display: 'block' }} />
                 ) : (
-                  <div style={{ width: '100%', height: 80, background: '#F1F4F7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 10, color: '#B0BEC9' }}>📷 Imagem do cabeçalho</span>
+                  <div style={{ width: '100%', height: 80, background: '#F1EFE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#9AA79C' }}>📷 Imagem do cabeçalho</span>
                   </div>
                 )
               )}
@@ -132,11 +132,11 @@ function WhatsAppPreview({
                   </p>
                 )}
                 {resolvedFooter && (
-                  <p style={{ margin: '6px 0 0', fontSize: 10, color: '#8FA0AF', lineHeight: 1.4 }}>
+                  <p style={{ margin: '6px 0 0', fontSize: 10, color: '#9AA79C', lineHeight: 1.4 }}>
                     {resolvedFooter}
                   </p>
                 )}
-                <p style={{ margin: '4px 0 0', fontSize: 9, color: '#8FA0AF', textAlign: 'right' }}>14:30 ✓✓</p>
+                <p style={{ margin: '4px 0 0', fontSize: 9, color: '#9AA79C', textAlign: 'right' }}>14:30 ✓✓</p>
               </div>
             </div>
           )}
@@ -145,7 +145,7 @@ function WhatsAppPreview({
 
       {/* Legenda de variáveis */}
       {varOrder.length > 0 && (
-        <div style={{ background: '#F0F8FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ background: '#E8F4E6', border: '1px solid #B5D6B3', borderRadius: 10, padding: '10px 12px' }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Variáveis no template</p>
           {varOrder.map((varId, i) => {
             const v = VARIABLES.find(x => x.id === varId)
@@ -362,18 +362,18 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Templates WhatsApp</h1>
-          <p style={{ fontSize: 13, color: '#8FA0AF', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#25402C', margin: 0 }}>Templates WhatsApp</h1>
+          <p style={{ fontSize: 13, color: '#9AA79C', margin: '4px 0 0' }}>
             Templates criados aqui são enviados ao Meta para aprovação e ficam disponíveis no chat após aprovados.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button onClick={() => void loadTemplates()} disabled={loading}
-            style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EDF2', borderRadius: 9, background: '#F8FAFB', cursor: 'pointer', color: '#5A7184' }}>
+            style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 9, background: '#FBFAF4', cursor: 'pointer', color: '#71856F' }}>
             {loading ? '...' : '↻ Atualizar'}
           </button>
           <button onClick={() => { resetForm(); setShowForm(true) }}
-            style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 9, background: '#0098DA', color: '#fff', cursor: 'pointer' }}>
+            style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 9, background: '#3E9849', color: '#fff', cursor: 'pointer' }}>
             + Novo template
           </button>
         </div>
@@ -404,7 +404,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
         ].map(f => (
           <button key={f.value} onClick={() => setFilterStatus(f.value)}
             style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 99, border: '1px solid', cursor: 'pointer',
-              background: filterStatus === f.value ? '#0E2C3D' : 'transparent', color: filterStatus === f.value ? '#fff' : '#8FA0AF', borderColor: filterStatus === f.value ? '#0E2C3D' : '#E8EDF2' }}>
+              background: filterStatus === f.value ? '#25402C' : 'transparent', color: filterStatus === f.value ? '#fff' : '#9AA79C', borderColor: filterStatus === f.value ? '#25402C' : '#EBE7DA' }}>
             {f.label}
           </button>
         ))}
@@ -421,7 +421,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
       {/* Loading */}
       {loading && !error && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-          <Spinner /> <span style={{ marginLeft: 10, color: '#8FA0AF', fontSize: 13 }}>Carregando templates do Meta...</span>
+          <Spinner /> <span style={{ marginLeft: 10, color: '#9AA79C', fontSize: 13 }}>Carregando templates do Meta...</span>
         </div>
       )}
 
@@ -429,7 +429,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
       {!loading && !error && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtered.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: '#B0BEC9', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#9AA79C', fontSize: 13 }}>
               {templates.length === 0 ? 'Nenhum template ainda. Crie o primeiro acima.' : 'Nenhum template com este filtro.'}
             </div>
           )}
@@ -441,25 +441,25 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
             const headerFmt   = headerComp?.format ?? ''
             const footer      = t.components?.find(c => c.type === 'FOOTER')?.text ?? ''
             return (
-              <div key={t.id} style={{ background: '#fff', border: '1px solid #F1F4F7', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div key={t.id} style={{ background: '#fff', border: '1px solid #F1EFE5', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#0E2C3D', fontFamily: 'monospace' }}>{t.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#25402C', fontFamily: 'monospace' }}>{t.name}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: st.bg, color: st.text }}>{st.label}</span>
-                      <span style={{ fontSize: 10, color: '#B0BEC9', background: '#F1F4F7', padding: '2px 7px', borderRadius: 99 }}>{t.category}</span>
-                      <span style={{ fontSize: 10, color: '#B0BEC9', background: '#F1F4F7', padding: '2px 7px', borderRadius: 99 }}>{t.language}</span>
-                      {headerFmt === 'IMAGE' && <span style={{ fontSize: 10, color: '#0098DA', background: '#EFF6FF', padding: '2px 7px', borderRadius: 99 }}>📷 Imagem</span>}
+                      <span style={{ fontSize: 10, color: '#9AA79C', background: '#F1EFE5', padding: '2px 7px', borderRadius: 99 }}>{t.category}</span>
+                      <span style={{ fontSize: 10, color: '#9AA79C', background: '#F1EFE5', padding: '2px 7px', borderRadius: 99 }}>{t.language}</span>
+                      {headerFmt === 'IMAGE' && <span style={{ fontSize: 10, color: '#3E9849', background: '#E8F4E6', padding: '2px 7px', borderRadius: 99 }}>📷 Imagem</span>}
                     </div>
                     {/* Preview */}
-                    <div style={{ background: '#F8FAFB', border: '1px solid #E8EDF2', borderRadius: 10, overflow: 'hidden', maxWidth: 420 }}>
+                    <div style={{ background: '#FBFAF4', border: '1px solid #EBE7DA', borderRadius: 10, overflow: 'hidden', maxWidth: 420 }}>
                       {headerFmt === 'IMAGE' && (
-                        <div style={{ padding: '8px 12px 0', fontSize: 11, color: '#8FA0AF' }}>📷 <em>Cabeçalho com imagem</em></div>
+                        <div style={{ padding: '8px 12px 0', fontSize: 11, color: '#9AA79C' }}>📷 <em>Cabeçalho com imagem</em></div>
                       )}
                       <div style={{ padding: '10px 12px' }}>
-                        {headerText && <p style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D', margin: '0 0 6px' }}>{headerText}</p>}
-                        <p style={{ fontSize: 12, color: '#0E2C3D', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body || '(sem corpo)'}</p>
-                        {footer && <p style={{ fontSize: 11, color: '#8FA0AF', margin: '6px 0 0' }}>{footer}</p>}
+                        {headerText && <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: '0 0 6px' }}>{headerText}</p>}
+                        <p style={{ fontSize: 12, color: '#25402C', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body || '(sem corpo)'}</p>
+                        {footer && <p style={{ fontSize: 11, color: '#9AA79C', margin: '6px 0 0' }}>{footer}</p>}
                       </div>
                     </div>
                     {t.rejected_reason && (
@@ -483,9 +483,9 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
           <div style={{ background: '#fff', borderRadius: 18, width: '100%', maxWidth: 920, boxShadow: '0 20px 60px rgba(0,0,0,0.22)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
 
             {/* Modal header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid #F1F4F7', flexShrink: 0 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Novo template WhatsApp</h2>
-              <button onClick={() => { setShowForm(false); resetForm() }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid #F1EFE5', flexShrink: 0 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#25402C', margin: 0 }}>Novo template WhatsApp</h2>
+              <button onClick={() => { setShowForm(false); resetForm() }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>×</button>
             </div>
 
             {/* Two-column body */}
@@ -501,7 +501,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                     <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
                       placeholder="ex: confirmacao_consulta"
                       style={inputStyle} />
-                    <p style={{ fontSize: 10, color: '#B0BEC9', margin: '3px 0 0' }}>Apenas letras minúsculas, números e underscore. Imutável após criação.</p>
+                    <p style={{ fontSize: 10, color: '#9AA79C', margin: '3px 0 0' }}>Apenas letras minúsculas, números e underscore. Imutável após criação.</p>
                   </div>
 
                   {/* Category */}
@@ -509,11 +509,11 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                     <label style={labelStyle}>Categoria *</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {CATEGORIES.map(c => (
-                        <label key={c.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', border: `1.5px solid ${form.category === c.value ? '#0098DA' : '#E8EDF2'}`, borderRadius: 9, cursor: 'pointer', background: form.category === c.value ? '#F0F8FF' : '#fff' }}>
-                          <input type="radio" name="category" value={c.value} checked={form.category === c.value} onChange={() => setForm(f => ({ ...f, category: c.value as typeof f.category }))} style={{ accentColor: '#0098DA', marginTop: 2, flexShrink: 0 }} />
+                        <label key={c.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', border: `1.5px solid ${form.category === c.value ? '#3E9849' : '#EBE7DA'}`, borderRadius: 9, cursor: 'pointer', background: form.category === c.value ? '#E8F4E6' : '#fff' }}>
+                          <input type="radio" name="category" value={c.value} checked={form.category === c.value} onChange={() => setForm(f => ({ ...f, category: c.value as typeof f.category }))} style={{ accentColor: '#3E9849', marginTop: 2, flexShrink: 0 }} />
                           <div>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#0E2C3D' }}>{c.label}</span>
-                            <p style={{ fontSize: 11, color: '#8FA0AF', margin: '1px 0 0' }}>{c.desc}</p>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{c.label}</span>
+                            <p style={{ fontSize: 11, color: '#9AA79C', margin: '1px 0 0' }}>{c.desc}</p>
                           </div>
                         </label>
                       ))}
@@ -523,7 +523,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                   {/* Language */}
                   <div>
                     <label style={labelStyle}>Idioma *</label>
-                    <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))} style={{ ...inputStyle, background: '#F8FAFB' }}>
+                    <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))} style={{ ...inputStyle, background: '#FBFAF4' }}>
                       {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                     </select>
                   </div>
@@ -538,9 +538,9 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                         { value: 'IMAGE', label: '📷 Imagem' },
                       ] as const).map(opt => (
                         <button key={opt.value} type="button" onClick={() => setForm(f => ({ ...f, header_type: opt.value }))}
-                          style={{ flex: 1, padding: '7px 10px', fontSize: 12, fontWeight: 600, border: `1.5px solid ${form.header_type === opt.value ? '#0098DA' : '#E8EDF2'}`,
-                            borderRadius: 8, cursor: 'pointer', background: form.header_type === opt.value ? '#F0F8FF' : '#fff',
-                            color: form.header_type === opt.value ? '#0098DA' : '#5A7184' }}>
+                          style={{ flex: 1, padding: '7px 10px', fontSize: 12, fontWeight: 600, border: `1.5px solid ${form.header_type === opt.value ? '#3E9849' : '#EBE7DA'}`,
+                            borderRadius: 8, cursor: 'pointer', background: form.header_type === opt.value ? '#E8F4E6' : '#fff',
+                            color: form.header_type === opt.value ? '#3E9849' : '#71856F' }}>
                           {opt.label}
                         </button>
                       ))}
@@ -562,7 +562,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                     <div>
                       <label style={labelStyle}>Imagem do cabeçalho</label>
                       {headerImageUrl ? (
-                        <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid #E8EDF2' }}>
+                        <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid #EBE7DA' }}>
                           <img src={headerImageUrl} alt="Header" style={{ width: '100%', maxHeight: 140, objectFit: 'cover', display: 'block' }} />
                           <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 6 }}>
                             {uploadingImage && (
@@ -579,17 +579,17 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                           </div>
                         </div>
                       ) : (
-                        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, border: '2px dashed #E8EDF2', borderRadius: 10, padding: '24px 16px', cursor: 'pointer', background: '#F8FAFB' }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#0098DA'; e.currentTarget.style.background = '#F0F8FF' }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8EDF2'; e.currentTarget.style.background = '#F8FAFB' }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, border: '2px dashed #EBE7DA', borderRadius: 10, padding: '24px 16px', cursor: 'pointer', background: '#FBFAF4' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#EBE7DA'; e.currentTarget.style.background = '#FBFAF4' }}>
                           <span style={{ fontSize: 22 }}>📷</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: '#5A7184' }}>Clique para fazer upload</span>
-                          <span style={{ fontSize: 10, color: '#B0BEC9' }}>JPEG, PNG ou WebP</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#71856F' }}>Clique para fazer upload</span>
+                          <span style={{ fontSize: 10, color: '#9AA79C' }}>JPEG, PNG ou WebP</span>
                           <input type="file" accept="image/jpeg,image/png,image/webp"
                             onChange={e => { const f = e.target.files?.[0]; if (f) void handleImageUpload(f) }} style={{ display: 'none' }} />
                         </label>
                       )}
-                      <p style={{ fontSize: 10, color: '#B0BEC9', margin: '4px 0 0', lineHeight: 1.5 }}>
+                      <p style={{ fontSize: 10, color: '#9AA79C', margin: '4px 0 0', lineHeight: 1.5 }}>
                         Requer <code>WHATSAPP_APP_ID</code> nas variáveis de ambiente. A imagem é enviada ao Meta como exemplo para revisão do template.
                       </p>
                     </div>
@@ -609,7 +609,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
 
                     {/* Variable chips */}
                     <div style={{ marginTop: 8 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#8FA0AF', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Inserir variável no cursor:</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#9AA79C', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Inserir variável no cursor:</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {VARIABLES.map(v => (
                           <button
@@ -618,18 +618,18 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                             onClick={() => insertVariable(v.id)}
                             style={{
                               padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                              border: '1px solid #BFDBFE', borderRadius: 99,
-                              background: '#EFF6FF', color: '#1D4ED8',
+                              border: '1px solid #B5D6B3', borderRadius: 99,
+                              background: '#E8F4E6', color: '#1D4ED8',
                               cursor: 'pointer', transition: 'all 0.1s',
                             }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#DBEAFE' }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#EFF6FF' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#E8F4E6' }}
                           >
                             + {v.label}
                           </button>
                         ))}
                       </div>
-                      <p style={{ fontSize: 10, color: '#B0BEC9', margin: '5px 0 0' }}>
+                      <p style={{ fontSize: 10, color: '#9AA79C', margin: '5px 0 0' }}>
                         Clique no botão com o cursor posicionado no texto para inserir <code>{'{{N}}'}</code>. Os valores são preenchidos automaticamente ao enviar.
                       </p>
                     </div>
@@ -646,7 +646,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                   {formError && <p style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', padding: '8px 12px', borderRadius: 8, margin: 0 }}>{formError}</p>}
 
                   {/* Info */}
-                  <div style={{ padding: '10px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 9 }}>
+                  <div style={{ padding: '10px 12px', background: '#E8F4E6', border: '1px solid #B5D6B3', borderRadius: 9 }}>
                     <p style={{ fontSize: 11, color: '#1D4ED8', margin: 0, lineHeight: 1.5 }}>
                       ℹ️ Após criar, o template vai para revisão do Meta (geralmente 1–24h). Quando aprovado, aparece automaticamente disponível no chat.
                     </p>
@@ -655,10 +655,10 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
               </div>
 
               {/* Divider */}
-              <div style={{ width: 1, background: '#F1F4F7', flexShrink: 0 }} />
+              <div style={{ width: 1, background: '#F1EFE5', flexShrink: 0 }} />
 
               {/* Right: preview */}
-              <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', padding: '20px 20px', background: '#F8FAFB' }}>
+              <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', padding: '20px 20px', background: '#FBFAF4' }}>
                 <WhatsAppPreview
                   header={form.header_text}
                   body={form.body_text}
@@ -671,13 +671,13 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
             </div>
 
             {/* Modal footer */}
-            <div style={{ display: 'flex', gap: 8, padding: '14px 24px', borderTop: '1px solid #F1F4F7', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 8, padding: '14px 24px', borderTop: '1px solid #F1EFE5', flexShrink: 0 }}>
               <button onClick={() => { setShowForm(false); resetForm() }}
-                style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#5A7184', fontWeight: 600 }}>
+                style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>
                 Cancelar
               </button>
               <button onClick={() => void handleCreate()} disabled={saving}
-                style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10, cursor: saving ? 'default' : 'pointer', background: '#0098DA', color: '#fff', opacity: saving ? 0.7 : 1 }}>
+                style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10, cursor: saving ? 'default' : 'pointer', background: '#3E9849', color: '#fff', opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Enviando...' : 'Enviar para aprovação →'}
               </button>
             </div>
@@ -690,11 +690,11 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#5A7184', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }
-const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 9, outline: 'none', boxSizing: 'border-box', color: '#0E2C3D', background: '#fff' }
+const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#71856F', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 11px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 9, outline: 'none', boxSizing: 'border-box', color: '#25402C', background: '#fff' }
 
 function Spinner() {
   return (
-    <div style={{ width: 18, height: 18, border: '2px solid #0098DA33', borderTopColor: '#0098DA', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+    <div style={{ width: 18, height: 18, border: '2px solid #3E984933', borderTopColor: '#3E9849', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
   )
 }

@@ -14,9 +14,9 @@ export default function PrivacidadePage() {
 
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
-          <div className="h-1.5 bg-[#0098DA]" />
+          <div className="h-1.5 bg-[#3E9849]" />
           <div className="px-8 py-6">
-            <p className="text-xs font-semibold text-[#0098DA] uppercase tracking-widest mb-1">Vacivitta Saúde Integrada LTDA</p>
+            <p className="text-xs font-semibold text-[#3E9849] uppercase tracking-widest mb-1">Vacivitta Saúde Integrada LTDA</p>
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">
               Aviso de Privacidade
             </h1>
@@ -46,7 +46,7 @@ export default function PrivacidadePage() {
               <p><strong>Razão Social:</strong> Vacivitta Saúde Integrada LTDA</p>
               <p><strong>CNPJ:</strong> 26.915.400/0001-10</p>
               <p><strong>Endereço:</strong> Rua Benjamin Constant, 185, Centro, Salto/SP — CEP: 13320-120</p>
-              <p><strong>E-mail para assuntos de privacidade:</strong> <a href="mailto:contato@vacivitta.com.br" className="text-[#0098DA]">contato@vacivitta.com.br</a></p>
+              <p><strong>E-mail para assuntos de privacidade:</strong> <a href="mailto:contato@vacivitta.com.br" className="text-[#3E9849]">contato@vacivitta.com.br</a></p>
             </div>
           </section>
 
@@ -235,10 +235,10 @@ export default function PrivacidadePage() {
               <li><strong>Oposição:</strong> Opor-se ao tratamento realizado com base em outras hipóteses legais, em caso de descumprimento da LGPD.</li>
             </ul>
             <p className="mt-2">
-              Para exercer qualquer desses direitos, entre em contato pelo e-mail <a href="mailto:contato@vacivitta.com.br" className="text-[#0098DA] underline">contato@vacivitta.com.br</a>. Responderemos em até 15 (quinze) dias úteis, podendo ser necessária verificação de identidade.
+              Para exercer qualquer desses direitos, entre em contato pelo e-mail <a href="mailto:contato@vacivitta.com.br" className="text-[#3E9849] underline">contato@vacivitta.com.br</a>. Responderemos em até 15 (quinze) dias úteis, podendo ser necessária verificação de identidade.
             </p>
             <p className="mt-2">
-              Caso não esteja satisfeito com nossa resposta, o Titular pode apresentar reclamação à <strong>Autoridade Nacional de Proteção de Dados (ANPD)</strong>, por meio dos canais oficiais disponíveis em <a href="https://www.gov.br/anpd" className="text-[#0098DA] underline" target="_blank" rel="noopener noreferrer">www.gov.br/anpd</a>.
+              Caso não esteja satisfeito com nossa resposta, o Titular pode apresentar reclamação à <strong>Autoridade Nacional de Proteção de Dados (ANPD)</strong>, por meio dos canais oficiais disponíveis em <a href="https://www.gov.br/anpd" className="text-[#3E9849] underline" target="_blank" rel="noopener noreferrer">www.gov.br/anpd</a>.
             </p>
           </section>
 
@@ -270,7 +270,7 @@ export default function PrivacidadePage() {
           <section>
             <h2 className="text-base font-bold text-gray-900 mb-3">13. Alterações neste Aviso</h2>
             <p>
-              Este Aviso de Privacidade pode ser atualizado periodicamente para refletir mudanças em nossas práticas, no Sistema ou na legislação aplicável. Notificaremos os Clientes ativos sobre alterações relevantes por e-mail ou notificação dentro do Sistema com antecedência mínima de 15 (quinze) dias. A versão mais recente estará sempre disponível em <a href="/privacidade" className="text-[#0098DA]">/privacidade</a>.
+              Este Aviso de Privacidade pode ser atualizado periodicamente para refletir mudanças em nossas práticas, no Sistema ou na legislação aplicável. Notificaremos os Clientes ativos sobre alterações relevantes por e-mail ou notificação dentro do Sistema com antecedência mínima de 15 (quinze) dias. A versão mais recente estará sempre disponível em <a href="/privacidade" className="text-[#3E9849]">/privacidade</a>.
             </p>
           </section>
 
@@ -281,7 +281,7 @@ export default function PrivacidadePage() {
               Para exercer seus direitos, esclarecer dúvidas ou registrar reclamações relacionadas ao tratamento de dados pessoais, entre em contato com nossa equipe responsável pela privacidade:
             </p>
             <div className="bg-gray-50 rounded-xl p-4 space-y-1 text-sm">
-              <p><strong>E-mail:</strong> <a href="mailto:contato@vacivitta.com.br" className="text-[#0098DA]">contato@vacivitta.com.br</a></p>
+              <p><strong>E-mail:</strong> <a href="mailto:contato@vacivitta.com.br" className="text-[#3E9849]">contato@vacivitta.com.br</a></p>
               <p><strong>Endereço:</strong> Rua Benjamin Constant, 185, Centro, Salto/SP — CEP: 13320-120</p>
               <p><strong>Horário de atendimento:</strong> Segunda a sexta-feira, das 8h às 18h (horário de Brasília)</p>
             </div>
@@ -297,7 +297,7 @@ export default function PrivacidadePage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6 pb-4">
-          © 2026 Vacivitta Saúde Integrada LTDA · <a href="/termos" className="text-[#0098DA]">Termos de Uso</a>
+          © 2026 Vacivitta Saúde Integrada LTDA · <a href="/termos" className="text-[#3E9849]">Termos de Uso</a>
         </p>
       </div>
     </div>

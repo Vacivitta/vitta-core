@@ -173,7 +173,7 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
               value={form.nome}
               onChange={e => set('nome', e.target.value)}
               placeholder="Ex: Vacina Gripe Quadrivalente"
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
             />
           </div>
 
@@ -183,7 +183,7 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
             <select
               value={form.tipo}
               onChange={e => set('tipo', e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
             >
               <option value="">Selecione...</option>
               <option value="vacina">Vacina</option>
@@ -207,7 +207,7 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
                   value={form.valor_venda}
                   onChange={e => set('valor_venda', e.target.value)}
                   placeholder="0,00"
-                  className="w-full text-sm border border-gray-200 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-sm border border-gray-200 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
                 />
               </div>
             </div>
@@ -224,7 +224,7 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
                   value={form.valor_custo}
                   onChange={e => set('valor_custo', e.target.value)}
                   placeholder="0,00"
-                  className="w-full text-sm border border-gray-200 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-sm border border-gray-200 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
                 />
               </div>
             </div>
@@ -265,7 +265,7 @@ function ProductModal({ editing, onClose, onSaved, unitId, canEdit }: ProductMod
               onChange={e => set('descricao', e.target.value)}
               rows={2}
               placeholder="Indicações, composição, fabricante..."
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3E9849] resize-none"
             />
           </div>
 
@@ -414,7 +414,7 @@ export default function ProdutosClient({ currentUser, initialProducts }: Props) 
             stats.avgMargem == null ? 'text-gray-400'
               : stats.avgMargem >= 40 ? 'text-[#4EB46B]'
               : stats.avgMargem >= 20 ? 'text-[#F39313]'
-              : 'text-[#E5484D]'
+              : 'text-[#C05B3A]'
           }
         />
       </div>
@@ -431,7 +431,7 @@ export default function ProdutosClient({ currentUser, initialProducts }: Props) 
             placeholder="Buscar vacina..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3E9849] w-48"
           />
         </div>
 
@@ -439,7 +439,7 @@ export default function ProdutosClient({ currentUser, initialProducts }: Props) 
         <select
           value={filterTipo}
           onChange={e => setFilterTipo(e.target.value as FilterTipo)}
-          className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
         >
           <option value="todos">Todos os tipos</option>
           <option value="vacina">Vacinas</option>
@@ -600,7 +600,7 @@ function ProductRow({
             <button
               onClick={onEdit}
               title="Editar"
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-[#3E9849] hover:bg-[#E8F4E6] rounded-lg transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

@@ -17,7 +17,7 @@ import {
 const PRESET_COLORS = [
   '#94a3b8','#60a5fa','#a78bfa','#f472b6',
   '#fb923c','#fbbf24','#34d399','#f87171',
-  '#2dd4bf','#0098DA','#818cf8','#e879f9',
+  '#2dd4bf','#3E9849','#818cf8','#e879f9',
 ]
 
 interface Props {
@@ -198,9 +198,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
 
       {/* Page header */}
-      <header style={{ background: '#fff', borderBottom: '1px solid #F1F4F7', padding: '18px 28px', flexShrink: 0 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.02em' }}>Funis de Venda</h1>
-        <p style={{ fontSize: 12, color: '#8FA0AF', margin: '3px 0 0' }}>
+      <header style={{ background: '#fff', borderBottom: '1px solid #F1EFE5', padding: '18px 28px', flexShrink: 0 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, color: '#25402C', margin: 0, letterSpacing: '-0.02em' }}>Funis de Venda</h1>
+        <p style={{ fontSize: 12, color: '#9AA79C', margin: '3px 0 0' }}>
           Configure etapas personalizadas para cada processo comercial
         </p>
       </header>
@@ -208,14 +208,14 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* ── Left: funnel list ── */}
-        <aside style={{ width: 280, minWidth: 280, borderRight: '1px solid #F1F4F7', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
+        <aside style={{ width: 280, minWidth: 280, borderRight: '1px solid #F1EFE5', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
 
           {/* List header */}
-          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #F1F4F7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#8FA0AF', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Funis</p>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #F1EFE5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Funis</p>
             <button
               onClick={() => { setShowNewFunnel(true); setDeleteError(null) }}
-              style={{ fontSize: 12, fontWeight: 700, color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+              style={{ fontSize: 12, fontWeight: 700, color: '#3E9849', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
             >
               + Novo
             </button>
@@ -223,7 +223,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
 
           {/* New funnel form */}
           {showNewFunnel && (
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid #EBF4FF', background: '#F0F8FF', flexShrink: 0 }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #E8F4E6', background: '#E8F4E6', flexShrink: 0 }}>
               <input
                 autoFocus type="text" value={newFunnelName}
                 onChange={e => setNewFunnelName(e.target.value)}
@@ -233,11 +233,11 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
               />
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => void handleCreateFunnel()} disabled={busy || !newFunnelName.trim()}
-                  style={{ flex: 1, padding: '7px', fontSize: 12, fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+                  style={{ flex: 1, padding: '7px', fontSize: 12, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
                   Criar
                 </button>
                 <button onClick={() => setShowNewFunnel(false)}
-                  style={{ flex: 1, padding: '7px', fontSize: 12, border: '1px solid #E8EDF2', borderRadius: 8, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+                  style={{ flex: 1, padding: '7px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 8, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
                   Cancelar
                 </button>
               </div>
@@ -257,8 +257,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
                       cursor: 'pointer', transition: 'background 0.1s',
-                      background: isSelected ? '#F0F8FF' : 'transparent',
-                      borderLeft: isSelected ? '3px solid #0098DA' : '3px solid transparent',
+                      background: isSelected ? '#E8F4E6' : 'transparent',
+                      borderLeft: isSelected ? '3px solid #3E9849' : '3px solid transparent',
                     }}
                   >
                     {/* Dot */}
@@ -272,38 +272,38 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                         onBlur={() => void handleSaveFunnelName(funnel.id)}
                         onKeyDown={e => { if (e.key === 'Enter') void handleSaveFunnelName(funnel.id); if (e.key === 'Escape') setEditingFunnelId(null) }}
                         onClick={e => e.stopPropagation()}
-                        style={{ flex: 1, fontSize: 13, border: '1px solid #0098DA', borderRadius: 6, padding: '2px 6px', outline: 'none' }}
+                        style={{ flex: 1, fontSize: 13, border: '1px solid #3E9849', borderRadius: 6, padding: '2px 6px', outline: 'none' }}
                       />
                     ) : (
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#0E2C3D' : '#5A7184', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#25402C' : '#71856F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {funnel.nome}
                       </span>
                     )}
 
                     {/* Meta */}
-                    <span style={{ fontSize: 10, color: '#B0BEC9', flexShrink: 0 }}>{funnel.stages.length} et.</span>
+                    <span style={{ fontSize: 10, color: '#9AA79C', flexShrink: 0 }}>{funnel.stages.length} et.</span>
                     {!funnel.ativo && (
-                      <span style={{ fontSize: 9, fontWeight: 700, background: '#F1F4F7', color: '#B0BEC9', borderRadius: 99, padding: '2px 6px', flexShrink: 0 }}>INATIVO</span>
+                      <span style={{ fontSize: 9, fontWeight: 700, background: '#F1EFE5', color: '#9AA79C', borderRadius: 99, padding: '2px 6px', flexShrink: 0 }}>INATIVO</span>
                     )}
 
                     {/* Actions (hover) — use a nested group */}
                     <div className="funnel-actions" style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                       <button onClick={() => { setEditingFunnelId(funnel.id); setEditFunnelName(funnel.nome) }} title="Renomear"
-                        style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', borderRadius: 6, lineHeight: 0 }}>
+                        style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', borderRadius: 6, lineHeight: 0 }}>
                         <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
                       </button>
                       {funnel.ativo && (
                         <button onClick={() => { setConfirmAction({ id: funnel.id, type: 'deactivate' }); setDeleteError(null) }} title="Desativar"
-                          style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', borderRadius: 6, lineHeight: 0 }}>
+                          style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', borderRadius: 6, lineHeight: 0 }}>
                           <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                           </svg>
                         </button>
                       )}
                       <button onClick={() => { setConfirmAction({ id: funnel.id, type: 'delete' }); setDeleteError(null) }} title="Excluir permanentemente"
-                        style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#B0BEC9', borderRadius: 6, lineHeight: 0 }}>
+                        style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', borderRadius: 6, lineHeight: 0 }}>
                         <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -340,7 +340,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           </button>
                         )}
                         <button onClick={() => { setConfirmAction(null); setDeleteError(null) }}
-                          style={{ flex: 1, padding: '6px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+                          style={{ flex: 1, padding: '6px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
                           Cancelar
                         </button>
                       </div>
@@ -353,9 +353,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
         </aside>
 
         {/* ── Right: stages ── */}
-        <main style={{ flex: 1, overflowY: 'auto', padding: 28, background: '#F8FAFB' }}>
+        <main style={{ flex: 1, overflowY: 'auto', padding: 28, background: '#FBFAF4' }}>
           {!selectedFunnel ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#B0BEC9', fontSize: 13 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9AA79C', fontSize: 13 }}>
               Selecione um funil para configurar as etapas
             </div>
           ) : (
@@ -364,15 +364,15 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
               {/* Funnel header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                 <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>{selectedFunnel.nome}</h2>
-                  <p style={{ fontSize: 12, color: '#8FA0AF', margin: '2px 0 0' }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: 0 }}>{selectedFunnel.nome}</h2>
+                  <p style={{ fontSize: 12, color: '#9AA79C', margin: '2px 0 0' }}>
                     {selectedFunnel.stages.length} etapas · arraste para reordenar
                   </p>
                 </div>
                 <span style={{
                   marginLeft: 'auto', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                  background: selectedFunnel.ativo ? '#E8F7EE' : '#F1F4F7',
-                  color:      selectedFunnel.ativo ? '#1D9E75'  : '#8FA0AF',
+                  background: selectedFunnel.ativo ? '#E8F7EE' : '#F1EFE5',
+                  color:      selectedFunnel.ativo ? '#1D9E75'  : '#9AA79C',
                 }}>
                   {selectedFunnel.ativo ? 'Ativo' : 'Inativo'}
                 </span>
@@ -418,19 +418,19 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                   onChange={e => setNewStageName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') void handleAddStage() }}
                   placeholder="Nome da nova etapa..."
-                  style={{ flex: 1, fontSize: 13, border: '1px solid #E8EDF2', borderRadius: 10, padding: '9px 12px', outline: 'none', background: '#fff' }}
+                  style={{ flex: 1, fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', outline: 'none', background: '#fff' }}
                 />
                 <button
                   onClick={() => void handleAddStage()}
                   disabled={busy || !newStageName.trim()}
-                  style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: busy || !newStageName.trim() ? 0.5 : 1, transition: 'opacity 0.15s' }}
+                  style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: busy || !newStageName.trim() ? 0.5 : 1, transition: 'opacity 0.15s' }}
                 >
                   + Adicionar
                 </button>
               </div>
 
               {selectedFunnel.stages.length > 1 && (
-                <p style={{ fontSize: 11, color: '#B0BEC9', marginTop: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <p style={{ fontSize: 11, color: '#9AA79C', marginTop: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -487,7 +487,7 @@ function SortableStageRow({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <div style={{ background: '#fff', border: '1px solid #F1F4F7', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ background: '#fff', border: '1px solid #F1EFE5', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
 
         {/* Drag handle */}
         <button {...attributes} {...listeners} tabIndex={-1}
@@ -500,13 +500,13 @@ function SortableStageRow({
         {/* Color swatch */}
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <button onClick={onColorPickerToggle} title="Mudar cor"
-            style={{ width: 22, height: 22, borderRadius: '50%', background: stage.cor, border: '2px solid #fff', boxShadow: '0 0 0 1px #E8EDF2', cursor: 'pointer', transition: 'transform 0.15s' }}
+            style={{ width: 22, height: 22, borderRadius: '50%', background: stage.cor, border: '2px solid #fff', boxShadow: '0 0 0 1px #EBE7DA', cursor: 'pointer', transition: 'transform 0.15s' }}
           />
           {showColorPicker && (
-            <div style={{ position: 'absolute', left: 0, top: 28, zIndex: 20, background: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid #F1F4F7', padding: 10, display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 6, width: 172 }}>
+            <div style={{ position: 'absolute', left: 0, top: 28, zIndex: 20, background: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid #F1EFE5', padding: 10, display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 6, width: 172 }}>
               {PRESET_COLORS.map(cor => (
                 <button key={cor} onClick={() => onColorChange(cor)}
-                  style={{ width: 22, height: 22, borderRadius: '50%', background: cor, border: stage.cor === cor ? '2px solid #0098DA' : '2px solid #fff', boxShadow: '0 0 0 1px #E8EDF2', cursor: 'pointer', transition: 'transform 0.1s' }}
+                  style={{ width: 22, height: 22, borderRadius: '50%', background: cor, border: stage.cor === cor ? '2px solid #3E9849' : '2px solid #fff', boxShadow: '0 0 0 1px #EBE7DA', cursor: 'pointer', transition: 'transform 0.1s' }}
                 />
               ))}
             </div>
@@ -518,18 +518,18 @@ function SortableStageRow({
           <input autoFocus value={editNameValue} onChange={e => onEditNameChange(e.target.value)}
             onBlur={onEditNameSave}
             onKeyDown={e => { if (e.key === 'Enter') onEditNameSave(); if (e.key === 'Escape') onEditNameCancel() }}
-            style={{ flex: 1, fontSize: 13, border: '1px solid #0098DA', borderRadius: 7, padding: '3px 8px', outline: 'none' }}
+            style={{ flex: 1, fontSize: 13, border: '1px solid #3E9849', borderRadius: 7, padding: '3px 8px', outline: 'none' }}
           />
         ) : (
           <button onClick={onEditNameStart} title="Renomear"
-            style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#0E2C3D', background: 'none', border: 'none', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#25402C', background: 'none', border: 'none', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {stage.nome}
           </button>
         )}
 
         {/* Lead count badge */}
         {leadCount > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 600, background: '#F1F4F7', color: '#5A7184', borderRadius: 99, padding: '2px 8px', flexShrink: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, background: '#F1EFE5', color: '#71856F', borderRadius: 99, padding: '2px 8px', flexShrink: 0 }}>
             {leadCount} lead{leadCount !== 1 ? 's' : ''}
           </span>
         )}
@@ -547,13 +547,13 @@ function SortableStageRow({
               if (valid !== stage.alerta_horas) onAlertHoursChange(valid)
               setAlertInput(valid?.toString() ?? '')
             }}
-            style={{ width: 38, textAlign: 'center', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 6, padding: '3px 4px', outline: 'none', color: '#5A7184' }}
+            style={{ width: 38, textAlign: 'center', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 6, padding: '3px 4px', outline: 'none', color: '#71856F' }}
           />
         </div>
 
         {/* Delete */}
         {leadCount > 0 ? (
-          <span title="Mova os leads antes de excluir" style={{ padding: 4, color: '#E8EDF2', lineHeight: 0, flexShrink: 0 }}>
+          <span title="Mova os leads antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0 }}>
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
@@ -582,7 +582,7 @@ function SortableStageRow({
               Excluir
             </button>
             <button onClick={onDeleteCancel}
-              style={{ flex: 1, padding: '6px', fontSize: 11, border: '1px solid #E8EDF2', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#5A7184' }}>
+              style={{ flex: 1, padding: '6px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
               Cancelar
             </button>
           </div>

@@ -94,7 +94,7 @@ function LoginContent() {
         >
           <path
             d="M160 280C160 280 24 196 24 108C24 64.6 58.6 30 102 30C124.4 30 144.6 40.2 160 56.8C175.4 40.2 195.6 30 218 30C261.4 30 296 64.6 296 108C296 196 160 280 160 280Z"
-            fill="#0098DA"
+            fill="#3E9849"
           />
         </svg>
         <svg
@@ -103,7 +103,7 @@ function LoginContent() {
         >
           <path
             d="M190 340C190 340 28 236 28 128C28 76.6 70.6 36 122 36C148 36 172 47.8 190 67.4C208 47.8 232 36 258 36C309.4 36 352 76.6 352 128C352 236 190 340 190 340Z"
-            fill="#0098DA"
+            fill="#3E9849"
           />
         </svg>
 
@@ -115,14 +115,14 @@ function LoginContent() {
             alt="VittaDesk"
             style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0 }}
           />
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#0E2C3D', letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#25402C', letterSpacing: '-0.01em' }}>
             VittaDesk
           </span>
         </div>
 
         {/* Headline */}
         <div style={{ alignSelf: 'flex-start', marginBottom: 48 }}>
-          <h2 style={{ fontSize: 32, fontWeight: 800, color: '#0E2C3D', lineHeight: 1.2, margin: 0, letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: 32, fontWeight: 800, color: '#25402C', lineHeight: 1.2, margin: 0, letterSpacing: '-0.02em' }}>
             Gerencie sua clínica<br />com clareza
           </h2>
           <p style={{ fontSize: 15, color: '#5B7A8A', marginTop: 12, lineHeight: 1.6 }}>
@@ -148,18 +148,18 @@ function LoginContent() {
               animationDelay: '0s',
             }}
           >
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#0098DA', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: '#3E9849', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
               Próxima aplicação
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#EAF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0098DA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
               </div>
               <div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#0E2C3D', margin: 0 }}>Ana Beatriz</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: '#25402C', margin: 0 }}>Ana Beatriz</p>
                 <p style={{ fontSize: 12, color: '#8A98A6', margin: 0 }}>HPV 2ª dose</p>
               </div>
               <div style={{ marginLeft: 'auto' }}>
@@ -188,11 +188,11 @@ function LoginContent() {
             <p style={{ fontSize: 10, fontWeight: 700, color: '#8A98A6', letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
               Taxa de conversão
             </p>
-            <p style={{ fontSize: 28, fontWeight: 800, color: '#0E2C3D', margin: '8px 0 10px' }}>
+            <p style={{ fontSize: 28, fontWeight: 800, color: '#25402C', margin: '8px 0 10px' }}>
               65<span style={{ fontSize: 16 }}>%</span>
             </p>
             <div style={{ background: '#F0F3F6', borderRadius: 99, height: 6, overflow: 'hidden' }}>
-              <div style={{ width: '65%', height: '100%', background: 'linear-gradient(90deg, #0098DA, #54B3E6)', borderRadius: 99 }} />
+              <div style={{ width: '65%', height: '100%', background: 'linear-gradient(90deg, #3E9849, #54B3E6)', borderRadius: 99 }} />
             </div>
           </div>
         </div>
@@ -216,7 +216,7 @@ function LoginContent() {
         <div className="flex lg:hidden" style={{ flexDirection: 'column', alignItems: 'center', marginBottom: 32 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-vacivitta-login.svg" alt="VittaDesk" style={{ width: 72, height: 66, marginBottom: 8 }} />
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#0E2C3D', letterSpacing: '-0.01em' }}>VittaDesk</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#25402C', letterSpacing: '-0.01em' }}>VittaDesk</span>
         </div>
 
         <div style={{ width: '100%', maxWidth: 392 }}>
@@ -235,14 +235,14 @@ function LoginContent() {
                   <button
                     type="button"
                     onClick={() => { setLinkExpired(false); setView('forgot') }}
-                    style={{ alignSelf: 'flex-start', fontSize: 13, fontWeight: 700, color: '#0098DA', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}
+                    style={{ alignSelf: 'flex-start', fontSize: 13, fontWeight: 700, color: '#3E9849', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}
                   >
                     Solicitar novo link →
                   </button>
                 </div>
               )}
               <div style={{ marginBottom: 32 }}>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.01em' }}>
+                <h1 style={{ fontSize: 24, fontWeight: 800, color: '#25402C', margin: 0, letterSpacing: '-0.01em' }}>
                   Login do Operador
                 </h1>
                 <p style={{ fontSize: 14, color: '#8A98A6', marginTop: 6 }}>
@@ -254,7 +254,7 @@ function LoginContent() {
 
                 {/* Email */}
                 <div>
-                  <label htmlFor="login-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
+                  <label htmlFor="login-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#35543B', marginBottom: 6 }}>
                     E-mail
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -279,22 +279,22 @@ function LoginContent() {
                         paddingTop: 11,
                         paddingBottom: 11,
                         fontSize: 14,
-                        border: '1.5px solid #E1EEF7',
+                        border: '1.5px solid #EBE7DA',
                         borderRadius: 10,
                         outline: 'none',
-                        color: '#0E2C3D',
+                        color: '#25402C',
                         background: '#FBFDFF',
                         transition: 'border-color 0.15s',
                       }}
-                      onFocus={e => { e.currentTarget.style.borderColor = '#0098DA' }}
-                      onBlur={e => { e.currentTarget.style.borderColor = '#E1EEF7' }}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#3E9849' }}
+                      onBlur={e => { e.currentTarget.style.borderColor = '#EBE7DA' }}
                     />
                   </div>
                 </div>
 
                 {/* Password */}
                 <div>
-                  <label htmlFor="login-password" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
+                  <label htmlFor="login-password" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#35543B', marginBottom: 6 }}>
                     Senha
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -319,15 +319,15 @@ function LoginContent() {
                         paddingTop: 11,
                         paddingBottom: 11,
                         fontSize: 14,
-                        border: '1.5px solid #E1EEF7',
+                        border: '1.5px solid #EBE7DA',
                         borderRadius: 10,
                         outline: 'none',
-                        color: '#0E2C3D',
+                        color: '#25402C',
                         background: '#FBFDFF',
                         transition: 'border-color 0.15s',
                       }}
-                      onFocus={e => { e.currentTarget.style.borderColor = '#0098DA' }}
-                      onBlur={e => { e.currentTarget.style.borderColor = '#E1EEF7' }}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#3E9849' }}
+                      onBlur={e => { e.currentTarget.style.borderColor = '#EBE7DA' }}
                     />
                     <button
                       type="button"
@@ -357,26 +357,26 @@ function LoginContent() {
 
                 {/* Remember + Forgot */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#3F5666' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#35543B' }}>
                     <input
                       type="checkbox"
                       checked={remember}
                       onChange={e => setRemember(e.target.checked)}
-                      style={{ width: 15, height: 15, accentColor: '#0098DA', cursor: 'pointer' }}
+                      style={{ width: 15, height: 15, accentColor: '#3E9849', cursor: 'pointer' }}
                     />
                     Lembrar de mim
                   </label>
                   <button
                     type="button"
                     onClick={() => { setView('forgot'); setError('') }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#0098DA', fontWeight: 500, padding: 0 }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#3E9849', fontWeight: 500, padding: 0 }}
                   >
                     Esqueceu a senha?
                   </button>
                 </div>
 
                 {error && (
-                  <p style={{ fontSize: 13, color: '#E5484D', background: '#FDEBEC', borderRadius: 8, padding: '10px 14px', margin: 0 }}>
+                  <p style={{ fontSize: 13, color: '#C05B3A', background: '#FDEBEC', borderRadius: 8, padding: '10px 14px', margin: 0 }}>
                     {error}
                   </p>
                 )}
@@ -388,7 +388,7 @@ function LoginContent() {
                   style={{
                     width: '100%',
                     padding: '13px 0',
-                    background: loading ? '#9DB6C7' : 'linear-gradient(135deg, #0098DA 0%, #006FA3 100%)',
+                    background: loading ? '#9AA79C' : 'linear-gradient(135deg, #3E9849 0%, #006FA3 100%)',
                     color: '#fff',
                     fontWeight: 700,
                     fontSize: 15,
@@ -422,7 +422,7 @@ function LoginContent() {
                   </svg>
                   Voltar ao login
                 </button>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0E2C3D', margin: 0, letterSpacing: '-0.01em' }}>
+                <h1 style={{ fontSize: 24, fontWeight: 800, color: '#25402C', margin: 0, letterSpacing: '-0.01em' }}>
                   Recuperar senha
                 </h1>
                 <p style={{ fontSize: 14, color: '#8A98A6', marginTop: 6 }}>
@@ -432,7 +432,7 @@ function LoginContent() {
 
               <form onSubmit={handleForgot} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <label htmlFor="forgot-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#3F5666', marginBottom: 6 }}>
+                  <label htmlFor="forgot-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#35543B', marginBottom: 6 }}>
                     E-mail
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -457,21 +457,21 @@ function LoginContent() {
                         paddingTop: 11,
                         paddingBottom: 11,
                         fontSize: 14,
-                        border: '1.5px solid #E1EEF7',
+                        border: '1.5px solid #EBE7DA',
                         borderRadius: 10,
                         outline: 'none',
-                        color: '#0E2C3D',
+                        color: '#25402C',
                         background: '#FBFDFF',
                         transition: 'border-color 0.15s',
                       }}
-                      onFocus={e => { e.currentTarget.style.borderColor = '#0098DA' }}
-                      onBlur={e => { e.currentTarget.style.borderColor = '#E1EEF7' }}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#3E9849' }}
+                      onBlur={e => { e.currentTarget.style.borderColor = '#EBE7DA' }}
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <p style={{ fontSize: 13, color: '#E5484D', background: '#FDEBEC', borderRadius: 8, padding: '10px 14px', margin: 0 }}>
+                  <p style={{ fontSize: 13, color: '#C05B3A', background: '#FDEBEC', borderRadius: 8, padding: '10px 14px', margin: 0 }}>
                     {error}
                   </p>
                 )}
@@ -482,7 +482,7 @@ function LoginContent() {
                   style={{
                     width: '100%',
                     padding: '13px 0',
-                    background: loading ? '#9DB6C7' : 'linear-gradient(135deg, #0098DA 0%, #006FA3 100%)',
+                    background: loading ? '#9AA79C' : 'linear-gradient(135deg, #3E9849 0%, #006FA3 100%)',
                     color: '#fff',
                     fontWeight: 700,
                     fontSize: 15,
@@ -507,10 +507,10 @@ function LoginContent() {
                   <path d="M20 6 9 17l-5-5" />
                 </svg>
               </div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0E2C3D', margin: 0 }}>Link enviado!</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#25402C', margin: 0 }}>Link enviado!</h2>
               <p style={{ fontSize: 14, color: '#8A98A6', marginTop: 8, lineHeight: 1.6 }}>
                 Verifique sua caixa de entrada em{' '}
-                <strong style={{ color: '#3F5666' }}>{email}</strong>{' '}
+                <strong style={{ color: '#35543B' }}>{email}</strong>{' '}
                 e clique no link para redefinir sua senha.
               </p>
               <button
@@ -521,10 +521,10 @@ function LoginContent() {
                   width: '100%',
                   padding: '13px 0',
                   background: 'none',
-                  color: '#0098DA',
+                  color: '#3E9849',
                   fontWeight: 700,
                   fontSize: 15,
-                  border: '1.5px solid #E1EEF7',
+                  border: '1.5px solid #EBE7DA',
                   borderRadius: 10,
                   cursor: 'pointer',
                   transition: 'border-color 0.15s',
@@ -536,10 +536,10 @@ function LoginContent() {
           )}
 
           {/* Footer links */}
-          <p style={{ textAlign: 'center', fontSize: 12, color: '#9DB6C7', marginTop: 36 }}>
-            <Link href="/termos" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Termos de Uso</Link>
+          <p style={{ textAlign: 'center', fontSize: 12, color: '#9AA79C', marginTop: 36 }}>
+            <Link href="/termos" style={{ color: '#3E9849', textDecoration: 'underline', textUnderlineOffset: 3 }}>Termos de Uso</Link>
             <span style={{ margin: '0 8px' }}>·</span>
-            <Link href="/privacidade" style={{ color: '#0098DA', textDecoration: 'underline', textUnderlineOffset: 3 }}>Política de Privacidade</Link>
+            <Link href="/privacidade" style={{ color: '#3E9849', textDecoration: 'underline', textUnderlineOffset: 3 }}>Política de Privacidade</Link>
           </p>
 
         </div>

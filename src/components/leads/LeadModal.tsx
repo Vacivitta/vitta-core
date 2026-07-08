@@ -779,27 +779,27 @@ function LeadDrawer({
                 </LeftSection>
                 <LeftSection title="Negócio">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Origem</label>
-                    <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Origem</label>
+                    <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))} style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }}>
                       <option value="">Selecionar...</option>
                       {ORIGEM_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Funil</label>
-                    <select value={form.funnel_id} onChange={e => handleFunnelChange(e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Funil</label>
+                    <select value={form.funnel_id} onChange={e => handleFunnelChange(e.target.value)} style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }}>
                       {allFunnels.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Etapa</label>
-                    <select value={form.stage_id} onChange={e => setForm(f => ({ ...f, stage_id: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Etapa</label>
+                    <select value={form.stage_id} onChange={e => setForm(f => ({ ...f, stage_id: e.target.value }))} style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }}>
                       {activeStages.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Responsável</label>
-                    <select value={form.responsavel_id} onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Responsável</label>
+                    <select value={form.responsavel_id} onChange={e => setForm(f => ({ ...f, responsavel_id: e.target.value }))} style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }}>
                       <option value="">Sem responsável</option>
                       {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                     </select>
@@ -891,25 +891,25 @@ function LeadDrawer({
               </div>
 
               {addingContact && (
-                <div className="border border-violet-200 rounded-xl p-3 bg-violet-50 space-y-2 mb-2">
+                <div style={{ border: '1px solid #CDE8CB', borderRadius: 14, padding: 12, background: '#E8F4E6', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                   <F label="Nome *" value={newContact.nome} onChange={v => setNewContact(c => ({ ...c, nome: v }))} />
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Relação</label>
-                      <select value={newContact.relacao} onChange={e => setNewContact(c => ({ ...c, relacao: e.target.value as ContactRole }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white">
+                      <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Relação</label>
+                      <select value={newContact.relacao} onChange={e => setNewContact(c => ({ ...c, relacao: e.target.value as ContactRole }))} style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }}>
                         {Object.entries(CONTACT_ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Data de nascimento</label>
+                      <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Data de nascimento</label>
                       <input type="date" value={newContact.data_nascimento ?? ''} onChange={e => setNewContact(c => ({ ...c, data_nascimento: e.target.value }))}
-                        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white" />
+                        style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }} />
                     </div>
                   </div>
                   <F label="Observações (alergias, condições...)" value={newContact.observacao ?? ''} onChange={v => setNewContact(c => ({ ...c, observacao: v }))} />
                   <div className="flex gap-2">
-                    <button onClick={saveNewContact} disabled={!newContact.nome.trim()} className="flex-1 py-1.5 text-xs bg-violet-500 text-white rounded-lg hover:bg-violet-600 disabled:opacity-50 font-medium">Salvar</button>
-                    <button onClick={() => { setAddingContact(false); setNewContact(emptyContact) }} className="flex-1 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
+                    <button onClick={saveNewContact} disabled={!newContact.nome.trim()} style={{ flex: 1, padding: '6px', fontSize: 12, background: '#3E9849', color: '#fff', borderRadius: 11, border: 'none', cursor: 'pointer', fontWeight: 700 }}>Salvar</button>
+                    <button onClick={() => { setAddingContact(false); setNewContact(emptyContact) }} style={{ flex: 1, padding: '6px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 11, background: 'transparent', cursor: 'pointer', color: '#71856F' }}>Cancelar</button>
                   </div>
                 </div>
               )}
@@ -924,35 +924,35 @@ function LeadDrawer({
                   const relLabel = CONTACT_ROLE_LABELS[relacao as ContactRole] ?? relacao
                   const idade = calcIdade(c.data_nascimento)
                   return (
-                    <div key={c.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                    <div key={c.id} style={{ border: '1px solid #EBE7DA', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
                       {editingContactId === c.id ? (
-                        <div className="p-3 bg-violet-50 space-y-2">
+                        <div style={{ padding: 12, background: '#E8F4E6', display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <F label="Nome *" value={editContactDraft.nome ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, nome: v }))} />
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Relação</label>
-                              <select value={editContactDraft.relacao ?? 'filho'} onChange={e => setEditContactDraft(d => ({ ...d, relacao: e.target.value as ContactRole, cargo: e.target.value as ContactRole }))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white">
+                              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Relação</label>
+                              <select value={editContactDraft.relacao ?? 'filho'} onChange={e => setEditContactDraft(d => ({ ...d, relacao: e.target.value as ContactRole, cargo: e.target.value as ContactRole }))} style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }}>
                                 {Object.entries(CONTACT_ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                               </select>
                             </div>
                             <div className="flex-1">
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Data de nascimento</label>
+                              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>Data de nascimento</label>
                               <input type="date" value={editContactDraft.data_nascimento ?? ''} onChange={e => setEditContactDraft(d => ({ ...d, data_nascimento: e.target.value }))}
-                                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white" />
+                                style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C' }} />
                             </div>
                           </div>
                           <F label="Observações" value={editContactDraft.observacao ?? ''} onChange={v => setEditContactDraft(d => ({ ...d, observacao: v }))} />
                           <div className="flex gap-2 pt-1">
-                            <button onClick={saveContactEdit} className="flex-1 py-1 text-xs bg-violet-500 text-white rounded-lg hover:bg-violet-600 font-medium">Salvar</button>
-                            <button onClick={() => setEditingContactId(null)} className="flex-1 py-1 text-xs border border-gray-200 rounded-lg hover:bg-white">Cancelar</button>
+                            <button onClick={saveContactEdit} style={{ flex: 1, padding: '4px', fontSize: 12, background: '#3E9849', color: '#fff', borderRadius: 11, border: 'none', cursor: 'pointer', fontWeight: 700 }}>Salvar</button>
+                            <button onClick={() => setEditingContactId(null)} style={{ flex: 1, padding: '4px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 11, background: 'transparent', cursor: 'pointer', color: '#71856F' }}>Cancelar</button>
                           </div>
                         </div>
                       ) : deletingContactId === c.id ? (
-                        <div className="p-3 bg-red-50">
-                          <p className="text-xs text-red-700 font-medium mb-2">Excluir "{c.nome}"?</p>
+                        <div style={{ padding: 12, background: '#FDF1F2' }}>
+                          <p style={{ fontSize: 12, color: '#C05B3A', fontWeight: 700, marginBottom: 8 }}>Excluir "{c.nome}"?</p>
                           <div className="flex gap-2">
-                            <button onClick={() => deleteContact(c.id)} className="flex-1 py-1 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">Excluir</button>
-                            <button onClick={() => setDeletingContactId(null)} className="flex-1 py-1 text-xs border border-gray-200 rounded-lg hover:bg-white">Não</button>
+                            <button onClick={() => deleteContact(c.id)} style={{ flex: 1, padding: '4px', fontSize: 12, background: '#C05B3A', color: '#fff', borderRadius: 11, border: 'none', cursor: 'pointer', fontWeight: 700 }}>Excluir</button>
+                            <button onClick={() => setDeletingContactId(null)} style={{ flex: 1, padding: '4px', fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 11, background: 'transparent', cursor: 'pointer', color: '#71856F' }}>Não</button>
                           </div>
                         </div>
                       ) : (
@@ -960,21 +960,21 @@ function LeadDrawer({
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0 flex items-start gap-2">
                               <div>
-                                <p className="text-xs font-semibold text-gray-900">{c.nome}</p>
-                                <p className="text-[11px] text-gray-500">
+                                <p style={{ fontSize: 12, fontWeight: 800, color: '#25402C' }}>{c.nome}</p>
+                                <p style={{ fontSize: 11, color: '#71856F' }}>
                                   {relLabel}{idade !== null ? ` · ${idade} ano${idade !== 1 ? 's' : ''}` : ''}{c.data_nascimento ? ` (${formatDtNasc(c.data_nascimento)})` : ''}
                                 </p>
-                                {c.observacao && <p className="text-[11px] text-amber-700 mt-0.5 bg-amber-50 rounded px-1.5 py-0.5 inline-block">{c.observacao}</p>}
+                                {c.observacao && <p style={{ fontSize: 11, color: '#C87F1B', marginTop: 2, background: '#FCF3E4', borderRadius: 6, padding: '2px 6px', display: 'inline-block' }}>{c.observacao}</p>}
                               </div>
                             </div>
                             <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                               <button
                                 onClick={() => { setEditingContactId(c.id); setEditContactDraft({ nome: c.nome, relacao: (c.relacao ?? c.cargo) as ContactRole, cargo: (c.relacao ?? c.cargo) as ContactRole, data_nascimento: c.data_nascimento, observacao: c.observacao }) }}
-                                className="p-1 text-gray-400 hover:text-violet-500 rounded"
+                                style={{ padding: 4, color: '#9AA79C', cursor: 'pointer', background: 'none', border: 'none' }}
                               >
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                               </button>
-                              <button onClick={() => setDeletingContactId(c.id)} className="p-1 text-gray-400 hover:text-red-500 rounded">
+                              <button onClick={() => setDeletingContactId(c.id)} style={{ padding: 4, color: '#9AA79C', cursor: 'pointer', background: 'none', border: 'none' }}>
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
@@ -1112,7 +1112,7 @@ function LeadDrawer({
             {tab === 'Histórico' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {timeline.length === 0 && (
-                  <p style={{ fontSize: '13px', color: '#9DB6C7', textAlign: 'center', padding: '48px 0' }}>Nenhuma atividade ainda</p>
+                  <p style={{ fontSize: '13px', color: '#9AA79C', textAlign: 'center', padding: '48px 0' }}>Nenhuma atividade ainda</p>
                 )}
                 {timeline.map((item, idx) => {
                   const isLast = idx === timeline.length - 1
@@ -1120,33 +1120,33 @@ function LeadDrawer({
                     <div key={`${item.kind}-${item.id}`} style={{ display: 'flex', gap: '14px' }}>
                       {/* icon + connector */}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                        <div style={{ width: '34px', height: '34px', flexShrink: 0, borderRadius: '50%', background: '#EAF6FC', color: '#0098DA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '34px', height: '34px', flexShrink: 0, borderRadius: '50%', background: '#E8F4E6', color: '#3E9849', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {item.kind === 'note' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>}
                           {item.kind === 'task' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 13l4 4L19 7"/></svg>}
                           {item.kind === 'resp' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>}
                           {item.kind === 'stage' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>}
                         </div>
-                        {!isLast && <div style={{ flex: 1, width: '2px', background: '#E7EEF4', marginTop: '4px' }} />}
+                        {!isLast && <div style={{ flex: 1, width: '2px', background: '#E9E5D8', marginTop: '4px' }} />}
                       </div>
 
                       {/* content */}
                       <div style={{ flex: 1, paddingBottom: '4px' }}>
-                        <div style={{ background: '#fff', border: '1px solid #E9EFF4', borderRadius: '13px', padding: '14px 16px' }}>
+                        <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: '13px', padding: '14px 16px' }}>
                           {item.kind === 'note' && (
                             <>
-                              <p style={{ fontSize: '13.5px', color: '#3F5666', marginBottom: '8px' }}>{item.note.autor?.full_name ?? '—'} adicionou uma anotação</p>
-                              <p style={{ fontSize: '13.5px', color: '#3F5666', whiteSpace: 'pre-wrap', margin: 0 }}>{item.note.conteudo}</p>
+                              <p style={{ fontSize: '13.5px', color: '#35543B', marginBottom: '8px' }}>{item.note.autor?.full_name ?? '—'} adicionou uma anotação</p>
+                              <p style={{ fontSize: '13.5px', color: '#35543B', whiteSpace: 'pre-wrap', margin: 0 }}>{item.note.conteudo}</p>
                             </>
                           )}
                           {item.kind === 'task' && (
                             <>
-                              <p style={{ fontSize: '13.5px', color: '#3F5666', marginBottom: '8px' }}>Tarefa concluída</p>
-                              <p style={{ fontSize: '13.5px', color: '#9DB6C7', textDecoration: 'line-through', margin: 0 }}>{item.task.titulo}</p>
+                              <p style={{ fontSize: '13.5px', color: '#35543B', marginBottom: '8px' }}>Tarefa concluída</p>
+                              <p style={{ fontSize: '13.5px', color: '#9AA79C', textDecoration: 'line-through', margin: 0 }}>{item.task.titulo}</p>
                             </>
                           )}
                           {item.kind === 'resp' && (
-                            <p style={{ fontSize: '13.5px', color: '#3F5666', margin: 0 }}>
-                              Responsável → <span style={{ fontWeight: 700, color: '#0E2C3D' }}>{profiles.find(p => p.id === item.history.novo_responsavel_id)?.full_name ?? 'Nenhum'}</span>
+                            <p style={{ fontSize: '13.5px', color: '#35543B', margin: 0 }}>
+                              Responsável → <span style={{ fontWeight: 700, color: '#25402C' }}>{profiles.find(p => p.id === item.history.novo_responsavel_id)?.full_name ?? 'Nenhum'}</span>
                             </p>
                           )}
                           {item.kind === 'stage' && (() => {
@@ -1156,23 +1156,23 @@ function LeadDrawer({
                             const quemStr = h.movido_por_profile?.full_name ?? 'Automação'
                             return (
                               <>
-                                <p style={{ fontSize: '13.5px', color: '#3F5666', marginBottom: '10px' }}>{quemStr} moveu o contato</p>
+                                <p style={{ fontSize: '13.5px', color: '#35543B', marginBottom: '10px' }}>{quemStr} moveu o contato</p>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                                   {de ? (
-                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>{de.nome}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#F1EFE5', color: '#71856F' }}>{de.nome}</span>
                                   ) : (
-                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#EEF1F5', color: '#7A8694' }}>entrada</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#F1EFE5', color: '#71856F' }}>entrada</span>
                                   )}
-                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B6C4D0" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9AA79C" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                                   {para && (
-                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#0098DA', color: '#fff' }}>{para.nome}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 11px', borderRadius: '999px', background: '#3E9849', color: '#fff' }}>{para.nome}</span>
                                   )}
                                 </div>
                               </>
                             )
                           })()}
                         </div>
-                        <p style={{ fontSize: '12px', color: '#9DB6C7', marginTop: '7px' }}>
+                        <p style={{ fontSize: '12px', color: '#9AA79C', marginTop: '7px' }}>
                           {format(new Date(item.ts), "d MMM 'às' HH:mm", { locale: ptBR })}
                         </p>
                       </div>
@@ -1193,20 +1193,20 @@ function LeadDrawer({
                     onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAddNote() }}
                     placeholder="Nova anotação… (Ctrl+Enter para salvar)"
                     rows={2}
-                    style={{ flex: 1, border: '1px solid #E1EEF7', borderRadius: '13px', padding: '14px 16px', fontSize: '13.5px', color: '#0E2C3D', resize: 'none', outline: 'none', fontFamily: 'inherit', minHeight: '54px' }}
+                    style={{ flex: 1, border: '1px solid #EBE7DA', borderRadius: '13px', padding: '14px 16px', fontSize: '13.5px', color: '#25402C', resize: 'none', outline: 'none', fontFamily: 'inherit', minHeight: '54px' }}
                   />
                   <button
                     onClick={handleAddNote}
                     disabled={!newNote.trim() || addingNote}
-                    style={{ alignSelf: 'center', background: '#0098DA', color: '#fff', borderRadius: '11px', padding: '11px 24px', fontSize: '13.5px', fontWeight: 700, border: 'none', cursor: addingNote ? 'wait' : 'pointer', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', opacity: !newNote.trim() || addingNote ? 0.5 : 1, transition: 'background 0.15s', whiteSpace: 'nowrap' }}
-                    onMouseEnter={e => { if (newNote.trim() && !addingNote) e.currentTarget.style.background = '#0086C2' }}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}
+                    style={{ alignSelf: 'center', background: '#3E9849', color: '#fff', borderRadius: '11px', padding: '11px 24px', fontSize: '13.5px', fontWeight: 700, border: 'none', cursor: addingNote ? 'wait' : 'pointer', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', opacity: !newNote.trim() || addingNote ? 0.5 : 1, transition: 'background 0.15s', whiteSpace: 'nowrap' }}
+                    onMouseEnter={e => { if (newNote.trim() && !addingNote) e.currentTarget.style.background = '#35853F' }}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
                   >
                     {addingNote ? '...' : 'Salvar'}
                   </button>
                 </div>
 
-                {notes.length === 0 && <p style={{ fontSize: '13px', color: '#9DB6C7', textAlign: 'center', padding: '32px 0' }}>Nenhuma anotação ainda</p>}
+                {notes.length === 0 && <p style={{ fontSize: '13px', color: '#9AA79C', textAlign: 'center', padding: '32px 0' }}>Nenhuma anotação ainda</p>}
 
                 {notes.map(note => {
                   const isEditing  = editingNoteId  === note.id
@@ -1214,40 +1214,40 @@ function LeadDrawer({
                   const isOwn      = note.autor_id  === currentUser.id
                   const authorInitial = (note.autor?.full_name ?? '?')[0].toUpperCase()
                   return (
-                    <div key={note.id} className="group" style={{ background: '#fff', border: `1px solid ${isEditing ? '#D0E8F7' : '#E9EFF4'}`, borderRadius: '14px', padding: '20px 22px' }}>
+                    <div key={note.id} className="group" style={{ background: '#fff', border: `1px solid ${isEditing ? '#CDE8CB' : '#EBE7DA'}`, borderRadius: '14px', padding: '20px 22px' }}>
                       {isEditing ? (
                         <>
-                          <textarea autoFocus value={editNoteText} onChange={e => setEditNoteText(e.target.value)} rows={4} style={{ width: '100%', border: '1px solid #D0E8F7', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#0E2C3D', resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '12px' }} />
+                          <textarea autoFocus value={editNoteText} onChange={e => setEditNoteText(e.target.value)} rows={4} style={{ width: '100%', border: '1px solid #CDE8CB', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#25402C', resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '12px' }} />
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={() => handleSaveNote(note.id)} disabled={!editNoteText.trim()} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Salvar</button>
-                            <button onClick={() => setEditingNoteId(null)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#3F5666', border: '1px solid #E1EEF7', borderRadius: '10px', cursor: 'pointer' }}>Cancelar</button>
+                            <button onClick={() => handleSaveNote(note.id)} disabled={!editNoteText.trim()} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Salvar</button>
+                            <button onClick={() => setEditingNoteId(null)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#35543B', border: '1px solid #EBE7DA', borderRadius: '10px', cursor: 'pointer' }}>Cancelar</button>
                           </div>
                         </>
                       ) : isDeleting ? (
                         <>
-                          <p style={{ fontSize: '13px', fontWeight: 700, color: '#D23B40', marginBottom: '12px' }}>Excluir esta anotação?</p>
+                          <p style={{ fontSize: '13px', fontWeight: 700, color: '#C05B3A', marginBottom: '12px' }}>Excluir esta anotação?</p>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={() => handleDeleteNote(note.id)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 700, background: '#E5484D', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Excluir</button>
-                            <button onClick={() => setDeletingNoteId(null)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#3F5666', border: '1px solid #E1EEF7', borderRadius: '10px', cursor: 'pointer' }}>Cancelar</button>
+                            <button onClick={() => handleDeleteNote(note.id)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 700, background: '#C05B3A', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Excluir</button>
+                            <button onClick={() => setDeletingNoteId(null)} style={{ flex: 1, padding: '9px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#35543B', border: '1px solid #EBE7DA', borderRadius: '10px', cursor: 'pointer' }}>Cancelar</button>
                           </div>
                         </>
                       ) : (
                         <>
                           {/* Author header */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#0098DA', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#3E9849', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
                               {authorInitial}
                             </div>
-                            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#3F5666' }}>{note.autor?.full_name ?? '—'}</span>
-                            <span style={{ fontSize: '12px', color: '#9DB6C7' }}>· {format(new Date(note.created_at), "d MMM 'às' HH:mm", { locale: ptBR })}{note.editado_em ? ' (editado)' : ''}</span>
+                            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#35543B' }}>{note.autor?.full_name ?? '—'}</span>
+                            <span style={{ fontSize: '12px', color: '#9AA79C' }}>· {format(new Date(note.created_at), "d MMM 'às' HH:mm", { locale: ptBR })}{note.editado_em ? ' (editado)' : ''}</span>
                           </div>
                           {/* Content */}
-                          <p style={{ fontSize: '13.5px', lineHeight: 1.65, color: '#3F5666', margin: 0, whiteSpace: 'pre-wrap' }}>{note.conteudo}</p>
+                          <p style={{ fontSize: '13.5px', lineHeight: 1.65, color: '#35543B', margin: 0, whiteSpace: 'pre-wrap' }}>{note.conteudo}</p>
                           {/* Actions */}
                           {isOwn && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'flex', gap: '6px', marginTop: '12px', justifyContent: 'flex-end' }}>
-                              <button onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.conteudo) }} style={{ padding: '4px 8px', fontSize: '11.5px', fontWeight: 600, color: '#1E86C0', background: 'transparent', border: '1px solid #E1EEF7', borderRadius: '7px', cursor: 'pointer' }}>Editar</button>
-                              <button onClick={() => setDeletingNoteId(note.id)} style={{ padding: '4px 8px', fontSize: '11.5px', fontWeight: 600, color: '#D23B40', background: 'transparent', border: '1px solid #F5C9CB', borderRadius: '7px', cursor: 'pointer' }}>Excluir</button>
+                              <button onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.conteudo) }} style={{ padding: '4px 8px', fontSize: '11.5px', fontWeight: 600, color: '#1E86C0', background: 'transparent', border: '1px solid #EBE7DA', borderRadius: '7px', cursor: 'pointer' }}>Editar</button>
+                              <button onClick={() => setDeletingNoteId(note.id)} style={{ padding: '4px 8px', fontSize: '11.5px', fontWeight: 600, color: '#C05B3A', background: 'transparent', border: '1px solid #E8B4B0', borderRadius: '7px', cursor: 'pointer' }}>Excluir</button>
                             </div>
                           )}
                         </>
@@ -1262,14 +1262,14 @@ function LeadDrawer({
             {tab === 'Tarefas' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {/* Add task form */}
-                <div style={{ background: '#fff', border: '1px solid #E9EFF4', borderRadius: '14px', padding: '20px 22px' }}>
-                  <p style={{ fontSize: '12.5px', fontWeight: 700, color: '#3F5666', marginBottom: '8px' }}>Tarefa <span style={{ color: '#E5484D' }}>*</span></p>
+                <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: '14px', padding: '20px 22px' }}>
+                  <p style={{ fontSize: '12.5px', fontWeight: 700, color: '#35543B', marginBottom: '8px' }}>Tarefa <span style={{ color: '#C05B3A' }}>*</span></p>
                   <input
                     type="text"
                     value={newTask.titulo}
                     onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
                     placeholder="Descreva a tarefa…"
-                    style={{ width: '100%', border: '1px solid #E1EEF7', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#0E2C3D', outline: 'none', fontFamily: 'inherit', marginBottom: '14px', boxSizing: 'border-box' }}
+                    style={{ width: '100%', border: '1px solid #EBE7DA', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#25402C', outline: 'none', fontFamily: 'inherit', marginBottom: '14px', boxSizing: 'border-box' }}
                   />
                   <div style={{ display: 'flex', gap: '14px', marginBottom: '16px' }}>
                     <div style={{ flex: 1 }}>
@@ -1280,11 +1280,11 @@ function LeadDrawer({
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: '12.5px', fontWeight: 700, color: '#3F5666', marginBottom: '8px' }}>Responsável</p>
+                      <p style={{ fontSize: '12.5px', fontWeight: 700, color: '#35543B', marginBottom: '8px' }}>Responsável</p>
                       <select
                         value={newTask.responsavel_id}
                         onChange={e => setNewTask(t => ({ ...t, responsavel_id: e.target.value }))}
-                        style={{ width: '100%', border: '1px solid #E1EEF7', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#0E2C3D', outline: 'none', fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box' }}
+                        style={{ width: '100%', border: '1px solid #EBE7DA', borderRadius: '11px', padding: '11px 14px', fontSize: '13.5px', color: '#25402C', outline: 'none', fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box' }}
                       >
                         {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                       </select>
@@ -1293,61 +1293,61 @@ function LeadDrawer({
                   <button
                     onClick={handleAddTask}
                     disabled={!newTask.titulo.trim()}
-                    style={{ width: '100%', padding: '12px', fontSize: '13.5px', fontWeight: 700, color: '#fff', background: '#0098DA', border: 'none', borderRadius: '11px', cursor: !newTask.titulo.trim() ? 'not-allowed' : 'pointer', opacity: !newTask.titulo.trim() ? 0.5 : 1, boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', transition: 'background 0.15s' }}
-                    onMouseEnter={e => { if (newTask.titulo.trim()) e.currentTarget.style.background = '#0086C2' }}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}
+                    style={{ width: '100%', padding: '12px', fontSize: '13.5px', fontWeight: 700, color: '#fff', background: '#3E9849', border: 'none', borderRadius: '11px', cursor: !newTask.titulo.trim() ? 'not-allowed' : 'pointer', opacity: !newTask.titulo.trim() ? 0.5 : 1, boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s' }}
+                    onMouseEnter={e => { if (newTask.titulo.trim()) e.currentTarget.style.background = '#35853F' }}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
                   >
                     Adicionar tarefa
                   </button>
                 </div>
 
-                {tasks.length === 0 && <p style={{ fontSize: '13px', color: '#9DB6C7', textAlign: 'center', padding: '32px 0' }}>Nenhuma tarefa ainda</p>}
+                {tasks.length === 0 && <p style={{ fontSize: '13px', color: '#9AA79C', textAlign: 'center', padding: '32px 0' }}>Nenhuma tarefa ainda</p>}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {tasks.map((task) => {
                     const overdue = !task.concluida && task.data_limite && new Date(task.data_limite) < new Date()
                     return (
-                      <div key={task.id} className="group" style={{ display: 'flex', alignItems: 'flex-start', gap: '13px', background: task.concluida ? '#F7FAFC' : '#fff', border: `1px solid ${task.concluida ? '#EDF2F6' : '#E9EFF4'}`, borderRadius: '13px', padding: '15px 17px' }}>
+                      <div key={task.id} className="group" style={{ display: 'flex', alignItems: 'flex-start', gap: '13px', background: task.concluida ? '#FBFAF4' : '#fff', border: `1px solid ${task.concluida ? '#E9E5D8' : '#EBE7DA'}`, borderRadius: '13px', padding: '15px 17px' }}>
                         {/* Checkbox */}
                         <button onClick={() => handleToggleTask(task)} style={{ flexShrink: 0, marginTop: '1px', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                           {task.concluida ? (
-                            <div style={{ width: '20px', height: '20px', borderRadius: '6px', background: '#4EB46B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '20px', height: '20px', borderRadius: '6px', background: '#3E9849', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 12l5 5 9-10"/></svg>
                             </div>
                           ) : (
-                            <div style={{ width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #CFD8E1' }} />
+                            <div style={{ width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #C9C3B2' }} />
                           )}
                         </button>
 
                         {/* Content */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: '14px', fontWeight: 700, color: task.concluida ? '#9DB6C7' : '#0E2C3D', textDecoration: task.concluida ? 'line-through' : 'none', margin: 0 }}>{task.titulo}</p>
+                          <p style={{ fontSize: '14px', fontWeight: 700, color: task.concluida ? '#9AA79C' : '#25402C', textDecoration: task.concluida ? 'line-through' : 'none', margin: 0 }}>{task.titulo}</p>
                           {task.observacao_conclusao && (
-                            <p style={{ fontSize: '12px', color: '#6B7280', fontStyle: 'italic', margin: '4px 0 0', background: '#F9FAFB', padding: '5px 8px', borderRadius: '6px', borderLeft: '3px solid #E2E8F0' }}>
+                            <p style={{ fontSize: '12px', color: '#71856F', fontStyle: 'italic', margin: '4px 0 0', background: '#FBFAF4', padding: '5px 8px', borderRadius: '6px', borderLeft: '3px solid #CDE8CB' }}>
                               {task.observacao_conclusao}
                             </p>
                           )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
                             {task.data_limite && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: overdue ? 700 : 400, color: overdue ? '#D23B40' : '#9DB6C7' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: overdue ? 700 : 400, color: overdue ? '#C05B3A' : '#9AA79C' }}>
                                 {overdue && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0zM12 9v4M12 17h.01"/></svg>}
                                 {format(new Date(task.data_limite), "d MMM 'às' HH:mm", { locale: ptBR })}
                               </span>
                             )}
-                            {task.responsavel && <span style={{ fontSize: '12px', color: '#9DB6C7' }}>{task.responsavel.full_name}</span>}
+                            {task.responsavel && <span style={{ fontSize: '12px', color: '#9AA79C' }}>{task.responsavel.full_name}</span>}
                           </div>
                         </div>
 
                         {/* Delete */}
                         {deletingTaskId === task.id ? (
                           <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                            <button onClick={() => handleDeleteTask(task.id)} style={{ fontSize: '11.5px', padding: '4px 10px', background: '#E5484D', color: '#fff', border: 'none', borderRadius: '7px', cursor: 'pointer', fontWeight: 700 }}>Excluir</button>
-                            <button onClick={() => setDeletingTaskId(null)} style={{ fontSize: '11.5px', padding: '4px 10px', background: 'transparent', color: '#3F5666', border: '1px solid #E1EEF7', borderRadius: '7px', cursor: 'pointer' }}>Não</button>
+                            <button onClick={() => handleDeleteTask(task.id)} style={{ fontSize: '11.5px', padding: '4px 10px', background: '#C05B3A', color: '#fff', border: 'none', borderRadius: '7px', cursor: 'pointer', fontWeight: 700 }}>Excluir</button>
+                            <button onClick={() => setDeletingTaskId(null)} style={{ fontSize: '11.5px', padding: '4px 10px', background: 'transparent', color: '#35543B', border: '1px solid #EBE7DA', borderRadius: '7px', cursor: 'pointer' }}>Não</button>
                           </div>
                         ) : (
-                          <button onClick={() => setDeletingTaskId(task.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: '#CFD8E1' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = '#D23B40')}
-                            onMouseLeave={e => (e.currentTarget.style.color = '#CFD8E1')}
+                          <button onClick={() => setDeletingTaskId(task.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: '#C9C3B2' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#C05B3A')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#C9C3B2')}
                           >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                           </button>
@@ -1383,40 +1383,40 @@ function LeadDrawer({
                   {/* Botão novo orçamento — pré-seleciona lead ou cliente */}
                   <a
                     href={`/orcamento?lead_id=${lead.id}`}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#0098DA', color: '#fff', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)', transition: 'background 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#0086C2')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#0098DA')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#3E9849', color: '#fff', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14M5 12h14"/></svg>
                     Novo orçamento
                   </a>
 
                   {!quotesLoaded && (
-                    <p className="text-xs text-gray-400 text-center py-8">Carregando...</p>
+                    <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '32px 0' }}>Carregando...</p>
                   )}
 
                   {quotesLoaded && quotes.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#F1EFE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="20" height="20" fill="none" stroke="#9AA79C" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      <p className="text-sm text-gray-500">Nenhum orçamento ainda</p>
+                      <p style={{ fontSize: 13, color: '#9AA79C' }}>Nenhum orçamento ainda</p>
                     </div>
                   )}
 
                   {quotesLoaded && quotes.map(q => (
                     <div
                       key={q.id}
-                      style={{ display: 'flex', alignItems: 'center', gap: '14px', background: '#fff', border: '1px solid #E9EFF4', borderRadius: '14px', padding: '15px 18px', transition: 'border-color 0.15s, box-shadow 0.15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#D7E6F0'; e.currentTarget.style.boxShadow = '0 6px 16px -10px rgba(16,44,61,0.2)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#E9EFF4'; e.currentTarget.style.boxShadow = 'none' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '14px', background: '#fff', border: '1px solid #EBE7DA', borderRadius: '14px', padding: '15px 18px', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#CDE8CB'; e.currentTarget.style.boxShadow = '0 6px 16px -10px rgba(37,64,44,0.15)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#EBE7DA'; e.currentTarget.style.boxShadow = 'none' }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#9DB6C7', fontFamily: 'monospace' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#9AA79C', fontFamily: 'monospace' }}>
                             #{String(q.numero ?? 0).padStart(4, '0')}
                           </span>
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${QUOTE_STATUS_COLORS[q.status]}`} style={{ fontSize: '12px', fontWeight: 700, padding: '3px 12px', borderRadius: '999px' }}>
@@ -1424,21 +1424,21 @@ function LeadDrawer({
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-                          <span style={{ fontSize: '17px', fontWeight: 800, color: '#0E2C3D' }}>
+                          <span style={{ fontSize: '17px', fontWeight: 800, color: '#25402C' }}>
                             {q.total_calculado != null ? fmtBRL.format(q.total_calculado) : '—'}
                           </span>
-                          <span style={{ fontSize: '12.5px', color: '#9DB6C7' }}>
+                          <span style={{ fontSize: '12.5px', color: '#9AA79C' }}>
                             {new Date(q.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '12px', color: '#9DB6C7', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', gap: '12px', color: '#9AA79C', flexShrink: 0 }}>
                         <button
                           onClick={() => handleCopyLink(q)}
                           title={copiedQuoteId === q.id ? 'Copiado!' : 'Copiar link do paciente'}
-                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copiedQuoteId === q.id ? '#4EB46B' : '#9DB6C7', transition: 'color 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = copiedQuoteId === q.id ? '#4EB46B' : '#3F5666')}
-                          onMouseLeave={e => (e.currentTarget.style.color = copiedQuoteId === q.id ? '#4EB46B' : '#9DB6C7')}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: copiedQuoteId === q.id ? '#3E9849' : '#9AA79C', transition: 'color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = copiedQuoteId === q.id ? '#3E9849' : '#35543B')}
+                          onMouseLeave={e => (e.currentTarget.style.color = copiedQuoteId === q.id ? '#3E9849' : '#9AA79C')}
                         >
                           {copiedQuoteId === q.id ? (
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg>
@@ -1449,9 +1449,9 @@ function LeadDrawer({
                         <a
                           href={`/orcamento?quote_id=${q.id}`}
                           title="Editar orçamento"
-                          style={{ color: '#9DB6C7', transition: 'color 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#3F5666')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#9DB6C7')}
+                          style={{ color: '#9AA79C', transition: 'color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#35543B')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#9AA79C')}
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg>
                         </a>
@@ -1467,16 +1467,16 @@ function LeadDrawer({
               // Sem telefone cadastrado
               if (!lead.telefone) return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' }}>
-                  <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#EAF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0098DA' }}>
+                  <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3E9849' }}>
                     <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>
                   </div>
                   <div>
-                    <p style={{ fontSize: '15px', fontWeight: 800, color: '#3F5666', margin: '0 0 6px' }}>Telefone não cadastrado</p>
-                    <p style={{ fontSize: '13px', color: '#9DB6C7', margin: 0 }}>Cadastre um telefone para iniciar o atendimento via WhatsApp</p>
+                    <p style={{ fontSize: '15px', fontWeight: 800, color: '#35543B', margin: '0 0 6px' }}>Telefone não cadastrado</p>
+                    <p style={{ fontSize: '13px', color: '#9AA79C', margin: 0 }}>Cadastre um telefone para iniciar o atendimento via WhatsApp</p>
                   </div>
                   <button
                     onClick={() => { setTab('Histórico'); setEditing(true) }}
-                    style={{ padding: '10px 24px', fontSize: '13.5px', fontWeight: 700, background: '#0098DA', color: '#fff', border: 'none', borderRadius: '11px', cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,152,218,0.6)' }}
+                    style={{ padding: '10px 24px', fontSize: '13.5px', fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: '11px', cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)' }}
                   >
                     Editar dados
                   </button>
@@ -1485,7 +1485,7 @@ function LeadDrawer({
 
               // Carregando
               if (!waLoaded) return (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0', color: '#9DB6C7', fontSize: '13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0', color: '#9AA79C', fontSize: '13px' }}>
                   Carregando conversa…
                 </div>
               )
@@ -1493,12 +1493,12 @@ function LeadDrawer({
               // Sem conversa ainda
               if (!waConversation) return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' }}>
-                  <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#EAF6FC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0098DA' }}>
+                  <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3E9849' }}>
                     <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>
                   </div>
                   <div>
-                    <p style={{ fontSize: '15px', fontWeight: 800, color: '#3F5666', margin: '0 0 6px' }}>Nenhuma conversa ainda</p>
-                    <p style={{ fontSize: '13px', color: '#9DB6C7', margin: 0, maxWidth: '280px' }}>Quando este contato enviar uma mensagem para o WhatsApp, a conversa aparecerá aqui automaticamente.</p>
+                    <p style={{ fontSize: '15px', fontWeight: 800, color: '#35543B', margin: '0 0 6px' }}>Nenhuma conversa ainda</p>
+                    <p style={{ fontSize: '13px', color: '#9AA79C', margin: 0, maxWidth: '280px' }}>Quando este contato enviar uma mensagem para o WhatsApp, a conversa aparecerá aqui automaticamente.</p>
                   </div>
                 </div>
               )
@@ -1660,33 +1660,33 @@ function LeadDrawer({
 
       {/* ── Archive modal ── */}
       {archiveModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
-            <h3 className="font-semibold text-gray-900 mb-0.5">Arquivar contato</h3>
-            <p className="text-xs text-gray-500 mb-4">O contato será removido do funil e preservado no banco.</p>
-            <p className="text-xs font-medium text-gray-700 mb-2">Motivo da perda *</p>
-            <div className="space-y-2 mb-3">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
+          <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
+            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Arquivar contato</h3>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato será removido do funil e preservado no banco.</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo da perda *</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {ARCHIVE_REASONS.map(reason => (
-                <label key={reason} className="flex items-center gap-2.5 cursor-pointer group">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${archiveReason === reason ? 'border-red-500 bg-red-500' : 'border-gray-300 group-hover:border-red-400'}`}>
-                    {archiveReason === reason && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${archiveReason === reason ? '#C05B3A' : '#C9C3B2'}`, background: archiveReason === reason ? '#C05B3A' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                    {archiveReason === reason && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
                   </div>
-                  <input type="radio" name="archive-reason" value={reason} checked={archiveReason === reason} onChange={() => setArchiveReason(reason)} className="sr-only" />
-                  <span className="text-sm text-gray-700">{reason}</span>
+                  <input type="radio" name="archive-reason" value={reason} checked={archiveReason === reason} onChange={() => setArchiveReason(reason)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
+                  <span style={{ fontSize: 13, color: '#35543B' }}>{reason}</span>
                 </label>
               ))}
             </div>
             {archiveReason === 'Outro' && (
-              <textarea autoFocus value={archiveCustom} onChange={e => setArchiveCustom(e.target.value)} placeholder="Descreva o motivo..." rows={2} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none mb-3" />
+              <textarea autoFocus value={archiveCustom} onChange={e => setArchiveCustom(e.target.value)} placeholder="Descreva o motivo..." rows={2} style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }} />
             )}
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => { setArchiveModal(false); setArchiveReason(''); setArchiveCustom('') }} className="flex-1 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={() => { setArchiveModal(false); setArchiveReason(''); setArchiveCustom('') }} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
                 Cancelar
               </button>
               <button
                 onClick={handleArchive}
                 disabled={!archiveReason || (archiveReason === 'Outro' && !archiveCustom.trim()) || archiveSaving}
-                className="flex-1 py-2 text-sm bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-50 transition-colors font-medium"
+                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#C05B3A', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!archiveReason || (archiveReason === 'Outro' && !archiveCustom.trim()) || archiveSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
               >
                 {archiveSaving ? 'Arquivando...' : 'Arquivar'}
               </button>
@@ -1735,14 +1735,14 @@ function F({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#71856F', marginBottom: 4 }}>{label}</label>
       <input
         type={type}
         value={value}
         autoFocus={autoFocus}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300 bg-white"
+        style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }}
       />
     </div>
   )
