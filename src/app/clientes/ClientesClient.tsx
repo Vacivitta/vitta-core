@@ -100,7 +100,7 @@ export default function ClientesClient({
         (c.telefone ?? '').toLowerCase().includes(q) ||
         (qDigits && tel.includes(qDigits)) ||
         (c.email ?? '').toLowerCase().includes(q) ||
-        (c.cpf ?? '').replace(/\D/g, '').includes(qDigits)
+        (qDigits && (c.cpf ?? '').replace(/\D/g, '').includes(qDigits))
     })
   }, [clients, search])
 
