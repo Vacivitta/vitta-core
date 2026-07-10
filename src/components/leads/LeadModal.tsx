@@ -402,6 +402,18 @@ function LeadDrawer({
     return map
   }, [waMessages])
 
+  const waReactionsByWaId = useMemo(() => {
+    const map = new Map<string, { emoji: string; direction: string }[]>()
+    for (const m of waMessages) {
+      if (m.type === 'reaction' && m.reply_to_wa_message_id && m.content) {
+        const arr = map.get(m.reply_to_wa_message_id) ?? []
+        arr.push({ emoji: m.content, direction: m.direction })
+        map.set(m.reply_to_wa_message_id, arr)
+      }
+    }
+    return map
+  }, [waMessages])
+
   // isOutside24hWindow para o chat do modal
   const waIsOutside24h = useMemo(() => {
     if (!waMessages.length) return false
@@ -1527,6 +1539,7 @@ function LeadDrawer({
                         )
                       }
                       const msg = item as WaMessage
+                      if (msg.type === 'reaction') return null
                       const isOut = msg.direction === 'outbound'
                       const isNote = msg.type === 'note'
                       if (isNote) {
@@ -1589,21 +1602,46 @@ function LeadDrawer({
                                     </p>
                                   </div>
                                 )}
-                                <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                  <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3 }}>
-                                  <span style={{ fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2' }}>
-                                    {format(new Date(msg.created_at), 'HH:mm')}
-                                  </span>
-                                  {isOut && (
-                                    <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
-                                      {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
+                                {(msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)) ? (
+                                  <p style={{ margin: 0, fontSize: 13.5, color: isOut ? '#2C4630' : '#35473A', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                    <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, float: 'right', marginLeft: 8, marginTop: 2, height: 0, fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2', whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
+                                      {format(new Date(msg.created_at), 'HH:mm')}
+                                      {isOut && <span style={{ color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>{msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}</span>}
                                     </span>
-                                  )}
-                                </div>
+                                  </p>
+                                ) : (
+                                  <>
+                                    <div style={{ fontSize: '13.5px', color: isOut ? '#2C4630' : '#35473A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                      <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginTop: 3 }}>
+                                      <span style={{ fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2' }}>
+                                        {format(new Date(msg.created_at), 'HH:mm')}
+                                      </span>
+                                      {isOut && (
+                                        <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
+                                          {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
+                            {(() => {
+                              const reactions = msg.wa_message_id ? waReactionsByWaId.get(msg.wa_message_id) : undefined
+                              if (!reactions || reactions.length === 0) return null
+                              return (
+                                <div style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start', marginTop: -4 }}>
+                                  <div style={{ display: 'inline-flex', gap: 2, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 99, padding: '1px 6px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                                    {reactions.map((r, i) => (
+                                      <span key={i} style={{ fontSize: 14, lineHeight: '20px' }}>{r.emoji}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
                         )
                       })()

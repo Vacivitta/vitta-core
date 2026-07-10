@@ -7,6 +7,7 @@ import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
 import { createClient } from '@/lib/supabase/client'
+import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -49,9 +50,9 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
         onClick={() => setOpen(v => !v)}
         style={{
           fontSize: 12, fontWeight: selected.length ? 700 : 500,
-          background: selected.length ? 'rgba(153,198,105,0.25)' : 'rgba(255,255,255,0.10)',
-          border: `1px solid ${selected.length ? 'rgba(153,198,105,0.5)' : 'rgba(255,255,255,0.16)'}`,
-          borderRadius: 999, padding: '5px 12px', color: '#D9E7DA',
+          background: selected.length ? '#E8F4E6' : '#fff',
+          border: `1px solid ${selected.length ? '#3E9849' : '#EBE7DA'}`,
+          borderRadius: 999, padding: '5px 12px', color: selected.length ? '#3E9849' : '#71856F',
           cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5,
         }}
       >
@@ -63,8 +64,8 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 200,
-          background: '#1E3323', border: '1px solid rgba(255,255,255,0.15)',
-          borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+          background: '#fff', border: '1px solid #EBE7DA',
+          borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           minWidth: 190, maxHeight: 260, overflowY: 'auto', padding: '6px 0',
         }}>
           {options.map(opt => {
@@ -74,19 +75,19 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
                 key={opt.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
-                  cursor: 'pointer', fontSize: 12, color: '#D9E7DA',
+                  cursor: 'pointer', fontSize: 12, color: '#25402C',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F6F4EC' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
               >
                 <div style={{
                   width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                  border: checked ? 'none' : '1.5px solid rgba(255,255,255,0.3)',
-                  background: checked ? '#99C669' : 'transparent',
+                  border: checked ? 'none' : '1.5px solid #CCC8BA',
+                  background: checked ? '#3E9849' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {checked && (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#1E3323" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   )}
@@ -119,6 +120,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
   const [showArchived, setShowArchived]   = useState(false)
+  const [newConvOpen, setNewConvOpen]     = useState(false)
   const [filters, setFilters]             = useState<Filters>({
     search:          '',
     responsavel_ids: [],
@@ -257,6 +259,18 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     setQuickFormStage(stage)
   }
 
+  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText = '') {
+    const res = await fetch('/api/whatsapp/start-conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components, register_optin: registerOptin, body_text: bodyText }),
+    })
+    const data = await res.json() as { conversation_id?: string; error?: string }
+    if (!res.ok || !data.conversation_id) throw new Error(data.error ?? 'Erro ao iniciar conversa')
+    setNewConvOpen(false)
+    await reloadLeads()
+  }
+
   async function handleQuickCreated(lead: Lead, openFull: boolean) {
     await reloadLeads()
     setQuickFormStage(null)
@@ -349,6 +363,19 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           </button>
 
           <button
+            onClick={() => setNewConvOpen(true)}
+            className="flex items-center gap-1.5 text-white"
+            style={{ fontSize: 13, padding: '6px 16px', borderRadius: 999, border: 'none', background: '#3E9849', cursor: 'pointer', fontWeight: 900, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
+            title="Iniciar conversa via WhatsApp"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a7.96 7.96 0 01-4.106-1.138l-.294-.176-2.866.852.852-2.866-.176-.294A7.96 7.96 0 014 12c0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8z"/>
+            </svg>
+            Iniciar conversa
+          </button>
+
+          <button
             onClick={() => handleAddLead(selectedFunnel.stages[0])}
             className="flex items-center gap-1.5 text-white"
             style={{ fontSize: 13, padding: '6px 16px', borderRadius: 999, border: 'none', background: '#3E9849', cursor: 'pointer', fontWeight: 900, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
@@ -363,7 +390,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
       {/* Barra de filtros */}
       {showFilters && (
-        <div style={{ background: '#2D4A35', padding: '8px 28px', borderTop: '1px solid rgba(255,255,255,0.08)' }} className="flex items-center gap-3 shrink-0 flex-wrap">
+        <div style={{ background: '#F6F4EC', padding: '8px 28px', borderTop: '1px solid #EBE7DA' }} className="flex items-center gap-3 shrink-0 flex-wrap">
           <MultiCheckFilter
             label="Responsável"
             selected={filters.responsavel_ids}
@@ -376,7 +403,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             placeholder="Cidade..."
             value={filters.cidade}
             onChange={e => setFilters(f => ({ ...f, cidade: e.target.value }))}
-            style={{ fontSize: 12, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '5px 12px', color: '#D9E7DA', outline: 'none', width: 120 }}
+            style={{ fontSize: 12, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 999, padding: '5px 12px', color: '#25402C', outline: 'none', width: 120 }}
           />
 
           <MultiCheckFilter
@@ -398,7 +425,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           {activeFiltersCount > 0 && (
             <button
               onClick={() => setFilters({ search: '', responsavel_ids: [], cidade: '', stage_ids: [], tag_ids: [] })}
-              style={{ fontSize: 11, color: '#F0C98A', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+              style={{ fontSize: 11, color: '#C87F1B', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
             >
               Limpar filtros
             </button>
@@ -432,6 +459,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           selectedFunnelId={selectedFunnelId}
           onOpenLead={lead => { setShowArchived(false); setModalLead(lead) }}
           onClose={() => setShowArchived(false)}
+        />
+      )}
+
+      {/* Nova conversa modal */}
+      {newConvOpen && (
+        <NewConversationModal
+          unitId={currentUser.unit_id ?? ''}
+          onStart={handleStartConversation}
+          onClose={() => setNewConvOpen(false)}
         />
       )}
 

@@ -13,6 +13,7 @@ import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
 import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -753,14 +754,24 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#9AA79C', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
                 {(() => {
                   const msgByWaId = new Map<string, WaMessage>()
-                  chatItems.forEach(ci => { if (ci.kind === 'message' && ci.message?.wa_message_id) msgByWaId.set(ci.message.wa_message_id, ci.message) })
-                  return chatRenderItems.map(item =>
-                    item.kind === 'date'
-                      ? <DateSeparator key={item.key} label={item.label} />
-                      : item.kind === 'message'
-                        ? <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} onReply={setReplyTo} quotedMsg={item.message!.reply_to_wa_message_id ? msgByWaId.get(item.message!.reply_to_wa_message_id) ?? null : null} />
-                        : <InternalNoteBubble key={item.id} note={item.note!} />
-                  )
+                  const reactionsByWaId = new Map<string, { emoji: string; direction: string }[]>()
+                  chatItems.forEach(ci => {
+                    if (ci.kind === 'message' && ci.message?.wa_message_id) msgByWaId.set(ci.message.wa_message_id, ci.message)
+                    if (ci.kind === 'message' && ci.message?.type === 'reaction' && ci.message.reply_to_wa_message_id && ci.message.content) {
+                      const arr = reactionsByWaId.get(ci.message.reply_to_wa_message_id) ?? []
+                      arr.push({ emoji: ci.message.content, direction: ci.message.direction })
+                      reactionsByWaId.set(ci.message.reply_to_wa_message_id, arr)
+                    }
+                  })
+                  return chatRenderItems.map(item => {
+                    if (item.kind === 'date') return <DateSeparator key={item.key} label={item.label} />
+                    if (item.kind === 'message' && item.message?.type === 'reaction') return null
+                    if (item.kind === 'message') {
+                      const reactions = item.message?.wa_message_id ? reactionsByWaId.get(item.message.wa_message_id) : undefined
+                      return <ChatBubble key={item.id} msg={item.message!} unitId={selectedConv?.unit_id ?? null} onReply={setReplyTo} quotedMsg={item.message!.reply_to_wa_message_id ? msgByWaId.get(item.message!.reply_to_wa_message_id) ?? null : null} reactions={reactions} />
+                    }
+                    return <InternalNoteBubble key={item.id} note={item.note!} />
+                  })
                 })()}
                 <div ref={msgsEndRef} />
               </div>
@@ -1307,7 +1318,7 @@ function DateSeparator({ label }: { label: string }) {
 
 // ── ChatBubble / Media ────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitId: string | null; onReply?: (msg: WaMessage) => void; quotedMsg?: WaMessage | null }) {
+function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMessage; unitId: string | null; onReply?: (msg: WaMessage) => void; quotedMsg?: WaMessage | null; reactions?: { emoji: string; direction: string }[] }) {
   const [bubbleHovered, setBubbleHovered] = useState(false)
   const isOut = msg.direction === 'outbound'
   const failed = isOut && msg.status === 'failed'
@@ -1350,9 +1361,9 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
             </div>
           )}
           {isText ? (
-            <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden' }}>
               <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
-              <span style={{ display: 'inline', float: 'right', marginTop: 2, marginLeft: 8, height: 0 }}>{timestamp}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, float: 'right', marginTop: 2, marginLeft: 8, fontSize: 10, color: timeColor, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>{timestamp}</span>
             </p>
           ) : isAudio ? (
             <MediaContent msg={msg} isOut={isOut} unitId={unitId} timestamp={timestamp} />
@@ -1373,6 +1384,15 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg }: { msg: WaMessage; unitI
           </button>
         )}
       </div>
+      {reactions && reactions.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start', marginTop: -4 }}>
+          <div style={{ display: 'inline-flex', gap: 2, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 99, padding: '1px 6px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+            {reactions.map((r, i) => (
+              <span key={i} style={{ fontSize: 14, lineHeight: '20px' }}>{r.emoji}</span>
+            ))}
+          </div>
+        </div>
+      )}
       {failed && (
         <span style={{ fontSize: 10, color: '#C05B3A', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
           <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
@@ -1690,128 +1710,7 @@ function EmptyChatState() {
 // ── Icon components ───────────────────────────────────────────────────────────
 
 
-// ── NewConversationModal ───────────────────────────────────────────────────────
-
-interface MetaApprovedTemplate { name: string; language: string; bodyText: string }
-
-function NewConversationModal({ unitId, onStart, onClose }: {
-  unitId:  string
-  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText: string) => Promise<void>
-  onClose: () => void
-}) {
-  const [phone,        setPhone]        = useState('')
-  const [tmplIdx,      setTmplIdx]      = useState(0)
-  const [sending,      setSending]      = useState(false)
-  const [error,        setError]        = useState<string | null>(null)
-  const [metaTmpls,    setMetaTmpls]    = useState<MetaApprovedTemplate[] | null>(null)
-  const [loadingT,     setLoadingT]     = useState(true)
-  const [regOptin,     setRegOptin]     = useState(true)
-
-  // Busca templates aprovados direto da Meta ao abrir o modal
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res  = await fetch('/api/whatsapp/meta-templates')
-        const data = await res.json() as { templates?: { name: string; status: string; language: string; components?: { type: string; text?: string }[] }[]; error?: string }
-        if (!res.ok || data.error) { setMetaTmpls([]); return }
-        const approved = (data.templates ?? [])
-          .filter(t => t.status === 'APPROVED')
-          .map(t => ({
-            name:     t.name,
-            language: t.language,
-            bodyText: t.components?.find(c => c.type === 'BODY')?.text ?? '',
-          }))
-        setMetaTmpls(approved)
-      } catch { setMetaTmpls([]) }
-      finally { setLoadingT(false) }
-    })()
-  }, [])
-
-  const selected = metaTmpls?.[tmplIdx] ?? null
-
-  async function handleSend() {
-    setError(null)
-    if (!phone.trim()) { setError('Informe o telefone do contato'); return }
-    if (!selected)     { setError('Selecione um template'); return }
-    setSending(true)
-    try {
-      await onStart(phone.trim(), unitId, selected.name, selected.language, [], regOptin, selected.bodyText)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao iniciar conversa')
-    } finally { setSending(false) }
-  }
-
-  const noTmpls = !loadingT && (metaTmpls ?? []).length === 0
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 440, maxWidth: '94vw', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: 0 }}>Nova conversa</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
-        </div>
-
-        <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Telefone (DDD + número)</label>
-        <input
-          type="tel"
-          placeholder="Ex: 11999998888"
-          value={phone}
-          onChange={e => setPhone(e.target.value)}
-          style={{ width: '100%', border: '1.5px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16, color: '#25402C' }}
-        />
-
-        <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template de abertura</label>
-        {loadingT ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Spinner size={16} color="#3E9849" />
-            <span style={{ fontSize: 12, color: '#9AA79C' }}>Carregando templates aprovados…</span>
-          </div>
-        ) : noTmpls ? (
-          <p style={{ fontSize: 12, color: '#9AA79C', marginBottom: 16 }}>
-            Nenhum template aprovado na Meta. Acesse <strong>Configurações → Templates</strong> e aguarde a aprovação.
-          </p>
-        ) : (
-          <>
-            <select
-              value={tmplIdx}
-              onChange={e => setTmplIdx(Number(e.target.value))}
-              style={{ width: '100%', border: '1.5px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12, background: '#fff', color: '#25402C', cursor: 'pointer' }}
-            >
-              {(metaTmpls ?? []).map((t, i) => <option key={`${t.name}-${t.language}`} value={i}>{t.name} ({t.language})</option>)}
-            </select>
-            {selected?.bodyText && (
-              <div style={{ background: '#E8F4E6', border: '1px solid #CDE8CB', borderRadius: 10, padding: '10px 13px', marginBottom: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#3E9849', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prévia</p>
-                <p style={{ fontSize: 13, color: '#25402C', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{selected.bodyText}</p>
-              </div>
-            )}
-          </>
-        )}
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer' }}>
-          <input type="checkbox" checked={regOptin} onChange={e => setRegOptin(e.target.checked)}
-            style={{ width: 15, height: 15, accentColor: '#3E9849', flexShrink: 0, cursor: 'pointer' }} />
-          <span style={{ fontSize: 12, color: '#71856F', lineHeight: 1.4 }}>
-            Registrar autorização WhatsApp para este contato
-          </span>
-        </label>
-
-        {error && <p style={{ fontSize: 12, color: '#E53E3E', marginBottom: 12 }}>{error}</p>}
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>Cancelar</button>
-          <button onClick={handleSend} disabled={sending || noTmpls || loadingT}
-            style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
-              cursor: sending || noTmpls || loadingT ? 'default' : 'pointer',
-              background: sending || noTmpls || loadingT ? '#EBE7DA' : '#25D366',
-              color: sending || noTmpls || loadingT ? '#9AA79C' : '#fff', transition: 'all 0.15s' }}>
-            {sending ? 'Enviando…' : 'Iniciar conversa'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+// ── NewConversationModal — extracted to @/components/whatsapp/NewConversationModal
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 

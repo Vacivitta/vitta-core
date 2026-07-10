@@ -165,7 +165,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
         media_url:       content.mediaUrl,
         media_mime_type: content.mimeType,
         status:          'delivered',
-        reply_to_wa_message_id: msg.context?.id ?? null,
+        reply_to_wa_message_id: msg.type === 'reaction' ? (msg.reaction?.message_id ?? null) : (msg.context?.id ?? null),
       },
       { onConflict: 'wa_message_id', ignoreDuplicates: true }
     )
@@ -184,8 +184,8 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   const isDuplicate = !newMsg
   if (isDuplicate) console.log('[WA webhook] mensagem duplicada — pulando increment de unread:', msg.id)
 
-  if (!isDuplicate) {
-    // 3. Atualiza last_message_at, prévia da última mensagem e unread
+  if (!isDuplicate && msg.type !== 'reaction') {
+    // 3. Atualiza last_message_at, prévia da última mensagem e unread (reações não contam)
     const lastContent = content.text
       ?? (msg.type === 'image' ? '📷 Imagem' : msg.type === 'audio' ? '🎤 Áudio' : msg.type === 'video' ? '🎬 Vídeo' : msg.type === 'document' ? '📎 Documento' : '📎 Anexo')
     const { error: updErr } = await supabase
@@ -606,6 +606,7 @@ function extractContent(msg: WAMessage): { text: string | null; mediaUrl: string
     case 'video':    return { text: msg.video?.caption ?? null, mediaUrl: msg.video?.id ?? null, mimeType: msg.video?.mime_type ?? null }
     case 'document': return { text: msg.document?.filename ?? null, mediaUrl: msg.document?.id ?? null, mimeType: msg.document?.mime_type ?? null }
     case 'sticker':  return { text: null, mediaUrl: msg.sticker?.id ?? null, mimeType: 'image/webp' }
+    case 'reaction': return { text: msg.reaction?.emoji ?? null, mediaUrl: null, mimeType: null }
     default:         return { text: null, mediaUrl: null, mimeType: null }
   }
 }
@@ -635,6 +636,7 @@ interface WAMessage {
   video?:    { id: string; caption?: string; mime_type: string }
   document?: { id: string; filename: string; mime_type: string }
   sticker?:  { id: string; mime_type: string }
+  reaction?: { message_id: string; emoji: string }
   context?:  { id?: string; from?: string }
 }
 interface WAStatus {
