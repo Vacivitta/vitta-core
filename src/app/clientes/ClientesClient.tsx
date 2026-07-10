@@ -85,22 +85,22 @@ export default function ClientesClient({
     return groups
   }, [clients])
 
-  const norm = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-
   const filtered = useMemo(() => {
-    const q = norm(search)
+    const q = search.trim().toLowerCase()
     if (!q) return clients
     return clients.filter(c => {
-      const nome      = norm(c.nome)
-      const sobrenome = norm(c.sobrenome ?? '')
-      const fullName  = sobrenome ? `${nome} ${sobrenome}` : nome
+      const nome = (c.nome ?? '').toLowerCase()
+      const sobrenome = (c.sobrenome ?? '').toLowerCase()
+      const fullName = sobrenome ? `${nome} ${sobrenome}` : nome
+      const tel = (c.telefone ?? '').replace(/\D/g, '')
+      const qDigits = q.replace(/\D/g, '')
       return fullName.includes(q) ||
         nome.includes(q) ||
         sobrenome.includes(q) ||
-        (c.telefone ?? '').includes(q) ||
-        norm(c.email ?? '').includes(q) ||
-        (c.cpf ?? '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+        (c.telefone ?? '').toLowerCase().includes(q) ||
+        (qDigits && tel.includes(qDigits)) ||
+        (c.email ?? '').toLowerCase().includes(q) ||
+        (c.cpf ?? '').replace(/\D/g, '').includes(qDigits)
     })
   }, [clients, search])
 
@@ -194,11 +194,28 @@ export default function ClientesClient({
     }
   }
 
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   async function handleDelete(id: string) {
     setDeleting(id)
-    const { error } = await supabase.from('leads').delete().eq('id', id)
-    if (!error) setClients(prev => prev.filter(c => c.id !== id))
-    setDeleting(null)
+    setDeleteError(null)
+    try {
+      const res = await fetch('/api/leads/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'Erro ao excluir' }))
+        setDeleteError(body.error ?? 'Erro ao excluir cliente.')
+        return
+      }
+      setClients(prev => prev.filter(c => c.id !== id))
+    } catch {
+      setDeleteError('Erro de conexão ao excluir cliente.')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   function fmt(v: string | null) {
@@ -249,6 +266,14 @@ export default function ClientesClient({
         <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
           <span>Erro ao carregar clientes: {fetchError}</span>
           <button onClick={() => setFetchError(null)} className="text-red-400 hover:text-red-600 ml-2">✕</button>
+        </div>
+      )}
+
+      {/* Erro ao excluir */}
+      {deleteError && (
+        <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center justify-between">
+          <span>{deleteError}</span>
+          <button onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600 ml-2">✕</button>
         </div>
       )}
 
