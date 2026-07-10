@@ -1106,7 +1106,7 @@ function LeadDrawer({
           </div>
 
           {/* Tab body */}
-          <div className="flex-1 overflow-y-auto" style={{ padding: tab === 'Atendimento' ? 0 : '24px 28px 32px', background: '#F2EEE1' }}>
+          <div className={`flex-1 ${tab === 'Atendimento' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`} style={{ padding: tab === 'Atendimento' ? 0 : '24px 28px 32px', background: '#F2EEE1' }}>
 
             {/* ═══ HISTÓRICO ═══ */}
             {tab === 'Histórico' && (
