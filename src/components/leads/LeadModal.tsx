@@ -1106,7 +1106,7 @@ function LeadDrawer({
           </div>
 
           {/* Tab body */}
-          <div className="flex-1 overflow-y-auto" style={{ padding: '24px 28px 32px', background: '#F2EEE1' }}>
+          <div className="flex-1 overflow-y-auto" style={{ padding: tab === 'Atendimento' ? 0 : '24px 28px 32px', background: '#F2EEE1' }}>
 
             {/* ═══ HISTÓRICO ═══ */}
             {tab === 'Histórico' && (
@@ -1505,7 +1505,7 @@ function LeadDrawer({
 
               // Chat
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: '-24px -28px -32px', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   {/* Tags */}
                   {waConversation && (
                     <ConvTagsBar
