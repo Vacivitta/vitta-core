@@ -277,7 +277,7 @@ export default function ChatInput({
   ] as const
 
   return (
-    <div style={{ borderTop: '1px solid #F1F4F7', background: '#fff', flexShrink: 0, position: 'relative' }}>
+    <div style={{ borderTop: '1px solid #EBE7DA', background: '#fff', flexShrink: 0, position: 'relative' }}>
       {/* Hidden file inputs */}
       <input ref={imageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
       <input ref={videoRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={handleFile} />
@@ -466,16 +466,16 @@ export default function ChatInput({
       {/* Mode toggle + formatting toolbar */}
       <div style={{ padding: '8px 14px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
         <button onClick={() => { onModeChange('text'); setScheduleMode(false); setScheduleTemplate(null) }}
-          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: !isNote ? '#3E9849' : '#F1F4F7', color: !isNote ? '#fff' : '#9AA79C' }}>
+          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, background: !isNote ? '#25402C' : '#F1EFE5', color: !isNote ? '#fff' : '#9AA79C' }}>
           Mensagem
         </button>
         <button onClick={() => { onModeChange('note'); setScheduleMode(false); setScheduleTemplate(null); setAttachOpen(false); setShowTemplates(false); setShowQuickReplies(false) }}
-          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: 'none', cursor: 'pointer', background: isNote ? '#F59E0B' : '#F1F4F7', color: isNote ? '#fff' : '#9AA79C' }}>
+          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, background: isNote ? '#F59E0B' : '#F1EFE5', color: isNote ? '#fff' : '#9AA79C' }}>
           Nota interna
         </button>
         {!isNote && (
           <>
-            <div style={{ width: 1, height: 16, background: '#EBE7DA', marginInline: 2 }} />
+            <div style={{ width: 1, height: 16, background: '#EBE7DA', marginInline: 2, flexShrink: 0 }} />
             {([['*', 'B', 'Negrito (Ctrl+B)', { fontWeight: 700 }], ['_', 'I', 'Itálico (Ctrl+I)', { fontStyle: 'italic' as const }], ['~', 'S', 'Riscado (Ctrl+Shift+X)', { textDecoration: 'line-through' }]] as const).map(([marker, label, title, css]) => (
               <button key={marker} title={title as string}
                 onClick={() => {
@@ -486,18 +486,18 @@ export default function ChatInput({
                   onChange(value.slice(0, s) + marker + value.slice(s, end) + marker + value.slice(end))
                   requestAnimationFrame(() => { ta.setSelectionRange(s + 1, end + 1) })
                 }}
-                style={{ width: 24, height: 22, borderRadius: 4, border: '1px solid #EBE7DA', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#667781', ...(css as React.CSSProperties) }}
+                style={{ width: 26, height: 24, borderRadius: 5, border: '1px solid #EBE7DA', background: '#FAF8F1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#667781', flexShrink: 0, ...(css as React.CSSProperties) }}
               >{label}</button>
             ))}
           </>
         )}
         {!isNote && (
-          <button onClick={onToggleSignature} title={signatureEnabled ? `Assinatura ativa: "${signerName}: ..."` : 'Ativar assinatura'}
-            style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, border: `1px solid ${signatureEnabled ? '#3E9849' : '#EBE7DA'}`, cursor: 'pointer', background: signatureEnabled ? '#EFF7FF' : '#F8FAFB', color: signatureEnabled ? '#3E9849' : '#9AA79C', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          <button onClick={onToggleSignature} title={signatureEnabled ? `Assinatura ativa: ${signerName}` : 'Ativar assinatura'}
+            style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 999, border: `1px solid ${signatureEnabled ? '#3E9849' : '#EBE7DA'}`, cursor: 'pointer', background: signatureEnabled ? '#E8F4E6' : '#FAF8F1', color: signatureEnabled ? '#2C7233' : '#9AA79C', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
-            {signatureEnabled ? signerName : 'Assinatura'}
+            {signatureEnabled ? signerName.split(' ')[0] : 'Assinatura'}
           </button>
         )}
       </div>
@@ -530,8 +530,10 @@ export default function ChatInput({
         {!isNote && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setAttachOpen(v => !v)} title="Anexar / ferramentas"
-              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${attachOpen ? '#3E9849' : '#EBE7DA'}`, background: attachOpen ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" fill="none" stroke={attachOpen ? '#3E9849' : '#9AA79C'} viewBox="0 0 24 24">
+              onMouseEnter={e => { if (!attachOpen) { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.borderColor = '#3E9849'; e.currentTarget.style.background = '#EFF7EC' } }}
+              onMouseLeave={e => { if (!attachOpen) { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = '#FAF8F1' } }}
+              style={{ width: 38, height: 38, borderRadius: 99, border: `1px solid ${attachOpen ? '#3E9849' : '#E9E5D8'}`, background: attachOpen ? '#EFF7EC' : '#FAF8F1', color: attachOpen ? '#3E9849' : '#9AA79C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
             </button>
@@ -557,12 +559,14 @@ export default function ChatInput({
         {!isNote && (
           <div ref={emojiPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setShowEmoji(v => !v)} title="Emoji"
-              style={{ width: 38, height: 38, borderRadius: 10, border: `1px solid ${showEmoji ? '#3E9849' : '#EBE7DA'}`, background: showEmoji ? '#EFF7FF' : '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" fill="none" stroke={showEmoji ? '#3E9849' : '#9AA79C'} viewBox="0 0 24 24">
+              onMouseEnter={e => { if (!showEmoji) { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.borderColor = '#3E9849'; e.currentTarget.style.background = '#EFF7EC' } }}
+              onMouseLeave={e => { if (!showEmoji) { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = '#FAF8F1' } }}
+              style={{ width: 38, height: 38, borderRadius: 99, border: `1px solid ${showEmoji ? '#3E9849' : '#E9E5D8'}`, background: showEmoji ? '#EFF7EC' : '#FAF8F1', color: showEmoji ? '#3E9849' : '#9AA79C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M8 13.5s1.5 2 4 2 4-2 4-2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="9" cy="9.5" r="0.5" fill={showEmoji ? '#3E9849' : '#9AA79C'} strokeWidth="1.5" />
-                <circle cx="15" cy="9.5" r="0.5" fill={showEmoji ? '#3E9849' : '#9AA79C'} strokeWidth="1.5" />
+                <circle cx="9" cy="9.5" r="0.5" fill="currentColor" strokeWidth="1.5" />
+                <circle cx="15" cy="9.5" r="0.5" fill="currentColor" strokeWidth="1.5" />
               </svg>
             </button>
             {showEmoji && (
@@ -615,7 +619,7 @@ export default function ChatInput({
               onBlur={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               onSelect={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleTemplate ? 'Template selecionado acima — escolha a data e clique em Agendar' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}
-              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#EBE7DA'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, minHeight: 38, maxHeight: 200, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#F8FAFB' }}
+              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#EBE7DA'}`, borderRadius: 999, padding: '10px 18px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, minHeight: 38, maxHeight: 200, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#FAF8F1' }}
             />
             {scheduleMode ? (
               <button onClick={() => {
@@ -630,13 +634,17 @@ export default function ChatInput({
               </button>
             ) : value.trim() ? (
               <button onClick={onSend} disabled={sending}
-                style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, cursor: !sending ? 'pointer' : 'default', background: isNote ? '#F59E0B' : '#3E9849', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                onMouseEnter={e => { e.currentTarget.style.background = isNote ? '#D97706' : '#2C7233' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isNote ? '#F59E0B' : '#3E9849' }}
+                style={{ width: 42, height: 42, borderRadius: 99, flexShrink: 0, cursor: !sending ? 'pointer' : 'default', background: isNote ? '#F59E0B' : '#3E9849', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: isNote ? '0 5px 14px -6px rgba(245,158,11,0.45)' : '0 5px 14px -6px rgba(62,152,73,0.45)' }}>
                 {sending ? <Spinner size={16} color="#fff" /> : <svg width="17" height="17" fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
               </button>
             ) : !isNote ? (
               <button onClick={() => void startRecording()} title="Gravar áudio"
-                style={{ width: 38, height: 38, borderRadius: 9, border: '1px solid #EBE7DA', background: '#F8FAFB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24">
+                onMouseEnter={e => { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.borderColor = '#3E9849'; e.currentTarget.style.background = '#EFF7EC' }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = '#FAF8F1' }}
+                style={{ width: 38, height: 38, borderRadius: 99, border: '1px solid #E9E5D8', background: '#FAF8F1', color: '#9AA79C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" />
                 </svg>
