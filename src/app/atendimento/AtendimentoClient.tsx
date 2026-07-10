@@ -147,7 +147,6 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [showQuickForm,   setShowQuickForm]   = useState(false)
   const [resolveDialogOpen,   setResolveDialogOpen]   = useState(false)
   const [contextPanelOpen,    setContextPanelOpen]    = useState(true)
-  const [transferBanner,      setTransferBanner]      = useState<{ toName: string; toId: string } | null>(null)
   const [newConvOpen,         setNewConvOpen]         = useState(false)
 
   function toggleSignature() {
@@ -591,17 +590,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       : `Agente removido — era ${fromName} (por ${byName})`
     void fetch('/api/whatsapp/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: noteText }) })
 
-    // Perguntar se quer transferir o lead também
-    if (profileId && selectedConv.lead_id) {
-      setTransferBanner({ toName, toId: profileId })
+    // Sincroniza responsável do lead automaticamente
+    if (selectedConv.lead_id) {
+      void supabase.from('leads').update({ responsavel_id: profileId }).eq('id', selectedConv.lead_id)
     }
-  }
-
-  async function transferLeadResponsavel(toId: string) {
-    if (!selectedConv?.lead_id) return
-    await supabase.from('leads').update({ responsavel_id: toId }).eq('id', selectedConv.lead_id)
-    setTransferBanner(null)
-    void loadLeadDetail(selectedConv.lead_id)
   }
 
   async function assignQueue(queueId: string | null) {
@@ -815,18 +807,6 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
             </>
           )}
           {resolveDialogOpen && <ResolveDialog onConfirm={(r, n) => void confirmResolve(r, n)} onCancel={() => setResolveDialogOpen(false)} />}
-          {/* Banner de transferência de lead */}
-          {transferBanner && (
-            <div style={{ position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 150, background: '#25402C', color: '#fff', borderRadius: 12, padding: '12px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 360, maxWidth: 500 }}>
-              <p style={{ fontSize: 12, margin: 0, flex: 1, lineHeight: 1.5 }}>
-                Transferido para <strong>{transferBanner.toName}</strong>. Atualizar o responsável do contato vinculado também?
-              </p>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button onClick={() => setTransferBanner(null)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #ffffff44', borderRadius: 7, cursor: 'pointer', background: 'transparent', color: '#ffffffcc' }}>Não</button>
-                <button onClick={() => void transferLeadResponsavel(transferBanner.toId)} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700, border: 'none', borderRadius: 7, cursor: 'pointer', background: '#3E9849', color: '#fff' }}>Sim</button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Context panel — collapsible */}
