@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { WaMessage } from './wa-types'
 
 interface Props {
@@ -31,21 +31,36 @@ function formatWaText(text: string): React.ReactNode[] {
   return parts
 }
 
-/* ── Audio player ── */
+/* ── Waveform bars ── */
+const BAR_COUNT = 36
+
+function generateBars(seed: string): number[] {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0
+  const bars: number[] = []
+  for (let i = 0; i < BAR_COUNT; i++) {
+    h = ((h << 5) - h + i * 7 + 13) | 0
+    bars.push(0.15 + 0.85 * (Math.abs(h % 100) / 100))
+  }
+  return bars
+}
+
+/* ── Audio player (WhatsApp style) ── */
 const SPEEDS = [1, 1.5, 2] as const
 
-function AudioPlayer({ src, isOut, timestamp }: { src: string; isOut: boolean; timestamp?: React.ReactNode }) {
+function AudioPlayer({ src, isOut, timestamp, msgId }: { src: string; isOut: boolean; timestamp?: React.ReactNode; msgId?: string }) {
   const ref = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying]     = useState(false)
   const [duration, setDuration]   = useState(0)
   const [current, setCurrent]     = useState(0)
   const [speedIdx, setSpeedIdx]   = useState(0)
-  const [loaded, setLoaded]       = useState(false)
+
+  const bars = useMemo(() => generateBars(msgId || src), [msgId, src])
 
   useEffect(() => {
     const a = ref.current
     if (!a) return
-    const onMeta   = () => { setDuration(a.duration); setLoaded(true) }
+    const onMeta   = () => setDuration(a.duration)
     const onTime   = () => setCurrent(a.currentTime)
     const onEnded  = () => { setPlaying(false); setCurrent(0) }
     a.addEventListener('loadedmetadata', onMeta)
@@ -84,40 +99,60 @@ function AudioPlayer({ src, isOut, timestamp }: { src: string; isOut: boolean; t
   }
 
   const pct = duration ? (current / duration) * 100 : 0
-  const accent = isOut ? '#fff' : '#25D366'
-  const track  = isOut ? 'rgba(255,255,255,0.3)' : '#DFE5E7'
-  const text   = isOut ? '#fff' : '#667781'
+
+  const playBtnBg   = isOut ? '#fff' : '#00A884'
+  const playIconFill = isOut ? '#4FAD5B' : '#fff'
+  const barPlayed   = isOut ? '#3B8C4A' : '#00A884'
+  const barUnplayed = isOut ? 'rgba(59,140,74,0.35)' : '#CBD5D8'
+  const textColor   = isOut ? '#1D4226' : '#667781'
+  const speedBg     = isOut ? 'rgba(59,140,74,0.2)' : '#E9EDEF'
+  const speedColor  = isOut ? '#1D4226' : '#667781'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 240 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 260, padding: '2px 0' }}>
       <audio ref={ref} src={src} preload="metadata" />
 
       <button onClick={toggle} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
         {playing ? (
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="14" r="14" fill={accent} opacity={isOut ? 0.25 : 0.15} />
-            <rect x="10" y="9" width="3" height="10" rx="1" fill={accent} />
-            <rect x="15" y="9" width="3" height="10" rx="1" fill={accent} />
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="16" fill={playBtnBg} />
+            <rect x="11" y="10" width="3.5" height="12" rx="1" fill={playIconFill} />
+            <rect x="17.5" y="10" width="3.5" height="12" rx="1" fill={playIconFill} />
           </svg>
         ) : (
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="14" r="14" fill={accent} opacity={isOut ? 0.25 : 0.15} />
-            <path d="M11 9v10l8-5z" fill={accent} />
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="16" fill={playBtnBg} />
+            <path d="M13 10v12l9-6z" fill={playIconFill} />
           </svg>
         )}
       </button>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-        <div onClick={seek} style={{ height: 4, background: track, borderRadius: 2, cursor: 'pointer', position: 'relative' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.1s linear' }} />
-          <div style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%, -50%)', width: 10, height: 10, borderRadius: '50%', background: accent, boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.1s linear' }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+        <div onClick={seek} style={{ display: 'flex', alignItems: 'center', gap: 1, height: 24, cursor: 'pointer', position: 'relative' }}>
+          {bars.map((h, i) => {
+            const barPct = ((i + 0.5) / BAR_COUNT) * 100
+            return (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: `${h * 100}%`,
+                  minWidth: 2,
+                  maxWidth: 4,
+                  borderRadius: 1,
+                  background: barPct <= pct ? barPlayed : barUnplayed,
+                  transition: 'background 0.1s',
+                }}
+              />
+            )
+          })}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 10, color: text, minWidth: 28 }}>{fmt(current || duration)}</span>
+          <span style={{ fontSize: 10, color: textColor, minWidth: 28, fontWeight: 500 }}>{fmt(playing ? current : duration)}</span>
           <div style={{ flex: 1 }} />
           <button
             onClick={cycleSpeed}
-            style={{ background: isOut ? 'rgba(255,255,255,0.2)' : '#E9EDEF', border: 'none', borderRadius: 8, padding: '1px 5px', fontSize: 9, fontWeight: 700, color: text, cursor: 'pointer', lineHeight: '14px' }}
+            style={{ background: speedBg, border: 'none', borderRadius: 8, padding: '1px 5px', fontSize: 9, fontWeight: 700, color: speedColor, cursor: 'pointer', lineHeight: '14px' }}
           >
             {SPEEDS[speedIdx]}x
           </button>
@@ -129,7 +164,7 @@ function AudioPlayer({ src, isOut, timestamp }: { src: string; isOut: boolean; t
 }
 
 export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
-  const tc = isOut ? '#fff' : '#25402C'
+  const tc = isOut ? '#25402C' : '#25402C'
   const sc = isOut ? '#ffffffaa' : '#9AA79C'
   const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
 
@@ -164,7 +199,7 @@ export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
     )
 
   if (msg.type === 'audio' && msg.media_url)
-    return <AudioPlayer src={mediaUrl(msg.media_url)} isOut={isOut} timestamp={timestamp} />
+    return <AudioPlayer src={mediaUrl(msg.media_url)} isOut={isOut} timestamp={timestamp} msgId={msg.id} />
 
   if (msg.type === 'video' && msg.media_url)
     return (
