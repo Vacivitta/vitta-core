@@ -210,17 +210,11 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
     : buildOpusHead(1, 48000, 312)
 
   const channels = origHead[9] ?? 1
-  const origPreSkip = origHead.readUInt16LE(10)
+  const preSkip = origHead.readUInt16LE(10)
 
-  // Re-encode if packets are high-bitrate (Chrome default ≈ 380 kbps → ~959 bytes/frame).
-  // 16 kbps target → ~40 bytes/frame. Threshold at 100 bytes covers anything above ~40 kbps.
-  const needsReencode = packets.length > 0 && packets[0].length > 100
-  const finalPackets  = needsReencode ? reencodeAt16kbps(packets, channels) : packets
-  const preSkip       = needsReencode ? 312 : origPreSkip  // VOIP app @ 48kHz always uses 312
+  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')} codecPrivate=${codecPrivate?.length ?? 'none'}B`)
 
-  console.log(`[webm-to-ogg] webm=${webm.length}B packets=${packets.length} sizes=${packets.slice(0,3).map(p=>p.length).join(',')} codecPrivate=${codecPrivate?.length ?? 'none'}B reencoded=${needsReencode} finalSizes=${finalPackets.slice(0,3).map(p=>p.length).join(',')}`)
-
-  if (finalPackets.length === 0) throw new Error('[webm-to-ogg] no Opus packets after processing')
+  if (packets.length === 0) throw new Error('[webm-to-ogg] no Opus packets found in WebM')
 
   const opusHead = buildOpusHead(channels, 48000, preSkip)
   const serial   = Math.floor(Math.random() * 0xffffffff)
@@ -233,11 +227,11 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
   // RFC 7845 §4: granule = accumulated_samples − pre_skip
   const FRAME_SAMPLES = 960
   let accumulated = 0
-  for (let i = 0; i < finalPackets.length; i++) {
+  for (let i = 0; i < packets.length; i++) {
     accumulated += FRAME_SAMPLES
     const granule = Math.max(0, accumulated - preSkip)
-    const isLast  = i === finalPackets.length - 1
-    pages.push(makeOggPage(isLast ? 0x04 : 0x00, granule, serial, i + 2, finalPackets[i]))
+    const isLast  = i === packets.length - 1
+    pages.push(makeOggPage(isLast ? 0x04 : 0x00, granule, serial, i + 2, packets[i]))
   }
 
   return Buffer.concat(pages)
