@@ -45,10 +45,21 @@ export async function POST(req: NextRequest) {
 
     let mime = normalizeMime(file.type)
 
+    const inputSize = file.size
+    console.log(`[send-media] input: mime=${mime} size=${inputSize}B name=${file.name}`)
+
     let uploadFile: File = file
     if (mime === 'audio/webm') {
-      const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
-      const oggBuf  = convertWebmToOgg(Buffer.from(await file.arrayBuffer()))
+      const { convertWebmToOgg, extractWebmData } = await import('@/lib/audio/webm-to-ogg')
+      const rawBuf = Buffer.from(await file.arrayBuffer())
+
+      // Debug: log extraction stats before conversion
+      const debug = extractWebmData(rawBuf)
+      const expectedFrames = Math.round(inputSize / 200) // rough estimate
+      console.log(`[send-media] EBML parse: packets=${debug.packets.length} codecPrivate=${debug.codecPrivate?.length ?? 'none'}B packetSizes=[${debug.packets.slice(0, 5).map(p => p.length).join(',')}...] inputSize=${rawBuf.length}B expectedFrames=~${expectedFrames}`)
+
+      const oggBuf  = convertWebmToOgg(rawBuf)
+      console.log(`[send-media] OGG output: size=${oggBuf.length}B (input was ${rawBuf.length}B, ratio=${(oggBuf.length / rawBuf.length * 100).toFixed(1)}%)`)
       const oggBlob = new Blob([oggBuf as unknown as BlobPart], { type: 'audio/ogg' })
       uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
       mime = 'audio/ogg'
@@ -102,7 +113,7 @@ export async function POST(req: NextRequest) {
     })
     const sendData = await sendRes.json() as { messages?: { id: string }[]; error?: unknown }
 
-    console.log(`[send-media] send status=${sendRes.status} type=${msgType}`)
+    console.log(`[send-media] send status=${sendRes.status} type=${msgType} payload=${JSON.stringify(metaPayload)} response=${JSON.stringify(sendData).slice(0, 300)}`)
 
     if (!sendRes.ok) {
       console.error('[send-media] Meta send error:', JSON.stringify(sendData))
