@@ -55,11 +55,11 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
   }
 }
 
-export function convertWebmToAac(webm: Buffer): Buffer {
+export function convertWebmToMp4(webm: Buffer): Buffer {
   const id = randomBytes(8).toString('hex')
   const tmpDir = os.tmpdir()
-  const inputPath = join(tmpDir, `wa-aac-input-${id}.webm`)
-  const outputPath = join(tmpDir, `wa-aac-output-${id}.m4a`)
+  const inputPath = join(tmpDir, `wa-mp4-input-${id}.webm`)
+  const outputPath = join(tmpDir, `wa-mp4-output-${id}.mp4`)
 
   try {
     writeFileSync(inputPath, webm)
@@ -67,10 +67,12 @@ export function convertWebmToAac(webm: Buffer): Buffer {
     const ffmpeg = getFfmpegPath()
     execFileSync(ffmpeg, [
       '-i', inputPath,
+      '-f', 'mp4',
       '-c:a', 'aac',
       '-b:a', '32k',
       '-ar', '44100',
       '-ac', '1',
+      '-movflags', '+faststart',
       '-y',
       outputPath,
     ], {
@@ -79,7 +81,7 @@ export function convertWebmToAac(webm: Buffer): Buffer {
     })
 
     const result = readFileSync(outputPath)
-    if (result.length === 0) throw new Error('[webm-to-aac] ffmpeg produced empty output')
+    if (result.length === 0) throw new Error('[webm-to-mp4] ffmpeg produced empty output')
     return result
   } finally {
     try { unlinkSync(inputPath) } catch { /* ignore */ }
