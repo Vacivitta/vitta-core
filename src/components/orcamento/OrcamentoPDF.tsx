@@ -41,8 +41,8 @@ function makeDataStyles(corTexto: string) {
     colTotal: { flex: 1.5, textAlign: 'right' as const },
     tableHeader: {
       flexDirection: 'row',
-      borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255,255,255,0.15)',
+      borderBottomWidth: 0.5,
+      borderBottomColor: '#ffffff26',
       paddingBottom: 5,
       marginBottom: 4,
     },
@@ -50,7 +50,7 @@ function makeDataStyles(corTexto: string) {
       flexDirection: 'row',
       paddingVertical: 6,
       borderBottomWidth: 0.5,
-      borderBottomColor: 'rgba(255,255,255,0.10)',
+      borderBottomColor: '#ffffff1A',
     },
   })
 }
@@ -123,10 +123,10 @@ function PacoteTable({ quote, corTexto }: {
 }) {
   if (!quote.pacote_ativo || !quote.pacote_opcoes?.length) return null
   const base  = quote.total_calculado ?? quote.items.reduce((s, i) => s + i.valor_final, 0)
-  const faint = `${corTexto}40`
+  const separator = '#ffffff1A'
 
   return (
-    <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: faint }}>
+    <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ffffff26' }}>
       <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: corTexto, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
         Condições de Pagamento
       </Text>
@@ -140,7 +140,7 @@ function PacoteTable({ quote, corTexto }: {
             alignItems: 'flex-start',
             paddingVertical: 6,
             borderBottomWidth: isLast ? 0 : 0.5,
-            borderBottomColor: faint,
+            borderBottomColor: separator,
           }}>
             <View style={{ flex: 2 }}>
               <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: corTexto }}>{o.label}</Text>
@@ -209,7 +209,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
           backgroundColor: corPrimaria,
         }}>
           <View style={{ paddingHorizontal: 36, paddingTop: 36, paddingBottom: 60 }}>
-            <View style={{ flexDirection: 'row', gap: 20, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 20, backgroundColor: '#ffffff26', borderRadius: 6, padding: 12, marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 7, color: txt, opacity: 0.65, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Paciente</Text>
                 <Text style={{ fontSize: 10, color: txt, fontFamily: 'Helvetica-Bold' }}>{patientName}</Text>
@@ -224,7 +224,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
 
             <ItemsTable items={quote.items} styles={S} />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ffffff26' }}>
               <Text style={{ fontSize: 11, color: txt, opacity: 0.75 }}>TOTAL</Text>
               <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: txt }}>{fmtBRL(totalCalc)}</Text>
             </View>
@@ -232,7 +232,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
             <PacoteTable quote={quote} corTexto={corTexto} />
 
             {rodapeText && (
-              <View style={{ marginTop: 16, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: faint }}>
+              <View style={{ marginTop: 16, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#ffffff1A' }}>
                 <Text style={{ fontSize: 7, color: txt, opacity: 0.55, lineHeight: 1.5 }}>{rodapeText}</Text>
               </View>
             )}
