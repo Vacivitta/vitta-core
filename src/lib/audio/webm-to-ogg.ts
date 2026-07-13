@@ -27,24 +27,16 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
     writeFileSync(inputPath, webm)
 
     const ffmpeg = getFfmpegPath()
-    const stderr = execFileSync(ffmpeg, [
+    execFileSync(ffmpeg, [
       '-i', inputPath,
+      '-c:a', 'copy',
       '-f', 'ogg',
-      '-c:a', 'libopus',
-      '-b:a', '24k',
-      '-ar', '48000',
-      '-ac', '1',
-      '-application', 'voip',
-      '-vbr', 'constrained',
-      '-frame_duration', '20',
       '-y',
       outputPath,
     ], {
       timeout: 30000,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: 'pipe',
     })
-
-    console.log(`[webm-to-ogg] ffmpeg stderr: ${stderr?.toString().slice(-300)}`)
 
     const result = readFileSync(outputPath)
     if (result.length === 0) throw new Error('[webm-to-ogg] ffmpeg produced empty output')

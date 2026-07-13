@@ -50,16 +50,16 @@ export async function POST(req: NextRequest) {
 
     let uploadFile: File = file
     if (mime === 'audio/webm') {
-      const { convertWebmToMp4 } = await import('@/lib/audio/webm-to-ogg')
+      const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
       const rawBuf = Buffer.from(await file.arrayBuffer())
-      console.log(`[send-media] converting WebM→MP4/AAC via ffmpeg: inputSize=${rawBuf.length}B`)
+      console.log(`[send-media] converting WebM→OGG via ffmpeg remux: inputSize=${rawBuf.length}B`)
 
-      const mp4Buf = convertWebmToMp4(rawBuf)
-      console.log(`[send-media] MP4 output: size=${mp4Buf.length}B (ratio=${(mp4Buf.length / rawBuf.length * 100).toFixed(1)}%)`)
+      const oggBuf = convertWebmToOgg(rawBuf)
+      console.log(`[send-media] OGG output: size=${oggBuf.length}B (ratio=${(oggBuf.length / rawBuf.length * 100).toFixed(1)}%)`)
 
-      const mp4Blob = new Blob([new Uint8Array(mp4Buf)], { type: 'audio/mp4' })
-      uploadFile = new File([mp4Blob], file.name.replace(/\.webm$/, '.mp4'), { type: 'audio/mp4' })
-      mime = 'audio/mp4'
+      const oggBlob = new Blob([new Uint8Array(oggBuf)], { type: 'audio/ogg' })
+      uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
+      mime = 'audio/ogg'
     }
 
     // 1. Upload do arquivo para a API de mídia do Meta
@@ -96,11 +96,9 @@ export async function POST(req: NextRequest) {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
       type: msgType,
-      [msgType]: msgType === 'audio'
-          ? { id: mediaId, voice: true }
-          : caption
-            ? { id: mediaId, caption }
-            : { id: mediaId },
+      [msgType]: caption
+          ? { id: mediaId, caption }
+          : { id: mediaId },
     }
 
     const sendRes  = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
