@@ -50,16 +50,16 @@ export async function POST(req: NextRequest) {
 
     let uploadFile: File = file
     if (mime === 'audio/webm') {
-      const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
+      const { convertWebmToAac } = await import('@/lib/audio/webm-to-ogg')
       const rawBuf = Buffer.from(await file.arrayBuffer())
-      console.log(`[send-media] converting WebM→OGG via ffmpeg: inputSize=${rawBuf.length}B`)
+      console.log(`[send-media] converting WebM→AAC via ffmpeg: inputSize=${rawBuf.length}B`)
 
-      const oggBuf = convertWebmToOgg(rawBuf)
-      console.log(`[send-media] OGG output: size=${oggBuf.length}B (ratio=${(oggBuf.length / rawBuf.length * 100).toFixed(1)}%)`)
+      const aacBuf = convertWebmToAac(rawBuf)
+      console.log(`[send-media] AAC output: size=${aacBuf.length}B (ratio=${(aacBuf.length / rawBuf.length * 100).toFixed(1)}%)`)
 
-      const oggBlob = new Blob([new Uint8Array(oggBuf)], { type: 'audio/ogg' })
-      uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
-      mime = 'audio/ogg'
+      const aacBlob = new Blob([new Uint8Array(aacBuf)], { type: 'audio/aac' })
+      uploadFile = new File([aacBlob], file.name.replace(/\.webm$/, '.m4a'), { type: 'audio/aac' })
+      mime = 'audio/aac'
     }
 
     // 1. Upload do arquivo para a API de mídia do Meta
