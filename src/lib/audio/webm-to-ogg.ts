@@ -125,42 +125,104 @@ export function extractWebmData(webm: Buffer): WebmData {
     0x1F43B675, // Cluster
   ])
 
+  function extractBlock(blockStart: number, blockSize: number) {
+    const blockEnd = blockStart + blockSize
+    if (blockEnd > webm.length) return
+    let bp = blockStart
+
+    // TrackNum VINT
+    const tnb = webm[bp]
+    let tnw = 1; let tnm = 0x80
+    while (tnm > 0 && !(tnb & tnm)) { tnw++; tnm >>= 1 }
+    bp += tnw
+
+    const flags = webm[bp + 2]
+    bp += 3 // skip timecode (2) + flags (1)
+
+    const lacingType = (flags >> 1) & 0x3
+
+    if (lacingType === 0) {
+      // No lacing — single frame
+      if (bp < blockEnd) packets.push(Buffer.from(webm.subarray(bp, blockEnd)))
+    } else {
+      // Laced — multiple frames
+      const numFrames = webm[bp] + 1
+      bp++
+      const frameSizes: number[] = []
+
+      if (lacingType === 1) {
+        // Xiph lacing
+        for (let f = 0; f < numFrames - 1; f++) {
+          let sz = 0
+          while (bp < blockEnd) { const b = webm[bp++]; sz += b; if (b < 255) break }
+          frameSizes.push(sz)
+        }
+      } else if (lacingType === 2) {
+        // Fixed-size lacing
+        const remaining = blockEnd - bp
+        const frameSize = Math.floor(remaining / numFrames)
+        for (let f = 0; f < numFrames - 1; f++) frameSizes.push(frameSize)
+      } else {
+        // EBML lacing (type 3)
+        // First size is a normal VINT
+        if (bp >= blockEnd) return
+        const b0 = webm[bp]
+        let w0 = 1; let m0 = 0x80
+        while (m0 > 0 && !(b0 & m0)) { w0++; m0 >>= 1 }
+        if (bp + w0 > blockEnd) return
+        let firstSize = b0 & ~m0
+        for (let i = 1; i < w0; i++) firstSize = firstSize * 256 + webm[bp + i]
+        bp += w0
+        frameSizes.push(firstSize)
+        // Subsequent sizes are signed deltas
+        let prevSize = firstSize
+        for (let f = 1; f < numFrames - 1; f++) {
+          if (bp >= blockEnd) break
+          const db = webm[bp]
+          let dw = 1; let dm = 0x80
+          while (dm > 0 && !(db & dm)) { dw++; dm >>= 1 }
+          if (bp + dw > blockEnd) break
+          let delta = db & ~dm
+          for (let i = 1; i < dw; i++) delta = delta * 256 + webm[bp + i]
+          bp += dw
+          // Signed: subtract the midpoint bias
+          delta -= (1 << (7 * dw - 1)) - 1
+          prevSize = prevSize + delta
+          frameSizes.push(prevSize)
+        }
+      }
+
+      // Extract each frame
+      for (let f = 0; f < numFrames; f++) {
+        if (bp >= blockEnd) break
+        const sz = f < frameSizes.length ? frameSizes[f] : (blockEnd - bp)
+        if (bp + sz > blockEnd) break
+        packets.push(Buffer.from(webm.subarray(bp, bp + sz)))
+        bp += sz
+      }
+    }
+  }
+
   while (p < webm.length) {
     const id = readId()
     if (id === -1) break
     const size = readVintSize()
 
-    if (id === 0xA3 && size > 0) {
-      // SimpleBlock: TrackNum (VINT) | TimeCode (2 bytes) | Flags (1 byte) | Data
+    if ((id === 0xA3 || id === 0xA1) && size > 0) {
+      // SimpleBlock (0xA3) or Block (0xA1 inside BlockGroup)
       const bodyStart = p
-      const bodyEnd   = bodyStart + size
-      if (bodyEnd > webm.length) break
-
-      // Skip TrackNum VINT
-      const tnb = webm[p]
-      let tnw = 1; let tnm = 0x80
-      while (tnm > 0 && !(tnb & tnm)) { tnw++; tnm >>= 1 }
-      p += tnw
-
-      const flags = webm[p + 2]  // byte after 2-byte timecode
-      p += 3                      // skip timecode + flags
-
-      const lacingType = (flags >> 1) & 0x3
-      if (lacingType === 0 && p < bodyEnd) {
-        packets.push(Buffer.from(webm.subarray(p, bodyEnd)))
-      }
-
-      p = bodyEnd
+      if (bodyStart + size > webm.length) { p = webm.length; continue }
+      extractBlock(bodyStart, size)
+      p = bodyStart + size
     } else if (id === 0x63A2 && size > 0 && p + size <= webm.length) {
-      // CodecPrivate — contains the Opus ID header (OpusHead binary)
       codecPrivate = Buffer.from(webm.subarray(p, p + size))
       p += size
-    } else if (RECURSE.has(id) || size === -1) {
-      // Recurse: don't advance p
+    } else if (RECURSE.has(id) || id === 0xA0 || size === -1) {
+      // Recurse into containers (Segment, Tracks, TrackEntry, Cluster, BlockGroup)
     } else if (size >= 0 && p + size <= webm.length) {
       p += size
     } else {
-      break
+      p = webm.length
     }
   }
 
@@ -216,7 +278,7 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
 
   if (packets.length === 0) throw new Error('[webm-to-ogg] no Opus packets found in WebM')
 
-  const opusHead = buildOpusHead(channels, 48000, preSkip)
+  const opusHead = buildOpusHead(1, 48000, preSkip)
   const serial   = Math.floor(Math.random() * 0xffffffff)
   const pages: Buffer[] = []
 
