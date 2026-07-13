@@ -42,15 +42,15 @@ function makeDataStyles(corTexto: string) {
     tableHeader: {
       flexDirection: 'row',
       borderBottomWidth: 1,
-      borderBottomColor: `${corTexto}40`,
+      borderBottomColor: 'rgba(255,255,255,0.15)',
       paddingBottom: 5,
       marginBottom: 4,
     },
     tableRow: {
       flexDirection: 'row',
       paddingVertical: 6,
-      borderBottomWidth: 1,
-      borderBottomColor: `${corTexto}20`,
+      borderBottomWidth: 0.5,
+      borderBottomColor: 'rgba(255,255,255,0.10)',
     },
   })
 }
@@ -209,15 +209,6 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
           backgroundColor: corPrimaria,
         }}>
           <View style={{ paddingHorizontal: 36, paddingTop: 36, paddingBottom: 60 }}>
-            <Text style={{ fontSize: 20, fontFamily: 'Helvetica-Bold', color: txt, marginBottom: 4, letterSpacing: 1 }}>
-              ORÇAMENTO #{numStr}
-            </Text>
-            <Text style={{ fontSize: 9, color: txt, opacity: 0.75, marginBottom: 20 }}>
-              Emitido em {fmtDate(quote.criado_em)}
-              {nomeClinica !== 'VittaDesk' ? `  ·  ${nomeClinica}` : ''}
-              {'  ·  Válido até ' + validadeDate(quote.criado_em, validadeDias)}
-            </Text>
-
             <View style={{ flexDirection: 'row', gap: 20, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 6, padding: 12, marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 7, color: txt, opacity: 0.65, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Paciente</Text>
@@ -233,7 +224,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
 
             <ItemsTable items={quote.items} styles={S} />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 1.5, borderTopColor: faint }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' }}>
               <Text style={{ fontSize: 11, color: txt, opacity: 0.75 }}>TOTAL</Text>
               <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: txt }}>{fmtBRL(totalCalc)}</Text>
             </View>
