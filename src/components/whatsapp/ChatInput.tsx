@@ -93,9 +93,11 @@ export default function ChatInput({
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
-    if (!value) { el.style.height = '38px'; return }
+    if (!value) { el.style.height = '38px'; el.style.borderRadius = '999px'; return }
     el.style.height = '38px'
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+    const h = Math.min(el.scrollHeight, 300)
+    el.style.height = h + 'px'
+    el.style.borderRadius = h > 50 ? '18px' : '999px'
   }, [value])
 
   useEffect(() => {
@@ -615,11 +617,11 @@ export default function ChatInput({
                   else if (e.key === 'x' && e.shiftKey) wrap('~')
                 }
               }}
-              onInput={e => { const el = e.currentTarget; el.style.height = '38px'; el.style.height = Math.min(el.scrollHeight, 200) + 'px' }}
+              onInput={e => { const el = e.currentTarget; el.style.height = '38px'; const h = Math.min(el.scrollHeight, 300); el.style.height = h + 'px'; el.style.borderRadius = h > 50 ? '18px' : '999px' }}
               onBlur={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               onSelect={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleTemplate ? 'Template selecionado acima — escolha a data e clique em Agendar' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}
-              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#EBE7DA'}`, borderRadius: 999, padding: '8px 18px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.4, height: 38, maxHeight: 200, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#FAF8F1' }}
+              style={{ flex: 1, resize: 'none', border: `1px solid ${isNote ? '#FDE68A' : '#EBE7DA'}`, borderRadius: 999, padding: '8px 18px', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.4, height: 38, maxHeight: 300, overflowY: 'auto', background: scheduleTemplate ? '#F1F4F7' : isNote ? '#FFFBEB' : '#FAF8F1' }}
             />
             {scheduleMode ? (
               <button onClick={() => {
