@@ -141,9 +141,9 @@ export default function ChatInput({
       return
     }
     try {
-      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : 'audio/webm;codecs=opus'
-      const outMime  = mimeType === 'audio/ogg;codecs=opus' ? 'audio/ogg' : 'audio/webm'
-      const ext      = mimeType === 'audio/ogg;codecs=opus' ? 'ogg'       : 'webm'
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/ogg;codecs=opus'
+      const outMime  = mimeType.startsWith('audio/webm') ? 'audio/webm' : 'audio/ogg'
+      const ext      = mimeType.startsWith('audio/webm') ? 'webm'       : 'ogg'
       const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
       const chunks: Blob[] = []
       mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
