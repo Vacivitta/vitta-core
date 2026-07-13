@@ -3,7 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 
-const META_API_URL = 'https://graph.facebook.com/v21.0'
+const META_API_URL = 'https://graph.facebook.com/v20.0'
 
 function normalizeMime(raw: string): string {
   return raw.split(';')[0].trim().toLowerCase()
@@ -46,14 +46,11 @@ export async function POST(req: NextRequest) {
     let mime = normalizeMime(file.type)
 
     let uploadFile: File = file
-    if (mime === 'audio/webm' || mime === 'audio/ogg') {
+    if (mime === 'audio/webm') {
       const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
-      const rawBuf = Buffer.from(await file.arrayBuffer())
-      if (mime === 'audio/webm') {
-        const oggBuf  = convertWebmToOgg(rawBuf)
-        const oggBlob = new Blob([oggBuf as unknown as BlobPart], { type: 'audio/ogg' })
-        uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
-      }
+      const oggBuf  = convertWebmToOgg(Buffer.from(await file.arrayBuffer()))
+      const oggBlob = new Blob([oggBuf as unknown as BlobPart], { type: 'audio/ogg' })
+      uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
       mime = 'audio/ogg'
     }
 
@@ -91,9 +88,7 @@ export async function POST(req: NextRequest) {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
       type: msgType,
-      [msgType]: msgType === 'audio'
-        ? { id: mediaId, voice: true }
-        : caption
+      [msgType]: caption && msgType !== 'audio'
           ? { id: mediaId, caption }
           : { id: mediaId },
     }
