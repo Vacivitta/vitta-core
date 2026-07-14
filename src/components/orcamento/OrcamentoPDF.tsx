@@ -27,32 +27,51 @@ const FULL_PAGE_STYLE = {
   height: 842,
 }
 
+// ─── Helpers for blended separator colors ────────────────────────────────────
+
+function blendWhite(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const rr = Math.round(r + (255 - r) * alpha)
+  const gg = Math.round(g + (255 - g) * alpha)
+  const bb = Math.round(b + (255 - b) * alpha)
+  return `#${rr.toString(16).padStart(2, '0')}${gg.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`
+}
+
 // ─── Styles for the template content page ────────────────────────────────────
 
-function makeDataStyles(corTexto: string) {
-  return StyleSheet.create({
-    thText: { fontSize: 7, color: corTexto, opacity: 0.65, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 0.4 },
-    tdText: { fontSize: 9, color: corTexto },
-    tdBold: { fontSize: 9, color: corTexto, fontFamily: 'Helvetica-Bold' },
-    colNome:  { flex: 3 },
-    colQtd:   { flex: 0.8, textAlign: 'center' as const },
-    colPreco: { flex: 1.5, textAlign: 'right' as const },
-    colDesc:  { flex: 0.9, textAlign: 'center' as const },
-    colTotal: { flex: 1.5, textAlign: 'right' as const },
-    tableHeader: {
-      flexDirection: 'row',
-      borderBottomWidth: 0.5,
-      borderBottomColor: '#ffffff26',
-      paddingBottom: 5,
-      marginBottom: 4,
-    },
-    tableRow: {
-      flexDirection: 'row',
-      paddingVertical: 6,
-      borderBottomWidth: 0.5,
-      borderBottomColor: '#ffffff1A',
-    },
-  })
+function makeDataStyles(corTexto: string, corPrimaria: string) {
+  const lineSubtle = blendWhite(corPrimaria, 0.12)
+  const lineVisible = blendWhite(corPrimaria, 0.18)
+
+  return {
+    lineSubtle,
+    lineVisible,
+    ...StyleSheet.create({
+      thText: { fontSize: 7, color: corTexto, opacity: 0.65, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 0.4 },
+      tdText: { fontSize: 9, color: corTexto },
+      tdBold: { fontSize: 9, color: corTexto, fontFamily: 'Helvetica-Bold' },
+      colNome:  { flex: 3 },
+      colQtd:   { flex: 0.8, textAlign: 'center' as const },
+      colPreco: { flex: 1.5, textAlign: 'right' as const },
+      colDesc:  { flex: 0.9, textAlign: 'center' as const },
+      colTotal: { flex: 1.5, textAlign: 'right' as const },
+      tableHeader: {
+        flexDirection: 'row',
+        borderBottomWidth: 0.5,
+        borderBottomColor: lineVisible,
+        paddingBottom: 5,
+        marginBottom: 4,
+      },
+      tableRow: {
+        flexDirection: 'row',
+        paddingVertical: 6,
+        borderBottomWidth: 0.5,
+        borderBottomColor: lineSubtle,
+      },
+    }),
+  }
 }
 
 // ─── No-template fallback styles ──────────────────────────────────────────────
@@ -117,16 +136,18 @@ function ItemsTable({ items, styles }: { items: QuoteWithItems['items']; styles:
 
 // ─── PacoteTable (reused across both layouts) ─────────────────────────────────
 
-function PacoteTable({ quote, corTexto }: {
-  quote:    QuoteWithItems
-  corTexto: string
+function PacoteTable({ quote, corTexto, corPrimaria }: {
+  quote:      QuoteWithItems
+  corTexto:   string
+  corPrimaria: string
 }) {
   if (!quote.pacote_ativo || !quote.pacote_opcoes?.length) return null
   const base  = quote.total_calculado ?? quote.items.reduce((s, i) => s + i.valor_final, 0)
-  const separator = '#ffffff1A'
+  const lineSubtle  = blendWhite(corPrimaria, 0.12)
+  const lineVisible = blendWhite(corPrimaria, 0.18)
 
   return (
-    <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ffffff26' }}>
+    <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: lineVisible }}>
       <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: corTexto, opacity: 0.7, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
         Condições de Pagamento
       </Text>
@@ -140,7 +161,7 @@ function PacoteTable({ quote, corTexto }: {
             alignItems: 'flex-start',
             paddingVertical: 6,
             borderBottomWidth: isLast ? 0 : 0.5,
-            borderBottomColor: separator,
+            borderBottomColor: lineSubtle,
           }}>
             <View style={{ flex: 2 }}>
               <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: corTexto }}>{o.label}</Text>
@@ -178,11 +199,10 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
 
   // ── With template — solid-color content page + optional image pages ─────────
   if (t) {
-    const S = makeDataStyles(corTexto)
+    const S = makeDataStyles(corTexto, corPrimaria)
 
     // Inline styles for the content page (no absolute positioning)
     const txt   = corTexto
-    const faint = `${corTexto}60`
 
     return (
       <Document title={`Orçamento #${numStr}`} author={nomeClinica}>
@@ -209,7 +229,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
           backgroundColor: corPrimaria,
         }}>
           <View style={{ paddingHorizontal: 36, paddingTop: 36, paddingBottom: 60 }}>
-            <View style={{ flexDirection: 'row', gap: 20, backgroundColor: '#ffffff26', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 20, backgroundColor: S.lineVisible, borderRadius: 6, padding: 12, marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 7, color: txt, opacity: 0.65, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Paciente</Text>
                 <Text style={{ fontSize: 10, color: txt, fontFamily: 'Helvetica-Bold' }}>{patientName}</Text>
@@ -224,15 +244,15 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
 
             <ItemsTable items={quote.items} styles={S} />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ffffff26' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: S.lineVisible }}>
               <Text style={{ fontSize: 11, color: txt, opacity: 0.75 }}>TOTAL</Text>
               <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: txt }}>{fmtBRL(totalCalc)}</Text>
             </View>
 
-            <PacoteTable quote={quote} corTexto={corTexto} />
+            <PacoteTable quote={quote} corTexto={corTexto} corPrimaria={corPrimaria} />
 
             {rodapeText && (
-              <View style={{ marginTop: 16, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#ffffff1A' }}>
+              <View style={{ marginTop: 16, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: S.lineSubtle }}>
                 <Text style={{ fontSize: 7, color: txt, opacity: 0.55, lineHeight: 1.5 }}>{rodapeText}</Text>
               </View>
             )}
@@ -292,7 +312,7 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
           <Text style={[FALLBACK.totalValue, { color: corPrimaria }]}>{fmtBRL(totalCalc)}</Text>
         </View>
 
-        <PacoteTable quote={quote} corTexto="#111827" />
+        <PacoteTable quote={quote} corTexto="#111827" corPrimaria="#ffffff" />
 
         {/* Footer */}
         {rodapeText && (
