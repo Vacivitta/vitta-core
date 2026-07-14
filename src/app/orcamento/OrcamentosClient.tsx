@@ -972,10 +972,12 @@ export default function OrcamentosClient({
 
   const stats = useMemo(() => {
     const aceitos     = quotes.filter(q => q.status === 'aceito')
+    const recusados   = quotes.filter(q => q.status === 'recusado')
     const rascunhos   = quotes.filter(q => q.status === 'rascunho').length
     const enviados    = quotes.filter(q => ['enviado', 'visualizado'].includes(q.status)).length
-    const totalAceito = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
-    return { total: quotes.length, aceitos: aceitos.length, rascunhos, enviados, totalAceito }
+    const totalAceito   = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const totalRecusado = recusados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    return { total: quotes.length, aceitos: aceitos.length, recusados: recusados.length, rascunhos, enviados, totalAceito, totalRecusado }
   }, [quotes])
 
   function handleSaved(q: QuoteRow, isNew: boolean) {
@@ -1050,10 +1052,18 @@ export default function OrcamentosClient({
         <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
         <StatCard label="Aceitos" value={stats.aceitos} valueColor="#3E9849" />
         <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
+        <StatCard label="Recusados" value={stats.recusados} valueColor="#DC2626" />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
         <StatCard
           label="Valor aceito"
           value={stats.totalAceito > 0 ? fmtBRL.format(stats.totalAceito) : '—'}
           valueColor={stats.totalAceito > 0 ? '#3E9849' : '#9AA79C'}
+        />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
+        <StatCard
+          label="Valor recusado"
+          value={stats.totalRecusado > 0 ? fmtBRL.format(stats.totalRecusado) : '—'}
+          valueColor={stats.totalRecusado > 0 ? '#DC2626' : '#9AA79C'}
         />
       </div>
 
