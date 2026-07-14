@@ -122,7 +122,7 @@ function ItemsTable({ items, styles }: { items: QuoteWithItems['items']; styles:
           <View style={styles.colQtd}><Text style={styles.tdText}>{item.quantidade}</Text></View>
           <View style={styles.colPreco}><Text style={styles.tdText}>{fmtBRL(item.valor_snapshot)}</Text></View>
           <View style={styles.colDesc}>
-            <Text style={item.desconto > 0 ? { ...styles.tdText, color: '#ef4444' } : styles.tdText}>
+            <Text style={item.desconto > 0 ? styles.tdBold : styles.tdText}>
               {item.desconto > 0 ? `${item.desconto}%` : '—'}
             </Text>
           </View>
