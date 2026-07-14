@@ -1,4 +1,4 @@
-﻿import { redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from './DashboardClient'
 import type { Profile } from '@/types/database'
@@ -21,10 +21,14 @@ export default async function DashboardPage() {
     { data: leadsRaw },
     { data: quotesRaw },
     { data: stagesRaw },
+    { data: tasksRaw },
+    { data: convsRaw },
+    { data: msgsRaw },
+    { data: profilesRaw },
   ] = await Promise.all([
     supabase
       .from('leads')
-      .select('id, stage_id, created_at')
+      .select('id, stage_id, created_at, origem')
       .eq('arquivado', false),
     supabase
       .from('quotes')
@@ -35,6 +39,23 @@ export default async function DashboardPage() {
       .select('id, nome, cor, ordem, funnel_id, funnels(id, nome)')
       .order('funnel_id')
       .order('ordem'),
+    supabase
+      .from('lead_tasks')
+      .select('id, concluida_em, data_vencimento, responsavel_id')
+      .is('concluida_em', null),
+    supabase
+      .from('wa_conversations')
+      .select('id, lead_id, unread_count, last_message_at, last_message_direction')
+      .order('last_message_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('wa_messages')
+      .select('id, conversation_id, direction, created_at, sent_by')
+      .order('created_at', { ascending: false })
+      .limit(2000),
+    supabase
+      .from('profiles')
+      .select('id, full_name, apelido'),
   ])
 
   return (
@@ -46,6 +67,10 @@ export default async function DashboardPage() {
         ...s,
         funnel: Array.isArray(s.funnels) ? (s.funnels[0] ?? null) : s.funnels,
       }))}
+      tasks={tasksRaw ?? []}
+      conversations={convsRaw ?? []}
+      messages={msgsRaw ?? []}
+      profiles={profilesRaw ?? []}
     />
   )
 }
