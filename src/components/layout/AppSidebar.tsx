@@ -220,7 +220,7 @@ export default function AppSidebar() {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
-  const { profile, perfil, isGestor } = useProfile()
+  const { profile, perfil, isGestor, units, activeUnitId, switchUnit } = useProfile()
 
   const [expanded, setExpanded] = useState(false)
   const [configOpen, setConfigOpen] = useState(() =>
@@ -293,6 +293,42 @@ export default function AppSidebar() {
           </span>
         </div>
       </div>
+
+      {/* ── Seletor de unidade (multi-unit) ─────────────────────────────── */}
+      {units.length > 1 && (
+        <div style={{
+          marginBottom: 12,
+          opacity: collapsed ? 0 : 1,
+          height: collapsed ? 0 : 'auto',
+          overflow: 'hidden',
+          transition: `opacity 0.15s ${EASE}`,
+        }}>
+          <select
+            value={activeUnitId ?? ''}
+            onChange={e => void switchUnit(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '7px 10px',
+              borderRadius: 10,
+              border: '1px solid #E9E5D8',
+              background: '#F1EFE5',
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#35543B',
+              cursor: 'pointer',
+              appearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239AA79C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 10px center',
+              paddingRight: 28,
+            }}
+          >
+            {units.map(u => (
+              <option key={u.id} value={u.id}>{u.nome}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* ── Nav principal ──────────────────────────────────────────────────── */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
