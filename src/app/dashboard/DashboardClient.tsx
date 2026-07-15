@@ -136,14 +136,16 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     return Math.round(responseTimes.reduce((s, t) => s + t, 0) / responseTimes.length)
   }, [messages, cut])
 
-  // ── Conversas sem resposta ───────────────────────────────────────────────
+  // ── Conversas aguardando resposta (inbound sem resposta nas últimas 48h) ─
   const unansweredCount = useMemo(() => {
+    const now = Date.now()
+    const h48 = 48 * 60 * 60 * 1000
     return conversations.filter(c =>
       c.last_message_direction === 'inbound' &&
       c.last_message_at &&
-      (!cut || new Date(c.last_message_at) >= cut)
+      (now - new Date(c.last_message_at).getTime()) < h48
     ).length
-  }, [conversations, cut])
+  }, [conversations])
 
   // ── Tarefas pendentes e vencidas ─────────────────────────────────────────
   const taskStats = useMemo(() => {
@@ -275,7 +277,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
         {/* ── KPIs — linha 2 (novos) ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="Tempo médio de resposta" value={fmtTime(avgResponseMin)} sub="1ª resposta WhatsApp" valueColor={avgResponseMin !== null && avgResponseMin <= 15 ? '#35853F' : avgResponseMin !== null && avgResponseMin <= 60 ? '#C87F1B' : '#C05B3A'} chipColor="#EDE9FE" icon={<IcoClock />} />
-          <KpiCard label="Sem resposta" value={unansweredCount} sub="conversas aguardando" valueColor={unansweredCount > 5 ? '#DC2626' : unansweredCount > 0 ? '#C87F1B' : '#35853F'} chipColor="#FEE2E2" icon={<IcoAlert />} />
+          <KpiCard label="Aguardando resposta" value={unansweredCount} sub="últimas 48h sem resposta" valueColor={unansweredCount > 5 ? '#DC2626' : unansweredCount > 0 ? '#C87F1B' : '#35853F'} chipColor="#FEE2E2" icon={<IcoAlert />} />
           <KpiCard label="Tarefas pendentes" value={taskStats.pending} sub={taskStats.overdue > 0 ? `${taskStats.overdue} vencida${taskStats.overdue > 1 ? 's' : ''}` : 'nenhuma vencida'} subColor={taskStats.overdue > 0 ? '#DC2626' : '#9AA79C'} chipColor="#FEF3C7" icon={<IcoTask />} />
           <KpiCard label="Receita recusada" value={kpis.totalRecusado > 0 ? fmtBRL.format(kpis.totalRecusado) : '—'} sub="oportunidades perdidas" valueColor={kpis.totalRecusado > 0 ? '#DC2626' : '#9AA79C'} chipColor="#FEE2E2" icon={<IcoLost />} />
         </div>

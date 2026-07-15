@@ -166,7 +166,8 @@ function AudioPlayer({ src, isOut, timestamp, msgId }: { src: string; isOut: boo
 export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
   const tc = isOut ? '#25402C' : '#25402C'
   const sc = isOut ? '#ffffffaa' : '#9AA79C'
-  const mediaUrl = (id: string) => `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
+  const mediaUrl = (id: string) =>
+    id.startsWith('http') ? id : `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
 
   if (msg.type === 'template')
     return <>{msg.content ? formatWaText(msg.content) : msg.template_name}</>

@@ -46,8 +46,7 @@ export default async function DashboardPage() {
     supabase
       .from('wa_conversations')
       .select('id, lead_id, unread_count, last_message_at, last_message_direction')
-      .order('last_message_at', { ascending: false })
-      .limit(500),
+      .order('last_message_at', { ascending: false }),
     supabase
       .from('wa_messages')
       .select('id, conversation_id, direction, created_at, sent_by')

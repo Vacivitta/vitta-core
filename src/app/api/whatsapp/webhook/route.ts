@@ -152,6 +152,14 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
 
   // 2. Inserir mensagem — retorna id somente se for nova (duplicatas ignoradas)
   const content = extractContent(msg)
+
+  // 2b. Download de mídia para Supabase Storage (URLs do Meta expiram em ~30 dias)
+  let persistedMediaUrl = content.mediaId
+  if (content.mediaId) {
+    const storageUrl = await downloadAndStoreMedia(supabase, content.mediaId, content.mimeType, accessToken, unitId)
+    if (storageUrl) persistedMediaUrl = storageUrl
+  }
+
   const { data: newMsg, error: msgErr } = await supabase
     .from('wa_messages')
     .upsert(
@@ -162,7 +170,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
         direction:       'inbound',
         type:            normalizeType(msg.type),
         content:         content.text,
-        media_url:       content.mediaUrl,
+        media_url:       persistedMediaUrl,
         media_mime_type: content.mimeType,
         status:          'delivered',
         reply_to_wa_message_id: msg.type === 'reaction' ? (msg.reaction?.message_id ?? null) : (msg.context?.id ?? null),
@@ -598,16 +606,70 @@ function calcCostUsd(category: string, billable: boolean): number {
   return 0 // service — gratuito e ilimitado
 }
 
-function extractContent(msg: WAMessage): { text: string | null; mediaUrl: string | null; mimeType: string | null } {
+function extractContent(msg: WAMessage): { text: string | null; mediaId: string | null; mimeType: string | null } {
   switch (msg.type) {
-    case 'text':     return { text: msg.text?.body ?? null, mediaUrl: null, mimeType: null }
-    case 'image':    return { text: msg.image?.caption ?? null, mediaUrl: msg.image?.id ?? null, mimeType: msg.image?.mime_type ?? null }
-    case 'audio':    return { text: null, mediaUrl: msg.audio?.id ?? null, mimeType: msg.audio?.mime_type ?? null }
-    case 'video':    return { text: msg.video?.caption ?? null, mediaUrl: msg.video?.id ?? null, mimeType: msg.video?.mime_type ?? null }
-    case 'document': return { text: msg.document?.filename ?? null, mediaUrl: msg.document?.id ?? null, mimeType: msg.document?.mime_type ?? null }
-    case 'sticker':  return { text: null, mediaUrl: msg.sticker?.id ?? null, mimeType: 'image/webp' }
-    case 'reaction': return { text: msg.reaction?.emoji ?? null, mediaUrl: null, mimeType: null }
-    default:         return { text: null, mediaUrl: null, mimeType: null }
+    case 'text':     return { text: msg.text?.body ?? null, mediaId: null, mimeType: null }
+    case 'image':    return { text: msg.image?.caption ?? null, mediaId: msg.image?.id ?? null, mimeType: msg.image?.mime_type ?? null }
+    case 'audio':    return { text: null, mediaId: msg.audio?.id ?? null, mimeType: msg.audio?.mime_type ?? null }
+    case 'video':    return { text: msg.video?.caption ?? null, mediaId: msg.video?.id ?? null, mimeType: msg.video?.mime_type ?? null }
+    case 'document': return { text: msg.document?.filename ?? null, mediaId: msg.document?.id ?? null, mimeType: msg.document?.mime_type ?? null }
+    case 'sticker':  return { text: null, mediaId: msg.sticker?.id ?? null, mimeType: 'image/webp' }
+    case 'reaction': return { text: msg.reaction?.emoji ?? null, mediaId: null, mimeType: null }
+    default:         return { text: null, mediaId: null, mimeType: null }
+  }
+}
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+  'audio/ogg; codecs=opus': 'ogg', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac',
+  'video/mp4': 'mp4', 'video/3gpp': '3gp',
+  'application/pdf': 'pdf',
+}
+
+async function downloadAndStoreMedia(
+  supabase: ReturnType<typeof adminClient>,
+  mediaId: string,
+  mimeType: string | null,
+  accessToken: string,
+  unitId: string,
+): Promise<string | null> {
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!metaRes.ok) {
+      console.error('[WA media download] Meta URL fetch failed:', metaRes.status)
+      return null
+    }
+    const { url } = await metaRes.json() as { url: string }
+
+    const fileRes = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!fileRes.ok) {
+      console.error('[WA media download] file download failed:', fileRes.status)
+      return null
+    }
+
+    const buffer = await fileRes.arrayBuffer()
+    const resolvedMime = mimeType ?? fileRes.headers.get('content-type') ?? 'application/octet-stream'
+    const ext = MIME_TO_EXT[resolvedMime] ?? resolvedMime.split('/')[1]?.replace(/[^a-z0-9]/g, '') ?? 'bin'
+    const path = `${unitId}/${mediaId}.${ext}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from('wa-media')
+      .upload(path, buffer, { contentType: resolvedMime, upsert: true })
+
+    if (uploadErr) {
+      console.error('[WA media download] upload failed:', uploadErr.message)
+      return null
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('wa-media').getPublicUrl(path)
+    return publicUrl
+  } catch (e) {
+    console.error('[WA media download] unexpected error:', e)
+    return null
   }
 }
 
