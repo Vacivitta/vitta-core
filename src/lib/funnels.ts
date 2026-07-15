@@ -120,6 +120,17 @@ export async function updateStage(
 
 export async function deleteStage(id: string): Promise<void> {
   const supabase = createClient()
+
+  const { count } = await supabase
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .eq('stage_id', id)
+    .eq('arquivado', false)
+
+  if (count && count > 0) {
+    throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} vinculados. Distribua os leads para outras etapas antes de excluir.`)
+  }
+
   const { error } = await supabase.from('funnel_stages').delete().eq('id', id)
   if (error) throw error
 }

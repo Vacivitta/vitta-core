@@ -406,10 +406,11 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           onColorPickerToggle={() => setColorPickerStageId(colorPickerStageId === stage.id ? null : stage.id)}
                           onColorChange={cor => void handleChangeColor(stage, cor)}
                           onAlertHoursChange={h => void handleAlertDaysChange(stage, h)}
-                          onDeleteRequest={() => setConfirmDeleteStageId(stage.id)}
+                          onDeleteRequest={() => { setConfirmDeleteStageId(stage.id); setDeleteError(null) }}
                           confirmDelete={confirmDeleteStageId === stage.id}
                           onDeleteConfirm={() => void handleDeleteStage(stage)}
-                          onDeleteCancel={() => setConfirmDeleteStageId(null)}
+                          onDeleteCancel={() => { setConfirmDeleteStageId(null); setDeleteError(null) }}
+                          deleteError={confirmDeleteStageId === stage.id ? deleteError : null}
                           busy={busy}
                         />
                       )
@@ -476,6 +477,7 @@ interface StageRowProps {
   confirmDelete:      boolean
   onDeleteConfirm:    () => void
   onDeleteCancel:     () => void
+  deleteError:        string | null
   busy:               boolean
 }
 
@@ -485,6 +487,7 @@ function SortableStageRow({
   showColorPicker, onColorPickerToggle, onColorChange,
   onAlertHoursChange,
   onDeleteRequest, confirmDelete, onDeleteConfirm, onDeleteCancel,
+  deleteError,
   busy,
 }: StageRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
@@ -559,37 +562,52 @@ function SortableStageRow({
         </div>
 
         {/* Delete */}
-        <button onClick={onDeleteRequest} title="Excluir etapa"
-          style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', borderRadius: 6, lineHeight: 0, flexShrink: 0, transition: 'color 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#D1D5DB')}
-        >
-          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        {leadCount > 0 ? (
+          <span title="Mova os leads antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0, cursor: 'not-allowed' }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </span>
+        ) : (
+          <button onClick={onDeleteRequest} title="Excluir etapa"
+            style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', borderRadius: 6, lineHeight: 0, flexShrink: 0, transition: 'color 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#D1D5DB')}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Delete confirm */}
       {confirmDelete && (
         <div style={{ margin: '4px 0 0', padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 12 }}>
-          <p style={{ fontWeight: 700, color: '#DC2626', margin: '0 0 2px' }}>Excluir etapa &ldquo;{stage.nome}&rdquo;?</p>
-          {leadCount > 0 && (
-            <p style={{ color: '#B45309', margin: '0 0 4px', background: '#FFFBEB', padding: '4px 8px', borderRadius: 6 }}>
-              {leadCount} lead{leadCount !== 1 ? 's' : ''} nesta etapa perderão a etapa atribuída.
-            </p>
+          {deleteError ? (
+            <>
+              <p style={{ color: '#DC2626', margin: '0 0 8px', lineHeight: 1.4 }}>{deleteError}</p>
+              <button onClick={onDeleteCancel}
+                style={{ width: '100%', padding: '6px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
+                Fechar
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={{ fontWeight: 700, color: '#DC2626', margin: '0 0 2px' }}>Excluir etapa &ldquo;{stage.nome}&rdquo;?</p>
+              <p style={{ color: '#EF4444', margin: '0 0 8px' }}>Esta ação não pode ser desfeita.</p>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={onDeleteConfirm} disabled={busy}
+                  style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, background: '#EF4444', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+                  {busy ? '...' : 'Excluir'}
+                </button>
+                <button onClick={onDeleteCancel}
+                  style={{ flex: 1, padding: '6px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
+                  Cancelar
+                </button>
+              </div>
+            </>
           )}
-          <p style={{ color: '#EF4444', margin: '0 0 8px' }}>Esta ação não pode ser desfeita.</p>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onDeleteConfirm} disabled={busy}
-              style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, background: '#EF4444', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-              {busy ? '...' : 'Excluir'}
-            </button>
-            <button onClick={onDeleteCancel}
-              style={{ flex: 1, padding: '6px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
-              Cancelar
-            </button>
-          </div>
         </div>
       )}
     </div>
