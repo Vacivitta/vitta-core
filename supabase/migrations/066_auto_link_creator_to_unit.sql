@@ -10,9 +10,11 @@
 CREATE OR REPLACE FUNCTION fn_auto_link_creator_to_unit()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO user_units (user_id, unit_id)
-  VALUES (auth.uid(), NEW.id)
-  ON CONFLICT DO NOTHING;
+  IF auth.uid() IS NOT NULL THEN
+    INSERT INTO user_units (user_id, unit_id)
+    VALUES (auth.uid(), NEW.id)
+    ON CONFLICT DO NOTHING;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
