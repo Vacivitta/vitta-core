@@ -43,6 +43,9 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
   const [deleting,     setDeleting]    = useState(false)
   const [deleteError,  setDeleteError]  = useState('')
+  const [deleteUnitTarget, setDeleteUnitTarget] = useState<Unit | null>(null)
+  const [deletingUnit,     setDeletingUnit]     = useState(false)
+  const [deleteUnitError,  setDeleteUnitError]  = useState('')
 
   // ── Formulário de usuário ──────────────────────────────────────────────────
   const [inviteMode,      setInviteMode]      = useState<'email' | 'password'>('email')
@@ -214,6 +217,24 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
   async function toggleUnitAtivo(u: Unit) {
     await supabase.from('units').update({ ativo: !u.ativo }).eq('id', u.id)
     setUnits(prev => prev.map(x => x.id === u.id ? { ...x, ativo: !u.ativo } : x))
+  }
+
+  async function handleDeleteUnit() {
+    if (!deleteUnitTarget) return
+    setDeletingUnit(true); setDeleteUnitError('')
+    try {
+      const res = await fetch('/api/units', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteUnitTarget.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setDeleteUnitError(json.error ?? 'Erro ao excluir'); setDeletingUnit(false); return }
+      setUnits(prev => prev.filter(u => u.id !== deleteUnitTarget.id))
+      setDeleteUnitTarget(null)
+    } catch {
+      setDeleteUnitError('Erro de conexão')
+    } finally { setDeletingUnit(false) }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -419,14 +440,26 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                         </button>
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => openEditUnit(u)}
-                          className="p-1.5 text-gray-400 hover:text-[#3E9849] hover:bg-[#E8F4E6] rounded-lg transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEditUnit(u)}
+                            className="p-1.5 text-gray-400 hover:text-[#3E9849] hover:bg-[#E8F4E6] rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => { setDeleteUnitTarget(u); setDeleteUnitError('') }}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir unidade"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -624,6 +657,46 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                 className="px-4 py-2 text-sm bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 disabled:opacity-50 transition-colors"
               >
                 {deleting ? 'Excluindo...' : 'Excluir permanentemente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmar exclusão de unidade ──────────────────────────────────── */}
+      {deleteUnitTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Excluir unidade</h3>
+                  <p className="text-xs text-gray-500">Esta ação não pode ser desfeita</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 mb-1">
+                Excluir <strong>{deleteUnitTarget.nome}</strong> permanentemente?
+              </p>
+              <p className="text-xs text-gray-500 mb-4">
+                Todos os dados vinculados (funis, leads, conversas) serão afetados. Só é possível excluir unidades sem leads.
+              </p>
+              {deleteUnitError && <p className="text-xs text-red-500 mb-3">{deleteUnitError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setDeleteUnitTarget(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteUnit}
+                disabled={deletingUnit}
+                className="px-4 py-2 text-sm bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deletingUnit ? 'Excluindo...' : 'Excluir'}
               </button>
             </div>
           </div>

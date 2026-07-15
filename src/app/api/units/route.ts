@@ -41,3 +41,34 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(unit)
 }
+
+export async function DELETE(req: NextRequest) {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles').select('perfil').eq('id', user.id).single()
+
+  if (profile?.perfil !== 'admin')
+    return NextResponse.json({ error: 'Apenas admins podem excluir unidades' }, { status: 403 })
+
+  const { id } = await req.json() as { id: string }
+  if (!id) return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 })
+
+  const { count: leadCount } = await admin
+    .from('leads').select('id', { count: 'exact', head: true }).eq('unit_id', id)
+
+  if (leadCount && leadCount > 0)
+    return NextResponse.json(
+      { error: `Unidade tem ${leadCount} lead${leadCount !== 1 ? 's' : ''}. Mova ou exclua os leads antes.` },
+      { status: 409 },
+    )
+
+  await admin.from('user_units').delete().eq('unit_id', id)
+  const { error } = await admin.from('units').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}
