@@ -187,11 +187,15 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
     try {
       if (unitModal === 'create') {
-        // Pega o tenant_id da primeira unidade
         const tenant_id = units[0]?.tenant_id
         if (!tenant_id) { setFormError('Tenant não encontrado.'); setSaving(false); return }
-        const { data, error } = await supabase.from('units').insert({ ...payload, tenant_id }).select().single()
-        if (error) throw error
+        const res = await fetch('/api/units', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, tenant_id }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Erro ao criar unidade')
         setUnits(prev => [...prev, data as Unit].sort((a, b) => a.nome.localeCompare(b.nome)))
       } else if (selUnit) {
         const { error } = await supabase.from('units').update(payload).eq('id', selUnit.id)
