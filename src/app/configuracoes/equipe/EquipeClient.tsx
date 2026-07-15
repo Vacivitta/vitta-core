@@ -199,8 +199,9 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
         setUnits(prev => prev.map(u => u.id === selUnit.id ? { ...u, ...payload } : u))
       }
       setUnitModal(null)
-    } catch {
-      setFormError('Erro ao salvar.')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Erro desconhecido'
+      setFormError(`Erro ao salvar: ${msg}`)
     } finally {
       setSaving(false)
     }
