@@ -13,7 +13,7 @@ VALUES (
   52428800,
   ARRAY[
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
-    'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/amr',
+    'audio/ogg', 'audio/ogg; codecs=opus', 'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/amr',
     'video/mp4', 'video/3gpp',
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

@@ -652,8 +652,9 @@ async function downloadAndStoreMedia(
     }
 
     const buffer = await fileRes.arrayBuffer()
-    const resolvedMime = mimeType ?? fileRes.headers.get('content-type') ?? 'application/octet-stream'
-    const ext = MIME_TO_EXT[resolvedMime] ?? resolvedMime.split('/')[1]?.replace(/[^a-z0-9]/g, '') ?? 'bin'
+    const rawMime = mimeType ?? fileRes.headers.get('content-type') ?? 'application/octet-stream'
+    const ext = MIME_TO_EXT[rawMime] ?? rawMime.split('/')[1]?.split(';')[0]?.replace(/[^a-z0-9]/g, '') ?? 'bin'
+    const resolvedMime = rawMime.split(';')[0].trim()
     const path = `${unitId}/${mediaId}.${ext}`
 
     const { error: uploadErr } = await supabase.storage

@@ -35,7 +35,11 @@ export async function GET(req: NextRequest) {
   if (!metaRes.ok) {
     const err = await metaRes.text()
     console.error('[WA media] Meta retornou erro:', metaRes.status, err)
-    return new NextResponse(`Media error: ${metaRes.status}`, { status: 502 })
+    const expired = metaRes.status === 400
+    return NextResponse.json(
+      { error: expired ? 'Mídia expirada' : `Media error: ${metaRes.status}`, expired },
+      { status: expired ? 410 : 502 }
+    )
   }
 
   const { url, mime_type } = await metaRes.json() as { url: string; mime_type: string }

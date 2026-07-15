@@ -45,6 +45,37 @@ function generateBars(seed: string): number[] {
   return bars
 }
 
+/* ── Expired media fallback ── */
+function ExpiredMedia({ type, isOut }: { type: string; isOut: boolean }) {
+  const labels: Record<string, string> = { audio: 'Áudio', image: 'Imagem', video: 'Vídeo', document: 'Arquivo', sticker: 'Sticker' }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+      background: isOut ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.04)',
+      borderRadius: 8, color: '#8696A0', fontSize: 12, fontStyle: 'italic',
+    }}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10.5a.75.75 0 110-1.5.75.75 0 010 1.5zM8.75 7.25a.75.75 0 01-1.5 0v-3a.75.75 0 011.5 0v3z" fill="#8696A0"/></svg>
+      {labels[type] ?? 'Mídia'} indisponível
+    </div>
+  )
+}
+
+/* ── Image with error fallback ── */
+function MediaImage({ src, alt, isOut, type, style, onClick, children }: {
+  src: string; alt: string; isOut: boolean; type: string
+  style?: React.CSSProperties; onClick?: () => void; children?: React.ReactNode
+}) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <ExpiredMedia type={type} isOut={isOut} />
+  return (
+    <div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} style={style} onClick={onClick} onError={() => setFailed(true)} />
+      {children}
+    </div>
+  )
+}
+
 /* ── Audio player (WhatsApp style) ── */
 const SPEEDS = [1, 1.5, 2] as const
 
@@ -54,6 +85,7 @@ function AudioPlayer({ src, isOut, timestamp, msgId }: { src: string; isOut: boo
   const [duration, setDuration]   = useState(0)
   const [current, setCurrent]     = useState(0)
   const [speedIdx, setSpeedIdx]   = useState(0)
+  const [failed, setFailed]       = useState(false)
 
   const bars = useMemo(() => generateBars(msgId || src), [msgId, src])
 
@@ -63,10 +95,12 @@ function AudioPlayer({ src, isOut, timestamp, msgId }: { src: string; isOut: boo
     const onMeta   = () => setDuration(a.duration)
     const onTime   = () => setCurrent(a.currentTime)
     const onEnded  = () => { setPlaying(false); setCurrent(0) }
+    const onError  = () => setFailed(true)
     a.addEventListener('loadedmetadata', onMeta)
     a.addEventListener('timeupdate', onTime)
     a.addEventListener('ended', onEnded)
-    return () => { a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('timeupdate', onTime); a.removeEventListener('ended', onEnded) }
+    a.addEventListener('error', onError)
+    return () => { a.removeEventListener('loadedmetadata', onMeta); a.removeEventListener('timeupdate', onTime); a.removeEventListener('ended', onEnded); a.removeEventListener('error', onError) }
   }, [])
 
   const toggle = useCallback(() => {
@@ -97,6 +131,8 @@ function AudioPlayer({ src, isOut, timestamp, msgId }: { src: string; isOut: boo
     const sec = Math.floor(s % 60)
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
+
+  if (failed) return <ExpiredMedia type="audio" isOut={isOut} />
 
   const pct = duration ? (current / duration) * 100 : 0
 
@@ -177,26 +213,17 @@ export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
 
   if (msg.type === 'sticker' && msg.media_url)
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={mediaUrl(msg.media_url)}
-        alt="Sticker"
-        style={{ width: 128, height: 128, objectFit: 'contain', display: 'block' }}
-      />
+      <MediaImage src={mediaUrl(msg.media_url)} alt="Sticker" isOut={isOut} type="sticker"
+        style={{ width: 128, height: 128, objectFit: 'contain', display: 'block' }} />
     )
 
   if (msg.type === 'image' && msg.media_url)
     return (
-      <div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaUrl(msg.media_url)}
-          alt="Imagem"
-          style={{ maxWidth: 220, maxHeight: 200, borderRadius: 8, display: 'block', cursor: 'pointer' }}
-          onClick={() => window.open(mediaUrl(msg.media_url!), '_blank')}
-        />
+      <MediaImage src={mediaUrl(msg.media_url)} alt="Imagem" isOut={isOut} type="image"
+        style={{ maxWidth: 220, maxHeight: 200, borderRadius: 8, display: 'block', cursor: 'pointer' }}
+        onClick={() => window.open(mediaUrl(msg.media_url!), '_blank')}>
         {msg.content && <p style={{ margin: '4px 0 0', fontSize: 12, color: tc }}>{formatWaText(msg.content)}</p>}
-      </div>
+      </MediaImage>
     )
 
   if (msg.type === 'audio' && msg.media_url)
