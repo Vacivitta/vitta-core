@@ -676,11 +676,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setLeadDetail(null)
   }
 
-  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText = '') {
+  async function handleStartConversation(phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText = '', contactName?: string) {
     const res = await fetch('/api/whatsapp/start-conversation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components, register_optin: registerOptin, body_text: bodyText }),
+      body: JSON.stringify({ phone, unit_id: unitId, template_name: templateName, language, components, register_optin: registerOptin, body_text: bodyText, contact_name: contactName }),
     })
     const data = await res.json() as { conversation_id?: string; error?: string }
     if (!res.ok || !data.conversation_id) throw new Error(data.error ?? 'Erro ao iniciar conversa')

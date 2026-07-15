@@ -6,12 +6,13 @@ interface MetaApprovedTemplate { name: string; language: string; bodyText: strin
 
 interface Props {
   unitId:  string
-  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText: string) => Promise<void>
+  onStart: (phone: string, unitId: string, templateName: string, language: string, components: object[], registerOptin: boolean, bodyText: string, contactName?: string) => Promise<void>
   onClose: () => void
 }
 
 export default function NewConversationModal({ unitId, onStart, onClose }: Props) {
   const [phone,        setPhone]        = useState('')
+  const [contactName,  setContactName]  = useState('')
   const [tmplIdx,      setTmplIdx]      = useState(0)
   const [sending,      setSending]      = useState(false)
   const [error,        setError]        = useState<string | null>(null)
@@ -46,7 +47,7 @@ export default function NewConversationModal({ unitId, onStart, onClose }: Props
     if (!selected)     { setError('Selecione um template'); return }
     setSending(true)
     try {
-      await onStart(phone.trim(), unitId, selected.name, selected.language, [], regOptin, selected.bodyText)
+      await onStart(phone.trim(), unitId, selected.name, selected.language, [], regOptin, selected.bodyText, contactName.trim() || undefined)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao iniciar conversa')
     } finally { setSending(false) }
@@ -61,6 +62,15 @@ export default function NewConversationModal({ unitId, onStart, onClose }: Props
           <h3 style={{ fontSize: 16, fontWeight: 800, color: '#25402C', margin: 0 }}>Nova conversa</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
         </div>
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nome do cliente</label>
+        <input
+          type="text"
+          placeholder="Ex: Maria Silva"
+          value={contactName}
+          onChange={e => setContactName(e.target.value)}
+          style={{ width: '100%', border: '1.5px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16, color: '#25402C' }}
+        />
 
         <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Telefone (DDD + número)</label>
         <input

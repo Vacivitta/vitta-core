@@ -50,9 +50,10 @@ export async function POST(req: NextRequest) {
     components?:     object[]
     register_optin?: boolean
     body_text?:      string
+    contact_name?:   string
   }
 
-  const { unit_id, template_name, language = 'pt_BR', components = [], register_optin = false, body_text = '' } = body
+  const { unit_id, template_name, language = 'pt_BR', components = [], register_optin = false, body_text = '', contact_name } = body
   const phone = normalizePhone(body.phone ?? '')
 
   if (!phone || phone.length < 12)
@@ -68,14 +69,66 @@ export async function POST(req: NextRequest) {
   const { data: conv, error: convErr } = await supabase
     .from('wa_conversations')
     .upsert(
-      { unit_id, wa_phone: phone },
+      { unit_id, wa_phone: phone, wa_contact_name: contact_name || null },
       { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
     )
-    .select('id')
+    .select('id, lead_id')
     .maybeSingle()
 
   if (convErr || !conv)
     return NextResponse.json({ error: 'Erro ao criar conversa', details: convErr?.message }, { status: 500 })
+
+  // 1b. Criar ou vincular lead com o nome fornecido
+  if (!conv.lead_id && contact_name) {
+    const parts = contact_name.trim().split(/\s+/)
+    const nome = parts[0]
+    const sobrenome = parts.length > 1 ? parts.slice(1).join(' ') : null
+
+    // Busca lead existente pelo telefone
+    const digitsAll = phone.replace(/\D/g, '')
+    const digitsShort = digitsAll.length > 11 ? digitsAll.slice(-11) : digitsAll
+    const { data: existingLeads } = await supabase
+      .from('leads')
+      .select('id, telefone')
+      .eq('unit_id', unit_id)
+      .eq('arquivado', false)
+      .not('telefone', 'is', null)
+      .limit(50)
+
+    const matched = (existingLeads ?? []).find(l => {
+      const d = (l.telefone as string).replace(/\D/g, '')
+      return d === digitsAll || d === digitsShort || digitsAll.endsWith(d) || d.endsWith(digitsShort)
+    })
+
+    let leadId: string | null = null
+
+    if (matched) {
+      leadId = matched.id
+    } else {
+      // Busca primeiro stage do primeiro funil ativo
+      const { data: funnel } = await supabase
+        .from('funnels').select('id').eq('unit_id', unit_id).eq('ativo', true).order('ordem').limit(1).maybeSingle()
+      if (funnel) {
+        const { data: stage } = await supabase
+          .from('funnel_stages').select('id').eq('funnel_id', funnel.id).order('ordem').limit(1).maybeSingle()
+        if (stage) {
+          const formatted = phone.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3')
+          const { data: newLead } = await supabase
+            .from('leads')
+            .insert({
+              unit_id, nome, sobrenome, telefone: formatted,
+              origem: 'whatsapp', funnel_id: funnel.id, stage_id: stage.id, arquivado: false,
+            })
+            .select('id').single()
+          if (newLead) leadId = newLead.id
+        }
+      }
+    }
+
+    if (leadId) {
+      await supabase.from('wa_conversations').update({ lead_id: leadId }).eq('id', conv.id)
+    }
+  }
 
   // 2. Envia o template pelo Meta
   const creds = await getWaCredentials(unit_id)
