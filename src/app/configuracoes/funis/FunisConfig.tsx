@@ -119,6 +119,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
       const remaining = funnels.filter(f => f.id !== id)
       setSelectedId(remaining[0]?.id ?? '')
       setConfirmAction(null)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setDeleteError(`Erro ao excluir funil: ${msg}`)
     } finally { setBusy(false) }
   }
 
