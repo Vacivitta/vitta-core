@@ -120,8 +120,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
       setSelectedId(remaining[0]?.id ?? '')
       setConfirmAction(null)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setDeleteError(`Erro ao excluir funil: ${msg}`)
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? JSON.stringify(e)
+      setDeleteError(msg)
     } finally { setBusy(false) }
   }
 
@@ -182,8 +182,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
       ))
       setConfirmDeleteStageId(null)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setDeleteError(`Erro ao excluir etapa: ${msg}`)
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? JSON.stringify(e)
+      setDeleteError(msg)
     } finally { setBusy(false) }
   }
 
