@@ -64,22 +64,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
   }
 
-  const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
-    method:  'POST',
-    headers: {
-      'Authorization': `Bearer ${creds.accessToken}`,
-      'Content-Type':  'application/json',
-    },
-    body: JSON.stringify(metaPayload),
-  })
+  let metaData: MetaResponse = {}
+  let metaOk = false
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
 
-  const metaData = await metaRes.json() as MetaResponse
+    const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${creds.accessToken}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(metaPayload),
+    })
 
-  if (!metaRes.ok) {
+    metaData = await metaRes.json() as MetaResponse
+
+    if (metaRes.ok) { metaOk = true; break }
+    if (!metaData.error?.is_transient) break
+    console.warn(`[WA send] transient error, retrying (${attempt + 1}/3):`, metaData.error?.message)
+  }
+
+  if (!metaOk) {
     console.error('[WA send] erro da API do Meta:', metaData)
     return NextResponse.json(
       { error: 'Falha ao enviar mensagem', details: metaData },
-      { status: metaRes.status }
+      { status: 502 }
     )
   }
 
@@ -187,5 +197,6 @@ interface MetaResponse {
     message: string
     type:    string
     code:    number
+    is_transient?: boolean
   }
 }

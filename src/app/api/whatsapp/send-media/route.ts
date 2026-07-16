@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     else if (mime.startsWith('video/')) msgType = 'video'
     else if (mime.startsWith('audio/')) msgType = 'audio'
 
-    // 3. Envia a mensagem via API do Meta
+    // 3. Envia a mensagem via API do Meta (com retry para erros transientes)
     const metaPayload: Record<string, unknown> = {
       messaging_product: 'whatsapp',
       to:   conv.wa_phone,
@@ -104,16 +104,26 @@ export async function POST(req: NextRequest) {
             : { id: mediaId },
     }
 
-    const sendRes  = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
-      method:  'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify(metaPayload),
-    })
-    const sendData = await sendRes.json() as { messages?: { id: string }[]; error?: unknown }
+    let sendData: { messages?: { id: string }[]; error?: { is_transient?: boolean; message?: string } } = {}
+    let sendOk = false
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
 
-    console.log(`[send-media] send status=${sendRes.status} type=${msgType} payload=${JSON.stringify(metaPayload)} response=${JSON.stringify(sendData).slice(0, 300)}`)
+      const sendRes = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(metaPayload),
+      })
+      sendData = await sendRes.json() as typeof sendData
 
-    if (!sendRes.ok) {
+      console.log(`[send-media] send attempt=${attempt + 1} status=${sendRes.status} type=${msgType} response=${JSON.stringify(sendData).slice(0, 300)}`)
+
+      if (sendRes.ok) { sendOk = true; break }
+      if (!sendData.error?.is_transient) break
+      console.warn(`[send-media] transient error, retrying (${attempt + 1}/3)`)
+    }
+
+    if (!sendOk) {
       console.error('[send-media] Meta send error:', JSON.stringify(sendData))
       return NextResponse.json({ error: 'Falha ao enviar mídia', details: sendData }, { status: 502 })
     }
