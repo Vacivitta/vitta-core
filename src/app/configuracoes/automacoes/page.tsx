@@ -23,6 +23,9 @@ export default async function AutomacoesPage() {
     { data: stages },
     { data: quoteAutomations },
     { data: waAutomations },
+    { data: templates },
+    { data: timedAutomations },
+    { data: funnels },
   ] = await Promise.all([
     supabase
       .from('funnel_stages')
@@ -36,6 +39,21 @@ export default async function AutomacoesPage() {
       .from('wa_automations')
       .select('*')
       .eq('unit_id', unitId),
+    supabase
+      .from('wa_message_templates')
+      .select('id, name, template_name, content, category')
+      .eq('unit_id', unitId)
+      .eq('ativo', true)
+      .order('name'),
+    supabase
+      .from('wa_timed_automations')
+      .select('*')
+      .eq('unit_id', unitId)
+      .order('created_at'),
+    supabase
+      .from('funnels')
+      .select('id, nome')
+      .order('nome'),
   ])
 
   const normalizedStages = (stages ?? []).map(s => ({
@@ -49,6 +67,9 @@ export default async function AutomacoesPage() {
       stages={normalizedStages}
       initialQuoteAutomations={quoteAutomations ?? []}
       initialWaAutomations={waAutomations ?? []}
+      templates={templates ?? []}
+      initialTimedAutomations={timedAutomations ?? []}
+      funnels={(funnels ?? []) as { id: string; nome: string }[]}
     />
   )
 }
