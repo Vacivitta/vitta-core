@@ -29,11 +29,7 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
     const ffmpeg = getFfmpegPath()
     execFileSync(ffmpeg, [
       '-i', inputPath,
-      '-c:a', 'libopus',
-      '-b:a', '32k',
-      '-ar', '48000',
-      '-ac', '1',
-      '-application', 'voip',
+      '-c:a', 'copy',
       '-f', 'ogg',
       '-y',
       outputPath,
