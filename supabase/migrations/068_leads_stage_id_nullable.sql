@@ -1,10 +1,11 @@
 -- ============================================================================
--- Migration 068: Reverter stage_id nullable (manter NOT NULL)
+-- Migration 068: FK leads.stage_id → RESTRICT (bloqueia exclusão com leads)
 --
--- A exclusão de etapas com leads deve ser bloqueada no app, não pelo banco.
--- stage_id permanece NOT NULL — leads devem ser distribuídos antes de excluir.
--- (Esta migration foi revertida — stage_id continua NOT NULL como estava.)
+-- A FK anterior era ON DELETE SET NULL, mas stage_id é NOT NULL, causando
+-- erro ao excluir etapas. Agora a FK é RESTRICT — o app verifica leads
+-- antes de tentar excluir e exibe mensagem legível.
 -- ============================================================================
 
--- Noop — mantido para histórico. A coluna stage_id em leads permanece NOT NULL.
-SELECT 1;
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_id_fkey;
+ALTER TABLE leads ADD CONSTRAINT leads_stage_id_fkey
+  FOREIGN KEY (stage_id) REFERENCES funnel_stages(id) ON DELETE RESTRICT;
