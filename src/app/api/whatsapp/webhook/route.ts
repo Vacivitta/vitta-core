@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { runAutoAssign }            from '../auto-assign/route'
 import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
+import { runWaAutomation }          from '@/lib/whatsapp/automation'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -321,15 +322,45 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     }
   }
 
+  // 4c. Automação inbound — dispara ação configurada para mensagens recebidas
+  try {
+    await runWaAutomation(supabase, 'inbound_message', unitId, conv.id)
+  } catch (e) {
+    console.error('[WA webhook] runWaAutomation inbound falhou:', e)
+  }
+
   // 5. Tenta auto-distribuir — re-fetch para ter queue_id e assigned_to atualizados
   const { data: fresh } = await supabase
     .from('wa_conversations')
     .select('queue_id, assigned_to')
     .eq('id', conv.id)
     .single()
-  if (fresh?.queue_id && !fresh?.assigned_to) {
+
+  let queueId = fresh?.queue_id as string | null
+
+  // Se a conversa não tem fila, atribui a primeira fila ativa da unidade
+  if (!queueId) {
+    const { data: defaultQueue } = await supabase
+      .from('wa_queues')
+      .select('id')
+      .eq('unit_id', unitId)
+      .eq('ativo', true)
+      .order('created_at')
+      .limit(1)
+      .maybeSingle()
+
+    if (defaultQueue) {
+      queueId = defaultQueue.id
+      await supabase
+        .from('wa_conversations')
+        .update({ queue_id: queueId })
+        .eq('id', conv.id)
+    }
+  }
+
+  if (queueId && !fresh?.assigned_to) {
     try {
-      await runAutoAssign(supabase, conv.id, fresh.queue_id as string)
+      await runAutoAssign(supabase, conv.id, queueId)
     } catch (e) {
       console.error('[WA webhook] runAutoAssign falhou:', e)
     }
