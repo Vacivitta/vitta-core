@@ -44,6 +44,7 @@ interface WaConversation {
   wa_phone:     string
   status:       string
   unread_count: number
+  assigned_to:  string | null
 }
 
 type WaMessage = SharedWaMessage
@@ -152,10 +153,12 @@ function LeadDrawer({
   const [waSending,      setWaSending]      = useState(false)
   const [waInputMode,    setWaInputMode]    = useState<InputMode>('text')
   const [waReplyTo,      setWaReplyTo]      = useState<WaMessage | null>(null)
+  const isAtendente = currentUser.perfil === 'atendente'
   const [waSignature,    setWaSignature]    = useState(() =>
-    typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1'
+    isAtendente || (typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1')
   )
   const [waHoveredMsgId, setWaHoveredMsgId] = useState<string | null>(null)
+  const [waShowAgentPicker, setWaShowAgentPicker] = useState(false)
   const [waTemplates,    setWaTemplates]    = useState<WaTemplate[]>([])
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
@@ -173,7 +176,7 @@ function LeadDrawer({
 
     supabase
       .from('wa_conversations')
-      .select('id, wa_phone, status, unread_count')
+      .select('id, wa_phone, status, unread_count, assigned_to')
       .eq('wa_phone', waPhone)
       .maybeSingle()
       .then(async ({ data: conv }) => {
@@ -1518,6 +1521,86 @@ function LeadDrawer({
               // Chat
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                  {/* Conv header: status + agent + actions */}
+                  {waConversation && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', borderBottom: '1px solid #E5E7EB', background: '#fff', flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: waConversation.status === 'resolved' ? '#F3F4F6' : waConversation.status === 'pending' ? '#FEF3C7' : '#E8F4E6',
+                        color: waConversation.status === 'resolved' ? '#6B7280' : waConversation.status === 'pending' ? '#B45309' : '#2C7233',
+                      }}>
+                        {waConversation.status === 'resolved' ? 'Resolvido' : waConversation.status === 'pending' ? 'Pendente' : 'Aberto'}
+                      </span>
+
+                      {/* Agent picker */}
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => setWaShowAgentPicker(v => !v)}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, border: '1px solid #E5E7EB', cursor: 'pointer', background: '#fff', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                          {profiles.find(p => p.id === waConversation.assigned_to)?.full_name?.split(' ')[0] ?? 'Atribuir'}
+                          <svg width="8" height="8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {waShowAgentPicker && (
+                          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', zIndex: 50, minWidth: 170, overflow: 'hidden' }}>
+                            <button
+                              onClick={async () => {
+                                await supabase.from('wa_conversations').update({ assigned_to: null }).eq('id', waConversation.id)
+                                if (lead.id) await supabase.from('leads').update({ responsavel_id: null }).eq('id', lead.id)
+                                setWaConversation(prev => prev ? { ...prev, assigned_to: null } : prev)
+                                onLeadPatched?.({ responsavel_id: null, responsavel_nome: null, responsavel_avatar: null })
+                                setWaShowAgentPicker(false)
+                              }}
+                              style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, border: 'none', cursor: 'pointer', background: '#fff', color: '#9CA3AF', display: 'block' }}
+                            >
+                              Sem agente
+                            </button>
+                            {profiles.map(p => (
+                              <button
+                                key={p.id}
+                                onClick={async () => {
+                                  await supabase.from('wa_conversations').update({ assigned_to: p.id }).eq('id', waConversation.id)
+                                  if (lead.id) await supabase.from('leads').update({ responsavel_id: p.id }).eq('id', lead.id)
+                                  setWaConversation(prev => prev ? { ...prev, assigned_to: p.id } : prev)
+                                  onLeadPatched?.({ responsavel_id: p.id, responsavel_nome: p.full_name, responsavel_avatar: p.avatar_url ?? null })
+                                  setWaShowAgentPicker(false)
+                                }}
+                                style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontWeight: waConversation.assigned_to === p.id ? 700 : 400, border: 'none', cursor: 'pointer', background: waConversation.assigned_to === p.id ? '#F3F4F6' : '#fff', color: '#1a1a1a', display: 'block' }}
+                              >
+                                {p.full_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ flex: 1 }} />
+                      {waConversation.status === 'resolved' ? (
+                        <button
+                          onClick={async () => {
+                            await supabase.from('wa_conversations').update({ status: 'open' }).eq('id', waConversation.id)
+                            setWaConversation(prev => prev ? { ...prev, status: 'open' } : prev)
+                          }}
+                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#3E9849', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                          Reabrir
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            await supabase.from('wa_conversations').update({ status: 'resolved' }).eq('id', waConversation.id)
+                            setWaConversation(prev => prev ? { ...prev, status: 'resolved' } : prev)
+                          }}
+                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          Resolver
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {/* Tags */}
                   {waConversation && (
                     <ConvTagsBar
@@ -1685,7 +1768,8 @@ function LeadDrawer({
                     onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
                     isOutside24hWindow={waIsOutside24h}
                     signatureEnabled={waSignature}
-                    onToggleSignature={() => { setWaSignature(p => { const v = !p; localStorage.setItem('wa_signature', v ? '1' : '0'); return v }); }}
+                    signatureLocked={isAtendente}
+                    onToggleSignature={() => { if (isAtendente) return; setWaSignature(p => { const v = !p; localStorage.setItem('wa_signature', v ? '1' : '0'); return v }); }}
                     signerName={displayName(currentUser)}
                     contactName={[lead.nome, lead.sobrenome].filter(Boolean).join(' ')}
                   />

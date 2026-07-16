@@ -118,8 +118,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [inputMode,         setInputMode]         = useState<InputMode>('text')
   const [sending,           setSending]           = useState(false)
   const [replyTo,           setReplyTo]           = useState<WaMessage | null>(null)
+  const isAtendente = currentUser.perfil === 'atendente'
   const [signatureEnabled,  setSignatureEnabled]  = useState(() =>
-    typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1'
+    isAtendente || (typeof window !== 'undefined' && localStorage.getItem('wa_signature') === '1')
   )
   const [soundEnabled, setSoundEnabled] = useState(() =>
     typeof window !== 'undefined' ? localStorage.getItem('wa_sound') !== '0' : true
@@ -150,6 +151,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [newConvOpen,         setNewConvOpen]         = useState(false)
 
   function toggleSignature() {
+    if (isAtendente) return
     setSignatureEnabled(v => {
       const next = !v
       localStorage.setItem('wa_signature', next ? '1' : '0')
@@ -800,7 +802,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 }}
                 onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))}
                 isOutside24hWindow={isOutside24hWindow}
-                signatureEnabled={signatureEnabled} onToggleSignature={toggleSignature}
+                signatureEnabled={signatureEnabled} signatureLocked={isAtendente} onToggleSignature={toggleSignature}
                 signerName={displayName(currentUser)}
                 contactName={selectedConv?.lead ? [selectedConv.lead.nome, selectedConv.lead.sobrenome].filter(Boolean).join(' ') : (selectedConv?.wa_contact_name ?? selectedConv?.wa_phone ?? '')}
               />

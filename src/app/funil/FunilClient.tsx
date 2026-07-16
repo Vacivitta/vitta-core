@@ -51,7 +51,7 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
         style={{
           fontSize: 12, fontWeight: selected.length ? 700 : 500,
           background: selected.length ? '#E8F4E6' : '#fff',
-          border: `1px solid ${selected.length ? '#3E9849' : '#EBE7DA'}`,
+          border: `1px solid ${selected.length ? '#3E9849' : '#E5E7EB'}`,
           borderRadius: 999, padding: '5px 12px', color: selected.length ? '#3E9849' : '#71856F',
           cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5,
         }}
@@ -64,7 +64,7 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 200,
-          background: '#fff', border: '1px solid #EBE7DA',
+          background: '#fff', border: '1px solid #E5E7EB',
           borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           minWidth: 190, maxHeight: 260, overflowY: 'auto', padding: '6px 0',
         }}>
@@ -77,7 +77,7 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
                   display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
                   cursor: 'pointer', fontSize: 12, color: '#25402C',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#F6F4EC' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
               >
                 <div style={{
@@ -295,10 +295,10 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Top bar */}
-      <header style={{ background: '#fff', padding: '16px 28px', borderBottom: '1px solid #E9E5D8' }} className="flex items-center justify-between shrink-0">
+      <header style={{ background: '#fff', padding: '16px 28px', borderBottom: '1px solid #E5E7EB' }} className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           {funnels.length > 1 ? (
-            <div className="flex items-center gap-1" style={{ background: '#F2EEE1', borderRadius: 999, padding: 3 }}>
+            <div className="flex items-center gap-1" style={{ background: '#F3F4F6', borderRadius: 999, padding: 3 }}>
               {funnels.map(f => (
                 <button
                   key={f.id}
@@ -330,14 +330,14 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
               placeholder="Buscar..."
               value={filters.search}
               onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              style={{ paddingLeft: 32, paddingRight: 12, paddingBlock: 6, fontSize: 13, background: '#FBFAF4', border: '1px solid #EBE7DA', borderRadius: 999, color: '#25402C', outline: 'none', width: 160 }}
+              style={{ paddingLeft: 32, paddingRight: 12, paddingBlock: 6, fontSize: 13, background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 999, color: '#25402C', outline: 'none', width: 160 }}
             />
           </div>
 
           <button
             onClick={() => setShowFilters(v => !v)}
             className="flex items-center gap-1.5"
-            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: activeFiltersCount > 0 ? '1px solid #3E9849' : '1px solid #EBE7DA', background: activeFiltersCount > 0 ? '#E8F4E6' : '#FBFAF4', color: activeFiltersCount > 0 ? '#3E9849' : '#71856F', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: activeFiltersCount > 0 ? '1px solid #3E9849' : '1px solid #E5E7EB', background: activeFiltersCount > 0 ? '#E8F4E6' : '#F9FAFB', color: activeFiltersCount > 0 ? '#3E9849' : '#71856F', cursor: 'pointer', fontWeight: 700 }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 12h10M11 20h2" />
@@ -353,7 +353,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           <button
             onClick={() => setShowArchived(true)}
             className="flex items-center gap-1.5"
-            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #EBE7DA', background: '#FBFAF4', color: '#71856F', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', cursor: 'pointer', fontWeight: 700 }}
             title="Ver contatos arquivados"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -390,7 +390,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
       {/* Barra de filtros */}
       {showFilters && (
-        <div style={{ background: '#F6F4EC', padding: '8px 28px', borderTop: '1px solid #EBE7DA' }} className="flex items-center gap-3 shrink-0 flex-wrap">
+        <div style={{ background: '#F9FAFB', padding: '8px 28px', borderTop: '1px solid #E5E7EB' }} className="flex items-center gap-3 shrink-0 flex-wrap">
           <MultiCheckFilter
             label="Responsável"
             selected={filters.responsavel_ids}
@@ -403,7 +403,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             placeholder="Cidade..."
             value={filters.cidade}
             onChange={e => setFilters(f => ({ ...f, cidade: e.target.value }))}
-            style={{ fontSize: 12, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 999, padding: '5px 12px', color: '#25402C', outline: 'none', width: 120 }}
+            style={{ fontSize: 12, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 999, padding: '5px 12px', color: '#25402C', outline: 'none', width: 120 }}
           />
 
           <MultiCheckFilter
@@ -434,7 +434,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       )}
 
       {/* Kanban */}
-      <main className="flex-1 overflow-auto" style={{ background: '#F2EEE1', padding: 16 }}>
+      <main className="flex-1 overflow-auto" style={{ background: '#F5F5F5', padding: 16 }}>
         <KanbanBoard
           initialLeads={filteredLeads}
           stages={selectedFunnel.stages}

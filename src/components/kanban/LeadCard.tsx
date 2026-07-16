@@ -16,15 +16,6 @@ interface Props {
   lastMsgAt?: string
 }
 
-const AVATAR_BG   = ['#D6EBD2', '#DCEFFA', '#F3EBDA'] as const
-const AVATAR_INK  = ['#35853F', '#1E86C0', '#B0813C'] as const
-
-function hashIdx(s: string) {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
-  return Math.abs(h) % 3
-}
-
 function timeSince(dateStr: string): { label: string; isLong: boolean } {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins  = Math.floor(diff / 60_000)
@@ -33,7 +24,7 @@ function timeSince(dateStr: string): { label: string; isLong: boolean } {
   if (mins < 1) return { label: 'agora', isLong: false }
   if (mins < 60) return { label: `${mins}min`, isLong: false }
   if (hours < 24) return { label: `${hours}h`, isLong: false }
-  return { label: `${days}d`, isLong: true }
+  return { label: `${days}d`, isLong: days >= 3 }
 }
 
 export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread, lastMsgAt }: Props) {
@@ -49,35 +40,24 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     ? Math.floor((Date.now() - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
     : 0
   const isOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
-  const isUrgent = lead.stage_changed_at
-    ? (Date.now() - new Date(lead.stage_changed_at).getTime()) >= 48 * 3_600_000
-    : false
 
-  const pi = hashIdx(lead.id)
   const initials = `${(lead.nome?.[0] ?? '').toUpperCase()}${(lead.sobrenome?.[0] ?? '').toUpperCase()}`
   const timeInfo = lastMsgAt ? timeSince(lastMsgAt) : lead.stage_changed_at ? timeSince(lead.stage_changed_at) : null
 
   const cardStyle: React.CSSProperties = {
     ...dndStyle,
     background: '#fff',
-    borderRadius: 16,
-    border: isDragging
-      ? '2px solid #3E9849'
-      : '1px solid #EBE7DA',
-    outline: isUrgent && isOverdue && !isDragging ? '2px solid #F0C98A' : 'none',
-    outlineOffset: isUrgent && isOverdue && !isDragging ? '-2px' : undefined,
+    borderRadius: 10,
+    border: isDragging ? '1.5px solid #3E9849' : '1px solid #EBEBEB',
     boxShadow: isDragging
-      ? '0 8px 20px -6px rgba(37,64,44,0.2)'
+      ? '0 6px 16px -4px rgba(0,0,0,0.15)'
       : hovered
-        ? '0 8px 20px -8px rgba(62,152,73,0.4)'
-        : '0 2px 6px -2px rgba(37,64,44,0.12)',
+        ? '0 2px 8px -2px rgba(0,0,0,0.1)'
+        : '0 1px 2px rgba(0,0,0,0.04)',
     cursor: 'pointer',
     userSelect: 'none',
     opacity: isDragging ? 0.5 : 1,
-    transition: 'box-shadow 0.15s, border-color 0.15s, outline-color 0.15s, transform 0.15s',
-    transform: hovered && !isDragging
-      ? `${dndStyle.transform ?? ''} translateY(-1px)`.trim()
-      : dndStyle.transform ?? undefined,
+    transition: 'box-shadow 0.15s, border-color 0.15s',
   }
 
   return (
@@ -91,56 +71,62 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
       {...attributes}
       {...listeners}
     >
-      <div style={{ padding: 14 }}>
-        {/* Avatar + Name + Time */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <div style={{ padding: '10px 12px' }}>
+        {/* Name row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 12, flexShrink: 0,
-            background: AVATAR_BG[pi],
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+            background: '#F3F4F6',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: AVATAR_INK[pi], letterSpacing: '-0.02em' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#6B7280' }}>
               {initials || '?'}
             </span>
           </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                fontSize: 13, fontWeight: 800, color: '#25402C',
-                flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {lead.nome} {lead.sobrenome ?? ''}
-              </span>
-              {timeInfo && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, flexShrink: 0,
-                  color: timeInfo.isLong ? '#C87F1B' : '#9AA79C',
-                }}>
-                  {timeInfo.isLong && '⚠ '}{timeInfo.label}
-                </span>
-              )}
-            </div>
-
+            <span style={{
+              fontSize: 13, fontWeight: 700, color: '#1a1a1a',
+              display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {lead.nome} {lead.sobrenome ?? ''}
+            </span>
             {(lead.profissao || lead.cidade) && (
-              <p style={{
-                margin: 0, fontSize: 11.5, color: '#8A977F',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              <span style={{
+                fontSize: 11, color: '#999',
+                display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {[lead.profissao, lead.cidade].filter(Boolean).join(' · ')}
-              </p>
+              </span>
             )}
           </div>
+
+          {unread > 0 && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
+              background: '#25D366', color: '#fff', flexShrink: 0,
+            }}>
+              {unread}
+            </span>
+          )}
         </div>
+
+        {/* Value */}
+        {(lead.valor_proposta != null || lead.valor_negociado != null) && (
+          <p style={{ margin: '6px 0 0', fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+              lead.valor_negociado ?? lead.valor_proposta ?? 0
+            )}
+          </p>
+        )}
 
         {/* Tags */}
         {tags && tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
             {tags.map(tag => (
               <span key={tag.id} style={{
-                fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
-                background: tag.color + '18', color: tag.color,
-                border: `1px solid ${tag.color}33`, letterSpacing: '0.02em',
+                fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
+                background: tag.color + '15', color: tag.color,
               }}>
                 {tag.name}
               </span>
@@ -148,70 +134,55 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
           </div>
         )}
 
-        {/* Overdue alert */}
+        {/* Overdue */}
         {isOverdue && (
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
+            display: 'inline-flex', alignItems: 'center', gap: 3,
             fontSize: 10, fontWeight: 600, marginTop: 6,
-            padding: '3px 8px', borderRadius: 99,
-            background: '#FEF3E2', color: '#C87F1B',
+            padding: '2px 6px', borderRadius: 4,
+            background: '#FEF3C7', color: '#B45309',
           }}>
-            <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {hoursInStage}h na etapa
           </div>
         )}
-
-        {/* Value */}
-        {(lead.valor_proposta != null || lead.valor_negociado != null) && (
-          <p style={{ margin: '6px 0 0', fontSize: 12, fontWeight: 700, color: '#3E8B50' }}>
-            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-              lead.valor_negociado ?? lead.valor_proposta ?? 0
-            )}
-          </p>
-        )}
       </div>
 
-      {/* Footer — dashed separator */}
+      {/* Footer */}
       <div style={{
-        borderTop: '1px dashed #EBE7DA', margin: '0 14px', padding: '8px 0 10px',
+        borderTop: '1px solid #F3F4F6', padding: '6px 12px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, flex: 1 }}>
           {lead.responsavel_nome ? (
             <>
               {lead.responsavel_avatar ? (
-                <img
-                  src={lead.responsavel_avatar}
-                  alt={lead.responsavel_nome}
-                  style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                />
+                <img src={lead.responsavel_avatar} alt={lead.responsavel_nome}
+                  style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               ) : (
                 <div style={{
-                  width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                  background: '#D6EBD2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                  background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <span style={{ fontSize: 9, fontWeight: 800, color: '#3E6B38' }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: '#9CA3AF' }}>
                     {lead.responsavel_nome[0]?.toUpperCase()}
                   </span>
                 </div>
               )}
-              <span style={{ fontSize: 11, color: '#8A977F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {lead.responsavel_nome}
               </span>
             </>
           ) : (
-            <span style={{
-              fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-              background: '#F3EBDA', color: '#B0813C',
-            }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#D97706' }}>
               sem responsável
             </span>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           {unread === 0 && onMarkUnread && (
             <span
               role="button"
@@ -220,28 +191,16 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
               onClick={e => { e.stopPropagation(); onMarkUnread(lead.id) }}
               style={{ opacity: 0, cursor: 'pointer', padding: 2, borderRadius: 4, display: 'inline-flex', transition: 'opacity 0.15s' }}
             >
-              <svg width="11" height="11" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-            </span>
-          )}
-          {unread > 0 && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 999,
-              background: '#25D366', color: '#fff',
-            }}>
-              <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-              </svg>
-              {unread}
+              <svg width="10" height="10" fill="none" stroke="#bbb" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
             </span>
           )}
           {lead.tarefas_pendentes > 0 && (
             <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
-              background: '#FEF3E2', color: '#C87F1B',
+              display: 'inline-flex', alignItems: 'center', gap: 2,
+              fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
+              background: '#FEF3C7', color: '#B45309',
             }}>
-              <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
               {lead.tarefas_pendentes}
@@ -249,14 +208,22 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
           )}
           {lead.total_notas > 0 && (
             <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
-              background: '#F0EDE4', color: '#8A977F',
+              display: 'inline-flex', alignItems: 'center', gap: 2,
+              fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
+              background: '#F3F4F6', color: '#9CA3AF',
             }}>
-              <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
               </svg>
               {lead.total_notas}
+            </span>
+          )}
+          {timeInfo && (
+            <span style={{
+              fontSize: 10, fontWeight: 600, flexShrink: 0,
+              color: timeInfo.isLong ? '#B45309' : '#bbb',
+            }}>
+              {timeInfo.label}
             </span>
           )}
         </div>

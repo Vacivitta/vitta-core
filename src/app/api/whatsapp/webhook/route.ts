@@ -365,6 +365,25 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
       console.error('[WA webhook] runAutoAssign falhou:', e)
     }
   }
+
+  // 6. Fallback: se após tudo o lead ainda não tem responsável, atribui via round-robin simples
+  const { data: convAfter } = await supabase
+    .from('wa_conversations')
+    .select('lead_id, assigned_to')
+    .eq('id', conv.id)
+    .single()
+
+  if (convAfter?.lead_id) {
+    const { data: leadCheck } = await supabase
+      .from('leads')
+      .select('responsavel_id')
+      .eq('id', convAfter.lead_id)
+      .single()
+
+    if (!leadCheck?.responsavel_id) {
+      await fallbackAssignResponsavel(supabase, convAfter.lead_id, conv.id, unitId, convAfter.assigned_to)
+    }
+  }
 }
 
 
@@ -708,6 +727,54 @@ async function downloadAndStoreMedia(
 function normalizeType(type: string): string {
   const valid = ['text','image','audio','video','document','template','sticker','reaction']
   return valid.includes(type) ? type : 'unsupported'
+}
+
+// ── Fallback: atribui responsável ao lead quando auto-assign não cobriu ───────
+
+async function fallbackAssignResponsavel(
+  supabase: ReturnType<typeof adminClient>,
+  leadId: string,
+  convId: string,
+  unitId: string,
+  assignedTo: string | null,
+) {
+  // Se a conversa já tem assigned_to, usa esse agente como responsável do lead
+  if (assignedTo) {
+    await supabase.from('leads').update({ responsavel_id: assignedTo }).eq('id', leadId)
+    return
+  }
+
+  // Busca atendentes da unidade para round-robin simples
+  const { data: members } = await supabase
+    .from('user_units')
+    .select('user_id, profile:profiles!inner(id, perfil)')
+    .eq('unit_id', unitId)
+
+  type MemberRow = { user_id: string; profile: { id: string; perfil: string } }
+  const atendentes = ((members ?? []) as unknown as MemberRow[])
+    .filter(m => m.profile.perfil === 'atendente')
+    .map(m => m.profile.id)
+
+  if (atendentes.length === 0) return
+
+  // Round-robin: conta leads por atendente e atribui ao que tem menos
+  const loads = await Promise.all(
+    atendentes.map(async agentId => {
+      const { count } = await supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('responsavel_id', agentId)
+        .eq('arquivado', false)
+      return { agentId, count: count ?? 0 }
+    })
+  )
+  loads.sort((a, b) => a.count - b.count)
+  const chosen = loads[0].agentId
+
+  await Promise.all([
+    supabase.from('leads').update({ responsavel_id: chosen }).eq('id', leadId),
+    supabase.from('wa_conversations').update({ assigned_to: chosen }).eq('id', convId),
+  ])
 }
 
 // ── Tipos do payload do Meta ──────────────────────────────────────────────────

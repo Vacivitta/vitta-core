@@ -38,6 +38,7 @@ interface Props {
   onQuickRepliesReload: () => void
   isOutside24hWindow: boolean
   signatureEnabled: boolean
+  signatureLocked?: boolean
   onToggleSignature: () => void
   signerName: string
   contactName?: string
@@ -47,7 +48,7 @@ export default function ChatInput({
   value, onChange, onSend, onMediaUpload, onTemplateSend,
   onScheduleSend, onScheduleTemplate, templates, quickReplies,
   sending, mode, onModeChange, unitId, onTemplatesReload, onQuickRepliesReload,
-  isOutside24hWindow, signatureEnabled, onToggleSignature, signerName, contactName,
+  isOutside24hWindow, signatureEnabled, signatureLocked, onToggleSignature, signerName, contactName,
 }: Props) {
   const imageRef       = useRef<HTMLInputElement>(null)
   const videoRef       = useRef<HTMLInputElement>(null)
@@ -494,12 +495,17 @@ export default function ChatInput({
           </>
         )}
         {!isNote && (
-          <button onClick={onToggleSignature} title={signatureEnabled ? `Assinatura ativa: ${signerName}` : 'Ativar assinatura'}
-            style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 999, border: `1px solid ${signatureEnabled ? '#3E9849' : '#EBE7DA'}`, cursor: 'pointer', background: signatureEnabled ? '#E8F4E6' : '#FAF8F1', color: signatureEnabled ? '#2C7233' : '#9AA79C', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <button onClick={signatureLocked ? undefined : onToggleSignature} title={signatureLocked ? 'Assinatura obrigatória' : signatureEnabled ? `Assinatura ativa: ${signerName}` : 'Ativar assinatura'}
+            style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, padding: '6px 14px', borderRadius: 999, border: `1px solid ${signatureEnabled ? '#3E9849' : '#EBE7DA'}`, cursor: signatureLocked ? 'default' : 'pointer', background: signatureEnabled ? '#E8F4E6' : '#FAF8F1', color: signatureEnabled ? '#2C7233' : '#9AA79C', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0, opacity: signatureLocked ? 0.7 : 1 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
             {signatureEnabled ? signerName.split(' ')[0] : 'Assinatura'}
+            {signatureLocked && (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+            )}
           </button>
         )}
       </div>
