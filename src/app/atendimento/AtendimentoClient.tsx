@@ -265,7 +265,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   // ── Load support data ────────────────────────────────────────────────────────
   useEffect(() => {
-    void supabase.from('wa_queues').select('id,nome,cor,auto_assign').eq('ativo', true).order('nome')
+    void supabase.from('wa_queues').select('id,nome,cor,auto_assign').eq('ativo', true).eq('unit_id', currentUser.unit_id).order('nome')
       .then(({ data }) => setQueues((data ?? []) as WaQueue[]))
     void (async () => {
       try {
@@ -311,6 +311,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     const { data } = await supabase
       .from('wa_conversations')
       .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .eq('unit_id', currentUser.unit_id)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     const list = (data ?? []) as unknown as WaConversation[]
     // Garante que a conversa aberta não mostre badge de não lidas (race condition)
@@ -651,7 +652,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     linkTimerRef.current = setTimeout(async () => {
       setLinkSearching(true)
       const digits = q.replace(/\D/g, '')
-      const base = supabase.from('leads').select('*').eq('arquivado', false).limit(6).order('nome')
+      const base = supabase.from('leads').select('*').eq('arquivado', false).eq('unit_id', currentUser.unit_id).limit(6).order('nome')
       const { data } = digits.length >= 6 ? await base.ilike('telefone', `%${digits}%`) : await base.or(`nome.ilike.%${q}%,sobrenome.ilike.%${q}%`)
       setLinkResults((data ?? []) as LeadKanban[]); setLinkSearching(false)
     }, 300)

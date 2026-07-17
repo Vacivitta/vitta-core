@@ -9,18 +9,21 @@ export default async function FunilPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profileData } = await supabase
+    .from('profiles').select('*').eq('id', user.id).single()
+
+  const unitId = (profileData as Profile)?.unit_id
+
   const [
-    { data: profileData },
     { data: profilesData },
     { data: funnelsData },
     { data: stagesData },
     { data: leadsData },
   ] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase.from('profiles').select('*').order('full_name'),
-    supabase.from('funnels').select('*').eq('ativo', true).order('ordem'),
-    supabase.from('funnel_stages').select('*').order('funnel_id').order('ordem'),
-    supabase.from('leads_kanban').select('*').order('stage_ordem').order('ordem').order('created_at'),
+    supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
+    supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
+    supabase.from('leads_kanban').select('*').eq('unit_id', unitId).order('stage_ordem').order('ordem').order('created_at'),
   ])
 
   const funnelsWithStages: FunnelWithStages[] = (funnelsData ?? []).map(f => ({

@@ -240,6 +240,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     const { data } = await supabase
       .from('leads_kanban')
       .select('*')
+      .eq('unit_id', currentUser.unit_id)
       .order('stage_ordem')
       .order('ordem')
       .order('created_at')

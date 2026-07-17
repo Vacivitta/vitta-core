@@ -20,9 +20,12 @@ export default async function TemplatesPage() {
   if (!profileData) redirect('/login')
   if (profileData.perfil === 'atendente') redirect('/funil')
 
+  const unitId = (profileData as Profile).unit_id
+
   const { data: templatesData } = await supabase
     .from('quote_templates')
     .select('*')
+    .eq('unit_id', unitId)
     .order('nome')
 
   return (

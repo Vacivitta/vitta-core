@@ -13,9 +13,12 @@ export default async function TagsPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
+  const unitId = profile.unit_id
+
   const { data: tags } = await supabase
     .from('wa_tags')
     .select('*')
+    .eq('unit_id', unitId)
     .order('name')
 
   return <TagsConfigClient initialTags={(tags ?? []) as WaTag[]} />

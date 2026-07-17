@@ -152,6 +152,7 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
     const { data } = await supabase
       .from('lead_tasks')
       .select('*, responsavel:profiles(*), lead:leads(id, nome, sobrenome)')
+      .eq('unit_id', currentUser.unit_id)
       .not('data_limite', 'is', null)
       .eq('concluida', false)
       .order('data_limite')
@@ -162,6 +163,7 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
     const { data } = await supabase
       .from('wa_scheduled_messages')
       .select('id, conversation_id, content, type, template_name, scheduled_for, status, created_by, conversation:wa_conversations(wa_contact_name, lead:leads(nome, sobrenome))')
+      .eq('unit_id', currentUser.unit_id)
       .neq('status', 'cancelled')
       .order('scheduled_for')
     if (data) setMessages(data as unknown as ScheduledMsg[])
@@ -917,6 +919,7 @@ function NewTaskModal({
         .select('id, nome, sobrenome')
         .ilike('nome', `%${q}%`)
         .eq('arquivado', false)
+        .eq('unit_id', currentUser.unit_id)
         .limit(6)
       setLeadResults((data ?? []) as LeadOption[])
       setShowDropdown(true)

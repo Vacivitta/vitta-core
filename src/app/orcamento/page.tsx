@@ -29,6 +29,8 @@ export default async function OrcamentosPage({
   const initialClientId = params.client_id ?? null
   const initialQuoteId  = params.quote_id  ?? null
 
+  const unitId = (profileData as Profile).unit_id
+
   const [
     { data: quotesData },
     { data: productsData },
@@ -38,10 +40,11 @@ export default async function OrcamentosPage({
     supabase
       .from('quotes')
       .select('*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*)')
+      .eq('unit_id', unitId)
       .order('criado_em', { ascending: false }),
-    supabase.from('products').select('*').eq('ativo', true).order('nome'),
-    supabase.from('quote_templates').select('*').eq('ativo', true).order('nome'),
-    supabase.from('leads').select('id,nome,sobrenome,telefone').eq('arquivado', false).order('nome'),
+    supabase.from('products').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),
+    supabase.from('quote_templates').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),
+    supabase.from('leads').select('id,nome,sobrenome,telefone').eq('arquivado', false).eq('unit_id', unitId).order('nome'),
   ])
 
   const initialLeadIdResolved = initialLeadId ?? initialClientId ?? null

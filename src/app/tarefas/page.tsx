@@ -12,16 +12,20 @@ export default async function TarefasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profileData } = await supabase
+    .from('profiles').select('*').eq('id', user.id).single()
+
+  const unitId = (profileData as Profile)?.unit_id
+
   const [
-    { data: profileData },
     { data: profilesData },
     { data: tasksData },
   ] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('profiles').select('id, full_name, apelido').eq('ativo', true).order('full_name'),
+    supabase.from('profiles').select('id, full_name, apelido').eq('ativo', true).eq('unit_id', unitId).order('full_name'),
     supabase
       .from('lead_tasks')
       .select('*, responsavel:profiles(id, full_name, apelido), lead:leads(id, nome, sobrenome)')
+      .eq('unit_id', unitId)
       .order('concluida', { ascending: true })
       .order('data_limite', { ascending: true, nullsFirst: false }),
   ])

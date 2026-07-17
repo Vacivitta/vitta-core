@@ -10,13 +10,19 @@ export default async function ConfigFunisPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profileData } = await supabase
+    .from('profiles').select('unit_id').eq('id', user.id).single()
+
+  const unitId = profileData?.unit_id
+
   const [{ data: funnels }, { data: stages }, { data: leadCounts }] = await Promise.all([
-    supabase.from('funnels').select('*').order('ordem'),
-    supabase.from('funnel_stages').select('*').order('funnel_id').order('ordem'),
+    supabase.from('funnels').select('*').eq('unit_id', unitId).order('ordem'),
+    supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
     supabase
       .from('leads')
       .select('stage_id')
-      .eq('arquivado', false),
+      .eq('arquivado', false)
+      .eq('unit_id', unitId),
   ])
 
   const countsByStage: Record<string, number> = {}

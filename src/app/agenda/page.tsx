@@ -12,23 +12,28 @@ export default async function AgendaPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profileData } = await supabase
+    .from('profiles').select('*').eq('id', user.id).single()
+
+  const unitId = (profileData as Profile)?.unit_id
+
   const [
-    { data: profileData },
     { data: profilesData },
     { data: tasksData },
     { data: messagesData },
   ] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
     supabase
       .from('lead_tasks')
       .select('*, responsavel:profiles(*), lead:leads(id, nome, sobrenome)')
+      .eq('unit_id', unitId)
       .not('data_limite', 'is', null)
       .eq('concluida', false)
       .order('data_limite'),
     supabase
       .from('wa_scheduled_messages')
       .select('id, conversation_id, content, type, template_name, scheduled_for, status, created_by, conversation:wa_conversations(wa_contact_name, lead:leads(nome, sobrenome))')
+      .eq('unit_id', unitId)
       .neq('status', 'cancelled')
       .order('scheduled_for'),
   ])
