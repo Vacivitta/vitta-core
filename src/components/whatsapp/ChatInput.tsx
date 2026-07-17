@@ -135,7 +135,7 @@ export default function ChatInput({
   async function startRecording() {
     let stream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 48000 } })
     } catch (err) {
       console.error('[audio] getUserMedia error:', err)
       alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.')

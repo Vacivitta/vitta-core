@@ -1,9 +1,3 @@
-/**
- * WebM → OGG/Opus conversion using ffmpeg.
- * Converts Chrome MediaRecorder output (~380kbps WebM) to
- * WhatsApp-compatible OGG Opus (mono, 48kHz, low bitrate).
- */
-
 import { execFileSync } from 'child_process'
 import { writeFileSync, readFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
@@ -25,21 +19,44 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
 
   try {
     writeFileSync(inputPath, webm)
-
     const ffmpeg = getFfmpegPath()
+
+    // Try proper re-encode to mono Opus first (best WhatsApp compatibility)
+    try {
+      execFileSync(ffmpeg, [
+        '-i', inputPath,
+        '-c:a', 'libopus',
+        '-b:a', '32k',
+        '-ar', '48000',
+        '-ac', '1',
+        '-application', 'voip',
+        '-f', 'ogg',
+        '-y',
+        outputPath,
+      ], { timeout: 30000, stdio: 'pipe' })
+
+      const result = readFileSync(outputPath)
+      if (result.length > 0) {
+        console.log(`[webm-to-ogg] re-encoded with libopus: ${webm.length}B → ${result.length}B`)
+        return result
+      }
+    } catch {
+      console.warn('[webm-to-ogg] libopus not available, falling back to stream copy')
+    }
+
+    // Fallback: container remux (keeps original codec params)
+    try { unlinkSync(outputPath) } catch { /* ignore */ }
     execFileSync(ffmpeg, [
       '-i', inputPath,
       '-c:a', 'copy',
       '-f', 'ogg',
       '-y',
       outputPath,
-    ], {
-      timeout: 30000,
-      stdio: 'pipe',
-    })
+    ], { timeout: 30000, stdio: 'pipe' })
 
     const result = readFileSync(outputPath)
     if (result.length === 0) throw new Error('[webm-to-ogg] ffmpeg produced empty output')
+    console.log(`[webm-to-ogg] remuxed (copy): ${webm.length}B → ${result.length}B`)
     return result
   } finally {
     try { unlinkSync(inputPath) } catch { /* ignore */ }
@@ -67,10 +84,7 @@ export function convertWebmToMp4(webm: Buffer): Buffer {
       '-movflags', '+faststart',
       '-y',
       outputPath,
-    ], {
-      timeout: 30000,
-      stdio: 'pipe',
-    })
+    ], { timeout: 30000, stdio: 'pipe' })
 
     const result = readFileSync(outputPath)
     if (result.length === 0) throw new Error('[webm-to-mp4] ffmpeg produced empty output')
