@@ -21,15 +21,17 @@ export function convertWebmToOgg(webm: Buffer): Buffer {
     writeFileSync(inputPath, webm)
     const ffmpeg = getFfmpegPath()
 
-    // Try proper re-encode to mono Opus first (best WhatsApp compatibility)
+    // Re-encode to match WhatsApp's native voice note format
     try {
       execFileSync(ffmpeg, [
         '-i', inputPath,
         '-c:a', 'libopus',
-        '-b:a', '32k',
+        '-b:a', '16k',
         '-ar', '48000',
         '-ac', '1',
         '-application', 'voip',
+        '-map_metadata', '-1',
+        '-avoid_negative_ts', 'make_zero',
         '-f', 'ogg',
         '-y',
         outputPath,

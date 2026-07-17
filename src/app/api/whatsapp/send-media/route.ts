@@ -50,10 +50,12 @@ export async function POST(req: NextRequest) {
     console.log(`[send-media] input: mime=${mime} size=${inputSize}B name=${file.name}`)
 
     let uploadFile: File = file
+    let permanentUrl: string | null = null
+
     if (mime === 'audio/webm') {
       const { convertWebmToOgg } = await import('@/lib/audio/webm-to-ogg')
       const rawBuf = Buffer.from(await file.arrayBuffer())
-      console.log(`[send-media] converting WebM→OGG via ffmpeg remux: inputSize=${rawBuf.length}B`)
+      console.log(`[send-media] converting WebM→OGG: inputSize=${rawBuf.length}B`)
 
       const oggBuf = convertWebmToOgg(rawBuf)
       console.log(`[send-media] OGG output: size=${oggBuf.length}B (ratio=${(oggBuf.length / rawBuf.length * 100).toFixed(1)}%)`)
@@ -61,6 +63,20 @@ export async function POST(req: NextRequest) {
       const oggBlob = new Blob([new Uint8Array(oggBuf)], { type: 'audio/ogg' })
       uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
       mime = 'audio/ogg'
+
+      // Also save to Supabase Storage for permanent URL
+      const fileName = `${conv.unit_id}/outbound_${Date.now()}.ogg`
+      const { error: storageErr } = await admin.storage
+        .from('wa-media')
+        .upload(fileName, oggBuf, { contentType: 'audio/ogg; codecs=opus', upsert: false })
+
+      if (!storageErr) {
+        const { data: urlData } = admin.storage.from('wa-media').getPublicUrl(fileName)
+        permanentUrl = urlData.publicUrl
+        console.log(`[send-media] stored in Supabase: ${permanentUrl}`)
+      } else {
+        console.warn('[send-media] Supabase Storage upload failed, using Meta media ID only:', storageErr.message)
+      }
     }
 
     // 1. Upload do arquivo para a API de mídia do Meta
@@ -130,7 +146,7 @@ export async function POST(req: NextRequest) {
 
     const waMessageId = sendData.messages?.[0]?.id ?? null
 
-    // 4. Salva no banco
+    // 4. Salva no banco (URL permanente do Supabase quando disponível)
     await admin.from('wa_messages').insert({
       conversation_id,
       unit_id:         conv.unit_id,
@@ -138,7 +154,7 @@ export async function POST(req: NextRequest) {
       direction:       'outbound',
       type:            msgType,
       content:         caption || file.name,
-      media_url:       mediaId,
+      media_url:       permanentUrl || mediaId,
       media_mime_type: mime,
       status:          'sent',
       sent_by:         user.id,
@@ -159,4 +175,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro interno ao enviar mídia' }, { status: 500 })
   }
 }
-
