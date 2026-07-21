@@ -231,7 +231,8 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
       const res = await fetch('/api/whatsapp/upload-template-media', { method: 'POST', body: fd })
       const data = await res.json() as { handle?: string; error?: string }
       if (!res.ok || data.error) {
-        setFormError(data.error ?? 'Erro ao fazer upload da imagem')
+        setFormError(`Falha no upload: ${data.error ?? 'erro desconhecido'}`)
+        setHeaderImageUrl(null)
         return
       }
       setHeaderImageHandle(data.handle ?? null)
@@ -563,7 +564,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                       <label style={labelStyle}>Imagem do cabeçalho</label>
                       {headerImageUrl ? (
                         <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid #EBE7DA' }}>
-                          <img src={headerImageUrl} alt="Header" style={{ width: '100%', maxHeight: 140, objectFit: 'cover', display: 'block' }} />
+                          <img src={headerImageUrl} alt="Header" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', display: 'block', background: '#f5f5f0' }} />
                           <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 6 }}>
                             {uploadingImage && (
                               <span style={{ fontSize: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '3px 8px', borderRadius: 6 }}>Fazendo upload...</span>
@@ -590,7 +591,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                         </label>
                       )}
                       <p style={{ fontSize: 10, color: '#9AA79C', margin: '4px 0 0', lineHeight: 1.5 }}>
-                        Requer <code>WHATSAPP_APP_ID</code> nas variáveis de ambiente. A imagem é enviada ao Meta como exemplo para revisão do template.
+                        Tamanho recomendado: <strong>800 x 418 px</strong> (proporção 1.91:1). JPEG, PNG ou WebP.
                       </p>
                     </div>
                   )}
