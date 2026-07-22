@@ -192,7 +192,7 @@ function LeadDrawer({
         if (msgs) setWaMessages(msgs as WaMessage[])
 
         // Carrega templates, quick replies e tags para o ChatInput
-        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url').eq('ativo', true).order('name')
           .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
         void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
           .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
@@ -287,7 +287,11 @@ function LeadDrawer({
   // Resolve variáveis {{N}} do template usando o nome do lead e do atendente
   function resolveWaTemplateVars(t: WaTemplate, refDate: Date): { components: object[] | undefined; renderedText: string } {
     const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
-    if (varCount === 0) return { components: undefined, renderedText: t.content }
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    if (varCount === 0 && !hasImageHeader) return { components: undefined, renderedText: t.content }
+    if (varCount === 0 && hasImageHeader && t.header_image_url) {
+      return { components: [{ type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }], renderedText: t.content }
+    }
     const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
     const agentName  = displayName(currentUser)
     const resolveVar = (id: string): string => {
@@ -303,8 +307,12 @@ function LeadDrawer({
       ? t.variable_order
       : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
     const values = order.map(resolveVar)
+    const bodyComp = { type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }
+    const comps = hasImageHeader && t.header_image_url
+      ? [{ type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }, bodyComp]
+      : [bodyComp]
     return {
-      components:   [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }],
+      components:   comps,
       renderedText: t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`),
     }
   }
@@ -320,7 +328,7 @@ function LeadDrawer({
       const res = await fetch('/api/whatsapp/send', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText }),
+        body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText, header_image_url: t.header_image_url ?? undefined }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string }
@@ -363,14 +371,14 @@ function LeadDrawer({
   async function reloadWaTemplates() {
     try {
       const res  = await fetch('/api/whatsapp/meta-templates')
-      const data = await res.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }>; variable_order?: string[] }> }
+      const data = await res.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string; format?: string }>; variable_order?: string[]; header_image_url?: string | null }> }
       const meta: WaTemplate[] = (data.templates ?? [])
         .filter(t => t.status === 'APPROVED')
-        .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [] }))
-      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).eq('category', 'custom').order('name')
+        .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, components: t.components?.filter(c => c.type === 'HEADER').map(c => ({ type: c.type, format: c.format })) }))
+      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url').eq('ativo', true).eq('category', 'custom').order('name')
       setWaTemplates([...meta, ...((custom ?? []) as WaTemplate[])])
     } catch {
-      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url').eq('ativo', true).order('name')
       setWaTemplates((data ?? []) as WaTemplate[])
     }
   }
@@ -1685,7 +1693,7 @@ function LeadDrawer({
                                     </p>
                                   </div>
                                 )}
-                                {(msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)) ? (
+                                {(msg.type === 'text' || (msg.type === 'template' && !msg.media_url) || (!msg.media_url && msg.content)) ? (
                                   <p style={{ margin: 0, fontSize: 13.5, color: isOut ? '#2C4630' : '#35473A', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                     <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, float: 'right', marginLeft: 8, marginTop: 2, height: 0, fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2', whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
