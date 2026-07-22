@@ -21,6 +21,8 @@ export interface WaTemplate {
   template_name: string | null
   language: string | null
   variable_order?: string[]
+  header_image_url?: string | null
+  components?: { type: string; format?: string }[]
 }
 
 export interface WaQuickReply {

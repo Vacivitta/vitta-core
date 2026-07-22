@@ -76,5 +76,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  return NextResponse.json({ handle: uploadData.h })
+  // Passo 3: salvar no Supabase Storage para URL permanente (usado no envio)
+  let imageUrl: string | null = null
+  if (unitId) {
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+    const fileName = `${unitId}/template_header_${Date.now()}.${ext}`
+    const { error: storageErr } = await admin.storage
+      .from('wa-media')
+      .upload(fileName, Buffer.from(fileBytes), { contentType: file.type, upsert: false })
+    if (!storageErr) {
+      const { data: urlData } = admin.storage.from('wa-media').getPublicUrl(fileName)
+      imageUrl = urlData.publicUrl
+    } else {
+      console.warn('[upload-template-media] Supabase Storage falhou:', storageErr.message)
+    }
+  }
+
+  return NextResponse.json({ handle: uploadData.h, image_url: imageUrl })
 }

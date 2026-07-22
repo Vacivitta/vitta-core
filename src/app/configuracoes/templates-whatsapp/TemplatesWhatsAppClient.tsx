@@ -229,13 +229,14 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/whatsapp/upload-template-media', { method: 'POST', body: fd })
-      const data = await res.json() as { handle?: string; error?: string }
+      const data = await res.json() as { handle?: string; image_url?: string; error?: string }
       if (!res.ok || data.error) {
         setFormError(`Falha no upload: ${data.error ?? 'erro desconhecido'}`)
         setHeaderImageUrl(null)
         return
       }
       setHeaderImageHandle(data.handle ?? null)
+      if (data.image_url) setHeaderImageUrl(data.image_url)
     } finally {
       setUploadingImage(false)
     }
@@ -315,6 +316,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
         header_type:            form.header_type === 'NONE' ? undefined : form.header_type,
         header_text:            form.header_type === 'TEXT' ? (form.header_text || undefined) : undefined,
         header_image_handle:    form.header_type === 'IMAGE' ? headerImageHandle : undefined,
+        header_image_url:       form.header_type === 'IMAGE' ? headerImageUrl : undefined,
         body_text:              form.body_text,
         body_variable_examples: bodyVariableExamples.length > 0 ? bodyVariableExamples : undefined,
         body_variable_order:    varOrder.length > 0 ? varOrder : undefined,

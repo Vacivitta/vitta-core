@@ -72,18 +72,25 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Enriquece com a ordem de variáveis nomeadas salva na criação (nome_cliente, data, etc.)
-  let varOrderMap = new Map<string, string[]>()
+  // Enriquece com dados locais (variable_order, header_image_url)
+  let localMap = new Map<string, { variable_order: string[]; header_image_url: string | null }>()
   if (unitId && templates.length > 0) {
     const { data: localRows } = await admin
       .from('wa_message_templates')
-      .select('template_name, variable_order')
+      .select('template_name, variable_order, header_image_url')
       .eq('unit_id', unitId)
       .eq('category', 'meta_api')
-    varOrderMap = new Map((localRows ?? []).map(r => [r.template_name as string, (r.variable_order ?? []) as string[]]))
+    localMap = new Map((localRows ?? []).map(r => [r.template_name as string, {
+      variable_order: (r.variable_order ?? []) as string[],
+      header_image_url: r.header_image_url as string | null,
+    }]))
   }
 
-  const templatesWithVars = templates.map(t => ({ ...t, variable_order: varOrderMap.get(t.name) ?? [] }))
+  const templatesWithVars = templates.map(t => ({
+    ...t,
+    variable_order: localMap.get(t.name)?.variable_order ?? [],
+    header_image_url: localMap.get(t.name)?.header_image_url ?? null,
+  }))
 
   return NextResponse.json({ templates: templatesWithVars })
 }
@@ -153,6 +160,8 @@ export async function POST(req: NextRequest) {
       unit_id: unitId, name: body.name, content: body.body_text.trim(),
       category: 'meta_api', template_name: body.name, language: body.language ?? 'pt_BR', ativo: false,
       variable_order: body.body_variable_order ?? [],
+      header_type: body.header_type ?? null,
+      header_image_url: body.header_image_url ?? null,
     }, { onConflict: 'unit_id,name,category' })
   }
 
@@ -223,6 +232,7 @@ interface CreateTemplateBody {
   header_type?: 'TEXT' | 'IMAGE'
   header_text?: string
   header_image_handle?: string
+  header_image_url?: string
   header_variable_examples?: string[]
   body_text:   string
   body_variable_examples?: string[]

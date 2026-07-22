@@ -271,17 +271,19 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       try {
         // Busca templates aprovados direto da Meta (sempre atualizados)
         const metaRes  = await fetch('/api/whatsapp/meta-templates')
-        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }>; variable_order?: string[] }> }
+        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; format?: string; text?: string }>; variable_order?: string[]; header_image_url?: string | null }> }
         const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
           .filter(t => t.status === 'APPROVED')
           .map(t => ({
-            id:             t.name,
-            name:           t.name,
-            content:        t.components?.find(c => c.type === 'BODY')?.text ?? '',
-            category:       'meta_api' as const,
-            template_name:  t.name,
-            language:       t.language,
-            variable_order: t.variable_order ?? [],
+            id:               t.name,
+            name:             t.name,
+            content:          t.components?.find(c => c.type === 'BODY')?.text ?? '',
+            category:         'meta_api' as const,
+            template_name:    t.name,
+            language:         t.language,
+            variable_order:   t.variable_order ?? [],
+            header_image_url: t.header_image_url ?? null,
+            components:       t.components,
           }))
         // Carrega templates custom do banco
         const { data: custom } = await supabase.from('wa_message_templates')
@@ -483,6 +485,12 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
     }
 
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    if (hasImageHeader && t.header_image_url) {
+      const headerComp = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
+      components = components ? [headerComp, ...components] : [headerComp]
+    }
+
     setSending(true)
     try {
       const res = await fetch('/api/whatsapp/send', {
@@ -537,6 +545,12 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       const values = order.map(resolveVar)
       components = [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }]
       renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
+    }
+
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    if (hasImageHeader && t.header_image_url) {
+      const headerComp = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
+      components = components ? [headerComp, ...components] : [headerComp]
     }
 
     const res = await fetch('/api/whatsapp/schedule', {
@@ -790,10 +804,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                 onTemplatesReload={async () => {
                   try {
                     const metaRes  = await fetch('/api/whatsapp/meta-templates')
-                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string }>; variable_order?: string[] }> }
+                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; format?: string; text?: string }>; variable_order?: string[]; header_image_url?: string | null }> }
                     const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
                       .filter(t => t.status === 'APPROVED')
-                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [] }))
+                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, components: t.components }))
                     const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).eq('category', 'custom').order('name')
                     setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
                   } catch {

@@ -392,8 +392,13 @@ export default function ChatInput({
               <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F4E6', color: '#3E9849', borderRadius: 4, padding: '1px 5px' }}>META</span>
               {previewTemplate.language && <span style={{ fontSize: 9, color: '#9AA79C' }}>{previewTemplate.language}</span>}
             </div>
-            <div style={{ padding: '10px 14px', background: '#DCF0D3', borderRadius: '16px 4px 16px 16px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#25402C', lineHeight: 1.45 }}>
-              {renderTemplatePreview(previewTemplate)}
+            <div style={{ background: '#DCF0D3', borderRadius: '16px 4px 16px 16px', overflow: 'hidden' }}>
+              {previewTemplate.header_image_url && (
+                <img src={previewTemplate.header_image_url} alt="" style={{ width: '100%', maxHeight: 180, objectFit: 'contain', display: 'block', background: '#c8e6c0' }} />
+              )}
+              <div style={{ padding: '10px 14px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#25402C', lineHeight: 1.45 }}>
+                {renderTemplatePreview(previewTemplate)}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button onClick={() => setPreviewTemplate(null)}
