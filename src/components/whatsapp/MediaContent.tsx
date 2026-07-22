@@ -205,8 +205,19 @@ export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
   const mediaUrl = (id: string) =>
     id.startsWith('http') ? id : `/api/whatsapp/media?id=${id}${unitId ? `&unit_id=${unitId}` : ''}`
 
-  if (msg.type === 'template')
-    return <>{msg.content ? formatWaText(msg.content) : msg.template_name}</>
+  if (msg.type === 'template') {
+    const text = msg.content ? formatWaText(msg.content) : msg.template_name
+    if (msg.media_url) {
+      return (
+        <>
+          <MediaImage src={mediaUrl(msg.media_url)} alt="Template" isOut={isOut} type="image"
+            style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, display: 'block', marginBottom: 4 }} />
+          {text}
+        </>
+      )
+    }
+    return <>{text}</>
+  }
 
   if (msg.type === 'text' || (!msg.media_url && msg.content))
     return <>{formatWaText(msg.content ?? '')}</>

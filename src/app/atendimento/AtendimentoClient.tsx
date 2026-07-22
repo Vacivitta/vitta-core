@@ -495,7 +495,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText }),
+        body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText, header_image_url: (hasImageHeader && t.header_image_url) ? t.header_image_url : undefined }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string }
@@ -1319,7 +1319,8 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMes
   const [bubbleHovered, setBubbleHovered] = useState(false)
   const isOut = msg.direction === 'outbound'
   const failed = isOut && msg.status === 'failed'
-  const isText = msg.type === 'text' || msg.type === 'template' || (!msg.media_url && msg.content)
+  const isTemplateWithImage = msg.type === 'template' && !!msg.media_url
+  const isText = msg.type === 'text' || (msg.type === 'template' && !msg.media_url) || (!msg.media_url && msg.content)
   const isAudio = msg.type === 'audio' && msg.media_url
   const timeColor = failed ? '#C05B3A' : isOut ? '#7FA57F' : '#B4BFB2'
 
@@ -1357,7 +1358,12 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMes
               </p>
             </div>
           )}
-          {isText ? (
+          {isTemplateWithImage ? (
+            <div>
+              <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>{timestamp}</div>
+            </div>
+          ) : isText ? (
             <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden' }}>
               <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, float: 'right', marginTop: 2, marginLeft: 8, fontSize: 10, color: timeColor, whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>{timestamp}</span>

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const body = await req.json() as SendBody
-  const { conversation_id, type = 'text', content, template_name, language = 'pt_BR', components = [], rendered_text, context_message_id } = body
+  const { conversation_id, type = 'text', content, template_name, language = 'pt_BR', components = [], rendered_text, context_message_id, header_image_url } = body
 
   if (!conversation_id) {
     return NextResponse.json({ error: 'conversation_id obrigatório' }, { status: 400 })
@@ -106,6 +106,8 @@ export async function POST(req: NextRequest) {
       type,
       content:       type === 'text' ? content : (rendered_text ?? null),
       template_name: type === 'template' ? template_name : null,
+      media_url:     header_image_url ?? null,
+      media_mime_type: header_image_url ? 'image/jpeg' : null,
       status:        'sent',
       sent_by:       user.id,
       reply_to_wa_message_id: context_message_id ?? null,
@@ -187,6 +189,7 @@ interface SendBody {
   components?:     object[]
   rendered_text?:  string
   context_message_id?: string
+  header_image_url?: string
 }
 
 interface MetaResponse {
