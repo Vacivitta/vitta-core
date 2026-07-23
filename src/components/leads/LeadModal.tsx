@@ -287,9 +287,9 @@ function LeadDrawer({
   // Resolve variáveis {{N}} do template usando o nome do lead e do atendente
   function resolveWaTemplateVars(t: WaTemplate, refDate: Date): { components: object[] | undefined; renderedText: string } {
     const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
-    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
-    if (varCount === 0 && !hasImageHeader) return { components: undefined, renderedText: t.content }
-    if (varCount === 0 && hasImageHeader && t.header_image_url) {
+    const hasImage = !!t.header_image_url
+    if (varCount === 0 && !hasImage) return { components: undefined, renderedText: t.content }
+    if (varCount === 0 && hasImage) {
       return { components: [{ type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }], renderedText: t.content }
     }
     const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
@@ -308,7 +308,7 @@ function LeadDrawer({
       : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
     const values = order.map(resolveVar)
     const bodyComp = { type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }
-    const comps = hasImageHeader && t.header_image_url
+    const comps = hasImage
       ? [{ type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }, bodyComp]
       : [bodyComp]
     return {
