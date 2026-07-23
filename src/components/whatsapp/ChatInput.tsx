@@ -321,6 +321,7 @@ export default function ChatInput({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{t.name}</span>
                     {t.category === 'meta_api' && <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F7EE', color: '#1D9E75', borderRadius: 4, padding: '1px 5px' }}>META</span>}
+                    {t.header_image_url && <svg width="14" height="14" fill="none" stroke="#6B7F6B" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} /><circle cx="8.5" cy="8.5" r="1.5" fill="#6B7F6B" /><path d="M21 15l-5-5L5 21" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>}
                   </div>
                   <p style={{ fontSize: 11, color: '#9AA79C', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category === 'meta_api' ? `Template: ${t.template_name}` : t.content}</p>
                 </div>
@@ -380,13 +381,13 @@ export default function ChatInput({
 
       {/* Template preview */}
       {previewTemplate && (
-        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E9E5D8', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(37,64,44,0.10)', zIndex: 95, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E9E5D8', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(37,64,44,0.10)', zIndex: 95, display: 'flex', flexDirection: 'column', maxHeight: 420 }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <IconTemplate />
             <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Preview do Template</p>
             <button onClick={() => setPreviewTemplate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
-          <div style={{ padding: 14 }}>
+          <div style={{ padding: 14, overflowY: 'auto', flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{previewTemplate.name}</span>
               <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F4E6', color: '#3E9849', borderRadius: 4, padding: '1px 5px' }}>META</span>
