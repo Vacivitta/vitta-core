@@ -17,7 +17,9 @@ export default async function DashboardPage() {
   if (!profile) redirect('/login')
   if (profile.perfil === 'atendente') redirect('/funil')
 
-  const unitId = (profile as Profile).unit_id
+  const unitId    = (profile as Profile).unit_id
+  const monthYear = new Date().toISOString().slice(0, 7)
+  const todayISO  = new Date().toISOString().slice(0, 10)
 
   const [
     { data: leadsRaw },
@@ -27,6 +29,9 @@ export default async function DashboardPage() {
     { data: convsRaw },
     { data: msgsRaw },
     { data: profilesRaw },
+    { data: billingRaw },
+    { data: queuesRaw },
+    { data: agentStatsRaw },
   ] = await Promise.all([
     supabase
       .from('leads')
@@ -51,7 +56,7 @@ export default async function DashboardPage() {
       .is('concluida_em', null),
     supabase
       .from('wa_conversations')
-      .select('id, lead_id, unread_count, last_message_at, last_message_direction')
+      .select('id, lead_id, unread_count, last_message_at, last_message_direction, status, assigned_to, queue_id, resolved_at')
       .eq('unit_id', unitId)
       .order('last_message_at', { ascending: false }),
     supabase
@@ -62,8 +67,20 @@ export default async function DashboardPage() {
       .limit(2000),
     supabase
       .from('profiles')
-      .select('id, full_name, apelido')
+      .select('id, full_name, apelido, perfil')
       .eq('unit_id', unitId),
+    supabase
+      .from('wa_message_costs')
+      .select('category, cost_usd, billable')
+      .eq('unit_id', unitId)
+      .eq('month_year', monthYear),
+    supabase
+      .from('wa_queues')
+      .select('id, nome, cor')
+      .eq('unit_id', unitId)
+      .eq('ativo', true)
+      .order('nome'),
+    supabase.rpc('get_agent_stats', { p_unit_id: unitId }),
   ])
 
   return (
@@ -79,6 +96,10 @@ export default async function DashboardPage() {
       conversations={convsRaw ?? []}
       messages={msgsRaw ?? []}
       profiles={profilesRaw ?? []}
+      billing={billingRaw ?? []}
+      queues={queuesRaw ?? []}
+      agentStats={agentStatsRaw ?? []}
+      todayISO={todayISO}
     />
   )
 }

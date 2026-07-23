@@ -4,7 +4,7 @@ import SupervisaoClient from './SupervisaoClient'
 import type { Profile } from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from '@/app/campanhas/page'
 
-export const metadata = { title: 'Dashboard de Atendimento — VittaDesk' }
+export const metadata = { title: 'Supervisão — VittaDesk' }
 
 export default async function SupervisaoPage() {
   const supabase = await createClient()
@@ -16,9 +16,7 @@ export default async function SupervisaoPage() {
   if (!profile) redirect('/login')
   if (profile.perfil === 'atendente') redirect('/funil')
 
-  const unitId    = profile.unit_id ?? ''
-  const monthYear = new Date().toISOString().slice(0, 7)
-  const todayISO  = new Date().toISOString().slice(0, 10)
+  const unitId = profile.unit_id ?? ''
 
   const results = await Promise.allSettled([
     // 0 Conversas ativas
@@ -43,29 +41,19 @@ export default async function SupervisaoPage() {
       .eq('unit_id', unitId)
       .order('full_name'),
 
-    // 3 Billing WA do mês
-    supabase
-      .from('wa_message_costs')
-      .select('category,cost_usd,billable')
-      .eq('unit_id', unitId)
-      .eq('month_year', monthYear),
-
-    // 4 Estatísticas por agente (RPC)
-    supabase.rpc('get_agent_stats', { p_unit_id: unitId }),
-
-    // 5 Campanhas
+    // 3 Campanhas
     supabase.from('wa_campaigns')
       .select('id,nome,template_nome,template_category,status,scheduled_at,started_at,completed_at,daily_limit,total_recipients,sent_count,delivered_count,read_count,replied_count,optout_count,failed_count,estimated_cost_usd,actual_cost_usd,created_at')
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false }),
 
-    // 6 Templates de mensagem
+    // 4 Templates de mensagem
     supabase.from('wa_message_templates')
       .select('id,name,content,category,template_name,language')
       .eq('ativo', true)
       .order('name'),
 
-    // 7 Estágios de funil
+    // 5 Estágios de funil
     supabase.from('funnel_stages')
       .select('id,nome,funnel_id,funnels(id,nome)')
       .order('funnel_id').order('ordem'),
@@ -80,11 +68,9 @@ export default async function SupervisaoPage() {
   const conversations = settled<SupervisaoConvRow>(results[0])
   const queues        = settled<QueueRow>(results[1])
   const profiles      = settled<Profile>(results[2])
-  const billing       = settled<{ category: string; cost_usd: number; billable: boolean }>(results[3])
-  const agentStats    = settled<AgentStatRow>(results[4])
-  const campaigns     = settled<CampaignRow>(results[5])
-  const templates     = settled<TemplateRow>(results[6])
-  const rawStages     = settled<unknown>(results[7])
+  const campaigns     = settled<CampaignRow>(results[3])
+  const templates     = settled<TemplateRow>(results[4])
+  const rawStages     = settled<unknown>(results[5])
   const stages        = rawStages.map((s) => {
     const r = s as { id: string; nome: string; funnel_id: string; funnels: unknown }
     return { ...r, funnel: Array.isArray(r.funnels) ? (r.funnels[0] ?? null) : r.funnels } as FunnelStageRow
@@ -96,9 +82,6 @@ export default async function SupervisaoPage() {
       initialConversations={conversations}
       initialQueues={queues}
       profiles={profiles}
-      billing={billing}
-      agentStats={agentStats}
-      todayISO={todayISO}
       campaigns={campaigns}
       templates={templates}
       stages={stages}

@@ -10,9 +10,12 @@ interface LeadRow     { id: string; stage_id: string | null; created_at: string;
 interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null }
 interface StageRow    { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
 interface TaskRow     { id: string; concluida_em: string | null; data_vencimento: string | null; responsavel_id: string | null }
-interface ConvRow     { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: string | null }
+interface ConvRow     { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: string | null; status: string; assigned_to: string | null; queue_id: string | null; resolved_at: string | null }
 interface MsgRow      { id: string; conversation_id: string; direction: string; created_at: string; sent_by: string | null }
-interface ProfileRow  { id: string; full_name: string; apelido: string | null }
+interface ProfileRow  { id: string; full_name: string; apelido: string | null; perfil?: string }
+interface BillingRow  { category: string; cost_usd: number; billable: boolean }
+interface QueueRow    { id: string; nome: string; cor: string }
+interface AgentStatRow { agent_id: string; open_count: number; resolved_today: number; avg_response_minutes: number | null }
 
 interface Props {
   currentUser:   Profile
@@ -23,6 +26,10 @@ interface Props {
   conversations: ConvRow[]
   messages:      MsgRow[]
   profiles:      ProfileRow[]
+  billing:       BillingRow[]
+  queues:        QueueRow[]
+  agentStats:    AgentStatRow[]
+  todayISO:      string
 }
 
 type Period = '7d' | '30d' | '90d' | 'all'
@@ -31,6 +38,7 @@ const PERIOD_LABELS: Record<Period, string> = { '7d': '7 dias', '30d': '30 dias'
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+const USD_BRL = 5.90
 
 function cutoff(period: Period): Date | null {
   if (period === 'all') return null
@@ -42,6 +50,18 @@ function cutoff(period: Period): Date | null {
 function inPeriod(iso: string | null, cut: Date | null) {
   if (!iso) return false
   return cut ? new Date(iso) >= cut : true
+}
+
+function initials(name: string | null): string {
+  if (!name) return '?'
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
+function avatarColor(id: string): string {
+  const colors = ['#3E9849', '#3E9849', '#F39313', '#8B5CF6', '#EC4899', '#14B8A6']
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
+  return colors[Math.abs(hash) % colors.length]
 }
 
 // ─── Subcomponents ───────────────────────────────────────────────────────────
@@ -84,17 +104,22 @@ const IcoClock = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const IcoAlert = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
 const IcoTask = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
 const IcoLost = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+const IcoMsg = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+const IcoConv = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+const IcoWait = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F39313" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+const IcoCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+const IcoWa = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M12 9v3l2 1"/></svg>
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles }: Props) {
+export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO }: Props) {
   const [period, setPeriod] = useState<Period>('30d')
   const cut = useMemo(() => cutoff(period), [period])
 
   const filteredQuotes = useMemo(() => quotes.filter(q => inPeriod(q.criado_em, cut)), [quotes, cut])
   const filteredLeads  = useMemo(() => leads.filter(l => inPeriod(l.created_at, cut)), [leads, cut])
 
-  // ── KPIs existentes ──────────────────────────────────────────────────────
+  // ── KPIs comerciais ─────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     const aceitos   = filteredQuotes.filter(q => q.status === 'aceito')
     const recusados = filteredQuotes.filter(q => q.status === 'recusado')
@@ -110,6 +135,72 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
       ticketMedio: ticketMed, taxaConv, enviados: enviados.length,
     }
   }, [filteredQuotes, filteredLeads, leads])
+
+  // ── KPIs de atendimento ─────────────────────────────────────────────────
+  const atenKpis = useMemo(() => {
+    const open          = conversations.filter(c => c.status !== 'resolved')
+    const waiting       = open.filter(c => !c.assigned_to)
+    const resolvedToday = conversations.filter(c => c.status === 'resolved' && c.resolved_at?.startsWith(todayISO))
+    return { open: open.length, waiting: waiting.length, resolvedToday: resolvedToday.length }
+  }, [conversations, todayISO])
+
+  // ── Mensagens enviadas por atendentes (no período) ──────────────────────
+  const totalMsgsSent = useMemo(() => {
+    let count = 0
+    for (const m of messages) {
+      if (m.direction !== 'outbound' || !m.sent_by) continue
+      if (cut && new Date(m.created_at) < cut) continue
+      count++
+    }
+    return count
+  }, [messages, cut])
+
+  // ── WhatsApp billing ────────────────────────────────────────────────────
+  const waBilling = useMemo(() => {
+    const marketing       = billing.filter(b => b.category === 'marketing')
+    const utilityBilled   = billing.filter(b => b.category === 'utility' && b.billable)
+    const utilityFree     = billing.filter(b => b.category === 'utility' && !b.billable)
+    const authentication  = billing.filter(b => b.category === 'authentication' && b.billable)
+    const service         = billing.filter(b => b.category === 'service')
+    const totalUsd = billing.reduce((s, b) => s + (b.cost_usd ?? 0), 0)
+
+    return {
+      totalBrl:            totalUsd * USD_BRL,
+      marketingCount:      marketing.length,
+      marketingBrl:        marketing.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
+      utilityBilledCount:  utilityBilled.length,
+      utilityBilledBrl:    utilityBilled.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
+      utilityFreeCount:    utilityFree.length,
+      authCount:           authentication.length,
+      authBrl:             authentication.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
+      serviceCount:        service.length,
+      totalMsgs:           billing.length,
+    }
+  }, [billing])
+
+  // ── Queue stats ─────────────────────────────────────────────────────────
+  const queueStats = useMemo(() => {
+    return queues.map(q => {
+      const convs = conversations.filter(c => c.queue_id === q.id && c.status !== 'resolved')
+      return { queue: q, open: convs.length, waiting: convs.filter(c => !c.assigned_to).length }
+    })
+  }, [conversations, queues])
+
+  // ── Agent stats ─────────────────────────────────────────────────────────
+  const agentRows = useMemo(() => {
+    return profiles
+      .filter(p => p.perfil === 'atendente')
+      .map(p => {
+        const stats = agentStats.find(s => s.agent_id === p.id)
+        return {
+          profile:  p,
+          open:     stats?.open_count ?? 0,
+          resolved: stats?.resolved_today ?? 0,
+          avgMin:   stats?.avg_response_minutes ?? null,
+        }
+      })
+      .sort((a, b) => b.open - a.open)
+  }, [profiles, agentStats])
 
   // ── Tempo médio de resposta WhatsApp ─────────────────────────────────────
   const avgResponseMin = useMemo(() => {
@@ -266,7 +357,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
 
       <main className="flex-1 overflow-auto p-6 space-y-6" style={{ background: '#F6F4EC' }}>
 
-        {/* ── KPIs — linha 1 ── */}
+        {/* ── KPIs — linha 1: Comercial ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="Contatos ativos" value={kpis.leadsAtivos} sub={`+${kpis.novosLeads} no período`} subColor="#35853F" chipColor="#DCEFFA" icon={<IcoContacts />} />
           <KpiCard label="Orçamentos aceitos" value={kpis.aceitos} sub={`de ${kpis.enviados} enviados`} chipColor="#E8F4E6" icon={<IcoQuote />} />
@@ -274,12 +365,89 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
           <KpiCard label="Taxa de conversão" value={`${kpis.taxaConv}%`} sub="aceitos / enviados" valueColor={kpis.taxaConv >= 50 ? '#35853F' : kpis.taxaConv >= 25 ? '#C87F1B' : '#C05B3A'} chipColor="#FCF3E4" icon={<IcoTrend />} />
         </div>
 
-        {/* ── KPIs — linha 2 (novos) ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── KPIs — linha 2: Atendimento ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <KpiCard label="Conversas abertas" value={atenKpis.open} chipColor="#E8F4E6" icon={<IcoConv />} />
+          <KpiCard label="Sem agente" value={atenKpis.waiting} valueColor={atenKpis.waiting > 0 ? '#F39313' : '#9AA79C'} chipColor="#FEF3C7" icon={<IcoWait />} />
+          <KpiCard label="Resolvidas hoje" value={atenKpis.resolvedToday} chipColor="#E8F4E6" icon={<IcoCheck />} />
+          <KpiCard label="Mensagens enviadas" value={totalMsgsSent} sub="por atendentes no período" chipColor="#DCEFFA" icon={<IcoMsg />} />
           <KpiCard label="Tempo médio de resposta" value={fmtTime(avgResponseMin)} sub="1ª resposta WhatsApp" valueColor={avgResponseMin !== null && avgResponseMin <= 15 ? '#35853F' : avgResponseMin !== null && avgResponseMin <= 60 ? '#C87F1B' : '#C05B3A'} chipColor="#EDE9FE" icon={<IcoClock />} />
+        </div>
+
+        {/* ── KPIs — linha 3: Operacional ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="Aguardando resposta" value={unansweredCount} sub="últimas 48h sem resposta" valueColor={unansweredCount > 5 ? '#DC2626' : unansweredCount > 0 ? '#C87F1B' : '#35853F'} chipColor="#FEE2E2" icon={<IcoAlert />} />
           <KpiCard label="Tarefas pendentes" value={taskStats.pending} sub={taskStats.overdue > 0 ? `${taskStats.overdue} vencida${taskStats.overdue > 1 ? 's' : ''}` : 'nenhuma vencida'} subColor={taskStats.overdue > 0 ? '#DC2626' : '#9AA79C'} chipColor="#FEF3C7" icon={<IcoTask />} />
           <KpiCard label="Receita recusada" value={kpis.totalRecusado > 0 ? fmtBRL.format(kpis.totalRecusado) : '—'} sub="oportunidades perdidas" valueColor={kpis.totalRecusado > 0 ? '#DC2626' : '#9AA79C'} chipColor="#FEE2E2" icon={<IcoLost />} />
+
+          {/* WhatsApp billing */}
+          <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: '18px', padding: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.05em', color: '#9AA79C', margin: 0 }}>WHATSAPP — CUSTO DO MÊS</p>
+              <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#DCEFFA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IcoWa />
+              </div>
+            </div>
+            <p style={{ fontSize: '27px', fontWeight: 900, margin: '4px 0 10px', letterSpacing: '-0.02em', color: '#25402C' }}>
+              {waBilling.totalBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {waBilling.marketingCount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C05B3A' }} />
+                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Marketing</span>
+                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.marketingCount}</span>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#C05B3A' }}>{waBilling.marketingBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+              )}
+              {waBilling.utilityBilledCount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#F39313' }} />
+                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Utility cobrado</span>
+                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.utilityBilledCount}</span>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F39313' }}>{waBilling.utilityBilledBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+              )}
+              {waBilling.utilityFreeCount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3E9849' }} />
+                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Utility gratuito</span>
+                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.utilityFreeCount}</span>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#3E9849' }}>R$ 0,00</span>
+                </div>
+              )}
+              {waBilling.authCount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#8B5CF6' }} />
+                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Authentication</span>
+                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.authCount}</span>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#8B5CF6' }}>{waBilling.authBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+              )}
+              {waBilling.serviceCount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#9AA79C' }} />
+                    <span style={{ fontSize: 10.5, color: '#9AA79C' }}>Service</span>
+                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.serviceCount}</span>
+                  </div>
+                  <span style={{ fontSize: 10.5, color: '#9AA79C' }}>gratuito</span>
+                </div>
+              )}
+              {waBilling.totalMsgs === 0 && (
+                <p style={{ fontSize: 10.5, color: '#9AA79C', margin: 0 }}>Nenhuma mensagem registrada este mês</p>
+              )}
+            </div>
+            <p style={{ fontSize: 9.5, color: '#9AA79C', margin: '6px 0 0' }}>Câmbio: R$ {USD_BRL.toFixed(2)}/USD · {waBilling.totalMsgs} msgs</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -345,6 +513,64 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
                 </div>
               )
             })()}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* ── Conversas por fila ── */}
+          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Conversas por Fila</h2>
+            {queueStats.length === 0 ? (
+              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhuma fila configurada</p>
+            ) : (
+              <div className="space-y-3">
+                {queueStats.sort((a, b) => b.open - a.open).map(({ queue, open, waiting }) => (
+                  <div key={queue.id} className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: queue.cor }} />
+                    <span className="text-xs font-medium text-[#25402C] flex-1 truncate">{queue.nome}</span>
+                    <span className="text-xs text-[#9AA79C]">{open} abertas</span>
+                    {waiting > 0 && (
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#FEF3E2', color: '#C17A0A' }}>{waiting} sem agente</span>
+                    )}
+                    <div style={{ width: 60, height: 6, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', background: queue.cor, borderRadius: 99, width: `${Math.min(100, open / Math.max(1, Math.max(...queueStats.map(q => q.open))) * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Carga por agente ── */}
+          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Carga por Agente</h2>
+            {agentRows.length === 0 ? (
+              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhum atendente cadastrado</p>
+            ) : (
+              <div className="space-y-3">
+                {agentRows.map(({ profile: p, open, resolved, avgMin }) => (
+                  <div key={p.id} className="flex items-center gap-3">
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(p.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
+                      {initials(p.full_name)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="flex items-center justify-between" style={{ marginBottom: 2 }}>
+                        <span className="text-xs font-semibold text-[#25402C] truncate">{displayName(p)}</span>
+                        <div className="flex gap-2 shrink-0 ml-2">
+                          <span style={{ fontSize: 10.5, color: '#3E9849', fontWeight: 700 }}>{open} aberta{open !== 1 ? 's' : ''}</span>
+                          <span style={{ fontSize: 10.5, color: '#3E9849' }}>{resolved} hoje</span>
+                          {avgMin !== null && <span style={{ fontSize: 10.5, color: '#9AA79C' }} title="Tempo médio de resposta">{Math.round(avgMin)}min</span>}
+                        </div>
+                      </div>
+                      <div style={{ height: 5, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: open >= 8 ? '#C05B3A' : open >= 5 ? '#F39313' : '#3E9849', borderRadius: 99, width: `${Math.min(100, open / 10 * 100)}%`, transition: 'width .3s' }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

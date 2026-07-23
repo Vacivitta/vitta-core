@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types/database'
 import { displayName } from '@/types/database'
-import type { SupervisaoConvRow, QueueRow, AgentStatRow } from './page'
+import type { SupervisaoConvRow, QueueRow } from './page'
 import CampanhasClient from '@/app/campanhas/CampanhasClient'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from '@/app/campanhas/page'
 
@@ -29,9 +29,6 @@ interface Props {
   initialConversations: SupervisaoConvRow[]
   initialQueues: QueueRow[]
   profiles: Profile[]
-  billing: { category: string; cost_usd: number; billable: boolean }[]
-  agentStats: AgentStatRow[]
-  todayISO: string
   campaigns: CampaignRow[]
   templates: TemplateRow[]
   stages: FunnelStageRow[]
@@ -63,7 +60,7 @@ function avatarColor(id: string): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SupervisaoClient({ currentUser, initialConversations, initialQueues, profiles, billing, agentStats, todayISO, campaigns, templates, stages }: Props) {
+export default function SupervisaoClient({ currentUser, initialConversations, initialQueues, profiles, campaigns, templates, stages }: Props) {
   const supabase = createClient()
 
   const [conversations, setConversations] = useState<SupervisaoConvRow[]>(initialConversations)
@@ -75,70 +72,12 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
   const [search,        setSearch]        = useState('')
   const [queueFilter,   setQueueFilter]   = useState<string>('all')
   const [statusFilter,  setStatusFilter]  = useState<string>('open')
-  const [view,          setView]          = useState<'dashboard' | 'conversas' | 'campanhas'>('dashboard')
+  const [view,          setView]          = useState<'conversas' | 'campanhas'>('conversas')
 
   const msgsEndRef   = useRef<HTMLDivElement>(null)
   const noteInputRef = useRef<HTMLTextAreaElement>(null)
 
   const selectedConv = conversations.find(c => c.id === selectedId) ?? null
-
-  // ── KPIs ──────────────────────────────────────────────────────────────────
-  const USD_BRL = 5.90 // taxa de referência — atualizar conforme câmbio
-
-  const kpis = useMemo(() => {
-    const open          = conversations.filter(c => c.status !== 'resolved')
-    const waiting       = open.filter(c => !c.assigned_to)
-    const resolvedToday = conversations.filter(c => c.status === 'resolved' && c.resolved_at?.startsWith(todayISO))
-
-    const marketing       = billing.filter(b => b.category === 'marketing')
-    const utilityBilled   = billing.filter(b => b.category === 'utility' && b.billable)
-    const utilityFree     = billing.filter(b => b.category === 'utility' && !b.billable)
-    const authentication  = billing.filter(b => b.category === 'authentication' && b.billable)
-    const service         = billing.filter(b => b.category === 'service')
-
-    const totalUsd = billing.reduce((s, b) => s + (b.cost_usd ?? 0), 0)
-
-    return {
-      open:          open.length,
-      waiting:       waiting.length,
-      resolvedToday: resolvedToday.length,
-
-      totalBrl:            totalUsd * USD_BRL,
-      marketingCount:      marketing.length,
-      marketingBrl:        marketing.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
-      utilityBilledCount:  utilityBilled.length,
-      utilityBilledBrl:    utilityBilled.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
-      utilityFreeCount:    utilityFree.length,
-      authCount:           authentication.length,
-      authBrl:             authentication.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
-      serviceCount:        service.length,
-      totalMsgs:           billing.length,
-    }
-  }, [conversations, billing, todayISO])
-
-  // ── Per-queue stats ────────────────────────────────────────────────────────
-  const queueStats = useMemo(() => {
-    return initialQueues.map(q => {
-      const convs = conversations.filter(c => c.queue_id === q.id && c.status !== 'resolved')
-      return { queue: q, open: convs.length, waiting: convs.filter(c => !c.assigned_to).length }
-    })
-  }, [conversations, initialQueues])
-
-  // ── Agent stats merged with profiles ─────────────────────────────────────
-  const agentRows = useMemo(() => {
-    return profiles
-      .filter(p => p.perfil === 'atendente')
-      .map(p => {
-        const stats = agentStats.find(s => s.agent_id === p.id)
-        return {
-          profile:  p,
-          open:     stats?.open_count ?? 0,
-          resolved: stats?.resolved_today ?? 0,
-          avgMin:   stats?.avg_response_minutes ?? null,
-        }
-      })
-      .sort((a, b) => b.open - a.open)
-  }, [profiles, agentStats])
 
   // ── Realtime: conversas ────────────────────────────────────────────────────
   useEffect(() => {
@@ -291,11 +230,11 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
       {/* ── Top nav ── */}
       <header style={{ background: '#fff', borderBottom: '1px solid #EBE7DA', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 800, color: S.ink, margin: 0 }}>Dashboard de Atendimento</h1>
-          <p style={{ fontSize: 12, color: S.muted, margin: '2px 0 0' }}>Tempo real · atualização automática</p>
+          <h1 style={{ fontSize: 16, fontWeight: 800, color: S.ink, margin: 0 }}>Supervisão</h1>
+          <p style={{ fontSize: 12, color: S.muted, margin: '2px 0 0' }}>Conversas e campanhas · tempo real</p>
         </div>
         <div style={{ display: 'flex', gap: 4, background: '#F1EFE5', borderRadius: 10, padding: 4 }}>
-          {([['dashboard', 'Painel'], ['conversas', 'Conversas'], ['campanhas', 'Campanhas']] as const).map(([v, label]) => (
+          {([['conversas', 'Conversas'], ['campanhas', 'Campanhas']] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 7, border: 'none', cursor: 'pointer', background: view === v ? '#fff' : 'transparent', color: view === v ? S.ink : S.muted, boxShadow: view === v ? '0 1px 4px rgba(14,44,61,.08)' : 'none' }}>
               {label}
@@ -303,161 +242,6 @@ export default function SupervisaoClient({ currentUser, initialConversations, in
           ))}
         </div>
       </header>
-
-      {/* ════ DASHBOARD VIEW ════ */}
-      {view === 'dashboard' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-
-          {/* KPIs */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-            <div style={{ ...S.kpiCard, borderTop: '3px solid #3E9849' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Em aberto</p>
-              <p style={{ fontSize: 32, fontWeight: 800, color: '#3E9849', margin: 0, letterSpacing: '-0.03em' }}>{kpis.open}</p>
-            </div>
-            <div style={{ ...S.kpiCard, borderTop: `3px solid ${kpis.waiting > 0 ? '#F39313' : '#EBE7DA'}` }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Sem agente</p>
-              <p style={{ fontSize: 32, fontWeight: 800, color: kpis.waiting > 0 ? '#F39313' : S.muted, margin: 0, letterSpacing: '-0.03em' }}>{kpis.waiting}</p>
-            </div>
-            <div style={{ ...S.kpiCard, borderTop: '3px solid #3E9849' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Resolvidos hoje</p>
-              <p style={{ fontSize: 32, fontWeight: 800, color: '#3E9849', margin: 0, letterSpacing: '-0.03em' }}>{kpis.resolvedToday}</p>
-            </div>
-
-            {/* WhatsApp billing — por mensagem (Meta pós-jul 2025) */}
-            <div style={{ ...S.kpiCard, minWidth: 260, borderTop: `3px solid ${kpis.totalBrl > 500 ? '#C05B3A' : kpis.totalBrl > 200 ? '#F39313' : '#25D366'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: S.muted, margin: 0, textTransform: 'uppercase', letterSpacing: '.06em' }}>WhatsApp — custo do mês</p>
-                <span style={{ fontSize: 10, color: S.muted }}>{kpis.totalMsgs} msgs</span>
-              </div>
-              <p style={{ fontSize: 28, fontWeight: 800, color: S.ink, margin: '0 0 10px', letterSpacing: '-0.03em' }}>
-                {kpis.totalBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {kpis.marketingCount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C05B3A' }} />
-                      <span style={{ fontSize: 11, color: S.ink }}>Marketing</span>
-                      <span style={{ fontSize: 10, color: S.muted }}>{kpis.marketingCount} msgs</span>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#C05B3A' }}>
-                      {kpis.marketingBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </span>
-                  </div>
-                )}
-                {kpis.utilityBilledCount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F39313' }} />
-                      <span style={{ fontSize: 11, color: S.ink }}>Utility cobrado</span>
-                      <span style={{ fontSize: 10, color: S.muted }}>{kpis.utilityBilledCount} msgs</span>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#F39313' }}>
-                      {kpis.utilityBilledBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </span>
-                  </div>
-                )}
-                {kpis.utilityFreeCount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3E9849' }} />
-                      <span style={{ fontSize: 11, color: S.ink }}>Utility gratuito</span>
-                      <span style={{ fontSize: 10, color: S.muted }}>{kpis.utilityFreeCount} msgs</span>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#3E9849' }}>R$ 0,00</span>
-                  </div>
-                )}
-                {kpis.authCount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#8B5CF6' }} />
-                      <span style={{ fontSize: 11, color: S.ink }}>Authentication</span>
-                      <span style={{ fontSize: 10, color: S.muted }}>{kpis.authCount} msgs</span>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#8B5CF6' }}>
-                      {kpis.authBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </span>
-                  </div>
-                )}
-                {kpis.serviceCount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#9AA79C' }} />
-                      <span style={{ fontSize: 11, color: S.muted }}>Service (atendimento)</span>
-                      <span style={{ fontSize: 10, color: S.muted }}>{kpis.serviceCount} msgs</span>
-                    </div>
-                    <span style={{ fontSize: 11, color: S.muted }}>gratuito</span>
-                  </div>
-                )}
-                {kpis.totalMsgs === 0 && (
-                  <p style={{ fontSize: 11, color: S.muted, margin: 0 }}>Nenhuma mensagem registrada este mês</p>
-                )}
-              </div>
-              <p style={{ fontSize: 10, color: S.muted, margin: '8px 0 0' }}>Câmbio referência: R$ {USD_BRL.toFixed(2)}/USD</p>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-
-            {/* Filas */}
-            <div style={S.card}>
-              <h2 style={{ fontSize: 13, fontWeight: 700, color: S.ink, margin: '0 0 14px' }}>Conversas por fila</h2>
-              {queueStats.length === 0 ? (
-                <p style={{ fontSize: 12, color: S.muted, textAlign: 'center', padding: '16px 0' }}>Nenhuma fila configurada</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {queueStats.sort((a, b) => b.open - a.open).map(({ queue, open, waiting }) => (
-                    <div key={queue.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: queue.cor, flexShrink: 0 }} />
-                      <span style={{ flex: 1, fontSize: 13, color: S.ink, fontWeight: 500 }}>{queue.nome}</span>
-                      <span style={{ fontSize: 12, color: S.muted }}>{open} abertas</span>
-                      {waiting > 0 && (
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#FEF3E2', color: '#C17A0A' }}>{waiting} sem agente</span>
-                      )}
-                      <div style={{ width: 60, height: 6, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', background: queue.cor, borderRadius: 99, width: `${Math.min(100, open / Math.max(1, Math.max(...queueStats.map(q => q.open))) * 100)}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Agentes */}
-            <div style={S.card}>
-              <h2 style={{ fontSize: 13, fontWeight: 700, color: S.ink, margin: '0 0 14px' }}>Carga por agente</h2>
-              {agentRows.length === 0 ? (
-                <p style={{ fontSize: 12, color: S.muted, textAlign: 'center', padding: '16px 0' }}>Nenhum atendente cadastrado</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {agentRows.map(({ profile: p, open, resolved, avgMin }) => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: avatarColor(p.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                        {initials(p.full_name)}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: S.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(p)}</span>
-                          <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 6 }}>
-                            <span style={{ fontSize: 11, color: '#3E9849', fontWeight: 700 }}>{open} aberta{open !== 1 ? 's' : ''}</span>
-                            <span style={{ fontSize: 11, color: '#3E9849' }}>{resolved} hoje</span>
-                            {avgMin !== null && (
-                              <span style={{ fontSize: 11, color: S.muted }} title="Tempo médio de resposta">{Math.round(avgMin)}min</span>
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ height: 5, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', background: open >= 8 ? '#C05B3A' : open >= 5 ? '#F39313' : '#3E9849', borderRadius: 99, width: `${Math.min(100, open / 10 * 100)}%`, transition: 'width .3s' }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ════ CONVERSAS VIEW ════ */}
       {view === 'conversas' && (
