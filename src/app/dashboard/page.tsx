@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from './DashboardClient'
-import type { Profile } from '@/types/database'
+import type { Profile, SalesGoal } from '@/types/database'
 
 export const metadata = { title: 'Dashboard — VittaDesk' }
 
@@ -32,15 +32,16 @@ export default async function DashboardPage() {
     { data: billingRaw },
     { data: queuesRaw },
     { data: agentStatsRaw },
+    { data: salesGoalsRaw },
   ] = await Promise.all([
     supabase
       .from('leads')
-      .select('id, stage_id, created_at, origem')
+      .select('id, stage_id, created_at, origem, motivo_perda')
       .eq('arquivado', false)
       .eq('unit_id', unitId),
     supabase
       .from('quotes')
-      .select('id, status, total_calculado, criado_em, aceito_em')
+      .select('id, status, total_calculado, criado_em, aceito_em, responsavel_id, motivo_recusa')
       .eq('unit_id', unitId)
       .order('criado_em', { ascending: false }),
     supabase
@@ -81,6 +82,12 @@ export default async function DashboardPage() {
       .eq('ativo', true)
       .order('nome'),
     supabase.rpc('get_agent_stats', { p_unit_id: unitId }),
+    supabase
+      .from('sales_goals')
+      .select('id, unit_id, user_id, month, target, created_at')
+      .eq('unit_id', unitId)
+      .is('user_id', null)
+      .order('month', { ascending: false }),
   ])
 
   return (
@@ -100,6 +107,7 @@ export default async function DashboardPage() {
       queues={queuesRaw ?? []}
       agentStats={agentStatsRaw ?? []}
       todayISO={todayISO}
+      salesGoals={(salesGoalsRaw ?? []) as SalesGoal[]}
     />
   )
 }

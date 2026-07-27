@@ -9,6 +9,7 @@ interface MetaTemplate {
   id: string; name: string; status: string; category: string; language: string
   components?: { type: string; format?: string; text?: string; example?: { header_handle?: string[] } }[]
   rejected_reason?: string
+  folder_id?: string | null
 }
 
 interface Props { currentUser: Profile }
@@ -41,6 +42,25 @@ const VARIABLES = [
   { id: 'data',            label: 'Data',               example: '26/06/2026' },
   { id: 'horario',         label: 'Horário',            example: '14:30' },
 ]
+
+// ── Formatação WhatsApp (*negrito*, _itálico_, ~riscado~) ────────────────────
+
+function renderWaText(text: string): React.ReactNode {
+  const regex = /(\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g
+  const parts: React.ReactNode[] = []
+  let lastIdx = 0, key = 0
+  let m: RegExpExecArray | null
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index))
+    const s = m[0], inner = s.slice(1, -1), c = s[0]
+    if (c === '*') parts.push(<strong key={key++}>{inner}</strong>)
+    else if (c === '_') parts.push(<em key={key++}>{inner}</em>)
+    else parts.push(<s key={key++}>{inner}</s>)
+    lastIdx = m.index + s.length
+  }
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx))
+  return parts.length ? <>{parts}</> : text
+}
 
 // ── Preview WhatsApp ──────────────────────────────────────────────────────────
 
@@ -123,17 +143,17 @@ function WhatsAppPreview({
               <div style={{ padding: '8px 10px' }}>
                 {headerType === 'TEXT' && resolvedHeader && (
                   <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
-                    {resolvedHeader}
+                    {renderWaText(resolvedHeader)}
                   </p>
                 )}
                 {resolvedBody && (
                   <p style={{ margin: 0, fontSize: 11.5, color: '#111', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {resolvedBody}
+                    {renderWaText(resolvedBody)}
                   </p>
                 )}
                 {resolvedFooter && (
                   <p style={{ margin: '6px 0 0', fontSize: 10, color: '#9AA79C', lineHeight: 1.4 }}>
-                    {resolvedFooter}
+                    {renderWaText(resolvedFooter)}
                   </p>
                 )}
                 <p style={{ margin: '4px 0 0', fontSize: 9, color: '#9AA79C', textAlign: 'right' }}>14:30 ✓✓</p>
@@ -168,6 +188,8 @@ function WhatsAppPreview({
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
+interface TmplFolder { id: string; nome: string; ordem: number; criado_em: string }
+
 export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   const [templates,    setTemplates]    = useState<MetaTemplate[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -178,6 +200,12 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [successMsg,   setSuccessMsg]   = useState<string | null>(null)
   const [deleteError,  setDeleteError]  = useState<string | null>(null)
+
+  // Folders
+  const [folders,       setFolders]       = useState<TmplFolder[]>([])
+  const [showFolders,   setShowFolders]   = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [savingFolder,  setSavingFolder]  = useState(false)
 
   // Form state
   const [form, setForm] = useState({
@@ -199,6 +227,26 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
   const [varOrder, setVarOrder] = useState<string[]>([])
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
+  async function loadFolders() {
+    const res = await fetch('/api/whatsapp/template-folders')
+    const data = await res.json()
+    if (Array.isArray(data)) setFolders(data)
+  }
+
+  async function createFolder() {
+    if (!newFolderName.trim()) return
+    setSavingFolder(true)
+    await fetch('/api/whatsapp/template-folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: newFolderName.trim() }) })
+    setNewFolderName('')
+    setSavingFolder(false)
+    void loadFolders()
+  }
+
+  async function deleteFolder(id: string) {
+    await fetch(`/api/whatsapp/template-folders?id=${id}`, { method: 'DELETE' })
+    void loadFolders()
+  }
+
   async function loadTemplates() {
     setLoading(true); setError(null)
     const res = await fetch('/api/whatsapp/meta-templates')
@@ -208,7 +256,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
     setLoading(false)
   }
 
-  useEffect(() => { void loadTemplates() }, [])
+  useEffect(() => { void loadTemplates(); void loadFolders() }, [])
 
   function resetForm() {
     setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header_type: 'NONE', header_text: '', body_text: '', footer_text: '' })
@@ -397,6 +445,42 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
         </div>
       )}
 
+      {/* Folder management */}
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={() => setShowFolders(v => !v)}
+          style={{ fontSize: 12, fontWeight: 600, color: '#71856F', background: 'none', border: '1px solid #EBE7DA', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+          Gerenciar pastas {folders.length > 0 && `(${folders.length})`}
+          <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ transform: showFolders ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {showFolders && (
+          <div style={{ marginTop: 8, padding: '12px 14px', background: '#FBFAF4', border: '1px solid #EBE7DA', borderRadius: 10 }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: folders.length > 0 ? 10 : 0 }}>
+              <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nome da pasta..."
+                onKeyDown={e => { if (e.key === 'Enter') void createFolder() }}
+                style={{ flex: 1, fontSize: 12, border: '1px solid #EBE7DA', borderRadius: 7, padding: '6px 10px', outline: 'none', background: '#fff' }} />
+              <button onClick={() => void createFolder()} disabled={savingFolder || !newFolderName.trim()}
+                style={{ padding: '6px 14px', fontSize: 11, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: savingFolder || !newFolderName.trim() ? 0.5 : 1 }}>
+                {savingFolder ? '...' : '+ Criar'}
+              </button>
+            </div>
+            {folders.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #F1EFE5' }}>
+                <svg width="14" height="14" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#25402C', flex: 1 }}>{f.nome}</span>
+                <button onClick={() => void deleteFolder(f.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', fontSize: 12, padding: 2 }}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M10 11v6m4-6v6M4 7h16M9 7V4h6v3" /></svg>
+                </button>
+              </div>
+            ))}
+            {folders.length === 0 && <p style={{ fontSize: 11, color: '#9AA79C', margin: '6px 0 0' }}>Nenhuma pasta criada. Pastas organizam templates no picker do chat.</p>}
+          </div>
+        )}
+      </div>
+
       {/* Filters */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
         {[
@@ -453,6 +537,24 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                       <span style={{ fontSize: 10, color: '#9AA79C', background: '#F1EFE5', padding: '2px 7px', borderRadius: 99 }}>{t.category}</span>
                       <span style={{ fontSize: 10, color: '#9AA79C', background: '#F1EFE5', padding: '2px 7px', borderRadius: 99 }}>{t.language}</span>
                       {headerFmt === 'IMAGE' && <span style={{ fontSize: 10, color: '#3E9849', background: '#E8F4E6', padding: '2px 7px', borderRadius: 99 }}>📷 Imagem</span>}
+                      {folders.length > 0 && (
+                        <select
+                          value={t.folder_id ?? ''}
+                          onChange={async (e) => {
+                            const fid = e.target.value || null
+                            setTemplates(prev => prev.map(x => x.name === t.name ? { ...x, folder_id: fid } : x))
+                            await fetch('/api/whatsapp/template-folders', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ template_name: t.name, folder_id: fid }),
+                            })
+                          }}
+                          style={{ fontSize: 10, padding: '2px 6px', border: '1px solid #EBE7DA', borderRadius: 6, background: '#fff', color: '#71856F', cursor: 'pointer' }}
+                        >
+                          <option value="">Sem pasta</option>
+                          {folders.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                        </select>
+                      )}
                     </div>
                     {/* Preview */}
                     <div style={{ background: '#FBFAF4', border: '1px solid #EBE7DA', borderRadius: 10, overflow: 'hidden', maxWidth: 420 }}>
@@ -461,7 +563,7 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                       )}
                       <div style={{ padding: '10px 12px' }}>
                         {headerText && <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: '0 0 6px' }}>{headerText}</p>}
-                        <p style={{ fontSize: 12, color: '#25402C', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body || '(sem corpo)'}</p>
+                        <p style={{ fontSize: 12, color: '#25402C', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body ? renderWaText(body) : '(sem corpo)'}</p>
                         {footer && <p style={{ fontSize: 11, color: '#9AA79C', margin: '6px 0 0' }}>{footer}</p>}
                       </div>
                     </div>
@@ -601,6 +703,22 @@ export default function TemplatesWhatsAppClient({ currentUser: _ }: Props) {
                   {/* Body */}
                   <div>
                     <label style={labelStyle}>Corpo da mensagem *</label>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                      {([['*', 'B', 'Negrito', { fontWeight: 700 }], ['_', 'I', 'Itálico', { fontStyle: 'italic' as const }], ['~', 'S', 'Riscado', { textDecoration: 'line-through' }]] as const).map(([marker, label, title, css]) => (
+                        <button key={marker} type="button" title={title as string}
+                          onClick={() => {
+                            const ta = bodyRef.current; if (!ta) return
+                            ta.focus()
+                            const s = ta.selectionStart, end = ta.selectionEnd
+                            const txt = form.body_text
+                            if (s === end) { handleBodyChange(txt.slice(0, s) + marker + marker + txt.slice(s)); setTimeout(() => ta.setSelectionRange(s + 1, s + 1), 0); return }
+                            handleBodyChange(txt.slice(0, s) + marker + txt.slice(s, end) + marker + txt.slice(end))
+                            setTimeout(() => ta.setSelectionRange(s + 1, end + 1), 0)
+                          }}
+                          style={{ width: 28, height: 26, borderRadius: 5, border: '1px solid #EBE7DA', background: '#FBFAF4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#667781', ...(css as React.CSSProperties) }}
+                        >{label}</button>
+                      ))}
+                    </div>
                     <textarea
                       ref={bodyRef}
                       value={form.body_text}

@@ -22,7 +22,16 @@ export interface WaTemplate {
   language: string | null
   variable_order?: string[]
   header_image_url?: string | null
-  components?: { type: string; format?: string }[]
+  components?: { type: string; format?: string; text?: string }[]
+  folder_id?: string | null
+}
+
+export interface WaTemplateFolder {
+  id: string
+  unit_id: string
+  nome: string
+  ordem: number
+  criado_em: string
 }
 
 export interface WaQuickReply {

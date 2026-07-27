@@ -135,16 +135,10 @@ export async function POST(req: NextRequest) {
   if (!creds.phoneNumberId || !creds.accessToken)
     return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
 
-  const metaPayload = {
-    messaging_product: 'whatsapp',
-    to:     phone,
-    type:   'template',
-    template: {
-      name:     template_name,
-      language: { code: language },
-      components,
-    },
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tpl: any = { name: template_name, language: { code: language } }
+  if (components && components.length > 0) tpl.components = components
+  const metaPayload = { messaging_product: 'whatsapp', to: phone, type: 'template', template: tpl }
 
   const metaRes  = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
     method:  'POST',

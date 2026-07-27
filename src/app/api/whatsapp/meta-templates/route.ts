@@ -53,43 +53,60 @@ export async function GET(req: NextRequest) {
 
   const templates = data.data ?? []
 
+  // Carrega dados locais antes do sync para preservar variable_order/header_image_url já configurados
+  let localMap = new Map<string, { variable_order: string[]; header_image_url: string | null; folder_id: string | null }>()
+  if (unitId && templates.length > 0) {
+    const { data: localRows } = await admin
+      .from('wa_message_templates')
+      .select('template_name, variable_order, header_image_url, folder_id')
+      .eq('unit_id', unitId)
+      .eq('category', 'meta_api')
+    localMap = new Map((localRows ?? []).map(r => [r.template_name as string, {
+      variable_order: (r.variable_order ?? []) as string[],
+      header_image_url: r.header_image_url as string | null,
+      folder_id: r.folder_id as string | null,
+    }]))
+  }
+
   // Sincronizar aprovados na tabela local para o picker do chat funcionar offline
   if (templates.length > 0 && unitId) {
     const approved = templates.filter(t => t.status === 'APPROVED')
     for (const t of approved) {
       const bodyComponent = t.components?.find(c => c.type === 'BODY')
       const bodyText = bodyComponent?.text ?? ''
-      await admin.from('wa_message_templates')
-        .upsert({
-          unit_id:       unitId,
-          name:          t.name,
-          content:       bodyText,
-          category:      'meta_api',
-          template_name: t.name,
-          language:      t.language,
-          ativo:         true,
-        }, { onConflict: 'unit_id,name,category' })
-    }
-  }
+      const headerComponent = t.components?.find(c => c.type === 'HEADER')
+      const hasImageHeader = headerComponent?.format === 'IMAGE'
 
-  // Enriquece com dados locais (variable_order, header_image_url)
-  let localMap = new Map<string, { variable_order: string[]; header_image_url: string | null }>()
-  if (unitId && templates.length > 0) {
-    const { data: localRows } = await admin
-      .from('wa_message_templates')
-      .select('template_name, variable_order, header_image_url')
-      .eq('unit_id', unitId)
-      .eq('category', 'meta_api')
-    localMap = new Map((localRows ?? []).map(r => [r.template_name as string, {
-      variable_order: (r.variable_order ?? []) as string[],
-      header_image_url: r.header_image_url as string | null,
-    }]))
+      const varMatches = bodyText.match(/\{\{\d+\}\}/g) ?? []
+      const varCount = varMatches.length
+      const defaultOrder = ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+
+      const upsertData: Record<string, unknown> = {
+        unit_id:       unitId,
+        name:          t.name,
+        content:       bodyText,
+        category:      'meta_api',
+        template_name: t.name,
+        language:      t.language,
+        ativo:         true,
+        header_type:   hasImageHeader ? 'IMAGE' : (headerComponent?.format === 'TEXT' ? 'TEXT' : null),
+      }
+
+      const existing = localMap.get(t.name)
+      if (!existing?.variable_order?.length && varCount > 0) {
+        upsertData.variable_order = defaultOrder
+      }
+
+      await admin.from('wa_message_templates')
+        .upsert(upsertData, { onConflict: 'unit_id,name,category' })
+    }
   }
 
   const templatesWithVars = templates.map(t => ({
     ...t,
     variable_order: localMap.get(t.name)?.variable_order ?? [],
     header_image_url: localMap.get(t.name)?.header_image_url ?? null,
+    folder_id: localMap.get(t.name)?.folder_id ?? null,
   }))
 
   return NextResponse.json({ templates: templatesWithVars })

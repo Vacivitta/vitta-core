@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import LeadModal from '@/components/leads/LeadModal'
@@ -135,6 +135,31 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>({})
   const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>({})
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
+  const [msgMatchLeadIds, setMsgMatchLeadIds] = useState<Set<string> | null>(null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const searchMessages = useCallback(async (q: string) => {
+    if (!q || q.length < 3) { setMsgMatchLeadIds(null); return }
+    const { data } = await supabase
+      .from('wa_messages')
+      .select('conversation_id, conversation:wa_conversations!inner(lead_id)')
+      .ilike('content', `%${q}%`)
+      .not('conversation.lead_id', 'is', null)
+      .limit(200)
+    if (!data) { setMsgMatchLeadIds(new Set()); return }
+    const ids = new Set<string>()
+    for (const row of data) {
+      const conv = row.conversation as unknown as { lead_id: string | null }
+      if (conv?.lead_id) ids.add(conv.lead_id)
+    }
+    setMsgMatchLeadIds(ids)
+  }, [supabase])
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => searchMessages(filters.search), 400)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [filters.search, searchMessages])
 
   // Carrega conversas (unread + last_message_at + id + tags) e assina atualizações em tempo real
   useEffect(() => {
@@ -218,7 +243,9 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         const q = filters.search.toLowerCase()
         const fullName = `${l.nome} ${l.sobrenome ?? ''}`.toLowerCase()
         const contacts = (contactNamesByLead[l.id] ?? '').toLowerCase()
-        if (!fullName.includes(q) && !l.profissao?.toLowerCase().includes(q) && !l.cidade?.toLowerCase().includes(q) && !contacts.includes(q)) return false
+        const localMatch = fullName.includes(q) || l.profissao?.toLowerCase().includes(q) || l.cidade?.toLowerCase().includes(q) || contacts.includes(q)
+        const msgMatch = msgMatchLeadIds?.has(l.id) ?? false
+        if (!localMatch && !msgMatch) return false
       }
       if (filters.responsavel_ids.length && !filters.responsavel_ids.includes(l.responsavel_id ?? '')) return false
       if (filters.cidade && !l.cidade?.toLowerCase().includes(filters.cidade.toLowerCase())) return false
@@ -229,7 +256,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       }
       return true
     })
-  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead])
+  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds])
 
   const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
 

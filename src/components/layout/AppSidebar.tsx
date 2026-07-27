@@ -65,6 +65,13 @@ const IcoOrcamento = () => (
   </svg>
 )
 
+const IcoChatInterno = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    <path d="M8 9h8M8 13h6"/>
+  </svg>
+)
+
 const IcoSupervisao = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -159,6 +166,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/clientes',   label: 'Clientes',     icon: <IcoClientes /> },
   { href: '/produtos',   label: 'Catálogo',     icon: <IcoCatalogo /> },
   { href: '/orcamento',  label: 'Orçamentos',   icon: <IcoOrcamento /> },
+  { href: '/chat-interno', label: 'Chat Interno', icon: <IcoChatInterno /> },
 ]
 
 const CONFIG_ITEMS = [
@@ -170,6 +178,7 @@ const CONFIG_ITEMS = [
   { href: '/configuracoes/whatsapp',            label: 'WhatsApp API',      icon: <IcoWhatsApp />,     gestorOnly: true  },
   { href: '/configuracoes/equipe',              label: 'Equipe',            icon: <IcoEquipe />,       gestorOnly: true  },
   { href: '/configuracoes/automacoes',          label: 'Automações',        icon: <IcoAutomacoes />,   gestorOnly: true  },
+  { href: '/configuracoes/chat-interno',       label: 'Chat Interno',      icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h6"/></svg>,  gestorOnly: true  },
 ]
 
 const CONFIG_HREFS = CONFIG_ITEMS.map(i => i.href)
@@ -395,7 +404,7 @@ export default function AppSidebar() {
           >
             <span style={{ flexShrink: 0, display: 'flex' }}><IcoSettings /></span>
             <span style={{
-              flex: 1, textAlign: 'left',
+              flex: collapsed ? 0 : 1, textAlign: 'left',
               opacity: collapsed ? 0 : 1,
               width: collapsed ? 0 : 'auto',
               overflow: 'hidden',

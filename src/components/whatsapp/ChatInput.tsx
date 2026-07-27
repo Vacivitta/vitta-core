@@ -1,15 +1,34 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import { createClient } from '@/lib/supabase/client'
-import type { WaTemplate, WaQuickReply, InputMode } from './wa-types'
+import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode } from './wa-types'
+import type { Profile } from '@/types/database'
+import { displayName } from '@/types/database'
 
 const EmojiPicker = dynamic(() => import('@emoji-mart/react'), { ssr: false })
 
 function Spinner({ size, color }: { size: number; color: string }) {
   return <div style={{ width: size, height: size, border: `2px solid ${color}33`, borderTopColor: color, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+}
+
+function renderWaText(text: string): ReactNode {
+  const regex = /(\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g
+  const parts: ReactNode[] = []
+  let lastIdx = 0, key = 0
+  let m: RegExpExecArray | null
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index))
+    const s = m[0], inner = s.slice(1, -1), c = s[0]
+    if (c === '*') parts.push(<strong key={key++}>{inner}</strong>)
+    else if (c === '_') parts.push(<em key={key++}>{inner}</em>)
+    else parts.push(<s key={key++}>{inner}</s>)
+    lastIdx = m.index + s.length
+  }
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx))
+  return parts.length ? <>{parts}</> : text
 }
 
 function IconPhoto()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> }
@@ -20,6 +39,25 @@ function IconTemplate() { return <svg width="16" height="16" fill="none" stroke=
 function IconFlash()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> }
 function IconClock()    { return <svg width="16" height="16" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
 
+function TmplRow({ t, onPick, onDelete }: { t: WaTemplate; onPick: (t: WaTemplate) => void; onDelete: (id: string) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 14px', borderBottom: '1px solid #F8FAFB', cursor: 'pointer' }} onClick={() => onPick(t)}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{t.name}</span>
+          {t.category === 'meta_api' && <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F7EE', color: '#1D9E75', borderRadius: 4, padding: '1px 5px' }}>META</span>}
+          {t.header_image_url && <svg width="14" height="14" fill="none" stroke="#6B7F6B" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} /><circle cx="8.5" cy="8.5" r="1.5" fill="#6B7F6B" /><path d="M21 15l-5-5L5 21" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        </div>
+        <p style={{ fontSize: 11, color: '#9AA79C', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category === 'meta_api' ? `Template: ${t.template_name}` : t.content}</p>
+      </div>
+      <button onClick={e => { e.stopPropagation(); onDelete(t.id) }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', flexShrink: 0, lineHeight: 0, padding: 2 }}>
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M10 11v6m4-6v6M4 7h16M9 7V4h6v3" /></svg>
+      </button>
+    </div>
+  )
+}
+
 interface Props {
   value: string
   onChange: (v: string) => void
@@ -29,6 +67,7 @@ interface Props {
   onScheduleSend: (content: string, scheduledFor: string) => void
   onScheduleTemplate: (t: WaTemplate, scheduledFor: string) => void
   templates: WaTemplate[]
+  folders?: WaTemplateFolder[]
   quickReplies: WaQuickReply[]
   sending: boolean
   mode: InputMode
@@ -42,13 +81,17 @@ interface Props {
   onToggleSignature: () => void
   signerName: string
   contactName?: string
+  autoFocus?: boolean
+  mentionProfiles?: Profile[]
+  currentUserId?: string
 }
 
 export default function ChatInput({
   value, onChange, onSend, onMediaUpload, onTemplateSend,
-  onScheduleSend, onScheduleTemplate, templates, quickReplies,
+  onScheduleSend, onScheduleTemplate, templates, folders = [], quickReplies,
   sending, mode, onModeChange, unitId, onTemplatesReload, onQuickRepliesReload,
-  isOutside24hWindow, signatureEnabled, signatureLocked, onToggleSignature, signerName, contactName,
+  isOutside24hWindow, signatureEnabled, signatureLocked, onToggleSignature, signerName, contactName, autoFocus,
+  mentionProfiles, currentUserId,
 }: Props) {
   const imageRef       = useRef<HTMLInputElement>(null)
   const videoRef       = useRef<HTMLInputElement>(null)
@@ -58,6 +101,10 @@ export default function ChatInput({
   const emojiPickerRef = useRef<HTMLDivElement>(null)
   const cursorPosRef   = useRef<number>(0)
   const isNote         = mode === 'note'
+
+  useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus()
+  }, [autoFocus])
 
   const [attachOpen,       setAttachOpen]       = useState(false)
   const [showEmoji,        setShowEmoji]        = useState(false)
@@ -72,6 +119,7 @@ export default function ChatInput({
   const [showNewTmpl,      setShowNewTmpl]       = useState(false)
   const [newTmplName,      setNewTmplName]       = useState('')
   const [newTmplContent,   setNewTmplContent]    = useState('')
+  const [newTmplFolder,    setNewTmplFolder]     = useState('')
   const [previewTemplate,  setPreviewTemplate]   = useState<WaTemplate | null>(null)
   const [pendingFile,      setPendingFile]       = useState<File | null>(null)
   const [pendingCaption,   setPendingCaption]    = useState('')
@@ -80,11 +128,40 @@ export default function ChatInput({
   const [newQrShortcut,    setNewQrShortcut]     = useState('')
   const [newQrContent,     setNewQrContent]      = useState('')
   const [saving,           setSaving]            = useState(false)
+  const [openFolders,      setOpenFolders]       = useState<Set<string>>(new Set(['__geral__']))
   const [recording,        setRecording]         = useState(false)
   const [recordingTime,    setRecordingTime]      = useState(0)
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null)
   const recordTimerRef     = useRef<ReturnType<typeof setInterval> | null>(null)
   const supabase = createClient()
+
+  const [showMentionPicker, setShowMentionPicker] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+  const mentionableProfiles = useMemo(() =>
+    (mentionProfiles ?? []).filter(p => p.id !== currentUserId && p.ativo !== false),
+    [mentionProfiles, currentUserId]
+  )
+  const filteredMentionProfiles = mentionFilter
+    ? mentionableProfiles.filter(p => displayName(p).toLowerCase().includes(mentionFilter.toLowerCase()) || p.full_name.toLowerCase().includes(mentionFilter.toLowerCase())).slice(0, 8)
+    : mentionableProfiles.slice(0, 8)
+
+  function insertMentionFromPicker(p: Profile) {
+    const name = displayName(p)
+    const textarea = textareaRef.current
+    const cursorPos = textarea?.selectionStart ?? value.length
+    const before = value.slice(0, cursorPos)
+    const after = value.slice(cursorPos)
+    const needsSpace = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n')
+    const newText = before + (needsSpace ? ' ' : '') + '@' + name + ' ' + after
+    onChange(newText)
+    setShowMentionPicker(false)
+    setMentionFilter('')
+    requestAnimationFrame(() => {
+      const pos = cursorPos + (needsSpace ? 1 : 0) + name.length + 2
+      textarea?.focus()
+      textarea?.setSelectionRange(pos, pos)
+    })
+  }
 
   useEffect(() => {
     if (!isNote && value.startsWith('/')) { setQrFilter(value.slice(1).toLowerCase()); setShowQuickReplies(true); setAttachOpen(false) }
@@ -250,8 +327,8 @@ export default function ChatInput({
     if (!newTmplName.trim() || !newTmplContent.trim()) return
     setSaving(true)
     try {
-      await supabase.from('wa_message_templates').insert({ unit_id: unitId, name: newTmplName.trim(), content: newTmplContent.trim(), category: 'custom' })
-      setShowNewTmpl(false); setNewTmplName(''); setNewTmplContent(''); void syncTemplates()
+      await supabase.from('wa_message_templates').insert({ unit_id: unitId, name: newTmplName.trim(), content: newTmplContent.trim(), category: 'custom', folder_id: newTmplFolder || null })
+      setShowNewTmpl(false); setNewTmplName(''); setNewTmplContent(''); setNewTmplFolder(''); void syncTemplates()
     } finally { setSaving(false) }
   }
 
@@ -302,6 +379,13 @@ export default function ChatInput({
                 style={{ width: '100%', fontSize: 12, border: '1px solid #B3DFFF', borderRadius: 7, padding: '5px 8px', outline: 'none', marginBottom: 6, boxSizing: 'border-box', background: '#fff' }} />
               <textarea value={newTmplContent} onChange={e => setNewTmplContent(e.target.value)} placeholder="Texto da mensagem..." rows={2}
                 style={{ width: '100%', fontSize: 12, border: '1px solid #B3DFFF', borderRadius: 7, padding: '5px 8px', outline: 'none', resize: 'none', marginBottom: 6, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }} />
+              {folders.length > 0 && (
+                <select value={newTmplFolder} onChange={e => setNewTmplFolder(e.target.value)}
+                  style={{ width: '100%', fontSize: 11, border: '1px solid #B3DFFF', borderRadius: 7, padding: '5px 8px', outline: 'none', marginBottom: 6, boxSizing: 'border-box', background: '#fff', color: newTmplFolder ? '#25402C' : '#9AA79C' }}>
+                  <option value="">Sem pasta (Geral)</option>
+                  {folders.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              )}
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => void saveTmpl()} disabled={saving} style={{ flex: 1, padding: '5px', fontSize: 11, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? '...' : 'Salvar'}</button>
                 <button onClick={() => setShowNewTmpl(false)} style={{ flex: 1, padding: '5px', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#71856F' }}>Cancelar</button>
@@ -315,22 +399,41 @@ export default function ChatInput({
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {tmplLoading && <p style={{ fontSize: 12, color: '#3E9849', textAlign: 'center', padding: '12px 0', margin: 0 }}>Buscando templates Meta...</p>}
             {!tmplLoading && filtTmpls.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum modelo — clique em ↻ Meta para sincronizar</p>}
-            {filtTmpls.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 14px', borderBottom: '1px solid #F8FAFB', cursor: 'pointer' }} onClick={() => pickTemplate(t)}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{t.name}</span>
-                    {t.category === 'meta_api' && <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F7EE', color: '#1D9E75', borderRadius: 4, padding: '1px 5px' }}>META</span>}
-                    {t.header_image_url && <svg width="14" height="14" fill="none" stroke="#6B7F6B" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} /><circle cx="8.5" cy="8.5" r="1.5" fill="#6B7F6B" /><path d="M21 15l-5-5L5 21" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </div>
-                  <p style={{ fontSize: 11, color: '#9AA79C', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category === 'meta_api' ? `Template: ${t.template_name}` : t.content}</p>
+            {(() => {
+              if (tmplLoading || filtTmpls.length === 0) return null
+              const hasFolders = folders.length > 0
+              if (!hasFolders || tmplSearch) {
+                return filtTmpls.map(t => <TmplRow key={t.id} t={t} onPick={pickTemplate} onDelete={id => void supabase.from('wa_message_templates').update({ ativo: false }).eq('id', id).then(() => void syncTemplates())} />)
+              }
+              const grouped: { key: string; label: string; items: WaTemplate[] }[] = []
+              const folderMap = new Map(folders.map(f => [f.id, f.nome]))
+              const byFolder = new Map<string, WaTemplate[]>()
+              for (const t of filtTmpls) {
+                const fk = t.folder_id ?? '__geral__'
+                if (!byFolder.has(fk)) byFolder.set(fk, [])
+                byFolder.get(fk)!.push(t)
+              }
+              const geralItems = byFolder.get('__geral__')
+              if (geralItems) grouped.push({ key: '__geral__', label: 'Geral', items: geralItems })
+              for (const f of folders) {
+                const items = byFolder.get(f.id)
+                if (items) grouped.push({ key: f.id, label: f.nome, items })
+              }
+              return grouped.map(g => (
+                <div key={g.key}>
+                  <button onClick={() => setOpenFolders(prev => { const n = new Set(prev); n.has(g.key) ? n.delete(g.key) : n.add(g.key); return n })}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F8FAFB', border: 'none', borderBottom: '1px solid #EBE7DA', cursor: 'pointer', textAlign: 'left' }}>
+                    <svg width="10" height="10" fill="none" stroke="#9AA79C" viewBox="0 0 24 24" style={{ transform: openFolders.has(g.key) ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <svg width="13" height="13" fill="none" stroke="#9AA79C" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#71856F', flex: 1 }}>{g.label}</span>
+                    <span style={{ fontSize: 10, color: '#9AA79C' }}>{g.items.length}</span>
+                  </button>
+                  {openFolders.has(g.key) && g.items.map(t => <TmplRow key={t.id} t={t} onPick={pickTemplate} onDelete={id => void supabase.from('wa_message_templates').update({ ativo: false }).eq('id', id).then(() => void syncTemplates())} />)}
                 </div>
-                <button onClick={e => { e.stopPropagation(); void supabase.from('wa_message_templates').update({ ativo: false }).eq('id', t.id).then(() => void syncTemplates()) }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', flexShrink: 0, lineHeight: 0, padding: 2 }}>
-                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7M10 11v6m4-6v6M4 7h16M9 7V4h6v3" /></svg>
-                </button>
-              </div>
-            ))}
+              ))
+            })()}
           </div>
         </div>
       )}
@@ -379,35 +482,37 @@ export default function ChatInput({
         </div>
       )}
 
-      {/* Template preview */}
+      {/* Template preview — overlay centralizado para garantir visibilidade */}
       {previewTemplate && (
-        <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E9E5D8', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(37,64,44,0.10)', zIndex: 95, display: 'flex', flexDirection: 'column', maxHeight: 420 }}>
-          <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <IconTemplate />
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Preview do Template</p>
-            <button onClick={() => setPreviewTemplate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 14, lineHeight: 1 }}>×</button>
-          </div>
-          <div style={{ padding: 14, overflowY: 'auto', flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#25402C' }}>{previewTemplate.name}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F4E6', color: '#3E9849', borderRadius: 4, padding: '1px 5px' }}>META</span>
-              {previewTemplate.language && <span style={{ fontSize: 9, color: '#9AA79C' }}>{previewTemplate.language}</span>}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,44,61,0.35)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPreviewTemplate(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.2)', width: 420, maxWidth: '94vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '12px 16px 10px', borderBottom: '1px solid #EBE7DA', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <IconTemplate />
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#25402C', margin: 0, flex: 1 }}>Preview do Template</p>
+              <button onClick={() => setPreviewTemplate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
             </div>
-            <div style={{ background: '#DCF0D3', borderRadius: '16px 4px 16px 16px', overflow: 'hidden' }}>
-              {previewTemplate.header_image_url && (
-                <img src={previewTemplate.header_image_url} alt="" style={{ width: '100%', maxHeight: 180, objectFit: 'contain', display: 'block', background: '#c8e6c0' }} />
-              )}
-              <div style={{ padding: '10px 14px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#25402C', lineHeight: 1.45 }}>
-                {renderTemplatePreview(previewTemplate)}
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1, minHeight: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#25402C' }}>{previewTemplate.name}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, background: '#E8F4E6', color: '#3E9849', borderRadius: 4, padding: '1px 5px' }}>META</span>
+                {previewTemplate.language && <span style={{ fontSize: 9, color: '#9AA79C' }}>{previewTemplate.language}</span>}
+              </div>
+              <div style={{ background: '#DCF0D3', borderRadius: '16px 4px 16px 16px', overflow: 'hidden' }}>
+                {previewTemplate.header_image_url && (
+                  <img src={previewTemplate.header_image_url} alt="" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', display: 'block', background: '#c8e6c0' }} />
+                )}
+                <div style={{ padding: '10px 14px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#25402C', lineHeight: 1.45 }}>
+                  {renderWaText(renderTemplatePreview(previewTemplate))}
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, padding: '12px 16px 14px', borderTop: '1px solid #EBE7DA', flexShrink: 0 }}>
               <button onClick={() => setPreviewTemplate(null)}
-                style={{ flex: 1, padding: '8px', fontSize: 12, fontWeight: 600, border: '1px solid #E9E5D8', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
+                style={{ flex: 1, padding: '9px', fontSize: 13, fontWeight: 600, border: '1px solid #E9E5D8', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F' }}>
                 Cancelar
               </button>
               <button onClick={() => { onTemplateSend(previewTemplate); setPreviewTemplate(null) }}
-                style={{ flex: 2, padding: '8px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer', background: '#3E9849', color: '#fff', boxShadow: '0 4px 12px -4px rgba(62,152,73,0.4)' }}>
+                style={{ flex: 2, padding: '9px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer', background: '#3E9849', color: '#fff', boxShadow: '0 4px 12px -4px rgba(62,152,73,0.4)' }}>
                 Enviar template
               </button>
             </div>
@@ -540,7 +645,7 @@ export default function ChatInput({
       )}
 
       {/* Input row */}
-      <div style={{ padding: '6px 12px 8px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+      <div style={{ padding: '6px 12px 8px', display: 'flex', gap: 8, alignItems: 'flex-end', position: 'relative' }}>
         {!isNote && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => setAttachOpen(v => !v)} title="Anexar / ferramentas"
@@ -609,6 +714,39 @@ export default function ChatInput({
           </>
         ) : (
           <>
+            {/* Mention picker for note mode */}
+            {isNote && mentionableProfiles.length > 0 && showMentionPicker && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMentionPicker(false)} />
+                <div style={{ position: 'absolute', bottom: '100%', left: 16, marginBottom: 4, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 50, width: 280, overflow: 'hidden' }}>
+                  <div style={{ padding: '8px 10px', borderBottom: '1px solid #F3F4F6' }}>
+                    <input autoFocus value={mentionFilter} onChange={e => setMentionFilter(e.target.value)} placeholder="Buscar usuário..."
+                      style={{ width: '100%', border: '1px solid #EBE7DA', borderRadius: 8, padding: '6px 10px', fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {filteredMentionProfiles.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '12px 0' }}>Nenhum usuário encontrado</p>}
+                    {filteredMentionProfiles.map(p => (
+                      <button key={p.id} onClick={() => insertMentionFromPicker(p)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#F59E0B', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{(p.full_name ?? '?')[0].toUpperCase()}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#25402C', display: 'block' }}>{displayName(p)}</span>
+                          {p.apelido && <span style={{ fontSize: 10, color: '#9AA79C' }}>{p.full_name}</span>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            {isNote && mentionableProfiles.length > 0 && (
+              <button onClick={() => { setShowMentionPicker(v => !v); setMentionFilter('') }} title="Mencionar usuário"
+                style={{ width: 38, height: 38, borderRadius: 99, flexShrink: 0, border: showMentionPicker ? '1px solid #F59E0B' : '1px solid #FDE68A', background: showMentionPicker ? '#FEF3C7' : '#FFFBEB', color: showMentionPicker ? '#D97706' : '#9AA79C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 }}>
+                @
+              </button>
+            )}
             <textarea ref={textareaRef} value={scheduleTemplate ? '' : value} onChange={e => onChange(e.target.value)}
               disabled={!!scheduleTemplate}
               onKeyDown={e => {
@@ -630,6 +768,22 @@ export default function ChatInput({
                 }
               }}
               onInput={e => { const el = e.currentTarget; el.style.height = '38px'; const h = Math.min(el.scrollHeight, 300); el.style.height = h + 'px'; el.style.borderRadius = h > 50 ? '18px' : '999px' }}
+              onPaste={e => {
+                const items = e.clipboardData?.items
+                if (!items) return
+                for (const item of items) {
+                  if (item.type.startsWith('image/')) {
+                    e.preventDefault()
+                    const blob = item.getAsFile()
+                    if (!blob) return
+                    const file = new File([blob], `paste-${Date.now()}.png`, { type: blob.type })
+                    setPendingFile(file)
+                    setPendingCaption('')
+                    setPendingPreview(URL.createObjectURL(file))
+                    return
+                  }
+                }
+              }}
               onBlur={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               onSelect={e => { cursorPosRef.current = e.currentTarget.selectionStart ?? 0 }}
               placeholder={isNote ? 'Nota interna (só a equipe vê)...' : scheduleTemplate ? 'Template selecionado acima — escolha a data e clique em Agendar' : scheduleMode ? 'Mensagem a agendar...' : 'Mensagem ou / para respostas rápidas...'}

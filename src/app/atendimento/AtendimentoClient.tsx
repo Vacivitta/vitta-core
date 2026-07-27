@@ -11,7 +11,7 @@ import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
-import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
+import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
 import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 
@@ -96,6 +96,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   const [queues,       setQueues]       = useState<WaQueue[]>([])
   const [templates,    setTemplates]    = useState<WaTemplate[]>([])
+  const [tmplFolders,  setTmplFolders]  = useState<WaTemplateFolder[]>([])
   const [quickReplies, setQuickReplies] = useState<WaQuickReply[]>([])
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
 
@@ -267,11 +268,16 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   useEffect(() => {
     void supabase.from('wa_queues').select('id,nome,cor,auto_assign').eq('ativo', true).eq('unit_id', currentUser.unit_id).order('nome')
       .then(({ data }) => setQueues((data ?? []) as WaQueue[]))
+    // Carrega templates locais imediatamente (rápido)
+    void supabase.from('wa_message_templates')
+      .select('id,name,content,category,template_name,language,variable_order,header_image_url,folder_id')
+      .eq('ativo', true).order('name')
+      .then(({ data }) => { if (data) setTemplates(data as WaTemplate[]) })
+    // Depois atualiza com dados frescos da Meta (pode demorar)
     void (async () => {
       try {
-        // Busca templates aprovados direto da Meta (sempre atualizados)
         const metaRes  = await fetch('/api/whatsapp/meta-templates')
-        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; format?: string; text?: string }>; variable_order?: string[]; header_image_url?: string | null }> }
+        const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; format?: string; text?: string }>; variable_order?: string[]; header_image_url?: string | null; folder_id?: string | null }> }
         const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
           .filter(t => t.status === 'APPROVED')
           .map(t => ({
@@ -283,20 +289,16 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
             language:         t.language,
             variable_order:   t.variable_order ?? [],
             header_image_url: t.header_image_url ?? null,
+            folder_id:        t.folder_id ?? null,
             components:       t.components,
           }))
-        // Carrega templates custom do banco
         const { data: custom } = await supabase.from('wa_message_templates')
-          .select('id,name,content,category,template_name,language')
+          .select('id,name,content,category,template_name,language,folder_id')
           .eq('ativo', true).eq('category', 'custom').order('name')
         setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
-      } catch {
-        // Fallback: carrega tudo do banco se a Meta API falhar
-        const { data } = await supabase.from('wa_message_templates')
-          .select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
-        setTemplates((data ?? []) as WaTemplate[])
-      }
+      } catch { /* mantém os templates locais já carregados */ }
     })()
+    void fetch('/api/whatsapp/template-folders').then(r => r.json()).then((data: WaTemplateFolder[]) => { if (Array.isArray(data)) setTmplFolders(data) })
     void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
     void fetch('/api/whatsapp/tags').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
@@ -498,8 +500,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         body: JSON.stringify({ conversation_id: selectedConv.id, type: 'template', template_name: t.template_name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText, header_image_url: (hasImageHeader && t.header_image_url) ? t.header_image_url : undefined }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string }
-        alert(data.error ?? 'Erro ao enviar template')
+        const data = await res.json().catch(() => ({})) as { error?: string; details?: { error?: { message?: string } } }
+        const metaMsg = data.details?.error?.message
+        alert(metaMsg ? `Erro Meta: ${metaMsg}` : (data.error ?? 'Erro ao enviar template'))
       }
     } catch {
       alert('Erro ao enviar template')
@@ -799,19 +802,20 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               )}
               <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={handleSend}
                 onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
-                templates={templates} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
+                templates={templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
                 unitId={currentUser.unit_id ?? ''}
+                mentionProfiles={profiles} currentUserId={currentUser.id}
                 onTemplatesReload={async () => {
                   try {
                     const metaRes  = await fetch('/api/whatsapp/meta-templates')
-                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; format?: string; text?: string }>; variable_order?: string[]; header_image_url?: string | null }> }
+                    const metaData = await metaRes.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; format?: string; text?: string }>; variable_order?: string[]; header_image_url?: string | null; folder_id?: string | null }> }
                     const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
                       .filter(t => t.status === 'APPROVED')
-                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, components: t.components }))
-                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).eq('category', 'custom').order('name')
+                      .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
+                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
                     setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
                   } catch {
-                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language').eq('ativo', true).order('name')
+                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,folder_id').eq('ativo', true).order('name')
                     setTemplates((data ?? []) as WaTemplate[])
                   }
                 }}

@@ -148,6 +148,7 @@ function LeadDrawer({
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
   const [waConversation, setWaConversation] = useState<WaConversation | null>(null)
   const [waMessages,     setWaMessages]     = useState<WaMessage[]>([])
+  const [waInternalNotes, setWaInternalNotes] = useState<{ id: string; content: string; author_id: string; created_at: string }[]>([])
   const [waLoaded,       setWaLoaded]       = useState(false)
   const [waInput,        setWaInput]        = useState('')
   const [waSending,      setWaSending]      = useState(false)
@@ -161,6 +162,7 @@ function LeadDrawer({
   const [waShowAgentPicker, setWaShowAgentPicker] = useState(false)
   const [waTemplates,    setWaTemplates]    = useState<WaTemplate[]>([])
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
+  const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
   const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
   const waMsgsEndRef = useRef<HTMLDivElement>(null)
@@ -183,19 +185,23 @@ function LeadDrawer({
         if (!conv) { setWaLoaded(true); return }
         setWaConversation(conv as WaConversation)
 
-        // Carrega mensagens (com mídia)
-        const { data: msgs } = await supabase
-          .from('wa_messages')
-          .select('id, wa_message_id, direction, type, content, media_url, media_mime_type, template_name, status, created_at, sent_by, reply_to_wa_message_id')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: true })
+        // Carrega mensagens e notas internas
+        const [{ data: msgs }, { data: intNotes }] = await Promise.all([
+          supabase.from('wa_messages')
+            .select('id, wa_message_id, direction, type, content, media_url, media_mime_type, template_name, status, created_at, sent_by, reply_to_wa_message_id')
+            .eq('conversation_id', conv.id).order('created_at', { ascending: true }),
+          supabase.from('wa_internal_notes').select('id, content, author_id, created_at')
+            .eq('conversation_id', conv.id).order('created_at', { ascending: true }),
+        ])
         if (msgs) setWaMessages(msgs as WaMessage[])
+        if (intNotes) setWaInternalNotes(intNotes)
 
         // Carrega templates, quick replies e tags para o ChatInput
-        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url').eq('ativo', true).order('name')
+        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,folder_id').eq('ativo', true).order('name')
           .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
         void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
           .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
+        void fetch('/api/whatsapp/template-folders').then(r => r.json()).then(data => { if (Array.isArray(data)) setWaFolders(data) })
         void supabase.from('wa_conversation_tags').select('tag:wa_tags(id,name,color)').eq('conversation_id', conv.id)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then(({ data }) => setWaConvTags((data ?? []).map((r: any) => r.tag).filter(Boolean)))
@@ -230,13 +236,22 @@ function LeadDrawer({
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    const notesChannel = supabase
+      .channel(`wa-notes-modal-${waConversation.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_internal_notes', filter: `conversation_id=eq.${waConversation.id}` },
+        (payload) => {
+          const n = payload.new as { id: string; content: string; author_id: string; created_at: string }
+          setWaInternalNotes(prev => prev.some(x => x.id === n.id) ? prev : [...prev, n])
+        })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel); supabase.removeChannel(notesChannel) }
   }, [waConversation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll para o fim ao receber novas mensagens
   useEffect(() => {
     waMsgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [waMessages.length])
+  }, [waMessages.length, waInternalNotes.length])
 
   async function handleWaSend() {
     if (!waInput.trim() || !waConversation || waSending) return
@@ -284,55 +299,51 @@ function LeadDrawer({
     } finally { setWaSending(false) }
   }
 
-  // Resolve variáveis {{N}} do template usando o nome do lead e do atendente
-  function resolveWaTemplateVars(t: WaTemplate, refDate: Date): { components: object[] | undefined; renderedText: string } {
-    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
-    const hasImage = !!t.header_image_url
-    if (varCount === 0 && !hasImage) return { components: undefined, renderedText: t.content }
-    if (varCount === 0 && hasImage) {
-      return { components: [{ type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }], renderedText: t.content }
-    }
-    const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
-    const agentName  = displayName(currentUser)
-    const resolveVar = (id: string): string => {
-      switch (id) {
-        case 'nome_cliente':   return clientName
-        case 'nome_atendente': return agentName
-        case 'data':           return format(refDate, 'dd/MM/yyyy')
-        case 'horario':        return format(refDate, 'HH:mm')
-        default:                return ''
-      }
-    }
-    const order = t.variable_order && t.variable_order.length === varCount
-      ? t.variable_order
-      : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
-    const values = order.map(resolveVar)
-    const bodyComp = { type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }
-    const comps = hasImage
-      ? [{ type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }, bodyComp]
-      : [bodyComp]
-    return {
-      components:   comps,
-      renderedText: t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`),
-    }
-  }
-
   async function handleWaTemplateSend(t: WaTemplate) {
     if (!waConversation) return
-    // Templates custom são texto livre: preenchem o input para edição antes do envio
     if (t.category === 'custom') { setWaInput(t.content); return }
 
-    const { components, renderedText } = resolveWaTemplateVars(t, new Date())
+    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
+    let components: object[] | undefined
+    let renderedText = t.content
+    if (varCount > 0) {
+      const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+      const agentName  = displayName(currentUser)
+      const now = new Date()
+      const resolveVar = (id: string): string => {
+        switch (id) {
+          case 'nome_cliente':   return clientName
+          case 'nome_atendente': return agentName
+          case 'data':           return format(now, 'dd/MM/yyyy')
+          case 'horario':        return format(now, 'HH:mm')
+          default:                return ''
+        }
+      }
+      const order = t.variable_order && t.variable_order.length === varCount
+        ? t.variable_order
+        : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+      const values = order.map(resolveVar)
+      components = [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }]
+      renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
+    }
+
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    if (hasImageHeader && t.header_image_url) {
+      const headerComp = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
+      components = components ? [headerComp, ...components] : [headerComp]
+    }
+
     setWaSending(true)
     try {
       const res = await fetch('/api/whatsapp/send', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText, header_image_url: t.header_image_url ?? undefined }),
+        body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, rendered_text: renderedText, header_image_url: (hasImageHeader && t.header_image_url) ? t.header_image_url : undefined }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string }
-        alert(data.error ?? 'Erro ao enviar template')
+        const data = await res.json().catch(() => ({})) as { error?: string; details?: { error?: { message?: string } } }
+        const metaMsg = data.details?.error?.message
+        alert(metaMsg ? `Erro Meta: ${metaMsg}` : (data.error ?? 'Erro ao enviar template'))
       }
     } catch {
       alert('Erro ao enviar template')
@@ -359,37 +370,69 @@ function LeadDrawer({
       })
       return
     }
-    // Variáveis de data/horário usam a data agendada, não a atual
-    const { components, renderedText } = resolveWaTemplateVars(t, new Date(scheduledFor))
+    const varCount = (t.content.match(/\{\{\d+\}\}/g) ?? []).length
+    let schedComponents: object[] | undefined
+    let schedRendered = t.content
+    if (varCount > 0) {
+      const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+      const agentName  = displayName(currentUser)
+      const refDate = new Date(scheduledFor)
+      const resolveVar = (id: string): string => {
+        switch (id) {
+          case 'nome_cliente':   return clientName
+          case 'nome_atendente': return agentName
+          case 'data':           return format(refDate, 'dd/MM/yyyy')
+          case 'horario':        return format(refDate, 'HH:mm')
+          default:                return ''
+        }
+      }
+      const order = t.variable_order && t.variable_order.length === varCount
+        ? t.variable_order
+        : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+      const values = order.map(resolveVar)
+      schedComponents = [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }]
+      schedRendered = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
+    }
+    const hasImgHdr = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    if (hasImgHdr && t.header_image_url) {
+      const hc = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
+      schedComponents = schedComponents ? [hc, ...schedComponents] : [hc]
+    }
     await fetch('/api/whatsapp/schedule', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components, content: renderedText, scheduled_for: scheduledFor }),
+      body:    JSON.stringify({ conversation_id: waConversation.id, type: 'template', template_name: t.template_name ?? t.name, language: t.language ?? 'pt_BR', components: schedComponents, content: schedRendered, scheduled_for: scheduledFor }),
     })
   }
 
   async function reloadWaTemplates() {
     try {
       const res  = await fetch('/api/whatsapp/meta-templates')
-      const data = await res.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string; format?: string }>; variable_order?: string[]; header_image_url?: string | null }> }
+      const data = await res.json() as { templates?: Array<{ name: string; status: string; language: string; components?: Array<{ type: string; text?: string; format?: string }>; variable_order?: string[]; header_image_url?: string | null; folder_id?: string | null }> }
       const meta: WaTemplate[] = (data.templates ?? [])
         .filter(t => t.status === 'APPROVED')
-        .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, components: t.components?.filter(c => c.type === 'HEADER').map(c => ({ type: c.type, format: c.format })) }))
-      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url').eq('ativo', true).eq('category', 'custom').order('name')
+        .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
+      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
       setWaTemplates([...meta, ...((custom ?? []) as WaTemplate[])])
     } catch {
-      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url').eq('ativo', true).order('name')
+      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,folder_id').eq('ativo', true).order('name')
       setWaTemplates((data ?? []) as WaTemplate[])
     }
   }
 
-  // Separadores de data para o chat
-  type WaRenderItem = WaMessage | { kind: 'date'; label: string; key: string }
+  // Separadores de data para o chat (mensagens + notas internas mescladas)
+  type WaRenderItem = WaMessage | { kind: 'date'; label: string; key: string } | { kind: 'internal_note'; id: string; content: string; author_id: string; created_at: string }
   const waRenderItems = useMemo<WaRenderItem[]>(() => {
+    const merged: (WaMessage | { kind: 'internal_note'; id: string; content: string; author_id: string; created_at: string })[] = [
+      ...waMessages,
+      ...waInternalNotes.map(n => ({ kind: 'internal_note' as const, ...n })),
+    ]
+    merged.sort((a, b) => a.created_at.localeCompare(b.created_at))
+
     const result: WaRenderItem[] = []
     let lastDate = ''
-    for (const msg of waMessages) {
-      const d = new Date(msg.created_at)
+    for (const item of merged) {
+      const d = new Date(item.created_at)
       const dateKey = format(d, 'yyyy-MM-dd')
       if (dateKey !== lastDate) {
         const label = isToday(d) ? 'Hoje'
@@ -400,10 +443,10 @@ function LeadDrawer({
         result.push({ kind: 'date', label, key: `date-${dateKey}` })
         lastDate = dateKey
       }
-      result.push(msg)
+      result.push(item)
     }
     return result
-  }, [waMessages])
+  }, [waMessages, waInternalNotes])
 
   const waMsgByWaId = useMemo(() => {
     const map = new Map<string, WaMessage>()
@@ -536,19 +579,56 @@ function LeadDrawer({
     setDeletingContactId(null)
   }
 
-  // ── Note CRUD ──────────────────────────────────────────────────────────────
+  // ── Note CRUD + @Mentions ───────────────────────────────────────────────────
   const [newNote,        setNewNote]        = useState('')
   const [addingNote,     setAddingNote]     = useState(false)
   const [editingNoteId,  setEditingNoteId]  = useState<string | null>(null)
   const [editNoteText,   setEditNoteText]   = useState('')
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null)
+  const [showMentionPicker, setShowMentionPicker] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+  const mentionBtnRef = useRef<HTMLButtonElement>(null)
+
+  const mentionableProfiles = profiles.filter(p => p.id !== currentUser.id && p.ativo !== false)
+  const filteredMentionProfiles = mentionFilter
+    ? mentionableProfiles.filter(p => displayName(p).toLowerCase().includes(mentionFilter.toLowerCase()) || p.full_name.toLowerCase().includes(mentionFilter.toLowerCase())).slice(0, 8)
+    : mentionableProfiles.slice(0, 8)
+
+  function insertMention(p: Profile) {
+    const name = displayName(p)
+    const textarea = noteRef.current
+    const cursorPos = textarea?.selectionStart ?? newNote.length
+    const before = newNote.slice(0, cursorPos)
+    const after = newNote.slice(cursorPos)
+    const needsSpace = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n')
+    const newText = before + (needsSpace ? ' ' : '') + '@' + name + ' ' + after
+    setNewNote(newText)
+    setShowMentionPicker(false)
+    setMentionFilter('')
+    requestAnimationFrame(() => {
+      const pos = cursorPos + (needsSpace ? 1 : 0) + name.length + 2
+      textarea?.focus()
+      textarea?.setSelectionRange(pos, pos)
+    })
+  }
+
+  function extractMentionIds(text: string): string[] {
+    const ids: string[] = []
+    for (const p of profiles) {
+      const name = displayName(p)
+      if (text.includes('@' + name)) ids.push(p.id)
+    }
+    return ids
+  }
 
   async function handleAddNote() {
     if (!newNote.trim()) return
     setAddingNote(true)
     try {
+      const mencoes = extractMentionIds(newNote)
       const { data } = await supabase.from('lead_notes')
-        .insert({ lead_id: lead.id, conteudo: newNote.trim(), autor_id: currentUser.id })
+        .insert({ lead_id: lead.id, conteudo: newNote.trim(), autor_id: currentUser.id, mencoes, unit_id: currentUser.unit_id })
         .select('*, autor:profiles(*)').single()
       if (data) { setNotes(prev => [data as LeadNote, ...prev]); setNewNote('') }
     } finally { setAddingNote(false) }
@@ -1208,25 +1288,71 @@ function LeadDrawer({
             {/* ═══ ANOTAÇÕES ═══ */}
             {tab === 'Anotações' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* New note input */}
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
-                  <textarea
-                    value={newNote}
-                    onChange={e => setNewNote(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAddNote() }}
-                    placeholder="Nova anotação… (Ctrl+Enter para salvar)"
-                    rows={2}
-                    style={{ flex: 1, border: '1px solid #EBE7DA', borderRadius: '13px', padding: '14px 16px', fontSize: '13.5px', color: '#25402C', resize: 'none', outline: 'none', fontFamily: 'inherit', minHeight: '54px' }}
-                  />
-                  <button
-                    onClick={handleAddNote}
-                    disabled={!newNote.trim() || addingNote}
-                    style={{ alignSelf: 'center', background: '#3E9849', color: '#fff', borderRadius: '11px', padding: '11px 24px', fontSize: '13.5px', fontWeight: 700, border: 'none', cursor: addingNote ? 'wait' : 'pointer', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', opacity: !newNote.trim() || addingNote ? 0.5 : 1, transition: 'background 0.15s', whiteSpace: 'nowrap' }}
-                    onMouseEnter={e => { if (newNote.trim() && !addingNote) e.currentTarget.style.background = '#35853F' }}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
-                  >
-                    {addingNote ? '...' : 'Salvar'}
-                  </button>
+                {/* New note input with mention button */}
+                <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <textarea
+                        ref={noteRef}
+                        value={newNote}
+                        onChange={e => setNewNote(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAddNote() }}
+                        placeholder="Nova anotação… (Ctrl+Enter para salvar)"
+                        rows={2}
+                        style={{ width: '100%', border: '1px solid #EBE7DA', borderRadius: '13px', padding: '14px 42px 14px 16px', fontSize: '13.5px', color: '#25402C', resize: 'none', outline: 'none', fontFamily: 'inherit', minHeight: '54px', boxSizing: 'border-box' }}
+                      />
+                      <button
+                        ref={mentionBtnRef}
+                        onClick={() => { setShowMentionPicker(v => !v); setMentionFilter('') }}
+                        title="Mencionar usuário"
+                        style={{ position: 'absolute', right: 10, top: 10, width: 28, height: 28, borderRadius: 8, border: showMentionPicker ? '1px solid #3E9849' : '1px solid #EBE7DA', background: showMentionPicker ? '#E8F4E6' : '#FBFAF4', color: showMentionPicker ? '#3E9849' : '#9AA79C', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, padding: 0 }}
+                      >
+                        @
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleAddNote}
+                      disabled={!newNote.trim() || addingNote}
+                      style={{ alignSelf: 'center', background: '#3E9849', color: '#fff', borderRadius: '11px', padding: '11px 24px', fontSize: '13.5px', fontWeight: 700, border: 'none', cursor: addingNote ? 'wait' : 'pointer', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', opacity: !newNote.trim() || addingNote ? 0.5 : 1, transition: 'background 0.15s', whiteSpace: 'nowrap' }}
+                      onMouseEnter={e => { if (newNote.trim() && !addingNote) e.currentTarget.style.background = '#35853F' }}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
+                    >
+                      {addingNote ? '...' : 'Salvar'}
+                    </button>
+                  </div>
+                  {showMentionPicker && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #EBE7DA', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 50, width: 280, overflow: 'hidden' }}>
+                      <div style={{ padding: '8px 10px', borderBottom: '1px solid #F3F4F6' }}>
+                        <input
+                          autoFocus
+                          value={mentionFilter}
+                          onChange={e => setMentionFilter(e.target.value)}
+                          placeholder="Buscar usuário..."
+                          style={{ width: '100%', border: '1px solid #EBE7DA', borderRadius: 8, padding: '6px 10px', fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {filteredMentionProfiles.length === 0 && (
+                          <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '12px 0' }}>Nenhum usuário encontrado</p>
+                        )}
+                        {filteredMentionProfiles.map(p => (
+                          <button key={p.id} onClick={() => insertMention(p)}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#3E9849', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                              {(p.full_name ?? '?')[0].toUpperCase()}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <span style={{ fontSize: 12.5, fontWeight: 600, color: '#25402C', display: 'block' }}>{displayName(p)}</span>
+                              {p.apelido && <span style={{ fontSize: 10, color: '#9AA79C' }}>{p.full_name}</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {notes.length === 0 && <p style={{ fontSize: '13px', color: '#9AA79C', textAlign: 'center', padding: '32px 0' }}>Nenhuma anotação ainda</p>}
@@ -1264,8 +1390,12 @@ function LeadDrawer({
                             <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#35543B' }}>{note.autor?.full_name ?? '—'}</span>
                             <span style={{ fontSize: '12px', color: '#9AA79C' }}>· {format(new Date(note.created_at), "d MMM 'às' HH:mm", { locale: ptBR })}{note.editado_em ? ' (editado)' : ''}</span>
                           </div>
-                          {/* Content */}
-                          <p style={{ fontSize: '13.5px', lineHeight: 1.65, color: '#35543B', margin: 0, whiteSpace: 'pre-wrap' }}>{note.conteudo}</p>
+                          {/* Content with @mention highlights */}
+                          <p style={{ fontSize: '13.5px', lineHeight: 1.65, color: '#35543B', margin: 0, whiteSpace: 'pre-wrap' }}>
+                            {note.conteudo.split(/(@\S+)/g).map((part, i) =>
+                              part.startsWith('@') ? <span key={i} style={{ color: '#1E86C0', fontWeight: 600 }}>{part}</span> : part
+                            )}
+                          </p>
                           {/* Actions */}
                           {isOwn && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'flex', gap: '6px', marginTop: '12px', justifyContent: 'flex-end' }}>
@@ -1629,6 +1759,18 @@ function LeadDrawer({
                           </div>
                         )
                       }
+                      if ('kind' in item && item.kind === 'internal_note') {
+                        const authorName = profiles.find(p => p.id === item.author_id)?.full_name ?? 'Agente'
+                        return (
+                          <div key={`note-${item.id}`} style={{ display: 'flex', justifyContent: 'center', margin: '4px 16px' }}>
+                            <div style={{ background: '#FBF3D9', border: '1px dashed #E4D194', borderRadius: 12, padding: '8px 14px', maxWidth: '80%' }}>
+                              <p style={{ margin: '0 0 2px', fontSize: '10px', fontWeight: 700, color: '#B8981E' }}>{authorName}</p>
+                              <p style={{ margin: 0, fontSize: '11.5px', color: '#8A733A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.content}</p>
+                              <p style={{ margin: '2px 0 0', fontSize: '9.5px', color: '#C4A93D', textAlign: 'right' }}>{format(new Date(item.created_at), 'HH:mm')}</p>
+                            </div>
+                          </div>
+                        )
+                      }
                       const msg = item as WaMessage
                       if (msg.type === 'reaction') return null
                       const isOut = msg.direction === 'outbound'
@@ -1767,6 +1909,7 @@ function LeadDrawer({
                     onScheduleSend={handleWaScheduleSend}
                     onScheduleTemplate={handleWaScheduleTemplate}
                     templates={waTemplates}
+                    folders={waFolders}
                     quickReplies={waQuickReplies}
                     sending={waSending}
                     mode={waInputMode}
@@ -1780,6 +1923,9 @@ function LeadDrawer({
                     onToggleSignature={() => { if (isAtendente) return; setWaSignature(p => { const v = !p; localStorage.setItem('wa_signature', v ? '1' : '0'); return v }); }}
                     signerName={displayName(currentUser)}
                     contactName={[lead.nome, lead.sobrenome].filter(Boolean).join(' ')}
+                    mentionProfiles={profiles}
+                    currentUserId={currentUser.id}
+                    autoFocus
                   />
                 </div>
               )
@@ -1823,6 +1969,10 @@ function LeadDrawer({
             </div>
           </div>
         </div>
+      )}
+      {/* Click-away handler for mention picker */}
+      {showMentionPicker && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMentionPicker(false)} />
       )}
     </>
   )

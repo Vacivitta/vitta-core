@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
   }
 
+  console.log(`[WA send] payload para Meta:`, JSON.stringify(metaPayload))
+
   let metaData: MetaResponse = {}
   let metaOk = false
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -153,16 +155,13 @@ function buildMetaPayload(
 ) {
   if (type === 'template') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payload: any = {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'template',
-      template: {
-        name:     templateName,
-        language: { code: language ?? 'pt_BR' },
-        components: components ?? [],
-      },
+    const tpl: any = {
+      name:     templateName,
+      language: { code: language ?? 'pt_BR' },
     }
+    if (components && components.length > 0) tpl.components = components
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = { messaging_product: 'whatsapp', to, type: 'template', template: tpl }
     if (contextMessageId) payload.context = { message_id: contextMessageId }
     return payload
   }

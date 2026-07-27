@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import type { Profile } from '@/types/database'
+import type { Profile, SalesGoal } from '@/types/database'
 import { displayName } from '@/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null }
-interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null }
+interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null; motivo_perda: string | null }
+interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null }
 interface StageRow    { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
 interface TaskRow     { id: string; concluida_em: string | null; data_vencimento: string | null; responsavel_id: string | null }
 interface ConvRow     { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: string | null; status: string; assigned_to: string | null; queue_id: string | null; resolved_at: string | null }
@@ -30,14 +30,16 @@ interface Props {
   queues:        QueueRow[]
   agentStats:    AgentStatRow[]
   todayISO:      string
+  salesGoals:    SalesGoal[]
 }
 
 type Period = '7d' | '30d' | '90d' | 'all'
-const PERIOD_LABELS: Record<Period, string> = { '7d': '7 dias', '30d': '30 dias', '90d': '90 dias', all: 'Tudo' }
+const PERIOD_LABELS: Record<Period, string> = { '7d': '7d', '30d': '30d', '90d': '90d', all: 'Tudo' }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+const fmtBRL2 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const USD_BRL = 5.90
 
 function cutoff(period: Period): Date | null {
@@ -58,611 +60,698 @@ function initials(name: string | null): string {
 }
 
 function avatarColor(id: string): string {
-  const colors = ['#3E9849', '#3E9849', '#F39313', '#8B5CF6', '#EC4899', '#14B8A6']
+  const colors = ['#3E9849', '#1E86C0', '#F39313', '#8B5CF6', '#EC4899', '#14B8A6']
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
   return colors[Math.abs(hash) % colors.length]
 }
 
-// ─── Subcomponents ───────────────────────────────────────────────────────────
+// ─── Compact subcomponents ───────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, valueColor, subColor, icon, chipColor }: {
-  label: string; value: string | number; sub?: string
-  valueColor?: string; subColor?: string
-  icon: React.ReactNode; chipColor: string
-}) {
+const card = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 10, padding: '12px 14px' } as const
+const sectionGap = 20
+
+function Section({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: '18px', padding: '18px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.05em', color: '#9AA79C', margin: 0 }}>{label.toUpperCase()}</p>
-        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: chipColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {icon}
-        </div>
+    <div style={{ marginTop: sectionGap }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, borderBottom: '1px solid #e0ddd2', paddingBottom: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</span>
+        {right}
       </div>
-      <p style={{ fontSize: '27px', fontWeight: 900, margin: '4px 0', letterSpacing: '-0.02em', color: valueColor ?? '#25402C' }}>{value}</p>
-      {sub && <p style={{ fontSize: '11.5px', fontWeight: 700, color: subColor ?? '#9AA79C', margin: 0 }}>{sub}</p>}
+      {children}
     </div>
   )
 }
 
-function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0
+function Stat({ label, value, color, sub, tooltip }: { label: string; value: string | number; color?: string; sub?: string; tooltip?: string }) {
   return (
-    <div className="flex-1 rounded-full overflow-hidden" style={{ background: 'var(--color-track)', height: '10px' }}>
-      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+    <div style={card} title={tooltip}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{label}</p>
+      <p style={{ fontSize: 20, fontWeight: 800, margin: '2px 0 0', color: color ?? '#222', lineHeight: 1.1 }}>{value}</p>
+      {sub && <p style={{ fontSize: 10, color: '#999', margin: '2px 0 0', fontWeight: 600 }}>{sub}</p>}
     </div>
   )
 }
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
-
-const IcoContacts = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E86C0" strokeWidth="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M21 20a5 5 0 0 0-4-4.9"/></svg>
-const IcoQuote = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 14 2 2 4-4"/></svg>
-const IcoMoney = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M2 10h2M20 10h2"/></svg>
-const IcoTrend = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C87F1B" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-const IcoClock = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-const IcoAlert = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-const IcoTask = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
-const IcoLost = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-const IcoMsg = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-const IcoConv = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-const IcoWait = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F39313" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-const IcoCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3E9849" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-const IcoWa = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M12 9v3l2 1"/></svg>
+function Bar({ value, max, color, h }: { value: number; max: number; color: string; h?: number }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
+  return (
+    <div className="flex-1 rounded-full overflow-hidden" style={{ background: '#f0ede4', height: h ?? 7 }}>
+      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color, transition: 'width .2s' }} />
+    </div>
+  )
+}
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO }: Props) {
+export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals }: Props) {
   const [period, setPeriod] = useState<Period>('30d')
   const cut = useMemo(() => cutoff(period), [period])
+
+  const [salesGoals, setSalesGoals] = useState<SalesGoal[]>(initialGoals)
+  const [showMetaModal, setShowMetaModal] = useState(false)
+  const [metaMonth, setMetaMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [metaTarget, setMetaTarget] = useState('')
+  const [metaSaving, setMetaSaving] = useState(false)
+
+  async function saveMeta() {
+    if (!metaTarget || metaSaving) return
+    setMetaSaving(true)
+    try {
+      const res = await fetch('/api/sales-goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: metaMonth, target: parseFloat(metaTarget) }),
+      })
+      if (res.ok) {
+        const saved = await res.json()
+        setSalesGoals(prev => {
+          const filtered = prev.filter(g => g.month !== saved.month)
+          return [saved, ...filtered].sort((a, b) => b.month.localeCompare(a.month))
+        })
+        setShowMetaModal(false)
+        setMetaTarget('')
+      }
+    } finally {
+      setMetaSaving(false)
+    }
+  }
 
   const filteredQuotes = useMemo(() => quotes.filter(q => inPeriod(q.criado_em, cut)), [quotes, cut])
   const filteredLeads  = useMemo(() => leads.filter(l => inPeriod(l.created_at, cut)), [leads, cut])
 
-  // ── KPIs comerciais ─────────────────────────────────────────────────────
+  // ── KPIs comerciais
   const kpis = useMemo(() => {
     const aceitos   = filteredQuotes.filter(q => q.status === 'aceito')
     const recusados = filteredQuotes.filter(q => q.status === 'recusado')
-    const enviados  = filteredQuotes.filter(q => ['enviado', 'visualizado', 'aceito', 'recusado'].includes(q.status))
-    const totalAceito   = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
-    const totalRecusado = recusados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const enviados  = filteredQuotes.filter(q => ['enviado', 'visualizado', 'aceito', 'recusado', 'em_negociacao'].includes(q.status))
+    const andamento = filteredQuotes.filter(q => ['enviado', 'visualizado', 'em_negociacao'].includes(q.status))
+    const totalAceito    = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const totalRecusado  = recusados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const totalAndamento = andamento.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
     const ticketMed = aceitos.length > 0 ? totalAceito / aceitos.length : 0
     const taxaConv  = enviados.length > 0 ? Math.round((aceitos.length / enviados.length) * 100) : 0
 
-    return {
-      leadsAtivos: leads.length, novosLeads: filteredLeads.length,
-      aceitos: aceitos.length, totalAceito, totalRecusado,
-      ticketMedio: ticketMed, taxaConv, enviados: enviados.length,
+    const cycles: number[] = []
+    for (const q of aceitos) {
+      if (q.aceito_em && q.criado_em) {
+        const diff = (new Date(q.aceito_em).getTime() - new Date(q.criado_em).getTime()) / (1000 * 60 * 60 * 24)
+        if (diff > 0) cycles.push(diff)
+      }
     }
+    const cicloMedio = cycles.length > 0 ? Math.round(cycles.reduce((s, c) => s + c, 0) / cycles.length) : null
+
+    const motivosMap: Record<string, number> = {}
+    for (const q of recusados) {
+      const m = q.motivo_recusa?.trim()
+      if (m) motivosMap[m] = (motivosMap[m] ?? 0) + 1
+    }
+    const principalMotivo = Object.entries(motivosMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+    return { leadsAtivos: leads.length, novosLeads: filteredLeads.length, aceitos: aceitos.length, totalAceito, totalRecusado, totalAndamento, ticketMedio: ticketMed, taxaConv, enviados: enviados.length, cicloMedio, principalMotivo }
   }, [filteredQuotes, filteredLeads, leads])
 
-  // ── KPIs de atendimento ─────────────────────────────────────────────────
+  // ── Motivos recusa
+  const motivosRecusa = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const q of filteredQuotes) { if (q.status !== 'recusado') continue; const m = q.motivo_recusa?.trim() || 'Não informado'; map[m] = (map[m] ?? 0) + 1 }
+    return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
+  }, [filteredQuotes])
+
+  // ── Motivos perda leads
+  const motivosPerda = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const l of filteredLeads) { const m = l.motivo_perda?.trim(); if (m) map[m] = (map[m] ?? 0) + 1 }
+    return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
+  }, [filteredLeads])
+
+  // ── Conversão por atendente
+  const convPorAtendente = useMemo(() => {
+    const map: Record<string, { ganhos: number; andamento: number; perdas: number; aceitos: number; total: number }> = {}
+    for (const q of filteredQuotes) {
+      if (!q.responsavel_id || !['enviado', 'visualizado', 'aceito', 'recusado', 'em_negociacao'].includes(q.status)) continue
+      if (!map[q.responsavel_id]) map[q.responsavel_id] = { ganhos: 0, andamento: 0, perdas: 0, aceitos: 0, total: 0 }
+      const e = map[q.responsavel_id]; e.total++; const v = q.total_calculado ?? 0
+      if (q.status === 'aceito') { e.ganhos += v; e.aceitos++ } else if (q.status === 'recusado') { e.perdas += v } else { e.andamento += v }
+    }
+    return Object.entries(map).map(([id, d]) => {
+      const p = profiles.find(pr => pr.id === id)
+      return { id, nome: p ? displayName(p) : 'Desconhecido', ...d, taxa: d.total > 0 ? Math.round((d.aceitos / d.total) * 100) : 0 }
+    }).sort((a, b) => b.ganhos - a.ganhos)
+  }, [filteredQuotes, profiles])
+
+  // ── Msgs por atendente
+  const msgsPorAtendente = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const m of messages) { if (m.direction !== 'outbound' || !m.sent_by) continue; if (cut && new Date(m.created_at) < cut) continue; counts[m.sent_by] = (counts[m.sent_by] ?? 0) + 1 }
+    return Object.entries(counts).map(([id, count]) => { const p = profiles.find(pr => pr.id === id); return { name: p ? displayName(p) : '?', count } }).sort((a, b) => b.count - a.count).slice(0, 8)
+  }, [messages, profiles, cut])
+
+  // ── Ganho vs Meta
+  const ganhoVsMeta = useMemo(() => {
+    const months: { month: string; label: string; ganho: number; meta: number }[] = []
+    const now = new Date()
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const ms = d.toISOString().slice(0, 7)
+      const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+      const ganho = quotes.filter(q => q.status === 'aceito' && q.aceito_em?.startsWith(ms)).reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+      const goal = salesGoals.find(g => g.month.startsWith(ms))
+      months.push({ month: ms, label, ganho, meta: goal?.target ?? 0 })
+    }
+    return months
+  }, [quotes, salesGoals])
+
+  // ── Atendimento KPIs
   const atenKpis = useMemo(() => {
-    const open          = conversations.filter(c => c.status !== 'resolved')
-    const waiting       = open.filter(c => !c.assigned_to)
-    const resolvedToday = conversations.filter(c => c.status === 'resolved' && c.resolved_at?.startsWith(todayISO))
-    return { open: open.length, waiting: waiting.length, resolvedToday: resolvedToday.length }
+    const open = conversations.filter(c => c.status !== 'resolved')
+    return { open: open.length, waiting: open.filter(c => !c.assigned_to).length, resolvedToday: conversations.filter(c => c.status === 'resolved' && c.resolved_at?.startsWith(todayISO)).length }
   }, [conversations, todayISO])
 
-  // ── Mensagens enviadas por atendentes (no período) ──────────────────────
-  const totalMsgsSent = useMemo(() => {
-    let count = 0
-    for (const m of messages) {
-      if (m.direction !== 'outbound' || !m.sent_by) continue
-      if (cut && new Date(m.created_at) < cut) continue
-      count++
-    }
-    return count
-  }, [messages, cut])
-
-  // ── WhatsApp billing ────────────────────────────────────────────────────
-  const waBilling = useMemo(() => {
-    const marketing       = billing.filter(b => b.category === 'marketing')
-    const utilityBilled   = billing.filter(b => b.category === 'utility' && b.billable)
-    const utilityFree     = billing.filter(b => b.category === 'utility' && !b.billable)
-    const authentication  = billing.filter(b => b.category === 'authentication' && b.billable)
-    const service         = billing.filter(b => b.category === 'service')
-    const totalUsd = billing.reduce((s, b) => s + (b.cost_usd ?? 0), 0)
-
-    return {
-      totalBrl:            totalUsd * USD_BRL,
-      marketingCount:      marketing.length,
-      marketingBrl:        marketing.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
-      utilityBilledCount:  utilityBilled.length,
-      utilityBilledBrl:    utilityBilled.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
-      utilityFreeCount:    utilityFree.length,
-      authCount:           authentication.length,
-      authBrl:             authentication.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
-      serviceCount:        service.length,
-      totalMsgs:           billing.length,
-    }
-  }, [billing])
-
-  // ── Queue stats ─────────────────────────────────────────────────────────
-  const queueStats = useMemo(() => {
-    return queues.map(q => {
-      const convs = conversations.filter(c => c.queue_id === q.id && c.status !== 'resolved')
-      return { queue: q, open: convs.length, waiting: convs.filter(c => !c.assigned_to).length }
-    })
-  }, [conversations, queues])
-
-  // ── Agent stats ─────────────────────────────────────────────────────────
-  const agentRows = useMemo(() => {
-    return profiles
-      .filter(p => p.perfil === 'atendente')
-      .map(p => {
-        const stats = agentStats.find(s => s.agent_id === p.id)
-        return {
-          profile:  p,
-          open:     stats?.open_count ?? 0,
-          resolved: stats?.resolved_today ?? 0,
-          avgMin:   stats?.avg_response_minutes ?? null,
-        }
-      })
-      .sort((a, b) => b.open - a.open)
-  }, [profiles, agentStats])
-
-  // ── Tempo médio de resposta WhatsApp ─────────────────────────────────────
+  // ── Tempo médio resposta
   const avgResponseMin = useMemo(() => {
-    const msgsByConv: Record<string, MsgRow[]> = {}
-    for (const m of messages) {
-      if (!msgsByConv[m.conversation_id]) msgsByConv[m.conversation_id] = []
-      msgsByConv[m.conversation_id].push(m)
-    }
-    const responseTimes: number[] = []
-    for (const convMsgs of Object.values(msgsByConv)) {
-      const sorted = [...convMsgs].sort((a, b) => a.created_at.localeCompare(b.created_at))
+    const byConv: Record<string, MsgRow[]> = {}
+    for (const m of messages) { (byConv[m.conversation_id] ??= []).push(m) }
+    const times: number[] = []
+    for (const msgs of Object.values(byConv)) {
+      const sorted = [...msgs].sort((a, b) => a.created_at.localeCompare(b.created_at))
       for (let i = 0; i < sorted.length - 1; i++) {
         if (sorted[i].direction === 'inbound' && sorted[i + 1].direction === 'outbound') {
           const diff = new Date(sorted[i + 1].created_at).getTime() - new Date(sorted[i].created_at).getTime()
-          if (diff > 0 && diff < 24 * 60 * 60 * 1000) {
-            if (!cut || new Date(sorted[i].created_at) >= cut) {
-              responseTimes.push(diff / 60000)
-            }
-          }
+          if (diff > 0 && diff < 86400000 && (!cut || new Date(sorted[i].created_at) >= cut)) times.push(diff / 60000)
         }
       }
     }
-    if (responseTimes.length === 0) return null
-    return Math.round(responseTimes.reduce((s, t) => s + t, 0) / responseTimes.length)
+    return times.length > 0 ? Math.round(times.reduce((s, t) => s + t, 0) / times.length) : null
   }, [messages, cut])
 
-  // ── Conversas aguardando resposta (inbound sem resposta nas últimas 48h) ─
-  const unansweredCount = useMemo(() => {
-    const now = Date.now()
-    const h48 = 48 * 60 * 60 * 1000
-    return conversations.filter(c =>
-      c.last_message_direction === 'inbound' &&
-      c.last_message_at &&
-      (now - new Date(c.last_message_at).getTime()) < h48
-    ).length
-  }, [conversations])
+  // ── WA billing
+  const waBilling = useMemo(() => {
+    const mk = billing.filter(b => b.category === 'marketing')
+    const ub = billing.filter(b => b.category === 'utility' && b.billable)
+    const uf = billing.filter(b => b.category === 'utility' && !b.billable)
+    const au = billing.filter(b => b.category === 'authentication' && b.billable)
+    const sv = billing.filter(b => b.category === 'service')
+    const totalUsd = billing.reduce((s, b) => s + (b.cost_usd ?? 0), 0)
+    return {
+      totalBrl: totalUsd * USD_BRL, marketingCount: mk.length, marketingBrl: mk.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL,
+      utilityBilledCount: ub.length, utilityBilledBrl: ub.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL, utilityFreeCount: uf.length,
+      authCount: au.length, authBrl: au.reduce((s, b) => s + (b.cost_usd ?? 0), 0) * USD_BRL, serviceCount: sv.length, totalMsgs: billing.length,
+    }
+  }, [billing])
 
-  // ── Tarefas pendentes e vencidas ─────────────────────────────────────────
+  // ── Queue stats
+  const queueStats = useMemo(() => queues.map(q => {
+    const c = conversations.filter(c => c.queue_id === q.id && c.status !== 'resolved')
+    return { queue: q, open: c.length, waiting: c.filter(c => !c.assigned_to).length }
+  }), [conversations, queues])
+
+  // ── Agent rows
+  const agentRows = useMemo(() => profiles.filter(p => p.perfil === 'atendente').map(p => {
+    const s = agentStats.find(a => a.agent_id === p.id)
+    return { profile: p, open: s?.open_count ?? 0, resolved: s?.resolved_today ?? 0, avgMin: s?.avg_response_minutes ?? null }
+  }).sort((a, b) => b.open - a.open), [profiles, agentStats])
+
+  // ── Tasks
   const taskStats = useMemo(() => {
     const now = new Date().toISOString().slice(0, 10)
     const pending = tasks.filter(t => !t.concluida_em)
-    const overdue = pending.filter(t => t.data_vencimento && t.data_vencimento < now)
-    return { pending: pending.length, overdue: overdue.length }
+    return { pending: pending.length, overdue: pending.filter(t => t.data_vencimento && t.data_vencimento < now).length }
   }, [tasks])
 
-  // ── Ranking de atendentes ────────────────────────────────────────────────
-  const agentRanking = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const m of messages) {
-      if (m.direction !== 'outbound' || !m.sent_by) continue
-      if (cut && new Date(m.created_at) < cut) continue
-      counts[m.sent_by] = (counts[m.sent_by] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([id, count]) => {
-        const p = profiles.find(pr => pr.id === id)
-        return { name: p ? displayName(p) : 'Desconhecido', count }
-      })
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5)
-  }, [messages, profiles, cut])
-
-  // ── Leads por origem ─────────────────────────────────────────────────────
+  // ── Leads por origem
   const leadsByOrigem = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const l of filteredLeads) {
-      const key = l.origem?.trim() || 'Não informada'
-      counts[key] = (counts[key] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([label, count]) => ({ label, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8)
+    const c: Record<string, number> = {}
+    for (const l of filteredLeads) { const k = l.origem?.trim() || 'Não informada'; c[k] = (c[k] ?? 0) + 1 }
+    return Object.entries(c).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
   }, [filteredLeads])
 
-  // ── Funil de orçamentos ──────────────────────────────────────────────────
+  // ── Quote funnel
   const quoteFunnel = useMemo(() => {
-    const all = filteredQuotes
+    const a = filteredQuotes
     return [
-      { label: 'Criados',      count: all.length,                                                                color: '#9AA79C' },
-      { label: 'Enviados',     count: all.filter(q => ['enviado','visualizado','aceito','recusado'].includes(q.status)).length, color: '#1E86C0' },
-      { label: 'Visualizados', count: all.filter(q => ['visualizado','aceito','recusado'].includes(q.status)).length,           color: '#64AEDC' },
-      { label: 'Aceitos',      count: all.filter(q => q.status === 'aceito').length,                              color: '#3E9849' },
-      { label: 'Recusados',    count: all.filter(q => q.status === 'recusado').length,                            color: '#C05B3A' },
+      { label: 'Criados', count: a.length, color: '#9AA79C' },
+      { label: 'Enviados', count: a.filter(q => ['enviado','visualizado','aceito','recusado','em_negociacao'].includes(q.status)).length, color: '#1E86C0' },
+      { label: 'Visualizados', count: a.filter(q => ['visualizado','aceito','recusado'].includes(q.status)).length, color: '#64AEDC' },
+      { label: 'Aceitos', count: a.filter(q => q.status === 'aceito').length, color: '#3E9849' },
+      { label: 'Recusados', count: a.filter(q => q.status === 'recusado').length, color: '#C05B3A' },
     ]
   }, [filteredQuotes])
 
-  // ── Leads por funil/stage ────────────────────────────────────────────────
+  // ── Funnel data
   const funnelData = useMemo(() => {
-    const byFunnel: Record<string, { nome: string; stages: { id: string; nome: string; cor: string; count: number }[] }> = {}
-    for (const stage of stages) {
-      const fId   = stage.funnel_id
-      const fNome = stage.funnel?.nome ?? 'Funil'
-      if (!byFunnel[fId]) byFunnel[fId] = { nome: fNome, stages: [] }
-      const count = leads.filter(l => l.stage_id === stage.id).length
-      byFunnel[fId].stages.push({ id: stage.id, nome: stage.nome, cor: stage.cor, count })
+    const byF: Record<string, { nome: string; stages: { id: string; nome: string; cor: string; count: number }[] }> = {}
+    for (const s of stages) {
+      const fId = s.funnel_id; if (!byF[fId]) byF[fId] = { nome: s.funnel?.nome ?? 'Funil', stages: [] }
+      byF[fId].stages.push({ id: s.id, nome: s.nome, cor: s.cor, count: leads.filter(l => l.stage_id === s.id).length })
     }
-    return Object.values(byFunnel)
+    return Object.values(byF)
   }, [stages, leads])
 
-  // ── Distribuição de status ───────────────────────────────────────────────
+  // ── Status dist
   const statusDist = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const q of filteredQuotes) map[q.status] = (map[q.status] ?? 0) + 1
-    const total = filteredQuotes.length
+    const m: Record<string, number> = {}
+    for (const q of filteredQuotes) m[q.status] = (m[q.status] ?? 0) + 1
+    const t = filteredQuotes.length
     return [
-      { label: 'Rascunho',     key: 'rascunho',     color: '#B9B4A2', count: map['rascunho']     ?? 0 },
-      { label: 'Enviado',      key: 'enviado',      color: '#1E86C0', count: map['enviado']      ?? 0 },
-      { label: 'Visualizado',  key: 'visualizado',  color: '#64AEDC', count: map['visualizado']  ?? 0 },
-      { label: 'Aceito',       key: 'aceito',       color: '#3E9849', count: map['aceito']       ?? 0 },
-      { label: 'Recusado',     key: 'recusado',     color: '#C05B3A', count: map['recusado']     ?? 0 },
-    ].filter(s => s.count > 0).map(s => ({ ...s, pct: total > 0 ? Math.round(s.count / total * 100) : 0 }))
+      { label: 'Rascunho', key: 'rascunho', color: '#B9B4A2', count: m['rascunho'] ?? 0 },
+      { label: 'Enviado', key: 'enviado', color: '#1E86C0', count: m['enviado'] ?? 0 },
+      { label: 'Visualizado', key: 'visualizado', color: '#64AEDC', count: m['visualizado'] ?? 0 },
+      { label: 'Aceito', key: 'aceito', color: '#3E9849', count: m['aceito'] ?? 0 },
+      { label: 'Recusado', key: 'recusado', color: '#C05B3A', count: m['recusado'] ?? 0 },
+      { label: 'Negociação', key: 'em_negociacao', color: '#F39313', count: m['em_negociacao'] ?? 0 },
+      { label: 'Expirado', key: 'expirado', color: '#6B7280', count: m['expirado'] ?? 0 },
+    ].filter(s => s.count > 0).map(s => ({ ...s, pct: t > 0 ? Math.round(s.count / t * 100) : 0 }))
   }, [filteredQuotes])
 
-  const fmtTime = (min: number | null) => {
-    if (min === null) return '—'
-    if (min < 60) return `${min}min`
-    const h = Math.floor(min / 60)
-    const m = min % 60
-    return m > 0 ? `${h}h ${m}min` : `${h}h`
-  }
+  const fmtTime = (min: number | null) => { if (min === null) return '—'; if (min < 60) return `${min}min`; const h = Math.floor(min / 60); const m = min % 60; return m > 0 ? `${h}h${m}m` : `${h}h` }
+  const barMax = Math.max(...ganhoVsMeta.map(m => Math.max(m.ganho, m.meta)), 1)
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-
       {/* Header */}
-      <header className="bg-white shrink-0 flex items-center justify-between" style={{ padding: '16px 26px', borderBottom: '1px solid #E9E5D8' }}>
+      <header className="bg-white shrink-0 flex items-center justify-between" style={{ padding: '10px 20px', borderBottom: '1px solid #e0ddd2' }}>
         <div>
-          <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#25402C' }}>
-            Olá, {currentUser.full_name?.split(' ')[0] ?? 'bem-vindo'}
-          </h1>
-          <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: 2 }}>
-            Visão geral do funil comercial
-          </p>
+          <h1 style={{ fontSize: 15, fontWeight: 800, color: '#25402C', margin: 0 }}>Dashboard</h1>
+          <p style={{ fontSize: 10, fontWeight: 600, color: '#999', margin: 0 }}>Visão geral · {currentUser.full_name?.split(' ')[0]}</p>
         </div>
-        <div className="flex items-center gap-1" style={{ background: '#F1EFE5', borderRadius: '999px', padding: '3px' }}>
+        <div className="flex items-center gap-0.5" style={{ background: '#f0ede4', borderRadius: 6, padding: 2 }}>
           {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="transition-colors"
-              style={{
-                fontSize: '12px', fontWeight: period === p ? 800 : 700, padding: '6px 14px', borderRadius: '999px',
-                background: period === p ? '#25402C' : 'transparent',
-                color: period === p ? '#fff' : '#71856F',
-                border: 'none', cursor: 'pointer',
-              }}
-            >
-              {PERIOD_LABELS[p]}
-            </button>
+            <button key={p} onClick={() => setPeriod(p)} style={{
+              fontSize: 10, fontWeight: period === p ? 700 : 600, padding: '4px 10px', borderRadius: 5,
+              background: period === p ? '#25402C' : 'transparent', color: period === p ? '#fff' : '#888', border: 'none', cursor: 'pointer',
+            }}>{PERIOD_LABELS[p]}</button>
           ))}
         </div>
       </header>
 
-      <main className="flex-1 overflow-auto p-6 space-y-6" style={{ background: '#F6F4EC' }}>
+      <main className="flex-1 overflow-auto" style={{ background: '#f7f5ef', padding: '12px 16px 24px' }}>
 
-        {/* ── KPIs — linha 1: Comercial ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Contatos ativos" value={kpis.leadsAtivos} sub={`+${kpis.novosLeads} no período`} subColor="#35853F" chipColor="#DCEFFA" icon={<IcoContacts />} />
-          <KpiCard label="Orçamentos aceitos" value={kpis.aceitos} sub={`de ${kpis.enviados} enviados`} chipColor="#E8F4E6" icon={<IcoQuote />} />
-          <KpiCard label="Receita gerada" value={kpis.totalAceito > 0 ? fmtBRL.format(kpis.totalAceito) : '—'} sub={kpis.aceitos > 0 ? `ticket médio ${fmtBRL.format(kpis.ticketMedio)}` : undefined} valueColor="#35853F" chipColor="#E8F4E6" icon={<IcoMoney />} />
-          <KpiCard label="Taxa de conversão" value={`${kpis.taxaConv}%`} sub="aceitos / enviados" valueColor={kpis.taxaConv >= 50 ? '#35853F' : kpis.taxaConv >= 25 ? '#C87F1B' : '#C05B3A'} chipColor="#FCF3E4" icon={<IcoTrend />} />
-        </div>
+        {/* ── COMERCIAL ── */}
+        <Section title="Comercial">
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div style={{ ...card, background: '#f0faf1' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Ganhos</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#2d7a36', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalAceito > 0 ? fmtBRL.format(kpis.totalAceito) : 'R$ 0'}</p>
+              <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>{kpis.aceitos} aceito{kpis.aceitos !== 1 ? 's' : ''}</p>
+            </div>
+            <div style={{ ...card, background: '#fef2f0' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Perdas</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#C05B3A', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalRecusado > 0 ? fmtBRL.format(kpis.totalRecusado) : 'R$ 0'}</p>
+              <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>recusados</p>
+            </div>
+            <div style={{ ...card, background: '#fef8ed' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Andamento</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#b5720e', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalAndamento > 0 ? fmtBRL.format(kpis.totalAndamento) : 'R$ 0'}</p>
+              <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>em negociação</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label="Ticket médio" value={kpis.ticketMedio > 0 ? fmtBRL.format(kpis.ticketMedio) : '—'} />
+            <Stat label="Taxa conversão" value={`${kpis.taxaConv}%`} color={kpis.taxaConv >= 50 ? '#2d7a36' : kpis.taxaConv >= 25 ? '#b5720e' : '#C05B3A'} sub={`${kpis.aceitos}/${kpis.enviados}`} />
+            <Stat label="Motivo perda" value={kpis.principalMotivo ?? '—'} />
+            <Stat label="Ciclo médio" value={kpis.cicloMedio !== null ? `${kpis.cicloMedio}d` : '—'} sub="criação → aceite" />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+            <Stat label="Contatos ativos" value={kpis.leadsAtivos} sub={`+${kpis.novosLeads} período`} />
+            <Stat label="Aceitos" value={kpis.aceitos} sub={`de ${kpis.enviados} enviados`} />
+            <Stat label="Tarefas" value={taskStats.pending} sub={taskStats.overdue > 0 ? `${taskStats.overdue} vencida${taskStats.overdue > 1 ? 's' : ''}` : 'em dia'} color={taskStats.overdue > 0 ? '#C05B3A' : undefined} />
+            <Stat label="Receita total" value={kpis.totalAceito > 0 ? fmtBRL.format(kpis.totalAceito) : '—'} color="#2d7a36" />
+          </div>
+        </Section>
 
-        {/* ── KPIs — linha 2: Atendimento ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard label="Conversas abertas" value={atenKpis.open} chipColor="#E8F4E6" icon={<IcoConv />} />
-          <KpiCard label="Sem agente" value={atenKpis.waiting} valueColor={atenKpis.waiting > 0 ? '#F39313' : '#9AA79C'} chipColor="#FEF3C7" icon={<IcoWait />} />
-          <KpiCard label="Resolvidas hoje" value={atenKpis.resolvedToday} chipColor="#E8F4E6" icon={<IcoCheck />} />
-          <KpiCard label="Mensagens enviadas" value={totalMsgsSent} sub="por atendentes no período" chipColor="#DCEFFA" icon={<IcoMsg />} />
-          <KpiCard label="Tempo médio de resposta" value={fmtTime(avgResponseMin)} sub="1ª resposta WhatsApp" valueColor={avgResponseMin !== null && avgResponseMin <= 15 ? '#35853F' : avgResponseMin !== null && avgResponseMin <= 60 ? '#C87F1B' : '#C05B3A'} chipColor="#EDE9FE" icon={<IcoClock />} />
-        </div>
-
-        {/* ── KPIs — linha 3: Operacional ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Aguardando resposta" value={unansweredCount} sub="últimas 48h sem resposta" valueColor={unansweredCount > 5 ? '#DC2626' : unansweredCount > 0 ? '#C87F1B' : '#35853F'} chipColor="#FEE2E2" icon={<IcoAlert />} />
-          <KpiCard label="Tarefas pendentes" value={taskStats.pending} sub={taskStats.overdue > 0 ? `${taskStats.overdue} vencida${taskStats.overdue > 1 ? 's' : ''}` : 'nenhuma vencida'} subColor={taskStats.overdue > 0 ? '#DC2626' : '#9AA79C'} chipColor="#FEF3C7" icon={<IcoTask />} />
-          <KpiCard label="Receita recusada" value={kpis.totalRecusado > 0 ? fmtBRL.format(kpis.totalRecusado) : '—'} sub="oportunidades perdidas" valueColor={kpis.totalRecusado > 0 ? '#DC2626' : '#9AA79C'} chipColor="#FEE2E2" icon={<IcoLost />} />
-
-          {/* WhatsApp billing */}
-          <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: '18px', padding: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <p style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '0.05em', color: '#9AA79C', margin: 0 }}>WHATSAPP — CUSTO DO MÊS</p>
-              <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#DCEFFA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <IcoWa />
+        {/* ── METAS ── */}
+        <Section title="Metas" right={
+          <button onClick={() => setShowMetaModal(true)} style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 5, border: '1px solid #ddd', background: '#fff', color: '#555', cursor: 'pointer' }}>+ Meta</button>
+        }>
+          {showMetaModal && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }} onClick={() => setShowMetaModal(false)}>
+              <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: 320 }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#333', marginBottom: 14 }}>Definir Meta</h3>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#888', marginBottom: 4 }}>Mês</label>
+                <select value={metaMonth} onChange={e => setMetaMonth(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 11, marginBottom: 12, background: '#fff' }}>
+                  {Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() + i - 2); const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; return <option key={v} value={v}>{d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</option> })}
+                </select>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#888', marginBottom: 4 }}>Valor (R$)</label>
+                <input type="number" min="0" step="100" value={metaTarget} onChange={e => setMetaTarget(e.target.value)} placeholder="50000" style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 11, marginBottom: 14 }} />
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowMetaModal(false)} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', fontSize: 11, fontWeight: 600, color: '#888', cursor: 'pointer' }}>Cancelar</button>
+                  <button onClick={saveMeta} disabled={metaSaving || !metaTarget} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: '#25402C', fontSize: 11, fontWeight: 600, color: '#fff', cursor: 'pointer', opacity: metaSaving || !metaTarget ? 0.5 : 1 }}>{metaSaving ? 'Salvando...' : 'Salvar'}</button>
+                </div>
               </div>
             </div>
-            <p style={{ fontSize: '27px', fontWeight: 900, margin: '4px 0 10px', letterSpacing: '-0.02em', color: '#25402C' }}>
-              {waBilling.totalBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {waBilling.marketingCount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C05B3A' }} />
-                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Marketing</span>
-                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.marketingCount}</span>
-                  </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#C05B3A' }}>{waBilling.marketingBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+          )}
+          <div style={card}>
+            {ganhoVsMeta.every(m => m.ganho === 0 && m.meta === 0) ? (
+              <p style={{ fontSize: 11, color: '#999', textAlign: 'center', padding: '16px 0' }}>Sem dados de metas ou ganhos</p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 140, padding: '0 4px' }}>
+                  {ganhoVsMeta.map(m => {
+                    const gH = barMax > 0 ? (m.ganho / barMax) * 120 : 0
+                    const mH = barMax > 0 ? (m.meta / barMax) * 120 : 0
+                    return (
+                      <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 120 }}>
+                          <div title={`Ganho: ${fmtBRL2.format(m.ganho)}`} style={{ width: 16, height: Math.max(gH, 2), background: '#3E9849', borderRadius: '3px 3px 0 0' }} />
+                          <div title={`Meta: ${fmtBRL2.format(m.meta)}`} style={{ width: 16, height: Math.max(mH, 2), background: m.meta > 0 ? '#D1D5DB' : 'transparent', borderRadius: '3px 3px 0 0', border: m.meta > 0 ? '1px dashed #aaa' : 'none' }} />
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#888', textTransform: 'capitalize' }}>{m.label}</span>
+                      </div>
+                    )
+                  })}
                 </div>
-              )}
-              {waBilling.utilityBilledCount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#F39313' }} />
-                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Utility cobrado</span>
-                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.utilityBilledCount}</span>
-                  </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F39313' }}>{waBilling.utilityBilledBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 8 }}>
+                  <span style={{ fontSize: 9, color: '#888', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3E9849', display: 'inline-block' }} />Ganho</span>
+                  <span style={{ fontSize: 9, color: '#888', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#D1D5DB', border: '1px dashed #aaa', display: 'inline-block' }} />Meta</span>
                 </div>
-              )}
-              {waBilling.utilityFreeCount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3E9849' }} />
-                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Utility gratuito</span>
-                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.utilityFreeCount}</span>
-                  </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#3E9849' }}>R$ 0,00</span>
+              </>
+            )}
+          </div>
+        </Section>
+
+        {/* ── MOTIVOS DE PERDA ── */}
+        <Section title="Motivos de Perda">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Orçamentos recusados</p>
+              {motivosRecusa.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {motivosRecusa.map(o => (
+                    <div key={o.label} className="flex items-center gap-2">
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.label}>{o.label}</span>
+                      <Bar value={o.count} max={motivosRecusa[0].count} color="#C05B3A" />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 20, textAlign: 'right', flexShrink: 0 }}>{o.count}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-              {waBilling.authCount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#8B5CF6' }} />
-                    <span style={{ fontSize: 10.5, color: '#25402C' }}>Authentication</span>
-                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.authCount}</span>
-                  </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#8B5CF6' }}>{waBilling.authBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                </div>
-              )}
-              {waBilling.serviceCount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#9AA79C' }} />
-                    <span style={{ fontSize: 10.5, color: '#9AA79C' }}>Service</span>
-                    <span style={{ fontSize: 9.5, color: '#9AA79C' }}>{waBilling.serviceCount}</span>
-                  </div>
-                  <span style={{ fontSize: 10.5, color: '#9AA79C' }}>gratuito</span>
-                </div>
-              )}
-              {waBilling.totalMsgs === 0 && (
-                <p style={{ fontSize: 10.5, color: '#9AA79C', margin: 0 }}>Nenhuma mensagem registrada este mês</p>
               )}
             </div>
-            <p style={{ fontSize: 9.5, color: '#9AA79C', margin: '6px 0 0' }}>Câmbio: R$ {USD_BRL.toFixed(2)}/USD · {waBilling.totalMsgs} msgs</p>
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Leads perdidos</p>
+              {motivosPerda.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {motivosPerda.map(o => (
+                    <div key={o.label} className="flex items-center gap-2">
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.label}>{o.label}</span>
+                      <Bar value={o.count} max={motivosPerda[0].count} color="#DC2626" />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 20, textAlign: 'right', flexShrink: 0 }}>{o.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </Section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* ── Funil de orçamentos ── */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Funil de Orçamentos</h2>
-            {filteredQuotes.length === 0 ? (
-              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhum orçamento no período</p>
+        {/* ── CONVERSÃO POR ATENDENTE ── */}
+        <Section title="Conversão por Atendente">
+          <div style={{ ...card, overflowX: 'auto', padding: convPorAtendente.length > 0 ? '0' : '12px 14px' }}>
+            {convPorAtendente.length === 0 ? (
+              <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados no período</p>
             ) : (
-              <div className="space-y-3">
-                {quoteFunnel.map((step, i) => {
-                  const max = quoteFunnel[0].count
-                  const prev = i > 0 ? quoteFunnel[i - 1].count : null
-                  const convRate = prev && prev > 0 ? Math.round(step.count / prev * 100) : null
-                  return (
-                    <div key={step.label}>
-                      <div className="flex items-center justify-between mb-1">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e5e5e5' }}>
+                    <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Atendente</th>
+                    <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Ganhos</th>
+                    <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Andamento</th>
+                    <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Perdas</th>
+                    <th style={{ textAlign: 'right', padding: '7px 10px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Taxa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {convPorAtendente.map(a => (
+                    <tr key={a.id} style={{ borderBottom: '1px solid #f3f1ea' }}>
+                      <td style={{ padding: '6px 10px', fontWeight: 600, color: '#333' }}>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-[#35543B]">{step.label}</span>
-                          {convRate !== null && <span className="text-[10px] text-[#9AA79C]">↓ {convRate}%</span>}
+                          <div style={{ width: 22, height: 22, borderRadius: '50%', background: avatarColor(a.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>{initials(a.nome)}</div>
+                          <span style={{ fontSize: 11 }}>{a.nome}</span>
                         </div>
-                        <span className="text-xs font-bold" style={{ color: step.color }}>{step.count}</span>
-                      </div>
-                      <div className="rounded-full overflow-hidden" style={{ background: 'var(--color-track)', height: '10px' }}>
-                        <div className="h-full rounded-full transition-all" style={{ width: max > 0 ? `${Math.round(step.count / max * 100)}%` : '0%', backgroundColor: step.color }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                      </td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#2d7a36', fontSize: 11 }}>{fmtBRL.format(a.ganhos)}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#b5720e', fontSize: 11 }}>{fmtBRL.format(a.andamento)}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#C05B3A', fontSize: 11 }}>{fmtBRL.format(a.perdas)}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        <span style={{ padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10, background: a.taxa >= 50 ? '#e6f4e6' : a.taxa >= 25 ? '#fef3e2' : '#fee2e2', color: a.taxa >= 50 ? '#2d7a36' : a.taxa >= 25 ? '#b5720e' : '#C05B3A' }}>{a.taxa}%</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
+        </Section>
 
-          {/* ── Distribuição de status — donut ── */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Distribuição de Status</h2>
-            {statusDist.length === 0 ? (
-              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhum orçamento no período</p>
-            ) : (() => {
-              const total = filteredQuotes.length
-              let acc = 0
-              const stops = statusDist.map(s => { const from = acc; acc += s.pct; return `${s.color} ${from}% ${acc}%` })
-              const conicGrad = `conic-gradient(${stops.join(', ')})`
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '22px' }}>
-                  <div style={{ position: 'relative', width: '140px', height: '140px', flexShrink: 0, borderRadius: '50%', background: conicGrad }}>
-                    <div style={{ position: 'absolute', inset: '26px', background: '#fff', borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '24px', fontWeight: 800, lineHeight: 1 }}>{total}</span>
-                      <span style={{ fontSize: '11px', color: '#9AA79C' }}>total</span>
+        {/* ── ATENDIMENTO ── */}
+        <Section title="Atendimento">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <Stat label="Abertas" value={atenKpis.open} />
+            <Stat label="Sem agente" value={atenKpis.waiting} color={atenKpis.waiting > 0 ? '#F39313' : '#999'} tooltip="Filas sem auto-assign ou aguardando 1º contato" />
+            <Stat label="Resolvidas hoje" value={atenKpis.resolvedToday} />
+            <Stat label="Tempo resposta" value={fmtTime(avgResponseMin)} color={avgResponseMin !== null && avgResponseMin <= 15 ? '#2d7a36' : avgResponseMin !== null && avgResponseMin <= 60 ? '#b5720e' : '#C05B3A'} sub="1ª resposta WA" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Msgs por atendente */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Mensagens por atendente</p>
+              {msgsPorAtendente.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {msgsPorAtendente.map((a, i) => (
+                    <div key={a.name} className="flex items-center gap-2">
+                      <span style={{ fontSize: 10, fontWeight: 700, color: i === 0 ? '#2d7a36' : '#999', width: 14, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 80, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                      <Bar value={a.count} max={msgsPorAtendente[0].count} color={i === 0 ? '#3E9849' : '#bbb'} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 24, textAlign: 'right', flexShrink: 0 }}>{a.count}</span>
                     </div>
-                  </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '11px' }}>
-                    {statusDist.map(s => (
-                      <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px' }}>
-                        <div style={{ width: '9px', height: '9px', borderRadius: '3px', background: s.color, flexShrink: 0 }} />
-                        <span style={{ flex: 1, fontWeight: 600 }}>{s.label}</span>
-                        <span style={{ fontWeight: 700 }}>{s.count}</span>
-                        <span style={{ color: '#9AA79C', width: '36px', textAlign: 'right' }}>{s.pct}%</span>
-                      </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
-              )
-            })()}
-          </div>
-        </div>
+              )}
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* ── Conversas por fila ── */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Conversas por Fila</h2>
-            {queueStats.length === 0 ? (
-              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhuma fila configurada</p>
-            ) : (
-              <div className="space-y-3">
-                {queueStats.sort((a, b) => b.open - a.open).map(({ queue, open, waiting }) => (
-                  <div key={queue.id} className="flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: queue.cor }} />
-                    <span className="text-xs font-medium text-[#25402C] flex-1 truncate">{queue.nome}</span>
-                    <span className="text-xs text-[#9AA79C]">{open} abertas</span>
-                    {waiting > 0 && (
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#FEF3E2', color: '#C17A0A' }}>{waiting} sem agente</span>
-                    )}
-                    <div style={{ width: 60, height: 6, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', background: queue.cor, borderRadius: 99, width: `${Math.min(100, open / Math.max(1, Math.max(...queueStats.map(q => q.open))) * 100)}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Carga por agente ── */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Carga por Agente</h2>
-            {agentRows.length === 0 ? (
-              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhum atendente cadastrado</p>
-            ) : (
-              <div className="space-y-3">
-                {agentRows.map(({ profile: p, open, resolved, avgMin }) => (
-                  <div key={p.id} className="flex items-center gap-3">
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(p.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
-                      {initials(p.full_name)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="flex items-center justify-between" style={{ marginBottom: 2 }}>
-                        <span className="text-xs font-semibold text-[#25402C] truncate">{displayName(p)}</span>
-                        <div className="flex gap-2 shrink-0 ml-2">
-                          <span style={{ fontSize: 10.5, color: '#3E9849', fontWeight: 700 }}>{open} aberta{open !== 1 ? 's' : ''}</span>
-                          <span style={{ fontSize: 10.5, color: '#3E9849' }}>{resolved} hoje</span>
-                          {avgMin !== null && <span style={{ fontSize: 10.5, color: '#9AA79C' }} title="Tempo médio de resposta">{Math.round(avgMin)}min</span>}
+            {/* Carga por agente */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Carga por agente</p>
+              {agentRows.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem atendentes</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {agentRows.map(({ profile: p, open, resolved, avgMin }) => (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: avatarColor(p.id), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>{initials(p.full_name)}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="flex items-center justify-between" style={{ marginBottom: 1 }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(p)}</span>
+                          <div className="flex gap-1.5 shrink-0 ml-1">
+                            <span style={{ fontSize: 9, color: '#2d7a36', fontWeight: 700 }}>{open}</span>
+                            <span style={{ fontSize: 9, color: '#999' }}>{resolved}r</span>
+                            {avgMin !== null && <span style={{ fontSize: 9, color: '#bbb' }}>{Math.round(avgMin)}m</span>}
+                          </div>
+                        </div>
+                        <div style={{ height: 4, background: '#f0ede4', borderRadius: 99, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', background: open >= 8 ? '#C05B3A' : open >= 5 ? '#F39313' : '#3E9849', borderRadius: 99, width: `${Math.min(100, open / 10 * 100)}%` }} />
                         </div>
                       </div>
-                      <div style={{ height: 5, background: '#F0F3F6', borderRadius: 99, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', background: open >= 8 ? '#C05B3A' : open >= 5 ? '#F39313' : '#3E9849', borderRadius: 99, width: `${Math.min(100, open / 10 * 100)}%`, transition: 'width .3s' }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+            {/* Conversas por fila */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Conversas por fila</p>
+              {queueStats.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem filas</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {queueStats.sort((a, b) => b.open - a.open).map(({ queue, open, waiting }) => (
+                    <div key={queue.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', borderBottom: '1px solid #f5f3ed' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: queue.cor, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#444', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{queue.nome}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#444', minWidth: 20, textAlign: 'right' }}>{open}</span>
+                      <span style={{ fontSize: 9, color: '#999', flexShrink: 0 }}>abertas</span>
+                      {waiting > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: '#FEF3C7', color: '#D97706', flexShrink: 0 }}>{waiting} sem agente</span>
+                      )}
+                      <div style={{ width: 50, height: 5, background: '#f0ede4', borderRadius: 99, overflow: 'hidden', flexShrink: 0 }}>
+                        <div style={{ height: '100%', background: queue.cor, borderRadius: 99, width: `${Math.min(100, open / Math.max(1, Math.max(...queueStats.map(q => q.open))) * 100)}%` }} />
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Leads por origem */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Leads por origem</p>
+              {leadsByOrigem.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {leadsByOrigem.map(o => (
+                    <div key={o.label} className="flex items-center gap-2">
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 90, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</span>
+                      <Bar value={o.count} max={leadsByOrigem[0].count} color="#1E86C0" />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 20, textAlign: 'right', flexShrink: 0 }}>{o.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </Section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* ── Ranking de atendentes ── */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Ranking de Atendentes</h2>
-            {agentRanking.length === 0 ? (
-              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhuma mensagem enviada no período</p>
-            ) : (
-              <div className="space-y-3">
-                {agentRanking.map((agent, i) => {
-                  const max = agentRanking[0].count
-                  return (
-                    <div key={agent.name} className="flex items-center gap-3">
-                      <div style={{
-                        width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                        background: i === 0 ? '#E8F4E6' : '#F1EFE5',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 800,
-                        color: i === 0 ? '#3E9849' : '#9AA79C',
-                      }}>
-                        {i + 1}
+        {/* ── OPERACIONAL ── */}
+        <Section title="Operacional">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Funil orçamentos */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Funil de orçamentos</p>
+              {filteredQuotes.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {quoteFunnel.map((step, i) => {
+                    const max = quoteFunnel[0].count
+                    const prev = i > 0 ? quoteFunnel[i - 1].count : null
+                    const rate = prev && prev > 0 ? Math.round(step.count / prev * 100) : null
+                    return (
+                      <div key={step.label}>
+                        <div className="flex items-center justify-between" style={{ marginBottom: 2 }}>
+                          <div className="flex items-center gap-1.5">
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>{step.label}</span>
+                            {rate !== null && <span style={{ fontSize: 8, color: '#bbb' }}>↓{rate}%</span>}
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: step.color }}>{step.count}</span>
+                        </div>
+                        <Bar value={step.count} max={max} color={step.color} h={6} />
                       </div>
-                      <span className="text-xs font-semibold text-[#35543B] flex-shrink-0 w-24 truncate">{agent.name}</span>
-                      <MiniBar value={agent.count} max={max} color={i === 0 ? '#3E9849' : '#9AA79C'} />
-                      <span className="text-xs font-bold text-[#25402C] w-8 text-right shrink-0">{agent.count}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
-          {/* ── Leads por origem ── */}
-          <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Leads por Origem</h2>
-            {leadsByOrigem.length === 0 ? (
-              <p className="text-sm text-[#9AA79C] text-center py-8">Nenhum lead no período</p>
-            ) : (
-              <div className="space-y-3">
-                {leadsByOrigem.map(o => {
-                  const max = leadsByOrigem[0].count
-                  return (
-                    <div key={o.label} className="flex items-center gap-3">
-                      <span className="text-xs font-semibold text-[#35543B] flex-shrink-0 w-28 truncate">{o.label}</span>
-                      <MiniBar value={o.count} max={max} color="#1E86C0" />
-                      <span className="text-xs font-bold text-[#25402C] w-8 text-right shrink-0">{o.count}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Contatos por funil ── */}
-        <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-          <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Contatos por Funil</h2>
-          {funnelData.length === 0 ? (
-            <p className="text-sm text-[#9AA79C] text-center py-8">Nenhum funil configurado</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {funnelData.map(f => {
-                const total = f.stages.reduce((s, x) => s + x.count, 0)
-                const max   = Math.max(...f.stages.map(s => s.count), 1)
+            {/* Distribuição status */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Status orçamentos</p>
+              {statusDist.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (() => {
+                const total = filteredQuotes.length
+                let acc = 0
+                const stops = statusDist.map(s => { const from = acc; acc += s.pct; return `${s.color} ${from}% ${acc}%` })
                 return (
-                  <div key={f.nome}>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-semibold text-[#35543B]">{f.nome}</p>
-                      <span className="text-xs font-bold text-[#71856F]">{total} contatos</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ position: 'relative', width: 100, height: 100, flexShrink: 0, borderRadius: '50%', background: `conic-gradient(${stops.join(', ')})` }}>
+                      <div style={{ position: 'absolute', inset: 20, background: '#fff', borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>{total}</span>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      {f.stages.map(stage => (
-                        <div key={stage.id} className="flex items-center gap-2.5">
-                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stage.cor || '#9ca3af' }} />
-                          <span className="text-xs text-[#71856F] truncate flex-1 min-w-0">{stage.nome}</span>
-                          <MiniBar value={stage.count} max={max} color={stage.cor || '#9ca3af'} />
-                          <span className="text-xs font-semibold text-[#25402C] w-5 text-right shrink-0">{stage.count}</span>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {statusDist.map(s => (
+                        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontWeight: 600, color: '#555' }}>{s.label}</span>
+                          <span style={{ fontWeight: 700, color: '#444' }}>{s.count}</span>
+                          <span style={{ color: '#bbb', width: 26, textAlign: 'right' }}>{s.pct}%</span>
                         </div>
                       ))}
-                      {f.stages.every(s => s.count === 0) && (
-                        <p className="text-xs text-[#9AA79C] text-center py-2">Nenhum contato neste funil</p>
-                      )}
                     </div>
                   </div>
                 )
-              })}
+              })()}
             </div>
-          )}
-        </div>
+          </div>
+
+          {/* WA billing */}
+          <div style={{ ...card, marginTop: 12 }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: 0, textTransform: 'uppercase' }}>WhatsApp — custo do mês</p>
+              <span style={{ fontSize: 18, fontWeight: 800, color: '#333' }}>{waBilling.totalBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+            </div>
+            {waBilling.totalMsgs === 0 ? (
+              <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 8 }}>Nenhuma mensagem este mês</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e5e5e5' }}>
+                    <th style={{ textAlign: 'left', padding: '4px 0', fontWeight: 700, color: '#aaa', fontSize: 9, textTransform: 'uppercase' }}>Categoria</th>
+                    <th style={{ textAlign: 'right', padding: '4px 0', fontWeight: 700, color: '#aaa', fontSize: 9, textTransform: 'uppercase', width: 50 }}>Qtd</th>
+                    <th style={{ textAlign: 'right', padding: '4px 0', fontWeight: 700, color: '#aaa', fontSize: 9, textTransform: 'uppercase', width: 80 }}>Custo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {waBilling.marketingCount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #f5f3ed' }}>
+                      <td style={{ padding: '5px 0', display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C05B3A' }} /><span style={{ fontWeight: 600, color: '#444' }}>Marketing</span></td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', color: '#666' }}>{waBilling.marketingCount}</td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 700, color: '#C05B3A' }}>{waBilling.marketingBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    </tr>
+                  )}
+                  {waBilling.utilityBilledCount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #f5f3ed' }}>
+                      <td style={{ padding: '5px 0', display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#F39313' }} /><span style={{ fontWeight: 600, color: '#444' }}>Utility</span></td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', color: '#666' }}>{waBilling.utilityBilledCount}</td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 700, color: '#F39313' }}>{waBilling.utilityBilledBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    </tr>
+                  )}
+                  {waBilling.utilityFreeCount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #f5f3ed' }}>
+                      <td style={{ padding: '5px 0', display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3E9849' }} /><span style={{ fontWeight: 600, color: '#444' }}>Utility gratuito</span></td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', color: '#666' }}>{waBilling.utilityFreeCount}</td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 600, color: '#3E9849' }}>R$ 0,00</td>
+                    </tr>
+                  )}
+                  {waBilling.authCount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #f5f3ed' }}>
+                      <td style={{ padding: '5px 0', display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#8B5CF6' }} /><span style={{ fontWeight: 600, color: '#444' }}>Authentication</span></td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', color: '#666' }}>{waBilling.authCount}</td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 700, color: '#8B5CF6' }}>{waBilling.authBrl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    </tr>
+                  )}
+                  {waBilling.serviceCount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #f5f3ed' }}>
+                      <td style={{ padding: '5px 0', display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#9AA79C' }} /><span style={{ fontWeight: 600, color: '#444' }}>Service</span></td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', color: '#666' }}>{waBilling.serviceCount}</td>
+                      <td style={{ padding: '5px 0', textAlign: 'right', color: '#999' }}>gratuito</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+            <p style={{ fontSize: 9, color: '#bbb', margin: '6px 0 0', textAlign: 'right' }}>Câmbio: R$ {USD_BRL.toFixed(2)}/USD · {waBilling.totalMsgs} mensagens</p>
+          </div>
+
+          {/* Contatos por funil */}
+          <div style={{ ...card, marginTop: 12 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Contatos por funil</p>
+            {funnelData.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem funis</p> : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {funnelData.map(f => {
+                  const total = f.stages.reduce((s, x) => s + x.count, 0)
+                  const max = Math.max(...f.stages.map(s => s.count), 1)
+                  return (
+                    <div key={f.nome}>
+                      <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#555' }}>{f.nome}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#999' }}>{total}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {f.stages.map(s => (
+                          <div key={s.id} className="flex items-center gap-1.5">
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
+                            <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
+                            <Bar value={s.count} max={max} color={s.cor || '#bbb'} h={5} />
+                            <span style={{ fontSize: 9, fontWeight: 700, color: '#555', width: 16, textAlign: 'right', flexShrink: 0 }}>{s.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </Section>
 
       </main>
     </div>

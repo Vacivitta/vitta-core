@@ -69,6 +69,27 @@ export interface InternalMessage {
   created_at: string
 }
 
+export interface InternalChannel {
+  id:         string
+  unit_a_id:  string
+  unit_b_id:  string
+  ativo:      boolean
+  criado_em:  string
+  unit_a?:    Unit
+  unit_b?:    Unit
+}
+
+export interface InternalChannelMessage {
+  id:          string
+  channel_id:  string
+  autor_id:    string
+  conteudo:    string | null
+  created_at:  string
+  media_url?:  string | null
+  media_type?: string | null
+  autor?:      Profile
+}
+
 // ---- Funis -----------------------------------------------------------------
 
 export interface Funnel {
@@ -172,6 +193,7 @@ export interface LeadNote {
   unit_id:     string | null
   created_at:  string
   editado_em:  string | null
+  mencoes?:    string[]
   autor?:      Profile
 }
 
@@ -337,6 +359,17 @@ export interface QuoteItem {
   valor_final:         number
   observacao:          string | null
   criado_em:           string
+}
+
+// ---- Metas de vendas -------------------------------------------------------
+
+export interface SalesGoal {
+  id:         string
+  unit_id:    string
+  user_id:    string | null
+  month:      string
+  target:     number
+  created_at: string
 }
 
 // ---- Templates de orçamento ------------------------------------------------

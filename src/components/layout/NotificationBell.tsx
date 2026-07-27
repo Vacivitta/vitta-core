@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/context/ProfileContext'
 import type { Notification } from '@/types/database'
@@ -24,6 +25,7 @@ interface Toast {
 export default function NotificationBell({ collapsed = false }: { collapsed?: boolean }) {
   const { profile } = useProfile()
   const supabase    = createClient()
+  const router      = useRouter()
 
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open,          setOpen]          = useState(false)
@@ -101,7 +103,7 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
   return (
     <>
       {/* ── Sino ──────────────────────────────────────────────────────────── */}
-      <div ref={dropdownRef} className="relative">
+      <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
         <button
           onClick={() => {
             if (!open && dropdownRef.current) {
@@ -113,20 +115,20 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
           title={collapsed ? 'Notificações' : undefined}
           style={{
             width: '100%', display: 'flex', alignItems: 'center',
-            gap: collapsed ? 0 : 12,
-            padding: collapsed ? '11px 0' : '11px 13px',
+            gap: collapsed ? 0 : 11,
+            padding: collapsed ? '9px 0' : '9px 12px',
             justifyContent: collapsed ? 'center' : 'flex-start',
             borderRadius: '12px', border: 'none', cursor: 'pointer',
-            fontSize: '14px', fontWeight: 600, textAlign: 'left',
+            fontSize: '13.5px', fontWeight: 700, textAlign: 'left',
             whiteSpace: 'nowrap' as const, overflow: 'hidden',
             transition: 'background 0.15s, color 0.15s, gap 0.2s cubic-bezier(0.16,1,0.3,1), padding 0.2s cubic-bezier(0.16,1,0.3,1)',
             background: open ? '#E8F4E6' : 'transparent',
-            color:      open ? '#3E9849'  : '#35543B',
+            color:      open ? '#3E9849'  : '#71856F',
           }}
           className={!open ? 'nav-item-idle' : ''}
         >
           <div style={{ position: 'relative', flexShrink: 0, display: 'flex' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
@@ -144,11 +146,10 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
             )}
           </div>
           <span style={{
-            flex: 1,
             opacity: collapsed ? 0 : 1,
             width: collapsed ? 0 : 'auto',
             overflow: 'hidden',
-            transition: 'opacity 0.15s cubic-bezier(0.16,1,0.3,1)',
+            transition: `opacity 0.15s cubic-bezier(0.16,1,0.3,1)`,
           }}>Notificações</span>
         </button>
 
@@ -179,18 +180,20 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
               {notifications.map(n => (
                 <button
                   key={n.id}
-                  onClick={() => markRead(n.id)}
+                  onClick={() => { markRead(n.id); if (n.lead_id) { setOpen(false); router.push(`/funil?lead=${n.lead_id}${n.type === 'mention_note' ? '&tab=Anotações' : ''}`) } }}
                   className="w-full text-left flex items-start gap-3 px-4 py-3 transition-colors"
                   style={{ background: !n.lida ? 'var(--color-brand-subtle)' : undefined }}
                 >
                   <div
                     className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm"
-                    style={{ background: n.type === 'quote_aceito' ? 'var(--color-success-subtle)' : n.type === 'quote_recusado' ? 'var(--color-danger-subtle)' : 'var(--color-track)' }}
+                    style={{ background: n.type === 'quote_aceito' ? 'var(--color-success-subtle)' : n.type === 'quote_recusado' ? 'var(--color-danger-subtle)' : n.type === 'mention_note' ? '#DBEAFE' : 'var(--color-track)' }}
                   >
                     {n.type === 'quote_aceito' ? (
                       <svg width="14" height="14" fill="none" stroke="var(--color-success)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                     ) : n.type === 'quote_recusado' ? (
                       <svg width="14" height="14" fill="none" stroke="var(--color-danger)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                    ) : n.type === 'mention_note' ? (
+                      <svg width="14" height="14" fill="none" stroke="#2563EB" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-4 4 4 4 0 001.5-.3M21 12a9 9 0 11-3-6.7" /></svg>
                     ) : (
                       <svg width="14" height="14" fill="none" stroke="var(--color-muted)" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                     )}
