@@ -34,8 +34,9 @@ export type PatientOption = {
 export type LeadOption = PatientOption
 
 export type QuoteRow = Quote & {
-  lead:     PatientOption | null
-  template: QuoteTemplate | null
+  lead:         PatientOption | null
+  template:     QuoteTemplate | null
+  responsavel?: { full_name: string } | null
 }
 
 // ─── Local types ─────────────────────────────────────────────────────────────
@@ -141,7 +142,13 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
   const [status,       setStatus]       = useState<QuoteStatus>(editing?.status ?? 'rascunho')
   const [motivoRecusa, setMotivoRecusa] = useState(editing?.motivo_recusa ?? '')
   const [observacoes,  setObservacoes]  = useState(editing?.observacoes ?? '')
-  const [validadeAte,  setValidadeAte]  = useState(editing?.validade_ate ?? '')
+  const [validadeAte,  setValidadeAte]  = useState(() => {
+    if (editing?.validade_ate) return editing.validade_ate
+    const dias = templates.find(t => t.id === editing?.template_id)?.validade_dias ?? 7
+    const d = new Date()
+    d.setDate(d.getDate() + dias)
+    return d.toISOString().slice(0, 10)
+  })
 
   const [pacienteNome,          setPacienteNome]          = useState(editing?.paciente_nome ?? '')
   const [usarNomePersonalizado, setUsarNomePersonalizado] = useState(!!(editing?.paciente_nome?.trim()))
@@ -289,7 +296,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
       paciente_nome:   usarNomePersonalizado && pacienteNome.trim() ? pacienteNome.trim() : null,
     }
 
-    const SELECT = '*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*)'
+    const SELECT = '*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*), responsavel:profiles!responsavel_id(full_name)'
 
     let quoteId: string
     let quoteData: QuoteRow
@@ -806,7 +813,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
               {/* Validade */}
               <div>
                 <label className="block text-xs font-medium text-[#71856F] mb-1">
-                  Válido até <span className="text-[#9AA79C]">(opcional)</span>
+                  Válido até <span className="text-[#9AA79C]">(padrão: 7 dias)</span>
                 </label>
                 <input
                   type="date"
@@ -1121,7 +1128,9 @@ export default function OrcamentosClient({
                 <th className="text-left uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Paciente</th>
                 <th className="text-center uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Status</th>
                 <th className="text-right uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Total</th>
+                <th className="text-left uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Responsável</th>
                 <th className="text-left uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Data</th>
+                <th className="text-left uppercase tracking-wide px-4 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Vencimento</th>
                 <th className="text-right uppercase tracking-wide px-6 py-3" style={{ fontSize: '10.5px', fontWeight: 800, color: '#9AA79C' }}>Ações</th>
               </tr>
             </thead>
@@ -1157,7 +1166,26 @@ export default function OrcamentosClient({
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#71856F' }}>
+                      {q.responsavel?.full_name?.split(' ')[0] ?? <span style={{ color: '#9AA79C' }}>—</span>}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
                     <span style={{ fontSize: '12px', color: '#9AA79C' }}>{fmtDate(q.criado_em)}</span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {q.validade_ate ? (() => {
+                      const hoje = new Date(); hoje.setHours(0,0,0,0)
+                      const venc = new Date(q.validade_ate + 'T00:00:00'); venc.setHours(0,0,0,0)
+                      const diff = Math.ceil((venc.getTime() - hoje.getTime()) / 86400000)
+                      const vencido = diff < 0
+                      const proximo = diff >= 0 && diff <= 1
+                      return (
+                        <span style={{ fontSize: '12px', fontWeight: vencido || proximo ? 700 : 400, color: vencido ? '#C05B3A' : proximo ? '#D97706' : '#9AA79C' }}>
+                          {fmtDate(q.validade_ate)}
+                        </span>
+                      )
+                    })() : <span style={{ fontSize: '12px', color: '#9AA79C' }}>—</span>}
                   </td>
                   <td className="px-6 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">

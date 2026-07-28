@@ -39,7 +39,7 @@ export default async function OrcamentosPage({
   ] = await Promise.all([
     supabase
       .from('quotes')
-      .select('*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*)')
+      .select('*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*), responsavel:profiles!responsavel_id(full_name)')
       .eq('unit_id', unitId)
       .order('criado_em', { ascending: false }),
     supabase.from('products').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),

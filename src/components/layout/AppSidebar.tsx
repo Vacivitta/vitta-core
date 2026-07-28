@@ -158,14 +158,14 @@ interface NavItem {
 // ── Itens de navegação principal ──────────────────────────────────────────────
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard',  label: 'Dashboard',   icon: <IcoDashboard /> },
-  { href: '/funil',      label: 'Funil',        icon: <IcoFunil /> },
-  { href: '/atendimento',label: 'Atendimento',  icon: <IcoAtendimento /> },
-  { href: '/agenda',     label: 'Agenda',       icon: <IcoAgenda /> },
-  { href: '/tarefas',    label: 'Tarefas',      icon: <IcoTarefas /> },
-  { href: '/clientes',   label: 'Clientes',     icon: <IcoClientes /> },
-  { href: '/produtos',   label: 'Catálogo',     icon: <IcoCatalogo /> },
-  { href: '/orcamento',  label: 'Orçamentos',   icon: <IcoOrcamento /> },
+  { href: '/dashboard',    label: 'Dashboard',    icon: <IcoDashboard /> },
+  { href: '/funil',        label: 'Funil',        icon: <IcoFunil /> },
+  { href: '/atendimento',  label: 'Atendimento',  icon: <IcoAtendimento /> },
+  { href: '/agenda',       label: 'Agenda',       icon: <IcoAgenda /> },
+  { href: '/tarefas',      label: 'Tarefas',      icon: <IcoTarefas /> },
+  { href: '/clientes',     label: 'Clientes',     icon: <IcoClientes /> },
+  { href: '/produtos',     label: 'Catálogo',     icon: <IcoCatalogo /> },
+  { href: '/orcamento',    label: 'Orçamentos',   icon: <IcoOrcamento /> },
   { href: '/chat-interno', label: 'Chat Interno', icon: <IcoChatInterno /> },
 ]
 
