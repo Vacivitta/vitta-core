@@ -33,6 +33,7 @@ export default async function DashboardPage() {
     { data: queuesRaw },
     { data: agentStatsRaw },
     { data: salesGoalsRaw },
+    { data: stageHistoryRaw },
   ] = await Promise.all([
     supabase
       .from('leads')
@@ -88,6 +89,11 @@ export default async function DashboardPage() {
       .eq('unit_id', unitId)
       .is('user_id', null)
       .order('month', { ascending: false }),
+    supabase
+      .from('lead_stage_history')
+      .select('id, lead_id, de_stage_id, para_stage_id, criado_em, lead:leads!inner(unit_id)')
+      .eq('lead.unit_id', unitId)
+      .order('criado_em'),
   ])
 
   return (
@@ -108,6 +114,13 @@ export default async function DashboardPage() {
       agentStats={agentStatsRaw ?? []}
       todayISO={todayISO}
       salesGoals={(salesGoalsRaw ?? []) as SalesGoal[]}
+      stageHistory={(stageHistoryRaw ?? []).map((h: Record<string, unknown>) => ({
+        id: h.id as string,
+        lead_id: h.lead_id as string,
+        de_stage_id: h.de_stage_id as string | null,
+        para_stage_id: h.para_stage_id as string,
+        criado_em: h.criado_em as string,
+      }))}
     />
   )
 }

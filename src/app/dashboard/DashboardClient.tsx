@@ -16,6 +16,7 @@ interface ProfileRow  { id: string; full_name: string; apelido: string | null; p
 interface BillingRow  { category: string; cost_usd: number; billable: boolean }
 interface QueueRow    { id: string; nome: string; cor: string }
 interface AgentStatRow { agent_id: string; open_count: number; resolved_today: number; avg_response_minutes: number | null }
+interface StageHistoryRow { id: string; lead_id: string; de_stage_id: string | null; para_stage_id: string; criado_em: string }
 
 interface Props {
   currentUser:   Profile
@@ -31,6 +32,7 @@ interface Props {
   agentStats:    AgentStatRow[]
   todayISO:      string
   salesGoals:    SalesGoal[]
+  stageHistory:  StageHistoryRow[]
 }
 
 type Period = '7d' | '30d' | '90d' | 'all'
@@ -104,7 +106,7 @@ function Bar({ value, max, color, h }: { value: number; max: number; color: stri
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals }: Props) {
+export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals, stageHistory }: Props) {
   const [period, setPeriod] = useState<Period>('30d')
   const cut = useMemo(() => cutoff(period), [period])
 
@@ -310,6 +312,43 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     }
     return Object.values(byF)
   }, [stages, leads])
+
+  // ── Tempo médio por etapa
+  const avgTimePerStage = useMemo(() => {
+    const stageMap = new Map(stages.map(s => [s.id, s]))
+    const byLead = new Map<string, StageHistoryRow[]>()
+    for (const h of stageHistory) {
+      const arr = byLead.get(h.lead_id) ?? []
+      arr.push(h)
+      byLead.set(h.lead_id, arr)
+    }
+
+    const durations: Record<string, number[]> = {}
+    for (const [, entries] of byLead) {
+      const sorted = entries.sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime())
+      for (let i = 0; i < sorted.length; i++) {
+        const stageId = sorted[i].de_stage_id
+        if (!stageId) continue
+        const enteredAt = i > 0 ? new Date(sorted[i - 1].criado_em).getTime() : null
+        if (enteredAt === null) continue
+        const leftAt = new Date(sorted[i].criado_em).getTime()
+        const hours = (leftAt - enteredAt) / (1000 * 60 * 60)
+        if (hours >= 0) {
+          if (!durations[stageId]) durations[stageId] = []
+          durations[stageId].push(hours)
+        }
+      }
+    }
+
+    const result: { id: string; nome: string; cor: string; avgHours: number; count: number; funnelName: string }[] = []
+    for (const s of stages) {
+      const arr = durations[s.id]
+      if (!arr || arr.length === 0) continue
+      const avg = arr.reduce((a, b) => a + b, 0) / arr.length
+      result.push({ id: s.id, nome: s.nome, cor: s.cor, avgHours: avg, count: arr.length, funnelName: s.funnel?.nome ?? 'Funil' })
+    }
+    return result
+  }, [stageHistory, stages])
 
   // ── Status dist
   const statusDist = useMemo(() => {
@@ -750,6 +789,44 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
                 })}
               </div>
             )}
+          </div>
+
+          {/* Tempo médio por etapa */}
+          <div style={{ ...card, marginTop: 12 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Tempo médio por etapa</p>
+            {avgTimePerStage.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados de movimentação</p> : (() => {
+              const maxH = Math.max(...avgTimePerStage.map(s => s.avgHours), 1)
+              const fmtDuration = (h: number) => {
+                if (h < 1) return `${Math.round(h * 60)}min`
+                if (h < 24) return `${h.toFixed(1)}h`
+                const d = h / 24
+                return d < 2 ? `${d.toFixed(1)} dia` : `${d.toFixed(1)} dias`
+              }
+              const grouped = avgTimePerStage.reduce<Record<string, typeof avgTimePerStage>>((acc, s) => {
+                if (!acc[s.funnelName]) acc[s.funnelName] = []
+                acc[s.funnelName].push(s)
+                return acc
+              }, {})
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {Object.entries(grouped).map(([fName, items]) => (
+                    <div key={fName}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#555', marginBottom: 4, display: 'block' }}>{fName}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {items.map(s => (
+                          <div key={s.id} className="flex items-center gap-1.5">
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
+                            <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
+                            <Bar value={s.avgHours} max={maxH} color={s.cor || '#bbb'} h={5} />
+                            <span style={{ fontSize: 9, fontWeight: 700, color: '#555', minWidth: 40, textAlign: 'right', flexShrink: 0 }}>{fmtDuration(s.avgHours)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
         </Section>
 
