@@ -982,9 +982,11 @@ export default function OrcamentosClient({
     const recusados   = quotes.filter(q => q.status === 'recusado')
     const rascunhos   = quotes.filter(q => q.status === 'rascunho').length
     const enviados    = quotes.filter(q => ['enviado', 'visualizado'].includes(q.status)).length
-    const totalAceito   = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
-    const totalRecusado = recusados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
-    return { total: quotes.length, aceitos: aceitos.length, recusados: recusados.length, rascunhos, enviados, totalAceito, totalRecusado }
+    const aguardando    = quotes.filter(q => ['enviado', 'visualizado', 'em_negociacao'].includes(q.status))
+    const totalAceito     = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const totalRecusado   = recusados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const totalAguardando = aguardando.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    return { total: quotes.length, aceitos: aceitos.length, recusados: recusados.length, rascunhos, enviados, totalAceito, totalRecusado, totalAguardando }
   }, [quotes])
 
   function handleSaved(q: QuoteRow, isNew: boolean) {
@@ -1060,6 +1062,12 @@ export default function OrcamentosClient({
         <StatCard label="Aceitos" value={stats.aceitos} valueColor="#3E9849" />
         <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
         <StatCard label="Recusados" value={stats.recusados} valueColor="#DC2626" />
+        <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
+        <StatCard
+          label="Valor aguardando"
+          value={stats.totalAguardando > 0 ? fmtBRL.format(stats.totalAguardando) : '—'}
+          valueColor={stats.totalAguardando > 0 ? '#1E86C0' : '#9AA79C'}
+        />
         <div style={{ width: 1, height: 32, background: '#EBE7DA' }} />
         <StatCard
           label="Valor aceito"
