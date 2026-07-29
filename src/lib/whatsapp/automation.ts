@@ -58,7 +58,7 @@ async function handleSendTemplate(
 
   const { data: template } = await supabase
     .from('wa_message_templates')
-    .select('template_name, content, language, variable_order')
+    .select('template_name, content, language, variable_order, header_type, header_image_url')
     .eq('id', templateId)
     .single()
 
@@ -83,6 +83,13 @@ async function handleSendTemplate(
       /\{\{(\d+)\}\}/g,
       (_m: string, n: string) => variableValues[parseInt(n, 10) - 1] ?? `{{${n}}}`,
     ) ?? ''
+  }
+
+  if (template.header_type === 'IMAGE' && template.header_image_url) {
+    components = [
+      { type: 'header', parameters: [{ type: 'image', image: { link: template.header_image_url } }] },
+      ...components,
+    ]
   }
 
   const metaPayload = {

@@ -197,7 +197,7 @@ function LeadDrawer({
         if (intNotes) setWaInternalNotes(intNotes)
 
         // Carrega templates, quick replies e tags para o ChatInput
-        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,folder_id').eq('ativo', true).order('name')
+        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
           .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
         void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
           .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
@@ -327,7 +327,7 @@ function LeadDrawer({
       renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
     }
 
-    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE') || t.header_type === 'IMAGE'
     if (hasImageHeader && t.header_image_url) {
       const headerComp = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
       components = components ? [headerComp, ...components] : [headerComp]
@@ -393,7 +393,7 @@ function LeadDrawer({
       schedComponents = [{ type: 'body', parameters: values.map(v => ({ type: 'text', text: v })) }]
       schedRendered = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
     }
-    const hasImgHdr = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    const hasImgHdr = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE') || t.header_type === 'IMAGE'
     if (hasImgHdr && t.header_image_url) {
       const hc = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
       schedComponents = schedComponents ? [hc, ...schedComponents] : [hc]
@@ -412,10 +412,10 @@ function LeadDrawer({
       const meta: WaTemplate[] = (data.templates ?? [])
         .filter(t => t.status === 'APPROVED')
         .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
-      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
+      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,header_type,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
       setWaTemplates([...meta, ...((custom ?? []) as WaTemplate[])])
     } catch {
-      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,folder_id').eq('ativo', true).order('name')
+      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
       setWaTemplates((data ?? []) as WaTemplate[])
     }
   }

@@ -22,6 +22,7 @@ export interface WaTemplate {
   language: string | null
   variable_order?: string[]
   header_image_url?: string | null
+  header_type?: string | null
   components?: { type: string; format?: string; text?: string }[]
   folder_id?: string | null
 }

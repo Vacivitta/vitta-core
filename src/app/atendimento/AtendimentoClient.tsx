@@ -270,7 +270,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       .then(({ data }) => setQueues((data ?? []) as WaQueue[]))
     // Carrega templates locais imediatamente (rápido)
     void supabase.from('wa_message_templates')
-      .select('id,name,content,category,template_name,language,variable_order,header_image_url,folder_id')
+      .select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id')
       .eq('ativo', true).order('name')
       .then(({ data }) => { if (data) setTemplates(data as WaTemplate[]) })
     // Depois atualiza com dados frescos da Meta (pode demorar)
@@ -293,7 +293,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
             components:       t.components,
           }))
         const { data: custom } = await supabase.from('wa_message_templates')
-          .select('id,name,content,category,template_name,language,folder_id')
+          .select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id')
           .eq('ativo', true).eq('category', 'custom').order('name')
         setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
       } catch { /* mantém os templates locais já carregados */ }
@@ -487,7 +487,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
     }
 
-    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE') || t.header_type === 'IMAGE'
     if (hasImageHeader && t.header_image_url) {
       const headerComp = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
       components = components ? [headerComp, ...components] : [headerComp]
@@ -550,7 +550,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       renderedText = t.content.replace(/\{\{(\d+)\}\}/g, (_, n) => values[parseInt(n, 10) - 1] ?? `{{${n}}}`)
     }
 
-    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE')
+    const hasImageHeader = t.components?.some(c => c.type === 'HEADER' && c.format === 'IMAGE') || t.header_type === 'IMAGE'
     if (hasImageHeader && t.header_image_url) {
       const headerComp = { type: 'header', parameters: [{ type: 'image', image: { link: t.header_image_url } }] }
       components = components ? [headerComp, ...components] : [headerComp]
@@ -812,10 +812,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
                       .filter(t => t.status === 'APPROVED')
                       .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
-                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
+                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
                     setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
                   } catch {
-                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,folder_id').eq('ativo', true).order('name')
+                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
                     setTemplates((data ?? []) as WaTemplate[])
                   }
                 }}
@@ -1342,7 +1342,8 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMes
       onMouseEnter={() => setBubbleHovered(true)} onMouseLeave={() => setBubbleHovered(false)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexDirection: isOut ? 'row-reverse' : 'row' }}>
         <div style={{
-          maxWidth: bubbleMaxWidth, padding: isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
+          maxWidth: bubbleMaxWidth, padding: isTemplateWithImage ? '8px 12px' : isAudio ? '6px 10px' : isText ? '6px 8px 6px 10px' : '6px 8px',
+          overflow: isTemplateWithImage ? 'hidden' : undefined,
           borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
           background: failed ? '#F6DFD5' : isOut ? '#DCF0D3' : '#fff',
           boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
@@ -1363,9 +1364,9 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMes
             </div>
           )}
           {isTemplateWithImage ? (
-            <div>
+            <div style={{ minWidth: 260 }}>
               <MediaContent msg={msg} isOut={isOut} unitId={unitId} />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>{timestamp}</div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 10px 2px', marginTop: -2 }}>{timestamp}</div>
             </div>
           ) : isText ? (
             <p style={{ margin: 0, fontSize: 13, color: '#25402C', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden' }}>

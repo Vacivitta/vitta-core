@@ -209,11 +209,13 @@ export default function MediaContent({ msg, isOut, unitId, timestamp }: Props) {
     const text = msg.content ? formatWaText(msg.content) : msg.template_name
     if (msg.media_url) {
       return (
-        <>
+        <div style={{ margin: '-8px -12px 0', overflow: 'hidden' }}>
           <MediaImage src={mediaUrl(msg.media_url)} alt="Template" isOut={isOut} type="image"
-            style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, display: 'block', marginBottom: 4 }} />
-          {text}
-        </>
+            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
+          <div style={{ padding: '8px 12px 4px', fontSize: 13, color: '#25402C', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {text}
+          </div>
+        </div>
       )
     }
     return <>{text}</>

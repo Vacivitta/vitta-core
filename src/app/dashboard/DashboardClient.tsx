@@ -760,73 +760,75 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
             <p style={{ fontSize: 9, color: '#bbb', margin: '6px 0 0', textAlign: 'right' }}>Câmbio: R$ {USD_BRL.toFixed(2)}/USD · {waBilling.totalMsgs} mensagens</p>
           </div>
 
-          {/* Contatos por funil */}
-          <div style={{ ...card, marginTop: 12 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Contatos por funil</p>
-            {funnelData.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem funis</p> : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {funnelData.map(f => {
-                  const total = f.stages.reduce((s, x) => s + x.count, 0)
-                  const max = Math.max(...f.stages.map(s => s.count), 1)
-                  return (
-                    <div key={f.nome}>
-                      <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#555' }}>{f.nome}</span>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#999' }}>{total}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3" style={{ marginTop: 12 }}>
+            {/* Contatos por funil */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Contatos por funil</p>
+              {funnelData.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem funis</p> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {funnelData.map(f => {
+                    const total = f.stages.reduce((s, x) => s + x.count, 0)
+                    const max = Math.max(...f.stages.map(s => s.count), 1)
+                    return (
+                      <div key={f.nome}>
+                        <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#555' }}>{f.nome}</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#999' }}>{total}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {f.stages.map(s => (
+                            <div key={s.id} className="flex items-center gap-1.5">
+                              <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
+                              <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
+                              <Bar value={s.count} max={max} color={s.cor || '#bbb'} h={5} />
+                              <span style={{ fontSize: 9, fontWeight: 700, color: '#555', width: 16, textAlign: 'right', flexShrink: 0 }}>{s.count}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        {f.stages.map(s => (
-                          <div key={s.id} className="flex items-center gap-1.5">
-                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
-                            <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
-                            <Bar value={s.count} max={max} color={s.cor || '#bbb'} h={5} />
-                            <span style={{ fontSize: 9, fontWeight: 700, color: '#555', width: 16, textAlign: 'right', flexShrink: 0 }}>{s.count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Tempo médio por etapa */}
-          <div style={{ ...card, marginTop: 12 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Tempo médio por etapa</p>
-            {avgTimePerStage.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados de movimentação</p> : (() => {
-              const maxH = Math.max(...avgTimePerStage.map(s => s.avgHours), 1)
-              const fmtDuration = (h: number) => {
-                if (h < 1) return `${Math.round(h * 60)}min`
-                if (h < 24) return `${h.toFixed(1)}h`
-                const d = h / 24
-                return d < 2 ? `${d.toFixed(1)} dia` : `${d.toFixed(1)} dias`
-              }
-              const grouped = avgTimePerStage.reduce<Record<string, typeof avgTimePerStage>>((acc, s) => {
-                if (!acc[s.funnelName]) acc[s.funnelName] = []
-                acc[s.funnelName].push(s)
-                return acc
-              }, {})
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {Object.entries(grouped).map(([fName, items]) => (
-                    <div key={fName}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#555', marginBottom: 4, display: 'block' }}>{fName}</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        {items.map(s => (
-                          <div key={s.id} className="flex items-center gap-1.5">
-                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
-                            <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
-                            <Bar value={s.avgHours} max={maxH} color={s.cor || '#bbb'} h={5} />
-                            <span style={{ fontSize: 9, fontWeight: 700, color: '#555', minWidth: 40, textAlign: 'right', flexShrink: 0 }}>{fmtDuration(s.avgHours)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
-              )
-            })()}
+              )}
+            </div>
+
+            {/* Tempo médio por etapa */}
+            <div style={card}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Tempo médio por etapa</p>
+              {avgTimePerStage.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados de movimentação</p> : (() => {
+                const maxH = Math.max(...avgTimePerStage.map(s => s.avgHours), 1)
+                const fmtDuration = (h: number) => {
+                  if (h < 1) return `${Math.round(h * 60)}min`
+                  if (h < 24) return `${h.toFixed(1)}h`
+                  const d = h / 24
+                  return d < 2 ? `${d.toFixed(1)} dia` : `${d.toFixed(1)} dias`
+                }
+                const grouped = avgTimePerStage.reduce<Record<string, typeof avgTimePerStage>>((acc, s) => {
+                  if (!acc[s.funnelName]) acc[s.funnelName] = []
+                  acc[s.funnelName].push(s)
+                  return acc
+                }, {})
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {Object.entries(grouped).map(([fName, items]) => (
+                      <div key={fName}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#555', marginBottom: 4, display: 'block' }}>{fName}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {items.map(s => (
+                            <div key={s.id} className="flex items-center gap-1.5">
+                              <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
+                              <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
+                              <Bar value={s.avgHours} max={maxH} color={s.cor || '#bbb'} h={5} />
+                              <span style={{ fontSize: 9, fontWeight: 700, color: '#555', minWidth: 40, textAlign: 'right', flexShrink: 0 }}>{fmtDuration(s.avgHours)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         </Section>
 
