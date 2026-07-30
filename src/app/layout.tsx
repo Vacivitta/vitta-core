@@ -13,6 +13,9 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: 'VittaDesk',
   description: 'CRM Comercial VittaDesk',
+  icons: {
+    icon: '/logo-vacivitta-sidebar.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
