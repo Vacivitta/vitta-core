@@ -427,7 +427,11 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setChatInput(''); setReplyTo(null); setSending(true)
     try {
       if (inputMode === 'note') {
-        await fetch('/api/whatsapp/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text }) })
+        const mencoes: string[] = []
+        for (const p of profiles) {
+          if (p.id !== currentUser.id && text.includes('@' + displayName(p))) mencoes.push(p.id)
+        }
+        await fetch('/api/whatsapp/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text, mencoes }) })
       } else {
         await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text, context_message_id: replyWaId }) })
         // Atualiza preview imediatamente sem esperar realtime

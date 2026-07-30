@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/orcamento/check-expiring",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}

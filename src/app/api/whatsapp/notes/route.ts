@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const { conversation_id, content } = await req.json() as { conversation_id: string; content: string }
+  const { conversation_id, content, mencoes } = await req.json() as { conversation_id: string; content: string; mencoes?: string[] }
   if (!conversation_id || !content?.trim()) {
     return NextResponse.json({ error: 'conversation_id e content obrigatórios' }, { status: 400 })
   }
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     unit_id:   conv.unit_id,
     content:   content.trim(),
     author_id: user.id,
+    mencoes:   mencoes && mencoes.length > 0 ? mencoes : [],
   }).select('id, content, author_id, created_at').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
