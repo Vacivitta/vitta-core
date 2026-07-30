@@ -882,6 +882,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       {newConvOpen && (
         <NewConversationModal
           unitId={currentUser.unit_id ?? ''}
+          templates={templates}
+          folders={tmplFolders}
           onStart={handleStartConversation}
           onClose={() => setNewConvOpen(false)}
         />
