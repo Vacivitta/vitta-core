@@ -358,7 +358,59 @@ export interface QuoteItem {
   desconto:            number
   valor_final:         number
   observacao:          string | null
+  custo_snapshot:      number | null
   criado_em:           string
+}
+
+// ---- Taxas de pagamento -------------------------------------------------------
+
+export interface UnitPaymentFees {
+  id:          string
+  unit_id:     string
+  pix:         number
+  debito:      number
+  credito_1x:  number
+  credito_2x:  number
+  credito_3x:  number
+  credito_4x:  number
+  credito_5x:  number
+  credito_6x:  number
+  credito_7x:  number
+  credito_8x:  number
+  credito_9x:  number
+  credito_10x: number
+  credito_11x: number
+  credito_12x: number
+  credito_13x: number
+  credito_14x: number
+  credito_15x: number
+  credito_16x: number
+  credito_17x: number
+  credito_18x: number
+  criado_em:   string
+}
+
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  pix:         'Pix',
+  debito:      'Débito',
+  credito_1x:  'Crédito 1x',
+  credito_2x:  'Crédito 2x',
+  credito_3x:  'Crédito 3x',
+  credito_4x:  'Crédito 4x',
+  credito_5x:  'Crédito 5x',
+  credito_6x:  'Crédito 6x',
+  credito_7x:  'Crédito 7x',
+  credito_8x:  'Crédito 8x',
+  credito_9x:  'Crédito 9x',
+  credito_10x: 'Crédito 10x',
+  credito_11x: 'Crédito 11x',
+  credito_12x: 'Crédito 12x',
+  credito_13x: 'Crédito 13x',
+  credito_14x: 'Crédito 14x',
+  credito_15x: 'Crédito 15x',
+  credito_16x: 'Crédito 16x',
+  credito_17x: 'Crédito 17x',
+  credito_18x: 'Crédito 18x',
 }
 
 // ---- Metas de vendas -------------------------------------------------------

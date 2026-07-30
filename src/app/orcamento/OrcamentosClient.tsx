@@ -6,8 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import Drawer from '@/components/ui/Drawer'
 import type {
   Profile, Product, QuoteTemplate, Quote, QuoteStatus, QuoteItem, QuoteWithItems, PacoteOpcao,
+  UnitPaymentFees,
 } from '@/types/database'
-import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS } from '@/types/database'
+import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS, PAYMENT_METHOD_LABELS } from '@/types/database'
 
 const PdfButton = dynamic(
   () => import('@/components/orcamento/PdfButton'),
@@ -47,6 +48,7 @@ interface ItemForm {
   nome_snapshot:       string
   descricao_snapshot:  string | null
   valor_snapshot:      number
+  custo_snapshot:      number | null
   quantidade:          number
   desconto:            number
   observacao:          string
@@ -58,6 +60,7 @@ interface Props {
   products:       Product[]
   templates:      QuoteTemplate[]
   leads:          PatientOption[]
+  paymentFees:    UnitPaymentFees | null
   initialLeadId?:  string | null
   initialQuoteId?: string | null
 }
@@ -116,12 +119,13 @@ interface ModalProps {
   products:        Product[]
   templates:       QuoteTemplate[]
   leads:           PatientOption[]
+  paymentFees:     UnitPaymentFees | null
   initialPatient?: PatientOption | null
   onClose:         () => void
   onSaved:         (q: QuoteRow, isNew: boolean) => void
 }
 
-function QuoteModal({ editing, unitId, userId, products, templates, leads, initialPatient, onClose, onSaved }: ModalProps) {
+function QuoteModal({ editing, unitId, userId, products, templates, leads, paymentFees, initialPatient, onClose, onSaved }: ModalProps) {
   const supabase = createClient()
 
   const [tab, setTab] = useState<'paciente' | 'itens' | 'config'>('paciente')
@@ -161,6 +165,30 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
     editing?.pacote_opcoes ?? [...PACOTE_DEFAULTS]
   )
 
+  // Forma de pagamento (para cálculo de margem)
+  const [paymentMethod, setPaymentMethod] = useState<string>('pix')
+
+  const taxaAtual = paymentFees ? Number(((paymentFees as unknown as Record<string, number>))[paymentMethod] ?? 0) : 0
+
+  function calcItemMargin(item: ItemForm): number | null {
+    if (item.custo_snapshot == null) return null
+    const vf = calcValorFinal(item.valor_snapshot, item.quantidade, item.desconto)
+    const custo = item.custo_snapshot * item.quantidade
+    const taxa = vf * taxaAtual / 100
+    return Math.round((vf - custo - taxa) * 100) / 100
+  }
+
+  const totalMargin = useMemo(() => {
+    let sum = 0
+    let hasAny = false
+    for (const item of items) {
+      const m = calcItemMargin(item)
+      if (m != null) { sum += m; hasAny = true }
+    }
+    return hasAny ? Math.round(sum * 100) / 100 : null
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, taxaAtual])
+
   function togglePacote(ativo: boolean) {
     setPacoteAtivo(ativo)
     if (ativo && pacoteOpcoes.length === 0) setPacoteOpcoes([...PACOTE_DEFAULTS])
@@ -185,6 +213,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
             nome_snapshot:       i.nome_snapshot,
             descricao_snapshot:  i.descricao_snapshot ?? null,
             valor_snapshot:      Number(i.valor_snapshot),
+            custo_snapshot:      i.custo_snapshot != null ? Number(i.custo_snapshot) : null,
             quantidade:          i.quantidade,
             desconto:            Number(i.desconto),
             observacao:          i.observacao ?? '',
@@ -236,6 +265,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
           nome_snapshot:       p.nome,
           descricao_snapshot:  p.descricao ?? null,
           valor_snapshot:      p.valor_venda ?? 0,
+          custo_snapshot:      p.valor_custo ?? null,
           quantidade:          1,
           desconto:            0,
           observacao:          '',
@@ -341,6 +371,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
       nome_snapshot:       i.nome_snapshot,
       descricao_snapshot:  i.descricao_snapshot ?? null,
       valor_snapshot:      i.valor_snapshot,
+      custo_snapshot:      i.custo_snapshot,
       quantidade:          i.quantidade,
       desconto:            i.desconto,
       valor_final:         calcValorFinal(i.valor_snapshot, i.quantidade, i.desconto),
@@ -404,6 +435,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
         desconto:            i.desconto,
         valor_final:         calcValorFinal(i.valor_snapshot, i.quantidade, i.desconto),
         observacao:          i.observacao || null,
+        custo_snapshot:      i.custo_snapshot ?? null,
         criado_em:           new Date().toISOString(),
       })),
       template: templateObj,
@@ -646,6 +678,22 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
                     ))}
                   </div>
 
+                  {/* Forma de pagamento (margem) */}
+                  {paymentFees && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-[#71856F] uppercase tracking-wide shrink-0">Forma de pgto</span>
+                      <select
+                        value={paymentMethod}
+                        onChange={e => setPaymentMethod(e.target.value)}
+                        className="flex-1 text-xs border border-[#EBE7DA] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-0"
+                      >
+                        {Object.entries(PAYMENT_METHOD_LABELS).map(([k, label]) => (
+                          <option key={k} value={k}>{label} ({Number(((paymentFees as unknown as Record<string, number>))[k] ?? 0)}%)</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Items list */}
                   {items.length === 0 ? (
                     <div className="text-center py-8 text-[#9AA79C]">
@@ -701,6 +749,18 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
                                 {fmtBRL.format(vf)}
                               </span>
                             </div>
+                            {/* Margem */}
+                            {paymentFees && (() => {
+                              const margin = calcItemMargin(item)
+                              if (margin == null) return null
+                              const color = margin >= 100 ? '#16a34a' : margin >= 0 ? '#ca8a04' : '#dc2626'
+                              return (
+                                <div className="flex items-center justify-between pt-1 border-t border-dashed border-[#EBE7DA]">
+                                  <span className="text-[10px] text-[#9AA79C] uppercase tracking-wide">Margem</span>
+                                  <span className="text-xs font-bold" style={{ color }}>{fmtBRL.format(margin)}</span>
+                                </div>
+                              )
+                            })()}
                           </div>
                         )
                       })}
@@ -710,6 +770,18 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, initi
                         <span className="text-xs font-semibold text-[#71856F] uppercase tracking-wide">Total</span>
                         <span className="text-base font-bold text-[#25402C]">{fmtBRL.format(total)}</span>
                       </div>
+
+                      {/* Margem total */}
+                      {paymentFees && totalMargin != null && (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: totalMargin >= 100 ? '#f0fdf4' : totalMargin >= 0 ? '#fefce8' : '#fef2f2' }}>
+                          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: totalMargin >= 100 ? '#16a34a' : totalMargin >= 0 ? '#ca8a04' : '#dc2626' }}>
+                            Margem ({PAYMENT_METHOD_LABELS[paymentMethod]} · {taxaAtual}%)
+                          </span>
+                          <span className="text-base font-bold" style={{ color: totalMargin >= 100 ? '#16a34a' : totalMargin >= 0 ? '#ca8a04' : '#dc2626' }}>
+                            {fmtBRL.format(totalMargin)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -936,7 +1008,7 @@ function StatCard({ label, value, valueColor }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function OrcamentosClient({
-  currentUser, initialQuotes, products, templates, leads,
+  currentUser, initialQuotes, products, templates, leads, paymentFees,
   initialLeadId, initialQuoteId,
 }: Props) {
   const [quotes,      setQuotes]      = useState<QuoteRow[]>(initialQuotes)
@@ -1262,6 +1334,7 @@ export default function OrcamentosClient({
           products={products}
           templates={templates}
           leads={leads}
+          paymentFees={paymentFees}
           initialPatient={editing ? null : initialPatient}
           onClose={() => { setModalOpen(false); setEditing(null); setInitialPatient(null) }}
           onSaved={handleSaved}

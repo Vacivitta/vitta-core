@@ -169,18 +169,42 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/chat-interno', label: 'Chat Interno', icon: <IcoChatInterno /> },
 ]
 
-const CONFIG_ITEMS = [
-  { href: '/configuracoes/funis',               label: 'Funis',             icon: <IcoFunis />,        gestorOnly: false },
-  { href: '/configuracoes/filas',               label: 'Filas',             icon: <IcoFilas />,        gestorOnly: true  },
-  { href: '/configuracoes/tags',                label: 'Tags de Conversa',  icon: <IcoTags />,         gestorOnly: false },
-  { href: '/configuracoes/templates',           label: 'Templates PDF',     icon: <IcoTemplates />,    gestorOnly: true  },
-  { href: '/configuracoes/templates-whatsapp',  label: 'Templates WhatsApp',icon: <IcoTemplatesWa />,  gestorOnly: true  },
-  { href: '/configuracoes/whatsapp',            label: 'WhatsApp API',      icon: <IcoWhatsApp />,     gestorOnly: true  },
-  { href: '/configuracoes/equipe',              label: 'Equipe',            icon: <IcoEquipe />,       gestorOnly: true  },
-  { href: '/configuracoes/automacoes',          label: 'Automações',        icon: <IcoAutomacoes />,   gestorOnly: true  },
-  { href: '/configuracoes/chat-interno',       label: 'Chat Interno',      icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h6"/></svg>,  gestorOnly: true  },
+interface ConfigItem {
+  href:       string
+  label:      string
+  icon:       React.ReactNode
+  gestorOnly: boolean
+}
+
+interface ConfigSection {
+  title: string
+  items: ConfigItem[]
+}
+
+const CONFIG_SECTIONS: ConfigSection[] = [
+  {
+    title: 'Operação',
+    items: [
+      { href: '/configuracoes/funis',        label: 'Funis',            icon: <IcoFunis />,      gestorOnly: false },
+      { href: '/configuracoes/filas',        label: 'Filas',            icon: <IcoFilas />,      gestorOnly: true  },
+      { href: '/configuracoes/tags',         label: 'Tags de Conversa', icon: <IcoTags />,       gestorOnly: false },
+      { href: '/configuracoes/automacoes',   label: 'Automações',       icon: <IcoAutomacoes />, gestorOnly: true  },
+      { href: '/configuracoes/chat-interno', label: 'Chat Interno',     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h6"/></svg>, gestorOnly: true },
+    ],
+  },
+  {
+    title: 'Funcionamento',
+    items: [
+      { href: '/configuracoes/templates',          label: 'Templates PDF',      icon: <IcoTemplates />,   gestorOnly: true },
+      { href: '/configuracoes/templates-whatsapp', label: 'Templates WhatsApp', icon: <IcoTemplatesWa />, gestorOnly: true },
+      { href: '/configuracoes/whatsapp',           label: 'WhatsApp API',       icon: <IcoWhatsApp />,    gestorOnly: true },
+      { href: '/configuracoes/equipe',             label: 'Equipe',             icon: <IcoEquipe />,      gestorOnly: true },
+      { href: '/configuracoes/taxas',              label: 'Taxas de Pagamento', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, gestorOnly: true },
+    ],
+  },
 ]
 
+const CONFIG_ITEMS = CONFIG_SECTIONS.flatMap(s => s.items)
 const CONFIG_HREFS = CONFIG_ITEMS.map(i => i.href)
 
 const EASE = 'cubic-bezier(0.16,1,0.3,1)'
@@ -235,6 +259,17 @@ export default function AppSidebar() {
   const [configOpen, setConfigOpen] = useState(() =>
     CONFIG_HREFS.some(h => pathname.startsWith(h))
   )
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const open: Record<string, boolean> = {}
+    for (const section of CONFIG_SECTIONS) {
+      open[section.title] = section.items.some(i => pathname.startsWith(i.href))
+    }
+    return open
+  })
+
+  function toggleSection(title: string) {
+    setOpenSections(prev => ({ ...prev, [title]: !prev[title] }))
+  }
 
   const collapsed = !expanded
 
@@ -422,26 +457,63 @@ export default function AppSidebar() {
           </button>
 
           {configOpen && !collapsed && (
-            <div style={{ marginLeft: 14, paddingLeft: 10, borderLeft: '1px solid #E9E5D8', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {CONFIG_ITEMS.filter(i => !i.gestorOnly || isGestor).map(item => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 10,
-                    fontSize: 13, fontWeight: isActive(item.href) ? 700 : 600,
-                    textDecoration: 'none', transition: 'background 0.15s',
-                    background: isActive(item.href) ? '#E8F4E6' : 'transparent',
-                    color:      isActive(item.href) ? '#3E9849'  : '#9AA79C',
-                    whiteSpace: 'nowrap',
-                  }}
-                  className={!isActive(item.href) ? 'nav-item-idle' : ''}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              ))}
+            <div style={{ marginLeft: 14, paddingLeft: 10, borderLeft: '1px solid #E9E5D8', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {CONFIG_SECTIONS.map(section => {
+                const visible = section.items.filter(i => !i.gestorOnly || isGestor)
+                if (visible.length === 0) return null
+                const sectionOpen = openSections[section.title] ?? false
+                const sectionActive = visible.some(i => isActive(i.href))
+                return (
+                  <div key={section.title}>
+                    <button
+                      onClick={() => toggleSection(section.title)}
+                      style={{
+                        display: 'flex', alignItems: 'center', width: '100%',
+                        padding: '7px 10px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                        fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                        background: sectionActive && !sectionOpen ? '#E8F4E6' : 'transparent',
+                        color: sectionActive ? '#3E9849' : '#9AA79C',
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                      className={!sectionActive ? 'nav-item-idle' : ''}
+                    >
+                      <span style={{ flex: 1, textAlign: 'left' }}>{section.title}</span>
+                      <span style={{
+                        transition: 'transform 0.2s',
+                        transform: sectionOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                        display: 'flex',
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </span>
+                    </button>
+                    {sectionOpen && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 1 }}>
+                        {visible.map(item => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '7px 10px 7px 18px', borderRadius: 10,
+                              fontSize: 13, fontWeight: isActive(item.href) ? 700 : 600,
+                              textDecoration: 'none', transition: 'background 0.15s',
+                              background: isActive(item.href) ? '#E8F4E6' : 'transparent',
+                              color:      isActive(item.href) ? '#3E9849'  : '#9AA79C',
+                              whiteSpace: 'nowrap',
+                            }}
+                            className={!isActive(item.href) ? 'nav-item-idle' : ''}
+                          >
+                            <span style={{ flexShrink: 0, display: 'flex' }}>{item.icon}</span>
+                            <span>{item.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

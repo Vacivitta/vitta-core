@@ -1,7 +1,7 @@
 ﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import OrcamentosClient from './OrcamentosClient'
-import type { Profile, Product, QuoteTemplate } from '@/types/database'
+import type { Profile, Product, QuoteTemplate, UnitPaymentFees } from '@/types/database'
 import type { QuoteRow, PatientOption } from './OrcamentosClient'
 
 export const metadata = { title: 'Orçamentos — VittaDesk' }
@@ -36,6 +36,7 @@ export default async function OrcamentosPage({
     { data: productsData },
     { data: templatesData },
     { data: leadsData },
+    { data: feesData },
   ] = await Promise.all([
     supabase
       .from('quotes')
@@ -45,6 +46,7 @@ export default async function OrcamentosPage({
     supabase.from('products').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),
     supabase.from('quote_templates').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),
     supabase.from('leads').select('id,nome,sobrenome,telefone').eq('arquivado', false).eq('unit_id', unitId).order('nome'),
+    supabase.from('unit_payment_fees').select('*').eq('unit_id', unitId).single(),
   ])
 
   const initialLeadIdResolved = initialLeadId ?? initialClientId ?? null
@@ -56,6 +58,7 @@ export default async function OrcamentosPage({
       products={(productsData ?? []) as Product[]}
       templates={(templatesData ?? []) as QuoteTemplate[]}
       leads={(leadsData ?? []) as PatientOption[]}
+      paymentFees={(feesData as UnitPaymentFees) ?? null}
       initialLeadId={initialLeadIdResolved}
       initialQuoteId={initialQuoteId}
     />
