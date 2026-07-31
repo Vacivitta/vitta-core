@@ -56,11 +56,15 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  let mencoes: string[] = []
+
   if (contentType.includes('multipart/form-data')) {
     const form = await req.formData()
     channelId = form.get('channel_id') as string
     conteudo = (form.get('conteudo') as string)?.trim() || null
     const file = form.get('file') as File | null
+    const mencoesRaw = form.get('mencoes') as string | null
+    if (mencoesRaw) try { mencoes = JSON.parse(mencoesRaw) } catch { /* ignore */ }
 
     if (!channelId) return NextResponse.json({ error: 'channel_id obrigatório' }, { status: 400 })
     if (!conteudo && !file) return NextResponse.json({ error: 'conteudo ou file obrigatório' }, { status: 400 })
@@ -75,9 +79,10 @@ export async function POST(req: NextRequest) {
       mediaType = file.type
     }
   } else {
-    const body = await req.json() as { channel_id: string; conteudo: string }
+    const body = await req.json() as { channel_id: string; conteudo: string; mencoes?: string[] }
     channelId = body.channel_id
     conteudo = body.conteudo?.trim() || null
+    if (body.mencoes && body.mencoes.length > 0) mencoes = body.mencoes
     if (!channelId || !conteudo)
       return NextResponse.json({ error: 'channel_id e conteudo obrigatórios' }, { status: 400 })
   }
@@ -94,6 +99,7 @@ export async function POST(req: NextRequest) {
   const insertPayload: Record<string, unknown> = { channel_id: channelId, autor_id: profile.id }
   if (conteudo) insertPayload.conteudo = conteudo
   if (mediaUrl) { insertPayload.media_url = mediaUrl; insertPayload.media_type = mediaType }
+  if (mencoes.length > 0) insertPayload.mencoes = mencoes
 
   const { data, error } = await admin
     .from('internal_channel_messages')

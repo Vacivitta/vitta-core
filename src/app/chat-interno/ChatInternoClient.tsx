@@ -185,18 +185,24 @@ export default function ChatInternoClient({ channels, currentUser, unitProfiles 
     if ((!text.trim() && !pendingFile) || !activeChannel || sending) return
     setSending(true)
 
+    const mencoes: string[] = []
+    for (const p of unitProfiles) {
+      if (p.id !== currentUser.id && text.includes('@' + displayName(p as Profile))) mencoes.push(p.id)
+    }
+
     let res: Response
     if (pendingFile) {
       const form = new FormData()
       form.append('channel_id', activeChannel.id)
       form.append('file', pendingFile)
       if (text.trim()) form.append('conteudo', text.trim())
+      if (mencoes.length > 0) form.append('mencoes', JSON.stringify(mencoes))
       res = await fetch('/api/internal-chat', { method: 'POST', body: form })
     } else {
       res = await fetch('/api/internal-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: activeChannel.id, conteudo: text.trim() }),
+        body: JSON.stringify({ channel_id: activeChannel.id, conteudo: text.trim(), mencoes }),
       })
     }
 
