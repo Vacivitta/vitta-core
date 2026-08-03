@@ -20,7 +20,7 @@ export default async function FunilPage() {
     { data: stagesData },
     { data: leadsData },
   ] = await Promise.all([
-    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
     supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
     supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
     supabase.from('leads_kanban').select('*').eq('unit_id', unitId).order('stage_ordem').order('ordem').order('created_at'),

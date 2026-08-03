@@ -720,11 +720,16 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (filterMine && c.assigned_to !== currentUser.id) return false
     if (filterTag !== 'all' && !(c.tags ?? []).some(t => t.tag.id === filterTag)) return false
     const q = convSearch.toLowerCase()
-    return !q
-      || (c.wa_contact_name ?? c.wa_phone).toLowerCase().includes(q)
-      || c.wa_phone.includes(q)
-      || (c.lead ? `${c.lead.nome} ${c.lead.sobrenome ?? ''}`.toLowerCase().includes(q) : false)
-      || (c.lead_id && (contactNamesByLead[c.lead_id] ?? '').toLowerCase().includes(q))
+    if (!q) return true
+    const words = q.split(/\s+/).filter(Boolean)
+    const haystack = [
+      c.wa_contact_name ?? c.wa_phone,
+      c.wa_phone,
+      c.lead ? `${c.lead.nome} ${c.lead.sobrenome ?? ''}` : '',
+      c.lead_id ? (contactNamesByLead[c.lead_id] ?? '') : '',
+      c.last_message_content ?? '',
+    ].join(' ').toLowerCase()
+    return words.every(w => haystack.includes(w))
   })
   const totalUnread  = conversations.reduce((s, c) => s + (c.unread_count ?? 0), 0)
   const defaultStage = funnels[0]?.stages[0]
