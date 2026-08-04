@@ -180,6 +180,7 @@ function LeadDrawer({
       .from('wa_conversations')
       .select('id, wa_phone, status, unread_count, assigned_to')
       .eq('wa_phone', waPhone)
+      .eq('unit_id', currentUser.unit_id)
       .maybeSingle()
       .then(async ({ data: conv }) => {
         if (!conv) { setWaLoaded(true); return }

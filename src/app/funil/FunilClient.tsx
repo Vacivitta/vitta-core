@@ -165,6 +165,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   useEffect(() => {
     void supabase.from('wa_conversations')
       .select('id, lead_id, unread_count, last_message_at, tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .eq('unit_id', currentUser.unit_id)
       .not('lead_id', 'is', null)
       .then(({ data }) => {
         if (!data) return
