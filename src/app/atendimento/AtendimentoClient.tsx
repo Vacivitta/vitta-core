@@ -312,13 +312,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   // ── Load conversations ──────────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('wa_conversations')
       .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .eq('unit_id', currentUser.unit_id)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
+    if (error) console.error('[loadConversations] erro:', error.message, 'unit_id:', currentUser.unit_id)
     const list = (data ?? []) as unknown as WaConversation[]
-    // Garante que a conversa aberta não mostre badge de não lidas (race condition)
     const openId = selectedConvIdRef.current
     setConversations(openId ? list.map(c => c.id === openId ? { ...c, unread_count: 0 } : c) : list)
     setConvsLoaded(true)
