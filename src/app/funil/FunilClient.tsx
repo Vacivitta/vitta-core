@@ -191,21 +191,24 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         setTagsByLead(tags)
       })
 
+    function handleConvChange(payload: { new: Record<string, unknown> }) {
+      const conv = payload.new as { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null }
+      if (!conv.lead_id) return
+      setConvIdByLead(prev => ({ ...prev, [conv.lead_id!]: conv.id }))
+      setUnreadByLead(prev => {
+        const next = { ...prev }
+        if (conv.unread_count > 0) next[conv.lead_id!] = conv.unread_count
+        else delete next[conv.lead_id!]
+        return next
+      })
+      if (conv.last_message_at) {
+        setLastMsgByLead(prev => ({ ...prev, [conv.lead_id!]: conv.last_message_at! }))
+      }
+    }
+
     const ch = supabase.channel('funil_wa_unread')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_conversations' },
-        payload => {
-          const conv = payload.new as { lead_id: string | null; unread_count: number; last_message_at: string | null }
-          if (!conv.lead_id) return
-          setUnreadByLead(prev => {
-            const next = { ...prev }
-            if (conv.unread_count > 0) next[conv.lead_id!] = conv.unread_count
-            else delete next[conv.lead_id!]
-            return next
-          })
-          if (conv.last_message_at) {
-            setLastMsgByLead(prev => ({ ...prev, [conv.lead_id!]: conv.last_message_at! }))
-          }
-        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_conversations' }, handleConvChange)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_conversations' }, handleConvChange)
       .subscribe()
 
     const chLeads = supabase.channel('funil_leads_sync')
