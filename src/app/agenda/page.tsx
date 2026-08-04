@@ -21,6 +21,7 @@ export default async function AgendaPage() {
     { data: profilesData },
     { data: tasksData },
     { data: messagesData },
+    { data: userUnits },
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
     supabase
@@ -36,13 +37,25 @@ export default async function AgendaPage() {
       .eq('unit_id', unitId)
       .neq('status', 'cancelled')
       .order('scheduled_for'),
+    supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
   ])
+
+  const extraUserIds = (userUnits ?? [])
+    .map(r => r.user_id as string)
+    .filter(id => !(profilesData ?? []).some(p => p.id === id))
+
+  let allProfiles = profilesData ?? []
+  if (extraUserIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('profiles').select('*').in('id', extraUserIds).order('full_name')
+    if (extra) allProfiles = [...allProfiles, ...extra]
+  }
 
   return (
     <AgendaClient
       initialTasks={(tasksData ?? []) as TaskWithLead[]}
       initialMessages={(messagesData ?? []) as unknown as ScheduledMsg[]}
-      profiles={(profilesData ?? []) as Profile[]}
+      profiles={allProfiles as Profile[]}
       currentUser={profileData as Profile}
     />
   )

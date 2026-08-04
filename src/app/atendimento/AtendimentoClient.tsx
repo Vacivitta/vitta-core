@@ -343,7 +343,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         .eq('conversation_id', selectedConv.id).order('created_at').limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
         .eq('conversation_id', selectedConv.id).order('created_at'),
-    ]).then(([{ data: msgs }, { data: notes }]) => {
+    ]).then(([{ data: msgs, error: msgsErr }, { data: notes, error: notesErr }]) => {
+      if (msgsErr || notesErr) {
+        console.error('[chat load] erro ao carregar mensagens:', msgsErr, notesErr)
+      }
       const items: ChatItem[] = [
         ...(msgs ?? []).map(m => ({ kind: 'message' as const, id: m.id, created_at: m.created_at, message: m as WaMessage })),
         ...(notes ?? []).map(n => ({
@@ -355,6 +358,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       setChatItems(items); setMsgsLoaded(true)
       void fetch('/api/whatsapp/mark-read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id }) })
       setConversations(prev => prev.map(c => c.id === selectedConv.id ? { ...c, unread_count: 0 } : c))
+    }).catch(err => {
+      console.error('[chat load] falha inesperada:', err)
+      setMsgsLoaded(true)
     })
     if (selectedConv.lead_id) void loadLeadDetail(selectedConv.lead_id)
     else setLeadDetail(null)

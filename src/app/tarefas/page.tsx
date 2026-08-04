@@ -20,6 +20,7 @@ export default async function TarefasPage() {
   const [
     { data: profilesData },
     { data: tasksData },
+    { data: userUnits },
   ] = await Promise.all([
     supabase.from('profiles').select('id, full_name, apelido').eq('ativo', true).eq('unit_id', unitId).order('full_name'),
     supabase
@@ -28,12 +29,24 @@ export default async function TarefasPage() {
       .eq('unit_id', unitId)
       .order('concluida', { ascending: true })
       .order('data_limite', { ascending: true, nullsFirst: false }),
+    supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
   ])
+
+  const extraUserIds = (userUnits ?? [])
+    .map(r => r.user_id as string)
+    .filter(id => !(profilesData ?? []).some(p => p.id === id))
+
+  let allProfiles: Pick<Profile, 'id' | 'full_name' | 'apelido'>[] = profilesData ?? []
+  if (extraUserIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('profiles').select('id, full_name, apelido').eq('ativo', true).in('id', extraUserIds).order('full_name')
+    if (extra) allProfiles = [...allProfiles, ...extra]
+  }
 
   return (
     <TarefasClient
       initialTasks={(tasksData ?? []) as TaskWithLead[]}
-      profiles={(profilesData ?? []) as Pick<Profile, 'id' | 'full_name' | 'apelido'>[]}
+      profiles={allProfiles as Pick<Profile, 'id' | 'full_name' | 'apelido'>[]}
       currentUser={profileData as Profile}
     />
   )

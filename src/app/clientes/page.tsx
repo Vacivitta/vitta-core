@@ -18,6 +18,7 @@ export default async function ClientesPage() {
     { data: profiles },
     { data: units },
     { data: funnels },
+    { data: userUnits },
   ] = await Promise.all([
     supabase
       .from('leads')
@@ -35,7 +36,19 @@ export default async function ClientesPage() {
       .eq('unit_id', unitId)
       .order('ordem')
       .limit(1),
+    supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
   ])
+
+  const extraUserIds = (userUnits ?? [])
+    .map(r => r.user_id as string)
+    .filter(id => !(profiles ?? []).some(p => p.id === id))
+
+  let allProfiles = profiles ?? []
+  if (extraUserIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('profiles').select('id, full_name').in('id', extraUserIds).order('full_name')
+    if (extra) allProfiles = [...allProfiles, ...extra]
+  }
 
   const defaultFunnelId = (funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.id ?? null
   const defaultStageId  = (funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.stages?.[0]?.id ?? null
@@ -44,7 +57,7 @@ export default async function ClientesPage() {
     <ClientesClient
       initialClients={leads ?? []}
       initialError={leadsError?.message ?? null}
-      profiles={profiles ?? []}
+      profiles={allProfiles}
       units={units ?? []}
       defaultFunnelId={defaultFunnelId}
       defaultStageId={defaultStageId}

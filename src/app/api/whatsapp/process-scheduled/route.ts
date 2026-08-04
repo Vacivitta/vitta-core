@@ -73,23 +73,22 @@ async function handler(req: NextRequest) {
         continue
       }
 
-      const metaPayload = msg.type === 'template'
-        ? {
-            messaging_product: 'whatsapp',
-            to:   waPhone,
-            type: 'template',
-            template: {
-              name:       msg.template_name,
-              language:   { code: msg.language ?? 'pt_BR' },
-              components: msg.components ?? [],
-            },
-          }
-        : {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let metaPayload: any
+      if (msg.type === 'template') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tpl: any = { name: msg.template_name, language: { code: msg.language ?? 'pt_BR' } }
+        const comps = msg.components as object[] | null
+        if (comps && comps.length > 0) tpl.components = comps
+        metaPayload = { messaging_product: 'whatsapp', to: waPhone, type: 'template', template: tpl }
+      } else {
+        metaPayload = {
             messaging_product: 'whatsapp',
             to:   waPhone,
             type: 'text',
             text: { body: msg.content, preview_url: false },
           }
+      }
 
       // AbortSignal evita que um hang na Meta deixe a função pendurada e re-envie na próxima execução do cron
       const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {

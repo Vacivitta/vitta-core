@@ -81,6 +81,8 @@ export async function GET(req: NextRequest) {
       const varCount = varMatches.length
       const defaultOrder = ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
 
+      const existing = localMap.get(t.name)
+
       const upsertData: Record<string, unknown> = {
         unit_id:       unitId,
         name:          t.name,
@@ -92,9 +94,23 @@ export async function GET(req: NextRequest) {
         header_type:   hasImageHeader ? 'IMAGE' : (headerComponent?.format === 'TEXT' ? 'TEXT' : null),
       }
 
-      const existing = localMap.get(t.name)
       if (!existing?.variable_order?.length && varCount > 0) {
         upsertData.variable_order = defaultOrder
+      }
+
+      if (hasImageHeader && !existing?.header_image_url) {
+        const { data: otherUnit } = await admin
+          .from('wa_message_templates')
+          .select('header_image_url')
+          .eq('template_name', t.name)
+          .eq('category', 'meta_api')
+          .not('header_image_url', 'is', null)
+          .neq('unit_id', unitId)
+          .limit(1)
+          .single()
+        if (otherUnit?.header_image_url) {
+          upsertData.header_image_url = otherUnit.header_image_url
+        }
       }
 
       await admin.from('wa_message_templates')

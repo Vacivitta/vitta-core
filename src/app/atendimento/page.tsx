@@ -25,11 +25,24 @@ export default async function AtendimentoPage({
     { data: profilesData },
     { data: funnelsData },
     { data: stagesData },
+    { data: userUnits },
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
     supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
     supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
+    supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
   ])
+
+  const extraUserIds = (userUnits ?? [])
+    .map(r => r.user_id as string)
+    .filter(id => !(profilesData ?? []).some(p => p.id === id))
+
+  let allProfiles = profilesData ?? []
+  if (extraUserIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('profiles').select('*').in('id', extraUserIds).order('full_name')
+    if (extra) allProfiles = [...allProfiles, ...extra]
+  }
 
   const funnelsWithStages: FunnelWithStages[] = (funnelsData ?? []).map(f => ({
     ...f,
@@ -39,7 +52,7 @@ export default async function AtendimentoPage({
   return (
     <AtendimentoClient
       funnels={funnelsWithStages}
-      profiles={(profilesData ?? []) as Profile[]}
+      profiles={allProfiles as Profile[]}
       currentUser={profileData as Profile}
       initialNumero={numero ?? null}
     />
