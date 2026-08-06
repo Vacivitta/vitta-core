@@ -36,9 +36,26 @@ async function handleMoveStage(supabase: SupabaseClient, conversationId: string,
 
   if (!conv?.lead_id) return
 
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('stage_id')
+    .eq('id', conv.lead_id)
+    .single()
+
+  if (lead?.stage_id === stageId) return
+
+  const { data: stage } = await supabase
+    .from('funnel_stages')
+    .select('funnel_id')
+    .eq('id', stageId)
+    .single()
+
+  const updatePayload: Record<string, string> = { stage_id: stageId }
+  if (stage?.funnel_id) updatePayload.funnel_id = stage.funnel_id
+
   await supabase
     .from('leads')
-    .update({ stage_id: stageId })
+    .update(updatePayload)
     .eq('id', conv.lead_id)
 }
 
