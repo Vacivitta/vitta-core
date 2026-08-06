@@ -9,6 +9,11 @@ export async function runWaAutomation(
   unitId:         string,
   conversationId: string,
 ) {
+  if (trigger === 'inbound_message' || trigger === 'outbound_message') {
+    const shouldSkip = await isRepeatedWithin24h(supabase, conversationId, trigger)
+    if (shouldSkip) return
+  }
+
   const { data: automations } = await supabase
     .from('wa_automations')
     .select('action, stage_id, template_id')
@@ -25,6 +30,28 @@ export async function runWaAutomation(
       await handleSendTemplate(supabase, unitId, conversationId, automation.template_id)
     }
   }
+}
+
+async function isRepeatedWithin24h(
+  supabase: SupabaseClient,
+  conversationId: string,
+  trigger: string,
+): Promise<boolean> {
+  const direction = trigger === 'inbound_message' ? 'inbound' : 'outbound'
+
+  const { data: messages } = await supabase
+    .from('wa_messages')
+    .select('created_at')
+    .eq('conversation_id', conversationId)
+    .eq('direction', direction)
+    .order('created_at', { ascending: false })
+    .limit(2)
+
+  if (!messages || messages.length < 2) return false
+
+  const previousMsg = messages[1]
+  const hoursSince = (Date.now() - new Date(previousMsg.created_at).getTime()) / (1000 * 60 * 60)
+  return hoursSince < 24
 }
 
 async function handleMoveStage(supabase: SupabaseClient, conversationId: string, stageId: string) {
