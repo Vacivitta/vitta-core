@@ -247,7 +247,10 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         const q = filters.search.toLowerCase()
         const fullName = `${l.nome} ${l.sobrenome ?? ''}`.toLowerCase()
         const contacts = (contactNamesByLead[l.id] ?? '').toLowerCase()
-        const localMatch = fullName.includes(q) || l.profissao?.toLowerCase().includes(q) || l.cidade?.toLowerCase().includes(q) || contacts.includes(q)
+        const phoneDigits = l.telefone?.replace(/\D/g, '') ?? ''
+        const qDigits = q.replace(/\D/g, '')
+        const phoneMatch = phoneDigits && qDigits.length >= 3 && phoneDigits.includes(qDigits)
+        const localMatch = fullName.includes(q) || l.profissao?.toLowerCase().includes(q) || l.cidade?.toLowerCase().includes(q) || contacts.includes(q) || phoneMatch
         const msgMatch = msgMatchLeadIds?.has(l.id) ?? false
         if (!localMatch && !msgMatch) return false
       }
