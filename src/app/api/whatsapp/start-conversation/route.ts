@@ -84,20 +84,22 @@ export async function POST(req: NextRequest) {
     const nome = parts[0]
     const sobrenome = parts.length > 1 ? parts.slice(1).join(' ') : null
 
-    // Busca lead existente pelo telefone
+    // Busca lead existente pelo telefone (server-side com ilike)
     const digitsAll = phone.replace(/\D/g, '')
     const digitsShort = digitsAll.length > 11 ? digitsAll.slice(-11) : digitsAll
+    const searchSuffix = digitsAll.length >= 8 ? digitsAll.slice(-8) : digitsAll
     const { data: existingLeads } = await supabase
       .from('leads')
       .select('id, telefone')
       .eq('unit_id', unit_id)
       .eq('arquivado', false)
       .not('telefone', 'is', null)
-      .limit(50)
+      .ilike('telefone', `%${searchSuffix}%`)
+      .limit(10)
 
     const matched = (existingLeads ?? []).find(l => {
       const d = (l.telefone as string).replace(/\D/g, '')
-      return d === digitsAll || d === digitsShort || digitsAll.endsWith(d) || d.endsWith(digitsShort)
+      return d === digitsAll || d === digitsShort || d.endsWith(digitsShort)
     })
 
     let leadId: string | null = null

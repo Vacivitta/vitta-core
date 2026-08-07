@@ -399,7 +399,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     void Promise.all([
       supabase.from('wa_messages')
         .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id')
-        .eq('conversation_id', selectedConv.id).order('created_at').limit(200),
+        .eq('conversation_id', selectedConv.id).order('created_at', { ascending: false }).limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
         .eq('conversation_id', selectedConv.id).order('created_at'),
     ]).then(([{ data: msgs, error: msgsErr }, { data: notes, error: notesErr }]) => {
@@ -505,6 +505,23 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           alert(metaMsg ? `Erro Meta: ${metaMsg}` : (data.error ?? 'Erro ao enviar mensagem'))
           return
         }
+        // Inserção otimista: adiciona a mensagem no chat sem esperar realtime
+        const optimisticId = `opt_${Date.now()}`
+        const optimisticMsg: WaMessage = {
+          id: optimisticId,
+          wa_message_id: null,
+          direction: 'outbound',
+          type: 'text',
+          content: text,
+          media_url: null,
+          media_mime_type: null,
+          template_name: null,
+          status: 'sent',
+          created_at: new Date().toISOString(),
+          sent_by: currentUser.id,
+          reply_to_wa_message_id: replyWaId ?? null,
+        } as WaMessage
+        setChatItems(prev => [...prev, { kind: 'message', id: optimisticId, created_at: optimisticMsg.created_at, message: optimisticMsg }])
         // Atualiza preview imediatamente sem esperar realtime
         const convId = selectedConv.id
         setConversations(prev => prev.map(c => c.id === convId
