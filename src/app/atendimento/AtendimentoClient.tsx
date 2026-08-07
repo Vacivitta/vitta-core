@@ -151,6 +151,62 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [contextPanelOpen,    setContextPanelOpen]    = useState(true)
   const [newConvOpen,         setNewConvOpen]         = useState(false)
 
+  // ── Transfer ──
+  const [transferModal,    setTransferModal]    = useState(false)
+  const [transferUnits,    setTransferUnits]    = useState<{ id: string; nome: string }[]>([])
+  const [transferFunnels,  setTransferFunnels]  = useState<{ id: string; nome: string }[]>([])
+  const [transferUnitId,   setTransferUnitId]   = useState('')
+  const [transferFunnelId, setTransferFunnelId] = useState('')
+  const [transferObs,      setTransferObs]      = useState('')
+  const [transferSaving,   setTransferSaving]   = useState(false)
+
+  async function openTransferModal() {
+    if (!leadDetail) return
+    const { data: units } = await supabase
+      .from('units').select('id, nome').eq('ativo', true).neq('id', currentUser.unit_id).order('nome')
+    setTransferUnits(units ?? [])
+    setTransferUnitId('')
+    setTransferFunnelId('')
+    setTransferFunnels([])
+    setTransferObs('')
+    setTransferModal(true)
+  }
+
+  async function handleTransferUnitChange(unitId: string) {
+    setTransferUnitId(unitId)
+    setTransferFunnelId('')
+    const { data: fns } = await supabase
+      .from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem')
+    setTransferFunnels(fns ?? [])
+    if (fns && fns.length === 1) setTransferFunnelId(fns[0].id)
+  }
+
+  async function handleTransfer() {
+    if (!transferUnitId || !transferFunnelId || !leadDetail) return
+    setTransferSaving(true)
+    try {
+      const res = await fetch('/api/leads/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: leadDetail.lead.id,
+          targetUnitId: transferUnitId,
+          targetFunnelId: transferFunnelId,
+          observacao: transferObs,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Erro ao transferir')
+        return
+      }
+      setTransferModal(false)
+      setLeadDetail(null)
+    } finally {
+      setTransferSaving(false)
+    }
+  }
+
   function toggleSignature() {
     if (isAtendente) return
     setSignatureEnabled(v => {
@@ -865,7 +921,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
             ) : leadDetail ? (
               <LeadContextView detail={leadDetail} conv={selectedConv} onOpen={lead => setModalLead(lead)} onUnlink={unlinkLead}
                 onCreateQuote={() => router.push('/orcamento')}
-                onSchedule={() => router.push('/agenda')} />
+                onSchedule={() => router.push('/agenda')}
+                onTransfer={openTransferModal} />
             ) : (
               <LinkLeadView showPanel={showLinkPanel} onToggle={() => setShowLinkPanel(v => !v)}
                 searchQ={linkSearchQ} onSearch={setLinkSearchQ} results={linkResults} searching={linkSearching}
@@ -903,6 +960,65 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           onClose={() => setNewConvOpen(false)}
         />
       )}
+      {/* ── Transfer modal ── */}
+      {transferModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
+          <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 420, padding: 20 }}>
+            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Transferir para outra unidade</h3>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato será movido com suas anotações, tarefas e contatos. Orçamentos e conversas WhatsApp permanecem na unidade atual.</p>
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 6 }}>Unidade destino *</label>
+            <select
+              value={transferUnitId}
+              onChange={e => handleTransferUnitChange(e.target.value)}
+              style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '8px 10px', fontSize: 13, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C', marginBottom: 14, boxSizing: 'border-box' as const }}
+            >
+              <option value="">Selecione a unidade...</option>
+              {transferUnits.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+
+            {transferUnitId && (
+              <>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 6 }}>Funil destino *</label>
+                <select
+                  value={transferFunnelId}
+                  onChange={e => setTransferFunnelId(e.target.value)}
+                  style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '8px 10px', fontSize: 13, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C', marginBottom: 14, boxSizing: 'border-box' as const }}
+                >
+                  <option value="">Selecione o funil...</option>
+                  {transferFunnels.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </>
+            )}
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 6 }}>Observação (contexto para a unidade destino)</label>
+            <textarea
+              value={transferObs}
+              onChange={e => setTransferObs(e.target.value)}
+              placeholder="Ex: Cliente quer atendimento na unidade de Salto, já fez orçamento de vacinas..."
+              rows={3}
+              style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const, color: '#25402C', marginBottom: 4 }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setTransferModal(false)}
+                style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={!transferUnitId || !transferFunnelId || transferSaving}
+                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#4F46E5', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!transferUnitId || !transferFunnelId || transferSaving) ? 0.5 : 1 }}
+              >
+                {transferSaving ? 'Transferindo...' : 'Transferir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }`}</style>
     </>
   )
@@ -1476,10 +1592,10 @@ function quoteStatusStyle(s: string): React.CSSProperties {
   return map[s] ?? { background: '#F1EFE5', color: '#9AA79C' }
 }
 
-function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSchedule }: {
+function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSchedule, onTransfer }: {
   detail: LeadDetail; conv: WaConversation
   onOpen: (l: LeadKanban) => void; onUnlink: () => void
-  onCreateQuote: () => void; onSchedule: () => void
+  onCreateQuote: () => void; onSchedule: () => void; onTransfer: () => void
 }) {
   const { lead, latestNote, tasks, contacts, lastQuote } = detail
   const fmtDate = (s: string) => format(new Date(s), "d MMM 'às' HH:mm", { locale: ptBR })
@@ -1659,6 +1775,14 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             Agendar tarefa
           </button>
         </div>
+        <button onClick={onTransfer}
+          style={{ width: '100%', padding: 10, fontSize: 11.5, fontWeight: 800, color: '#4F46E5', background: '#fff', border: '1px solid #C7D2FE', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+        >
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+          Transferir unidade
+        </button>
       </div>
     </div>
   )

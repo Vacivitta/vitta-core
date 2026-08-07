@@ -727,6 +727,61 @@ function LeadDrawer({
     }
   }
 
+  // ── Transfer ────────────────────────────────────────────────────────────────
+  const [transferModal,    setTransferModal]    = useState(false)
+  const [transferUnits,    setTransferUnits]    = useState<{ id: string; nome: string }[]>([])
+  const [transferFunnels,  setTransferFunnels]  = useState<{ id: string; nome: string }[]>([])
+  const [transferUnitId,   setTransferUnitId]   = useState('')
+  const [transferFunnelId, setTransferFunnelId] = useState('')
+  const [transferObs,      setTransferObs]      = useState('')
+  const [transferSaving,   setTransferSaving]   = useState(false)
+
+  async function openTransferModal() {
+    const { data: units } = await supabase
+      .from('units').select('id, nome').eq('ativo', true).neq('id', currentUser.unit_id).order('nome')
+    setTransferUnits(units ?? [])
+    setTransferUnitId('')
+    setTransferFunnelId('')
+    setTransferFunnels([])
+    setTransferObs('')
+    setTransferModal(true)
+  }
+
+  async function handleTransferUnitChange(unitId: string) {
+    setTransferUnitId(unitId)
+    setTransferFunnelId('')
+    const { data: funnels } = await supabase
+      .from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem')
+    setTransferFunnels(funnels ?? [])
+    if (funnels && funnels.length === 1) setTransferFunnelId(funnels[0].id)
+  }
+
+  async function handleTransfer() {
+    if (!transferUnitId || !transferFunnelId) return
+    setTransferSaving(true)
+    try {
+      const res = await fetch('/api/leads/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          targetUnitId: transferUnitId,
+          targetFunnelId: transferFunnelId,
+          observacao: transferObs,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Erro ao transferir')
+        return
+      }
+      onSaved()
+      handleClose()
+    } finally {
+      setTransferSaving(false)
+    }
+  }
+
   // ── Archive ────────────────────────────────────────────────────────────────
   const [archiveModal,  setArchiveModal]  = useState(false)
   const [archiveReason, setArchiveReason] = useState<ArchiveReason | ''>('')
@@ -829,15 +884,26 @@ function LeadDrawer({
                   Editar dados
                 </button>
                 {!isArchived && (
-                  <button
-                    onClick={() => setArchiveModal(true)}
-                    title="Arquivar contato"
-                    style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#C4534A'; e.currentTarget.style.borderColor = '#E8B4B0'; e.currentTarget.style.background = '#FDF1F2' }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
-                  </button>
+                  <>
+                    <button
+                      onClick={openTransferModal}
+                      title="Transferir para outra unidade"
+                      style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#4F46E5'; e.currentTarget.style.borderColor = '#C7D2FE'; e.currentTarget.style.background = '#EEF2FF' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    </button>
+                    <button
+                      onClick={() => setArchiveModal(true)}
+                      title="Arquivar contato"
+                      style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#C4534A'; e.currentTarget.style.borderColor = '#E8B4B0'; e.currentTarget.style.background = '#FDF1F2' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
+                    </button>
+                  </>
                 )}
               </>
             ) : (
@@ -1971,6 +2037,65 @@ function LeadDrawer({
           </div>
         </div>
       )}
+      {/* ── Transfer modal ── */}
+      {transferModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
+          <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 420, padding: 20 }}>
+            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Transferir para outra unidade</h3>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato será movido com suas anotações, tarefas e contatos. Orçamentos e conversas WhatsApp permanecem na unidade atual.</p>
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 6 }}>Unidade destino *</label>
+            <select
+              value={transferUnitId}
+              onChange={e => handleTransferUnitChange(e.target.value)}
+              style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '8px 10px', fontSize: 13, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C', marginBottom: 14, boxSizing: 'border-box' }}
+            >
+              <option value="">Selecione a unidade...</option>
+              {transferUnits.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+
+            {transferUnitId && (
+              <>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 6 }}>Funil destino *</label>
+                <select
+                  value={transferFunnelId}
+                  onChange={e => setTransferFunnelId(e.target.value)}
+                  style={{ width: '100%', borderRadius: 11, border: '1px solid #EBE7DA', padding: '8px 10px', fontSize: 13, outline: 'none', background: '#fff', fontFamily: 'inherit', color: '#25402C', marginBottom: 14, boxSizing: 'border-box' }}
+                >
+                  <option value="">Selecione o funil...</option>
+                  {transferFunnels.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </>
+            )}
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 6 }}>Observação (contexto para a unidade destino)</label>
+            <textarea
+              value={transferObs}
+              onChange={e => setTransferObs(e.target.value)}
+              placeholder="Ex: Cliente quer atendimento na unidade de Salto, já fez orçamento de vacinas..."
+              rows={3}
+              style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C', marginBottom: 4 }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setTransferModal(false)}
+                style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={!transferUnitId || !transferFunnelId || transferSaving}
+                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#4F46E5', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!transferUnitId || !transferFunnelId || transferSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
+              >
+                {transferSaving ? 'Transferindo...' : 'Transferir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Click-away handler for mention picker */}
       {showMentionPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMentionPicker(false)} />
