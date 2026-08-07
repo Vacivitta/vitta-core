@@ -736,6 +736,7 @@ function LeadDrawer({
   const [transferObs,      setTransferObs]      = useState('')
   const [transferSaving,   setTransferSaving]   = useState(false)
 
+  /** Carrega unidades disponíveis e abre o modal de transferência entre unidades. */
   async function openTransferModal() {
     const { data: units } = await supabase
       .from('units').select('id, nome').eq('ativo', true).neq('id', currentUser.unit_id).order('nome')
@@ -747,6 +748,7 @@ function LeadDrawer({
     setTransferModal(true)
   }
 
+  /** Ao trocar a unidade destino, carrega os funis ativos dela. Auto-seleciona se houver apenas um. */
   async function handleTransferUnitChange(unitId: string) {
     setTransferUnitId(unitId)
     setTransferFunnelId('')
@@ -756,6 +758,7 @@ function LeadDrawer({
     if (funnels && funnels.length === 1) setTransferFunnelId(funnels[0].id)
   }
 
+  /** Envia a requisição de transferência para a API e fecha o modal em caso de sucesso. */
   async function handleTransfer() {
     if (!transferUnitId || !transferFunnelId) return
     setTransferSaving(true)

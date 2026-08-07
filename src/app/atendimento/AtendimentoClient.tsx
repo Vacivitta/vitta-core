@@ -160,6 +160,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const [transferObs,      setTransferObs]      = useState('')
   const [transferSaving,   setTransferSaving]   = useState(false)
 
+  /** Carrega unidades disponíveis e abre o modal de transferência entre unidades. */
   async function openTransferModal() {
     if (!leadDetail) return
     const { data: units } = await supabase
@@ -172,6 +173,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setTransferModal(true)
   }
 
+  /** Ao trocar a unidade destino, carrega os funis ativos dela. Auto-seleciona se houver apenas um. */
   async function handleTransferUnitChange(unitId: string) {
     setTransferUnitId(unitId)
     setTransferFunnelId('')
@@ -181,6 +183,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     if (fns && fns.length === 1) setTransferFunnelId(fns[0].id)
   }
 
+  /** Envia a requisição de transferência para a API. Limpa o painel de contexto em caso de sucesso. */
   async function handleTransfer() {
     if (!transferUnitId || !transferFunnelId || !leadDetail) return
     setTransferSaving(true)
@@ -1592,6 +1595,7 @@ function quoteStatusStyle(s: string): React.CSSProperties {
   return map[s] ?? { background: '#F1EFE5', color: '#9AA79C' }
 }
 
+/** Painel lateral com dados do lead vinculado à conversa: cliente, tarefas, família, anotações, orçamento e ações rápidas. */
 function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSchedule, onTransfer }: {
   detail: LeadDetail; conv: WaConversation
   onOpen: (l: LeadKanban) => void; onUnlink: () => void
