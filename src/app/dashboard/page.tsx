@@ -15,7 +15,6 @@ export default async function DashboardPage() {
     .from('profiles').select('*').eq('id', user.id).single()
 
   if (!profile) redirect('/login')
-  if (profile.perfil === 'atendente') redirect('/funil')
 
   const unitId    = (profile as Profile).unit_id
   const monthYear = new Date().toISOString().slice(0, 7)

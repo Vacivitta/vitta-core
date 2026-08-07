@@ -3,6 +3,18 @@ import { getWaCredentials } from '@/lib/whatsapp/credentials'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
+/**
+ * Executa automações configuradas em `wa_automations` para um evento de WhatsApp.
+ * Triggers suportados: `inbound_message`, `outbound_message`, `conversation_resolved`.
+ *
+ * Para inbound/outbound, só dispara se não houve mensagem na mesma direção
+ * nas últimas 24h — evita loop de ping-pong entre estágios do funil.
+ *
+ * @param supabase - Cliente Supabase (service-role, chamado do webhook/send)
+ * @param trigger - Tipo do evento: 'inbound_message' | 'outbound_message' | 'conversation_resolved'
+ * @param unitId - ID da unidade (clínica) que recebeu/enviou a mensagem
+ * @param conversationId - ID da conversa em `wa_conversations`
+ */
 export async function runWaAutomation(
   supabase:       SupabaseClient,
   trigger:        string,
@@ -32,6 +44,16 @@ export async function runWaAutomation(
   }
 }
 
+/**
+ * Verifica se já houve mensagem na mesma direção (inbound/outbound) nas últimas 24h.
+ * Usado para garantir que a automação só dispare na primeira mensagem de uma
+ * nova janela de conversa, respeitando o ciclo de 24h da API do WhatsApp.
+ *
+ * @param supabase - Cliente Supabase
+ * @param conversationId - ID da conversa
+ * @param trigger - Tipo do trigger para determinar a direção (inbound/outbound)
+ * @returns `true` se deve pular a automação (já houve mensagem recente)
+ */
 async function isRepeatedWithin24h(
   supabase: SupabaseClient,
   conversationId: string,
@@ -49,11 +71,23 @@ async function isRepeatedWithin24h(
 
   if (!messages || messages.length < 2) return false
 
+  // A mensagem [0] é a atual (já inserida); [1] é a anterior.
+  // Se a anterior tem menos de 24h, a automação já foi executada nessa janela.
   const previousMsg = messages[1]
   const hoursSince = (Date.now() - new Date(previousMsg.created_at).getTime()) / (1000 * 60 * 60)
   return hoursSince < 24
 }
 
+/**
+ * Move o lead associado à conversa para um estágio do funil.
+ * Atualiza tanto `stage_id` quanto `funnel_id` para evitar que o card
+ * desapareça do kanban quando o estágio destino pertence a outro funil.
+ * Pula a operação se o lead já está no estágio destino.
+ *
+ * @param supabase - Cliente Supabase
+ * @param conversationId - ID da conversa para localizar o lead
+ * @param stageId - ID do estágio destino em `funnel_stages`
+ */
 async function handleMoveStage(supabase: SupabaseClient, conversationId: string, stageId: string) {
   const { data: conv } = await supabase
     .from('wa_conversations')
@@ -86,6 +120,16 @@ async function handleMoveStage(supabase: SupabaseClient, conversationId: string,
     .eq('id', conv.lead_id)
 }
 
+/**
+ * Envia um template de WhatsApp automaticamente para o contato da conversa.
+ * Resolve variáveis dinâmicas (nome do cliente, atendente, data, horário),
+ * monta o payload da Meta Graph API v20.0, envia e registra em `wa_messages`.
+ *
+ * @param supabase - Cliente Supabase
+ * @param unitId - ID da unidade para buscar credenciais WhatsApp
+ * @param conversationId - ID da conversa (destino e registro)
+ * @param templateId - ID do template em `wa_message_templates`
+ */
 async function handleSendTemplate(
   supabase: SupabaseClient,
   unitId: string,
@@ -182,6 +226,19 @@ async function handleSendTemplate(
   ])
 }
 
+/**
+ * Resolve variáveis dinâmicas de um template (ex: `{{1}}`, `{{2}}`).
+ * A ordem das variáveis vem de `variable_order` no banco; se ausente,
+ * usa o fallback padrão: nome_cliente, nome_atendente, data, horario.
+ * Se não encontrar o atendente responsável, usa o nome da unidade como fallback.
+ *
+ * @param supabase - Cliente Supabase
+ * @param unitId - ID da unidade (fallback para nome do atendente)
+ * @param leadId - ID do lead para buscar nome e responsável
+ * @param variableOrder - Mapeamento posição → semântica salvo no template
+ * @param varCount - Quantidade de variáveis `{{N}}` no conteúdo do template
+ * @returns Array de valores resolvidos na ordem das variáveis
+ */
 async function resolveVariables(
   supabase: SupabaseClient,
   unitId: string,
