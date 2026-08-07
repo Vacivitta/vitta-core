@@ -498,13 +498,21 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         }
         await fetch('/api/whatsapp/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text, mencoes }) })
       } else {
-        await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text, context_message_id: replyWaId }) })
+        const res = await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_id: selectedConv.id, content: text, context_message_id: replyWaId }) })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string; details?: { error?: { message?: string } } }
+          const metaMsg = data.details?.error?.message
+          alert(metaMsg ? `Erro Meta: ${metaMsg}` : (data.error ?? 'Erro ao enviar mensagem'))
+          return
+        }
         // Atualiza preview imediatamente sem esperar realtime
         const convId = selectedConv.id
         setConversations(prev => prev.map(c => c.id === convId
           ? { ...c, last_message_content: text, last_message_direction: 'outbound' }
           : c))
       }
+    } catch {
+      alert('Erro ao enviar mensagem')
     } finally { setSending(false) }
   }
 
