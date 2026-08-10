@@ -12,6 +12,7 @@ import { displayName } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import Drawer from '@/components/ui/Drawer'
+import TarefasPanel from '@/components/agenda/TarefasPanel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -141,6 +142,7 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
   const [selectedMsg,       setSelectedMsg]       = useState<ScheduledMsg | null>(null)
   const [showNewForm,       setShowNewForm]       = useState(false)
   const [newFormDate,       setNewFormDate]       = useState<Date | null>(null)
+  const [showTarefas,       setShowTarefas]       = useState(false)
   const [now,               setNow]               = useState(new Date())
 
   useEffect(() => {
@@ -277,6 +279,20 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
           {profiles.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
         </select>
 
+        {/* Tarefas panel */}
+        <button
+          onClick={() => setShowTarefas(true)}
+          className="flex items-center gap-1.5 shrink-0 transition-colors"
+          style={{ fontSize: '13px', fontWeight: 800, padding: '8px 16px', borderRadius: '999px', background: '#fff', border: '1px solid #EBE7DA', color: '#25402C', cursor: 'pointer' }}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m9 12 2 2 4-4" />
+          </svg>
+          Tarefas
+        </button>
+
         {/* New task */}
         <button
           onClick={() => { setNewFormDate(null); setShowNewForm(true) }}
@@ -338,6 +354,13 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
           onCreated={() => { reloadTasks(); setShowNewForm(false) }}
         />
       )}
+
+      <TarefasPanel
+        open={showTarefas}
+        onClose={() => setShowTarefas(false)}
+        profiles={profiles}
+        currentUser={currentUser}
+      />
     </div>
   )
 }

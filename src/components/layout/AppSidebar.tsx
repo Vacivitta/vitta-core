@@ -37,13 +37,6 @@ const IcoAgenda = () => (
   </svg>
 )
 
-const IcoTarefas = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-    <rect x="9" y="3" width="6" height="4" rx="1"/>
-    <path d="m9 12 2 2 4-4"/>
-  </svg>
-)
 
 const IcoClientes = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,10 +65,9 @@ const IcoChatInterno = () => (
   </svg>
 )
 
-const IcoSupervisao = () => (
+const IcoCampanhas = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
+    <path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
   </svg>
 )
 
@@ -162,7 +154,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/funil',        label: 'Funil',        icon: <IcoFunil /> },
   { href: '/atendimento',  label: 'Atendimento',  icon: <IcoAtendimento /> },
   { href: '/agenda',       label: 'Agenda',       icon: <IcoAgenda /> },
-  { href: '/tarefas',      label: 'Tarefas',      icon: <IcoTarefas /> },
   { href: '/clientes',     label: 'Clientes',     icon: <IcoClientes /> },
   { href: '/produtos',     label: 'Catálogo',     icon: <IcoCatalogo /> },
   { href: '/orcamento',    label: 'Orçamentos',   icon: <IcoOrcamento /> },
@@ -380,34 +371,34 @@ export default function AppSidebar() {
           <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
         ))}
 
-        {/* Supervisão — gestores only */}
+        {/* Campanhas — gestores only */}
         {isGestor && (
           <Link
-            href="/supervisao"
-            title={collapsed ? 'Supervisão' : undefined}
+            href="/campanhas"
+            title={collapsed ? 'Campanhas' : undefined}
             style={{
               display: 'flex', alignItems: 'center',
               gap: collapsed ? 0 : 11,
               padding: collapsed ? '9px 0' : '9px 12px',
               justifyContent: collapsed ? 'center' : 'flex-start',
               borderRadius: 12, fontSize: 13.5,
-              fontWeight: isActive('/supervisao') ? 800 : 700,
+              fontWeight: isActive('/campanhas') ? 800 : 700,
               textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden',
               transition: `background 0.15s, color 0.15s, gap 0.2s ${EASE}, padding 0.2s ${EASE}`,
-              ...(isActive('/supervisao')
+              ...(isActive('/campanhas')
                 ? { background: '#3E9849', color: '#fff', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }
                 : { color: '#71856F' }
               ),
             }}
-            className={!isActive('/supervisao') ? 'nav-item-idle' : ''}
+            className={!isActive('/campanhas') ? 'nav-item-idle' : ''}
           >
-            <span style={{ flexShrink: 0, display: 'flex' }}><IcoSupervisao /></span>
+            <span style={{ flexShrink: 0, display: 'flex' }}><IcoCampanhas /></span>
             <span style={{
               opacity: collapsed ? 0 : 1,
               width: collapsed ? 0 : 'auto',
               overflow: 'hidden',
               transition: `opacity 0.15s ${EASE}`,
-            }}>Supervisão</span>
+            }}>Campanhas</span>
           </Link>
         )}
       </nav>
