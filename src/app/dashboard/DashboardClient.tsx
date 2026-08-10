@@ -364,7 +364,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
       { label: 'Aceito', key: 'aceito', color: '#3E9849', count: m['aceito'] ?? 0 },
       { label: 'Recusado', key: 'recusado', color: '#C05B3A', count: m['recusado'] ?? 0 },
       { label: 'Negociação', key: 'em_negociacao', color: '#7C3AED', count: m['em_negociacao'] ?? 0 },
-      { label: 'Expirado', key: 'expirado', color: '#6B7280', count: m['expirado'] ?? 0 },
+      { label: 'Expirado', key: 'expirado', color: '#EA580C', count: m['expirado'] ?? 0 },
     ].filter(s => s.count > 0).map(s => ({ ...s, pct: t > 0 ? Math.round(s.count / t * 100) : 0 }))
   }, [filteredQuotes])
 
@@ -404,9 +404,9 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
               <p style={{ fontSize: 22, fontWeight: 800, color: '#C05B3A', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalRecusado > 0 ? fmtBRL.format(kpis.totalRecusado) : 'R$ 0'}</p>
               <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>recusados</p>
             </div>
-            <div style={{ ...card, background: '#f5f3ff' }}>
+            <div style={{ ...card, background: '#fff7ed' }}>
               <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Expirados</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#6B7280', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalExpirado > 0 ? fmtBRL.format(kpis.totalExpirado) : 'R$ 0'}</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#EA580C', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalExpirado > 0 ? fmtBRL.format(kpis.totalExpirado) : 'R$ 0'}</p>
               <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>{kpis.expirados} não tratado{kpis.expirados !== 1 ? 's' : ''}</p>
             </div>
             <div style={{ ...card, background: '#fef8ed' }}>
@@ -542,7 +542,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#2d7a36', fontSize: 11 }}>{fmtBRL.format(a.ganhos)}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#b5720e', fontSize: 11 }}>{fmtBRL.format(a.andamento)}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#C05B3A', fontSize: 11 }}>{fmtBRL.format(a.perdas)}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#6B7280', fontSize: 11 }}>{fmtBRL.format(a.expirados)}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#EA580C', fontSize: 11 }}>{fmtBRL.format(a.expirados)}</td>
                       <td style={{ padding: '6px 10px', textAlign: 'right' }}>
                         <span style={{ padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10, background: a.taxa >= 50 ? '#e6f4e6' : a.taxa >= 25 ? '#fef3e2' : '#fee2e2', color: a.taxa >= 50 ? '#2d7a36' : a.taxa >= 25 ? '#b5720e' : '#C05B3A' }}>{a.taxa}%</span>
                       </td>
