@@ -20,6 +20,14 @@ export default async function DashboardPage() {
   const monthYear = new Date().toISOString().slice(0, 7)
   const todayISO  = new Date().toISOString().slice(0, 10)
 
+  await supabase
+    .from('quotes')
+    .update({ status: 'expirado' })
+    .eq('unit_id', unitId)
+    .in('status', ['rascunho', 'enviado', 'visualizado', 'em_negociacao'])
+    .not('validade_ate', 'is', null)
+    .lt('validade_ate', todayISO)
+
   const [
     { data: leadsRaw },
     { data: quotesRaw },

@@ -31,6 +31,15 @@ export default async function OrcamentosPage({
 
   const unitId = (profileData as Profile).unit_id
 
+  const today = new Date().toISOString().slice(0, 10)
+  await supabase
+    .from('quotes')
+    .update({ status: 'expirado' })
+    .eq('unit_id', unitId)
+    .in('status', ['rascunho', 'enviado', 'visualizado', 'em_negociacao'])
+    .not('validade_ate', 'is', null)
+    .lt('validade_ate', today)
+
   const [
     { data: quotesData },
     { data: productsData },
