@@ -1598,7 +1598,7 @@ function quoteStatusStyle(s: string): React.CSSProperties {
     aceito:        { background: '#E8F4E6', color: '#2E7D32' },
     recusado:      { background: '#FDEBEC', color: '#C05B3A' },
     em_negociacao: { background: '#F3E5F5', color: '#7B1FA2' },
-    expirado:      { background: '#FEF4E6', color: '#E65100' },
+    expirado:      { background: 'var(--status-expirado-bg)', color: 'var(--status-expirado-text)' },
   }
   return map[s] ?? { background: '#F1EFE5', color: '#9AA79C' }
 }

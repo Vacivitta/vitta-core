@@ -47,8 +47,8 @@
   --status-aceito-text:       #35853F;
   --status-recusado-bg:       #F9E7E0;
   --status-recusado-text:     #C05B3A;
-  --status-expirado-bg:       #F1EFE5;
-  --status-expirado-text:     #9AA79C;
+  --status-expirado-bg:       #FFF7ED;
+  --status-expirado-text:     #EA580C;
 
   /* Neutros quentes */
   --color-ink:                #25402C;

@@ -99,7 +99,7 @@ const STATUS_CSS: Record<QuoteStatus, React.CSSProperties> = {
   aceito:        { background: 'var(--status-aceito-bg)',       color: 'var(--status-aceito-text)' },
   recusado:      { background: 'var(--status-recusado-bg)',     color: 'var(--status-recusado-text)' },
   em_negociacao: { background: 'var(--status-negociacao-bg)',    color: 'var(--status-negociacao-text)' },
-  expirado:      { background: 'var(--color-track)',            color: 'var(--color-muted)' },
+  expirado:      { background: 'var(--status-expirado-bg)',     color: 'var(--status-expirado-text)' },
 }
 
 function StatusBadge({ status }: { status: QuoteStatus }) {
