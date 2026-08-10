@@ -934,10 +934,10 @@ function NewTaskModal({
   }
 
   async function handleCreate() {
-    if (!form.titulo.trim() || !selectedLead) return
+    if (!form.titulo.trim()) return
     setSaving(true)
     await supabase.from('lead_tasks').insert({
-      lead_id:        selectedLead.id,
+      lead_id:        selectedLead?.id ?? null,
       titulo:         form.titulo,
       data_limite:    form.data_limite ? localInputToISO(form.data_limite) : null,
       responsavel_id: form.responsavel_id || null,
@@ -964,7 +964,7 @@ function NewTaskModal({
           </button>
           <button
             onClick={handleCreate}
-            disabled={saving || !form.titulo.trim() || !selectedLead}
+            disabled={saving || !form.titulo.trim()}
             className="flex-1 py-2 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition-colors" style={{ background: 'var(--color-brand)' }}
           >
             {saving ? 'Criando…' : 'Criar tarefa'}

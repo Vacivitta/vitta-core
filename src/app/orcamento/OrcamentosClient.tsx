@@ -311,12 +311,14 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, payme
     setSaving(true)
     setError('')
 
+    const finalStatus = editing ? 'em_negociacao' as QuoteStatus : status
+
     const quotePayload = {
       unit_id:         unitId,
       lead_id:         selectedLead?.id ?? null,
       template_id:     templateId || null,
-      status,
-      motivo_recusa:   status === 'recusado' ? motivoRecusa.trim() : null,
+      status:          finalStatus,
+      motivo_recusa:   finalStatus === 'recusado' ? motivoRecusa.trim() : null,
       responsavel_id:  userId,
       validade_ate:    validadeAte || null,
       observacoes:     observacoes.trim() || null,
@@ -326,7 +328,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, payme
       paciente_nome:   usarNomePersonalizado && pacienteNome.trim() ? pacienteNome.trim() : null,
     }
 
-    const SELECT = '*, lead:leads(nome,sobrenome,telefone), template:quote_templates(*), responsavel:profiles!responsavel_id(full_name)'
+    const SELECT = '*, lead:leads(id,nome,sobrenome,telefone), template:quote_templates(*), responsavel:profiles!responsavel_id(full_name)'
 
     let quoteId: string
     let quoteData: QuoteRow
