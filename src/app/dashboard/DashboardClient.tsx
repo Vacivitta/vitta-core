@@ -149,10 +149,12 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
   const kpis = useMemo(() => {
     const aceitos   = filteredQuotes.filter(q => q.status === 'aceito')
     const recusados = filteredQuotes.filter(q => q.status === 'recusado')
-    const enviados  = filteredQuotes.filter(q => ['enviado', 'visualizado', 'aceito', 'recusado', 'em_negociacao'].includes(q.status))
+    const expirados = filteredQuotes.filter(q => q.status === 'expirado')
+    const enviados  = filteredQuotes.filter(q => ['enviado', 'visualizado', 'aceito', 'recusado', 'em_negociacao', 'expirado'].includes(q.status))
     const andamento = filteredQuotes.filter(q => ['enviado', 'visualizado', 'em_negociacao'].includes(q.status))
     const totalAceito    = aceitos.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
     const totalRecusado  = recusados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
+    const totalExpirado  = expirados.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
     const totalAndamento = andamento.reduce((s, q) => s + (q.total_calculado ?? 0), 0)
     const ticketMed = aceitos.length > 0 ? totalAceito / aceitos.length : 0
     const taxaConv  = enviados.length > 0 ? Math.round((aceitos.length / enviados.length) * 100) : 0
@@ -173,7 +175,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     }
     const principalMotivo = Object.entries(motivosMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
-    return { leadsAtivos: leads.length, novosLeads: filteredLeads.length, aceitos: aceitos.length, totalAceito, totalRecusado, totalAndamento, ticketMedio: ticketMed, taxaConv, enviados: enviados.length, cicloMedio, principalMotivo }
+    return { leadsAtivos: leads.length, novosLeads: filteredLeads.length, aceitos: aceitos.length, expirados: expirados.length, totalAceito, totalRecusado, totalExpirado, totalAndamento, ticketMedio: ticketMed, taxaConv, enviados: enviados.length, cicloMedio, principalMotivo }
   }, [filteredQuotes, filteredLeads, leads])
 
   // ── Motivos recusa
@@ -192,12 +194,12 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
 
   // ── Conversão por atendente
   const convPorAtendente = useMemo(() => {
-    const map: Record<string, { ganhos: number; andamento: number; perdas: number; aceitos: number; total: number }> = {}
+    const map: Record<string, { ganhos: number; andamento: number; perdas: number; expirados: number; aceitos: number; total: number }> = {}
     for (const q of filteredQuotes) {
-      if (!q.responsavel_id || !['enviado', 'visualizado', 'aceito', 'recusado', 'em_negociacao'].includes(q.status)) continue
-      if (!map[q.responsavel_id]) map[q.responsavel_id] = { ganhos: 0, andamento: 0, perdas: 0, aceitos: 0, total: 0 }
+      if (!q.responsavel_id || !['enviado', 'visualizado', 'aceito', 'recusado', 'em_negociacao', 'expirado'].includes(q.status)) continue
+      if (!map[q.responsavel_id]) map[q.responsavel_id] = { ganhos: 0, andamento: 0, perdas: 0, expirados: 0, aceitos: 0, total: 0 }
       const e = map[q.responsavel_id]; e.total++; const v = q.total_calculado ?? 0
-      if (q.status === 'aceito') { e.ganhos += v; e.aceitos++ } else if (q.status === 'recusado') { e.perdas += v } else { e.andamento += v }
+      if (q.status === 'aceito') { e.ganhos += v; e.aceitos++ } else if (q.status === 'recusado') { e.perdas += v } else if (q.status === 'expirado') { e.expirados += v } else { e.andamento += v }
     }
     return Object.entries(map).map(([id, d]) => {
       const p = profiles.find(pr => pr.id === id)
@@ -296,7 +298,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     const a = filteredQuotes
     return [
       { label: 'Criados', count: a.length, color: '#9AA79C' },
-      { label: 'Enviados', count: a.filter(q => ['enviado','visualizado','aceito','recusado','em_negociacao'].includes(q.status)).length, color: '#1E86C0' },
+      { label: 'Enviados', count: a.filter(q => ['enviado','visualizado','aceito','recusado','em_negociacao','expirado'].includes(q.status)).length, color: '#1E86C0' },
       { label: 'Visualizados', count: a.filter(q => ['visualizado','aceito','recusado'].includes(q.status)).length, color: '#64AEDC' },
       { label: 'Aceitos', count: a.filter(q => q.status === 'aceito').length, color: '#3E9849' },
       { label: 'Recusados', count: a.filter(q => q.status === 'recusado').length, color: '#C05B3A' },
@@ -391,7 +393,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
 
         {/* ── COMERCIAL ── */}
         <Section title="Comercial">
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-4 gap-3 mb-3">
             <div style={{ ...card, background: '#f0faf1' }}>
               <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Ganhos</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: '#2d7a36', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalAceito > 0 ? fmtBRL.format(kpis.totalAceito) : 'R$ 0'}</p>
@@ -401,6 +403,11 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
               <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Perdas</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: '#C05B3A', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalRecusado > 0 ? fmtBRL.format(kpis.totalRecusado) : 'R$ 0'}</p>
               <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>recusados</p>
+            </div>
+            <div style={{ ...card, background: '#f5f3ff' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Expirados</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#6B7280', margin: '1px 0 0', lineHeight: 1.1 }}>{kpis.totalExpirado > 0 ? fmtBRL.format(kpis.totalExpirado) : 'R$ 0'}</p>
+              <p style={{ fontSize: 9, color: '#888', margin: '1px 0 0' }}>{kpis.expirados} não tratado{kpis.expirados !== 1 ? 's' : ''}</p>
             </div>
             <div style={{ ...card, background: '#fef8ed' }}>
               <p style={{ fontSize: 9, fontWeight: 700, color: '#999', margin: 0, textTransform: 'uppercase' }}>Andamento</p>
@@ -519,6 +526,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
                     <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Ganhos</th>
                     <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Andamento</th>
                     <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Perdas</th>
+                    <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Expirados</th>
                     <th style={{ textAlign: 'right', padding: '7px 10px', fontWeight: 700, color: '#888', fontSize: 9, textTransform: 'uppercase' }}>Taxa</th>
                   </tr>
                 </thead>
@@ -534,6 +542,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#2d7a36', fontSize: 11 }}>{fmtBRL.format(a.ganhos)}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#b5720e', fontSize: 11 }}>{fmtBRL.format(a.andamento)}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#C05B3A', fontSize: 11 }}>{fmtBRL.format(a.perdas)}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#6B7280', fontSize: 11 }}>{fmtBRL.format(a.expirados)}</td>
                       <td style={{ padding: '6px 10px', textAlign: 'right' }}>
                         <span style={{ padding: '1px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10, background: a.taxa >= 50 ? '#e6f4e6' : a.taxa >= 25 ? '#fef3e2' : '#fee2e2', color: a.taxa >= 50 ? '#2d7a36' : a.taxa >= 25 ? '#b5720e' : '#C05B3A' }}>{a.taxa}%</span>
                       </td>
