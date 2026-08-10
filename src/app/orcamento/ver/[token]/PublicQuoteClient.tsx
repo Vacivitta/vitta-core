@@ -273,8 +273,13 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
         )}
 
         {/* PDF */}
-        <div className="flex justify-center pb-4">
-          <PdfButton quote={quote} label="Baixar PDF" variant="download" />
+        <div className="flex justify-center pb-6 pt-2">
+          <PdfButton
+            quote={quote}
+            label="Baixar PDF"
+            variant="download"
+            className="flex items-center gap-2 text-sm font-semibold px-6 py-3 bg-[#35853F] text-white rounded-xl hover:bg-[#2d7235] transition-colors shadow-md"
+          />
         </div>
       </div>
     </div>

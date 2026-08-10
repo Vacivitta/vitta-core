@@ -98,7 +98,7 @@ const STATUS_CSS: Record<QuoteStatus, React.CSSProperties> = {
   visualizado:   { background: 'var(--status-visualizado-bg)',  color: 'var(--status-visualizado-text)' },
   aceito:        { background: 'var(--status-aceito-bg)',       color: 'var(--status-aceito-text)' },
   recusado:      { background: 'var(--status-recusado-bg)',     color: 'var(--status-recusado-text)' },
-  em_negociacao: { background: 'var(--color-accent-subtle)',    color: 'var(--color-accent-text)' },
+  em_negociacao: { background: 'var(--status-negociacao-bg)',    color: 'var(--status-negociacao-text)' },
   expirado:      { background: 'var(--color-track)',            color: 'var(--color-muted)' },
 }
 

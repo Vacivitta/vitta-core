@@ -361,7 +361,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
       { label: 'Visualizado', key: 'visualizado', color: '#64AEDC', count: m['visualizado'] ?? 0 },
       { label: 'Aceito', key: 'aceito', color: '#3E9849', count: m['aceito'] ?? 0 },
       { label: 'Recusado', key: 'recusado', color: '#C05B3A', count: m['recusado'] ?? 0 },
-      { label: 'Negociação', key: 'em_negociacao', color: '#F39313', count: m['em_negociacao'] ?? 0 },
+      { label: 'Negociação', key: 'em_negociacao', color: '#7C3AED', count: m['em_negociacao'] ?? 0 },
       { label: 'Expirado', key: 'expirado', color: '#6B7280', count: m['expirado'] ?? 0 },
     ].filter(s => s.count > 0).map(s => ({ ...s, pct: t > 0 ? Math.round(s.count / t * 100) : 0 }))
   }, [filteredQuotes])
