@@ -7,7 +7,7 @@ import { displayName } from '@/types/database'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null; motivo_perda: string | null }
-interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null }
+interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null; validade_ate: string | null }
 interface StageRow    { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
 interface TaskRow     { id: string; concluida_em: string | null; data_vencimento: string | null; responsavel_id: string | null }
 interface ConvRow     { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: string | null; status: string; assigned_to: string | null; queue_id: string | null; resolved_at: string | null }
@@ -142,7 +142,15 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     }
   }
 
-  const filteredQuotes = useMemo(() => quotes.filter(q => inPeriod(q.criado_em, cut)), [quotes, cut])
+  const filteredQuotes = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return quotes.filter(q => inPeriod(q.criado_em, cut)).map(q => {
+      if (q.validade_ate && q.validade_ate < today && ['rascunho', 'enviado', 'visualizado', 'em_negociacao'].includes(q.status)) {
+        return { ...q, status: 'expirado' }
+      }
+      return q
+    })
+  }, [quotes, cut])
   const filteredLeads  = useMemo(() => leads.filter(l => inPeriod(l.created_at, cut)), [leads, cut])
 
   // ── KPIs comerciais

@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       .eq('unit_id', unitId),
     supabase
       .from('quotes')
-      .select('id, status, total_calculado, criado_em, aceito_em, responsavel_id, motivo_recusa')
+      .select('id, status, total_calculado, criado_em, aceito_em, responsavel_id, motivo_recusa, validade_ate')
       .eq('unit_id', unitId)
       .order('criado_em', { ascending: false }),
     supabase
