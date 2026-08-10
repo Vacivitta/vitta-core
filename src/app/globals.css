@@ -28,6 +28,11 @@
   --color-danger:             #C05B3A;
   --color-danger-subtle:      #F9E7E0;
   --color-danger-text:        #C05B3A;
+  --color-success:            #3E9849;
+  --color-success-subtle:     #E8F4E6;
+  --color-success-text:       #35853F;
+  --color-accent-subtle:      #EDE9FE;
+  --color-accent-text:        #7C3AED;
 
   /* Status de orçamento */
   --status-rascunho-bg:       #F1EFE5;
