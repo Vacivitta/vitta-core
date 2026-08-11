@@ -69,21 +69,12 @@ async function handler(req: NextRequest) {
     const body = `#${numStr} · ${patientName}${valorStr ? ` · ${valorStr}` : ''}`
 
     if (validade < today) {
-      // Vencido — marcar como expirado + notificar
+      // Vencido — marcar como expirado (trigger fn_notify_quote_expired cria a notificação)
       await supabase
         .from('quotes')
         .update({ status: 'expirado' })
         .eq('id', q.id)
 
-      await supabase.rpc('create_quote_notification', {
-        p_unit_id:  q.unit_id,
-        p_user_id:  q.responsavel_id ?? null,
-        p_type:     'quote_expirado',
-        p_title:    '⏰ Orçamento expirado',
-        p_body:     body,
-        p_quote_id: q.id,
-        p_lead_id:  q.lead_id ?? null,
-      })
       expired++
       notified++
     } else if (validade === today || validade === tomorrowStr) {
