@@ -235,6 +235,14 @@ function LeadDrawer({
           })
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'wa_messages', filter: `conversation_id=eq.${waConversation.id}` },
+        (payload) => {
+          const updated = payload.new as WaMessage
+          setWaMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m))
+        }
+      )
       .subscribe()
 
     const notesChannel = supabase
@@ -1844,6 +1852,7 @@ function LeadDrawer({
                       const msg = item as WaMessage
                       if (msg.type === 'reaction') return null
                       const isOut = msg.direction === 'outbound'
+                      const failed = isOut && msg.status === 'failed'
                       const isNote = msg.type === 'note'
                       if (isNote) {
                         return (
@@ -1865,7 +1874,8 @@ function LeadDrawer({
                             onMouseLeave={() => setWaHoveredMsgId(null)}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexDirection: isOut ? 'row' : 'row-reverse', maxWidth: '75%' }}>
-                              {/* Reply button */}
+                              {/* Reply button — esconde para mensagens falhadas */}
+                              {!failed && (
                               <button
                                 onClick={() => setWaReplyTo(msg)}
                                 title="Responder"
@@ -1882,13 +1892,14 @@ function LeadDrawer({
                               >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7F6B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
                               </button>
+                              )}
                               {/* Bubble */}
                               <div style={{
-                                background:   isOut ? '#DCF0D3' : '#fff',
+                                background:   failed ? '#F6DFD5' : isOut ? '#DCF0D3' : '#fff',
                                 borderRadius: isOut ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
                                 padding:      '8px 12px',
                                 boxShadow:    '0 1px 2px rgba(37,64,44,0.07)',
-                                border:       isOut ? 'none' : '1px solid #EBE7DA',
+                                border:       failed ? '1px solid #E8B4B0' : isOut ? 'none' : '1px solid #EBE7DA',
                                 minWidth: 0, flex: '0 1 auto',
                               }}>
                                 {quotedMsg && (
@@ -1908,9 +1919,9 @@ function LeadDrawer({
                                 {(msg.type === 'text' || (msg.type === 'template' && !msg.media_url) || (!msg.media_url && msg.content)) ? (
                                   <p style={{ margin: 0, fontSize: 13.5, color: isOut ? '#2C4630' : '#35473A', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                     <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, float: 'right', marginLeft: 8, marginTop: 2, height: 0, fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2', whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, float: 'right', marginLeft: 8, marginTop: 2, height: 0, fontSize: 10, color: failed ? '#C05B3A' : isOut ? '#7FA57F' : '#B4BFB2', whiteSpace: 'nowrap', verticalAlign: 'bottom', lineHeight: '16px' }}>
                                       {format(new Date(msg.created_at), 'HH:mm')}
-                                      {isOut && <span style={{ color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>{msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}</span>}
+                                      {isOut && (failed ? <span style={{ color: '#ff6b6b', fontWeight: 700 }}>!</span> : <span style={{ color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>{msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}</span>)}
                                     </span>
                                   </p>
                                 ) : (
@@ -1919,13 +1930,14 @@ function LeadDrawer({
                                       <MediaContent msg={msg} isOut={isOut} unitId={currentUser.unit_id ?? null} />
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginTop: 3 }}>
-                                      <span style={{ fontSize: 10, color: isOut ? '#7FA57F' : '#B4BFB2' }}>
+                                      <span style={{ fontSize: 10, color: failed ? '#C05B3A' : isOut ? '#7FA57F' : '#B4BFB2' }}>
                                         {format(new Date(msg.created_at), 'HH:mm')}
                                       </span>
-                                      {isOut && (
-                                        <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
-                                          {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
-                                        </span>
+                                      {isOut && (failed
+                                        ? <span style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 700 }}>!</span>
+                                        : <span style={{ fontSize: 10, color: msg.status === 'read' ? '#1E86C0' : '#7FA57F' }}>
+                                            {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
+                                          </span>
                                       )}
                                     </div>
                                   </>
@@ -1945,6 +1957,12 @@ function LeadDrawer({
                                 </div>
                               )
                             })()}
+                            {failed && (
+                              <span style={{ fontSize: 10, color: '#C05B3A', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end' }}>
+                                <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                                Mensagem não entregue
+                              </span>
+                            )}
                           </div>
                         )
                       })()

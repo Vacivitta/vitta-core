@@ -1,12 +1,12 @@
 /**
  * /api/orcamento/check-expiring
  *
- * Cron endpoint: verifica orçamentos próximos do vencimento e expirados.
- * - 1 dia antes do vencimento → notificação `quote_expiring`
- * - No dia do vencimento → notificação `quote_expiring` (lembrete final)
- * - Após vencimento → marca como `expirado` + notificação `quote_expirado`
+ * Cron endpoint (diário 10h UTC / 7h BRT): verifica orçamentos próximos do vencimento.
+ * - 1 dia antes   → "📋 Orçamento vence amanhã"
+ * - No dia        → "⚠️ Orçamento vence hoje"
+ * - Após vencimento → marca como `expirado` (trigger fn_notify_quote_expired cria notificação)
  *
- * Proteja com CRON_SECRET: Authorization: Bearer <CRON_SECRET>
+ * Cada lembrete é enviado apenas 1x por orçamento (deduplicação por quote_id + tipo + título).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -35,9 +35,13 @@ async function handler(req: NextRequest) {
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
 
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10)
+  const addDays = (d: Date, n: number) => {
+    const r = new Date(d)
+    r.setDate(r.getDate() + n)
+    return r.toISOString().slice(0, 10)
+  }
+
+  const tomorrowStr = addDays(now, 1)
 
   const activeStatuses = ['rascunho', 'enviado', 'visualizado', 'em_negociacao']
 
@@ -55,6 +59,18 @@ async function handler(req: NextRequest) {
   if (!quotes || quotes.length === 0) {
     return NextResponse.json({ processed: 0 })
   }
+
+  // Buscar notificações já enviadas para evitar duplicatas
+  const quoteIds = quotes.map(q => q.id)
+  const { data: existingNotifs } = await supabase
+    .from('notifications')
+    .select('quote_id, title')
+    .in('quote_id', quoteIds)
+    .eq('type', 'quote_expiring')
+
+  const notifSet = new Set(
+    (existingNotifs ?? []).map(n => `${n.quote_id}::${n.title}`)
+  )
 
   const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
   let notified = 0
@@ -77,14 +93,26 @@ async function handler(req: NextRequest) {
 
       expired++
       notified++
-    } else if (validade === today || validade === tomorrowStr) {
-      // Vence hoje ou amanhã — notificar
-      const isToday = validade === today
+    } else {
+      // Determinar qual lembrete enviar
+      let title = ''
+      if (validade === tomorrowStr) {
+        title = '📋 Orçamento vence amanhã'
+      } else if (validade === today) {
+        title = '⚠️ Orçamento vence hoje'
+      }
+
+      if (!title) continue
+
+      // Deduplicar: não enviar se já existe notificação com mesmo quote_id + título
+      const key = `${q.id}::${title}`
+      if (notifSet.has(key)) continue
+
       await supabase.rpc('create_quote_notification', {
         p_unit_id:  q.unit_id,
         p_user_id:  q.responsavel_id ?? null,
         p_type:     'quote_expiring',
-        p_title:    isToday ? '⚠️ Orçamento vence hoje' : '📋 Orçamento vence amanhã',
+        p_title:    title,
         p_body:     body,
         p_quote_id: q.id,
         p_lead_id:  q.lead_id ?? null,
