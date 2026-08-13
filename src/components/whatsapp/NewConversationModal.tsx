@@ -61,6 +61,23 @@ export default function NewConversationModal({ unitId, templates: templatesProp,
     templates.filter(t => t.category === 'meta_api'),
   [templates])
 
+  // Validação do telefone: detecta celular sem 9° dígito
+  const phoneWarning = useMemo(() => {
+    const digits = phone.replace(/\D/g, '')
+    if (!digits) return null
+    const n = digits.startsWith('55') ? digits : digits.startsWith('0') ? '55' + digits.slice(1) : '55' + digits
+    // 55 + DDD(2) + 8 dígitos começando com [6-9] = celular sem 9° dígito
+    if (n.startsWith('55') && n.length === 12) {
+      const local = n.slice(4)
+      if (/^[6-9]/.test(local)) {
+        const ddd = n.slice(2, 4)
+        return `Número de celular sem o 9° dígito. O formato correto é (${ddd}) 9${local.slice(0, 4)}-${local.slice(4)}`
+      }
+    }
+    if (n.length < 12 || n.length > 13) return 'Número inválido. Informe DDD + número (ex: 34999998888)'
+    return null
+  }, [phone])
+
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const selected = useMemo(() => {
     if (selectedName) return metaTemplates.find(t => t.name === selectedName) ?? metaTemplates[0] ?? null
@@ -215,11 +232,17 @@ export default function NewConversationModal({ unitId, templates: templatesProp,
           <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Telefone (DDD + número)</label>
           <input
             type="tel"
-            placeholder="Ex: 11999998888"
+            placeholder="Ex: 34999998888"
             value={phone}
             onChange={e => setPhone(e.target.value)}
-            style={{ width: '100%', border: '1.5px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16, color: '#25402C' }}
+            style={{ width: '100%', border: `1.5px solid ${phoneWarning ? '#E53E3E' : '#EBE7DA'}`, borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: phoneWarning ? 4 : 16, color: '#25402C' }}
           />
+          {phoneWarning && (
+            <p style={{ fontSize: 11.5, color: '#E53E3E', margin: '0 0 12px', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ flexShrink: 0, marginTop: 1 }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+              {phoneWarning}
+            </p>
+          )}
 
           <label style={{ fontSize: 11, fontWeight: 700, color: '#9AA79C', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Template de abertura</label>
           {loading ? (
@@ -317,11 +340,11 @@ export default function NewConversationModal({ unitId, templates: templatesProp,
         {/* Botões fixos */}
         <div style={{ display: 'flex', gap: 8, padding: '12px 28px 20px', flexShrink: 0, borderTop: '1px solid #EBE7DA' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, cursor: 'pointer', background: '#fff', color: '#71856F', fontWeight: 600 }}>Cancelar</button>
-          <button onClick={handleSend} disabled={sending || loading || noTmpls || !selected}
+          <button onClick={handleSend} disabled={sending || loading || noTmpls || !selected || !!phoneWarning}
             style={{ flex: 2, padding: '10px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
-              cursor: sending || loading || noTmpls || !selected ? 'default' : 'pointer',
-              background: sending || loading || noTmpls || !selected ? '#EBE7DA' : '#25D366',
-              color: sending || loading || noTmpls || !selected ? '#9AA79C' : '#fff', transition: 'all 0.15s' }}>
+              cursor: sending || loading || noTmpls || !selected || phoneWarning ? 'default' : 'pointer',
+              background: sending || loading || noTmpls || !selected || phoneWarning ? '#EBE7DA' : '#25D366',
+              color: sending || loading || noTmpls || !selected || phoneWarning ? '#9AA79C' : '#fff', transition: 'all 0.15s' }}>
             {sending ? 'Enviando…' : 'Iniciar conversa'}
           </button>
         </div>

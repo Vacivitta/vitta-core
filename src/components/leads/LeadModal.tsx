@@ -173,16 +173,29 @@ function LeadDrawer({
     setWaLoaded(false)
 
     const phoneRaw = lead.telefone.replace(/\D/g, '')
-    // normaliza para E.164 brasileiro (adiciona 55 se não tiver)
     const waPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`
 
-    supabase
-      .from('wa_conversations')
-      .select('id, wa_phone, status, unread_count, assigned_to')
-      .eq('wa_phone', waPhone)
-      .eq('unit_id', currentUser.unit_id)
-      .maybeSingle()
-      .then(async ({ data: conv }) => {
+    // Busca por lead_id (link direto) com fallback por telefone
+    const findConversation = async () => {
+      const { data: byLead } = await supabase
+        .from('wa_conversations')
+        .select('id, wa_phone, status, unread_count, assigned_to')
+        .eq('lead_id', lead.id)
+        .eq('unit_id', currentUser.unit_id)
+        .maybeSingle()
+      if (byLead) return byLead
+
+      const { data: byPhone } = await supabase
+        .from('wa_conversations')
+        .select('id, wa_phone, status, unread_count, assigned_to')
+        .eq('wa_phone', waPhone)
+        .eq('unit_id', currentUser.unit_id)
+        .maybeSingle()
+      return byPhone
+    }
+
+    findConversation()
+      .then(async (conv) => {
         if (!conv) { setWaLoaded(true); return }
         setWaConversation(conv as WaConversation)
 
