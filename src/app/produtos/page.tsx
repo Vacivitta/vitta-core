@@ -22,6 +22,7 @@ export default async function ProdutosPage() {
   const { data: productsData } = await supabase
     .from('products')
     .select('*')
+    .eq('unit_id', profileData.unit_id)
     .order('nome')
 
   return (
