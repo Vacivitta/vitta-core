@@ -142,13 +142,14 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, payme
   const [prodSearch,   setProdSearch]   = useState('')
 
   // Config
-  const [templateId,   setTemplateId]   = useState(editing?.template_id ?? '')
+  const [templateId,   setTemplateId]   = useState(editing?.template_id ?? templates.find(t => t.is_default)?.id ?? '')
   const [status,       setStatus]       = useState<QuoteStatus>(editing?.status ?? 'rascunho')
   const [motivoRecusa, setMotivoRecusa] = useState(editing?.motivo_recusa ?? '')
   const [observacoes,  setObservacoes]  = useState(editing?.observacoes ?? '')
   const [validadeAte,  setValidadeAte]  = useState(() => {
     if (editing?.validade_ate) return editing.validade_ate
-    const dias = templates.find(t => t.id === editing?.template_id)?.validade_dias ?? 7
+    const defaultTpl = editing?.template_id ? templates.find(t => t.id === editing.template_id) : templates.find(t => t.is_default)
+    const dias = defaultTpl?.validade_dias ?? 7
     const d = new Date()
     d.setDate(d.getDate() + dias)
     return d.toISOString().slice(0, 10)

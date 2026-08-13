@@ -119,6 +119,21 @@ function LeadDrawer({
     valor_negociado: lead.valor_negociado?.toString() ?? '',
   })
 
+  const phoneWarning = useMemo(() => {
+    const digits = form.telefone.replace(/\D/g, '')
+    if (!digits) return null
+    const n = digits.startsWith('55') ? digits : digits.startsWith('0') ? '55' + digits.slice(1) : '55' + digits
+    if (n.startsWith('55') && n.length === 12) {
+      const local = n.slice(4)
+      if (/^[6-9]/.test(local)) {
+        const ddd = n.slice(2, 4)
+        return `Celular sem o 9° dígito. Formato correto: (${ddd}) 9${local.slice(0, 4)}-${local.slice(4)}`
+      }
+    }
+    if (digits.length > 3 && (n.length < 12 || n.length > 13)) return 'Número inválido. Informe DDD + número (ex: 34 99999-8888)'
+    return null
+  }, [form.telefone])
+
   const activeFunnel = allFunnels.find(f => f.id === form.funnel_id) ?? funnel
   const activeStages = activeFunnel.stages
 
@@ -693,7 +708,7 @@ function LeadDrawer({
 
   // ── Save ───────────────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.nome.trim()) return
+    if (!form.nome.trim() || phoneWarning) return
     setSaving(true)
     try {
       const previousStageId = lead.stage_id
@@ -961,7 +976,14 @@ function LeadDrawer({
                   <F label="Profissão" value={form.profissao} onChange={v => setForm(f => ({ ...f, profissao: v }))} />
                 </LeftSection>
                 <LeftSection title="Contato">
-                  <F label="Telefone"  value={form.telefone}  onChange={v => setForm(f => ({ ...f, telefone: v }))} />
+                  <div>
+                    <F label="Telefone"  value={form.telefone}  onChange={v => setForm(f => ({ ...f, telefone: v }))} />
+                    {phoneWarning && (
+                      <p style={{ color: '#D2432A', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>⚠</span> {phoneWarning}
+                      </p>
+                    )}
+                  </div>
                   <F label="E-mail"    value={form.email}     onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
                   <F label="Instagram" value={form.instagram} onChange={v => setForm(f => ({ ...f, instagram: v }))} placeholder="@usuario" />
                   <F label="Site"      value={form.site}      onChange={v => setForm(f => ({ ...f, site: v }))} placeholder="https://" />

@@ -83,28 +83,70 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
     await updateStatus('recusado', motivoRecusa.trim())
   }
 
+  const logoUrl       = t?.logo_url         ?? null
+  const endereco      = t?.endereco         ?? null
+  const cidadeEstado  = t?.cidade_estado    ?? null
+  const telClinica    = t?.telefone_clinica ?? null
+  const cnpj          = t?.cnpj             ?? null
+  const txtCabecalho  = t?.texto_cabecalho  ?? null
+  const txtRodape     = t?.texto_rodape?.replace('{validade_dias}', String(validadeDias)) ?? null
+  const paginas       = t?.paginas_imagens  ?? {}
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-xl mx-auto space-y-4">
+
+        {/* Capa */}
+        {paginas.capa && (
+          <div className="rounded-2xl overflow-hidden shadow-sm">
+            <img src={paginas.capa} alt="Capa" className="w-full block" />
+          </div>
+        )}
+
+        {/* Intro pages */}
+        {paginas.intro?.map((url, i) => (
+          <div key={i} className="rounded-2xl overflow-hidden shadow-sm">
+            <img src={url} alt={`Página ${i + 1}`} className="w-full block" />
+          </div>
+        ))}
 
         {/* Header card */}
         <div className="rounded-2xl overflow-hidden shadow-sm">
           <div className="h-2" style={{ backgroundColor: corPrimaria }} />
           <div className="bg-white px-6 py-5">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{nomeClinica}</p>
-                <h1 className="text-xl font-bold text-gray-900 mt-0.5">Orçamento #{numStr}</h1>
-                <p className="text-xs text-gray-500 mt-1">
-                  Emitido em {fmtDate(quote.criado_em)}
-                  {' · '}
-                  Válido até {addDays(quote.criado_em, validadeDias)}
-                </p>
+              <div className="flex items-center gap-3">
+                {logoUrl && (
+                  <img src={logoUrl} alt={nomeClinica} className="h-10 w-auto object-contain shrink-0" />
+                )}
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{nomeClinica}</p>
+                  <h1 className="text-xl font-bold text-gray-900 mt-0.5">Orçamento #{numStr}</h1>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Emitido em {fmtDate(quote.criado_em)}
+                    {' · '}
+                    Válido até {addDays(quote.criado_em, validadeDias)}
+                  </p>
+                </div>
               </div>
               <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${QUOTE_STATUS_COLORS[quote.status]}`}>
                 {QUOTE_STATUS_LABELS[quote.status]}
               </span>
             </div>
+
+            {/* Clinic info */}
+            {(endereco || telClinica || cnpj) && (
+              <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1">
+                {endereco && <p className="text-xs text-gray-400">{endereco}{cidadeEstado ? ` — ${cidadeEstado}` : ''}</p>}
+                {telClinica && <p className="text-xs text-gray-400">{telClinica}</p>}
+                {cnpj && <p className="text-xs text-gray-400">CNPJ: {cnpj}</p>}
+              </div>
+            )}
+
+            {/* Header text */}
+            {txtCabecalho && (
+              <p className="text-sm text-gray-600 mt-3 leading-relaxed">{txtCabecalho}</p>
+            )}
 
             {/* Patient */}
             <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-3">
@@ -270,6 +312,20 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
 
         {error && !showRefuse && (
           <p className="text-xs text-red-600 text-center">{error}</p>
+        )}
+
+        {/* Rodapé text */}
+        {txtRodape && (
+          <div className="bg-white rounded-2xl shadow-sm px-6 py-4">
+            <p className="text-xs text-gray-400 leading-relaxed">{txtRodape}</p>
+          </div>
+        )}
+
+        {/* Encerramento */}
+        {paginas.encerramento && (
+          <div className="rounded-2xl overflow-hidden shadow-sm">
+            <img src={paginas.encerramento} alt="Encerramento" className="w-full block" />
+          </div>
         )}
 
         {/* PDF */}
