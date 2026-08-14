@@ -61,7 +61,8 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     ? new Date(lead.proxima_tarefa_data).getTime() < Date.now()
     : false
 
-  const displayValue = lead.valor_negociado ?? lead.valor_proposta ?? (lead.valor_orcamentos > 0 ? lead.valor_orcamentos : null)
+  const orcVal = Number(lead.valor_orcamentos) || 0
+  const displayValue = lead.valor_negociado ?? lead.valor_proposta ?? (orcVal > 0 ? orcVal : null)
 
   const initials = `${(lead.nome?.[0] ?? '').toUpperCase()}${(lead.sobrenome?.[0] ?? '').toUpperCase()}`
   const timeInfo = lastMsgAt ? timeSince(lastMsgAt) : lead.stage_changed_at ? timeSince(lead.stage_changed_at) : null
@@ -137,11 +138,37 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
           )}
         </div>
 
-        {/* Value */}
-        {displayValue != null && (
-          <p style={{ margin: '6px 0 0', fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>
-            {fmtBRL.format(displayValue)}
-          </p>
+        {/* Value + Task date row */}
+        {(displayValue != null || lead.proxima_tarefa_data) && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+            {displayValue != null ? (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                fontSize: 11, fontWeight: 500, color: '#6B7280',
+                padding: '1px 5px', borderRadius: 4,
+                background: '#F3F4F6',
+              }}>
+                <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {fmtBRL.format(displayValue)}
+              </span>
+            ) : <span />}
+            {lead.proxima_tarefa_data && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                fontSize: 10, fontWeight: 600,
+                padding: '1px 5px', borderRadius: 4,
+                background: taskOverdue ? '#FEE2E2' : '#EFF6FF',
+                color: taskOverdue ? '#DC2626' : '#2563EB',
+              }}>
+                <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {fmtTaskDate(lead.proxima_tarefa_data)}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Tags */}
@@ -170,23 +197,6 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {hoursInStage >= 24 ? `${Math.floor(hoursInStage / 24)}d` : `${hoursInStage}h`} na etapa
-          </div>
-        )}
-
-        {/* Next task */}
-        {lead.proxima_tarefa_data && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            fontSize: 10, fontWeight: 600, marginTop: 6,
-            marginLeft: isSlaOverdue ? 4 : 0,
-            padding: '2px 6px', borderRadius: 4,
-            background: taskOverdue ? '#FEE2E2' : '#EFF6FF',
-            color: taskOverdue ? '#DC2626' : '#2563EB',
-          }}>
-            <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {fmtTaskDate(lead.proxima_tarefa_data)}
           </div>
         )}
       </div>

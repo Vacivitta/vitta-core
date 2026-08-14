@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react'
 import type { Profile, SalesGoal } from '@/types/database'
-import { displayName } from '@/types/database'
+import { displayName, MOTIVO_RECUSA_OPTIONS, ARCHIVE_REASONS } from '@/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,8 +178,10 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
 
     const motivosMap: Record<string, number> = {}
     for (const q of recusados) {
-      const m = q.motivo_recusa?.trim()
-      if (m) motivosMap[m] = (motivosMap[m] ?? 0) + 1
+      const raw = q.motivo_recusa?.trim()
+      if (!raw) continue
+      const m = (MOTIVO_RECUSA_OPTIONS as readonly string[]).includes(raw) ? raw : 'Outros'
+      motivosMap[m] = (motivosMap[m] ?? 0) + 1
     }
     const principalMotivo = Object.entries(motivosMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
@@ -189,14 +191,24 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
   // ── Motivos recusa
   const motivosRecusa = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const q of filteredQuotes) { if (q.status !== 'recusado') continue; const m = q.motivo_recusa?.trim() || 'Não informado'; map[m] = (map[m] ?? 0) + 1 }
+    for (const q of filteredQuotes) {
+      if (q.status !== 'recusado') continue
+      const raw = q.motivo_recusa?.trim() || 'Não informado'
+      const m = raw === 'Não informado' ? raw : (MOTIVO_RECUSA_OPTIONS as readonly string[]).includes(raw) ? raw : 'Outros'
+      map[m] = (map[m] ?? 0) + 1
+    }
     return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
   }, [filteredQuotes])
 
   // ── Motivos perda leads
   const motivosPerda = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const l of filteredLeads) { const m = l.motivo_perda?.trim(); if (m) map[m] = (map[m] ?? 0) + 1 }
+    for (const l of filteredLeads) {
+      const raw = l.motivo_perda?.trim()
+      if (!raw) continue
+      const m = (ARCHIVE_REASONS as readonly string[]).includes(raw) ? raw : 'Outro'
+      map[m] = (map[m] ?? 0) + 1
+    }
     return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
   }, [filteredLeads])
 

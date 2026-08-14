@@ -544,12 +544,17 @@ function SortableStageRow({
           </span>
         )}
 
-        {/* Alert hours */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }} title="Alerta após X horas nesta etapa (vazio = desligado)">
-          <svg width="12" height="12" fill="none" stroke="#D1D5DB" viewBox="0 0 24 24">
+        {/* SLA — alert hours */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+          padding: '3px 8px', borderRadius: 8,
+          background: stage.alerta_horas ? '#FEF2F2' : '#F9FAFB',
+          border: `1px solid ${stage.alerta_horas ? '#FECACA' : '#EBE7DA'}`,
+        }} title="SLA: após esse tempo na etapa, o card fica vermelho no funil">
+          <svg width="12" height="12" fill="none" stroke={stage.alerta_horas ? '#EF4444' : '#D1D5DB'} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <input type="number" min="1" value={alertInput} placeholder="∞"
+          <input type="number" min="1" value={alertInput} placeholder="—"
             onChange={e => setAlertInput(e.target.value)}
             onBlur={() => {
               const h = alertInput.trim() ? parseInt(alertInput, 10) : null
@@ -557,8 +562,11 @@ function SortableStageRow({
               if (valid !== stage.alerta_horas) onAlertHoursChange(valid)
               setAlertInput(valid?.toString() ?? '')
             }}
-            style={{ width: 38, textAlign: 'center', fontSize: 11, border: '1px solid #EBE7DA', borderRadius: 6, padding: '3px 4px', outline: 'none', color: '#71856F' }}
+            style={{ width: 32, textAlign: 'center', fontSize: 11, fontWeight: 600, border: 'none', borderRadius: 4, padding: '2px 2px', outline: 'none', background: 'transparent', color: stage.alerta_horas ? '#DC2626' : '#71856F' }}
           />
+          <span style={{ fontSize: 10, fontWeight: 500, color: stage.alerta_horas ? '#DC2626' : '#9CA3AF', whiteSpace: 'nowrap' }}>
+            horas
+          </span>
         </div>
 
         {/* Delete */}
