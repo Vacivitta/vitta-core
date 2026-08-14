@@ -8,7 +8,7 @@ import type {
   Profile, Product, QuoteTemplate, Quote, QuoteStatus, QuoteItem, QuoteWithItems, PacoteOpcao,
   UnitPaymentFees,
 } from '@/types/database'
-import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS, PAYMENT_METHOD_LABELS } from '@/types/database'
+import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS, PAYMENT_METHOD_LABELS, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
 
 const PdfButton = dynamic(
   () => import('@/components/orcamento/PdfButton'),
@@ -875,13 +875,42 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, payme
                   <label className="block text-xs font-medium text-[#71856F] mb-1">
                     Motivo da recusa <span className="text-red-500">*</span>
                   </label>
-                  <textarea
-                    value={motivoRecusa}
-                    onChange={e => setMotivoRecusa(e.target.value)}
-                    rows={3}
-                    placeholder="Descreva o motivo..."
-                    className="w-full text-sm border border-[#EBE7DA] rounded-xl px-3 py-2 focus:outline-none focus:ring-0 resize-none"
-                  />
+                  <div className="space-y-1.5">
+                    {MOTIVO_RECUSA_OPTIONS.filter(o => o !== 'Outros').map(opt => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setMotivoRecusa(opt)}
+                        className={`w-full text-left text-xs px-3 py-2 rounded-xl border transition-colors ${
+                          motivoRecusa === opt
+                            ? 'border-red-400 bg-red-50 text-red-700 font-medium'
+                            : 'border-[#EBE7DA] text-[#25402C] hover:bg-[#FBFAF4]'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setMotivoRecusa(MOTIVO_RECUSA_OPTIONS.slice(0, -1).some(o => o === motivoRecusa) ? '' : motivoRecusa)}
+                      className={`w-full text-left text-xs px-3 py-2 rounded-xl border transition-colors ${
+                        motivoRecusa && !MOTIVO_RECUSA_OPTIONS.slice(0, -1).some(o => o === motivoRecusa)
+                          ? 'border-red-400 bg-red-50 text-red-700 font-medium'
+                          : 'border-[#EBE7DA] text-[#25402C] hover:bg-[#FBFAF4]'
+                      }`}
+                    >
+                      Outros
+                    </button>
+                    {motivoRecusa && !MOTIVO_RECUSA_OPTIONS.slice(0, -1).some(o => o === motivoRecusa) && (
+                      <textarea
+                        value={motivoRecusa}
+                        onChange={e => setMotivoRecusa(e.target.value)}
+                        rows={2}
+                        placeholder="Descreva o motivo..."
+                        className="w-full text-sm border border-[#EBE7DA] rounded-xl px-3 py-2 focus:outline-none focus:ring-0 resize-none"
+                      />
+                    )}
+                  </div>
                 </div>
               )}
 

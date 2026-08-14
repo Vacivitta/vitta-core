@@ -423,6 +423,34 @@ async function autoLinkOrCreateLead(
     leadId = matchedLead.id
     console.log(`[WA webhook] lead existente encontrado: ${leadId}`)
   } else {
+    // Busca entre leads arquivados antes de criar um novo
+    const { data: archivedLeads } = await supabase
+      .from('leads')
+      .select('id, telefone')
+      .eq('unit_id', unitId)
+      .eq('arquivado', true)
+      .not('telefone', 'is', null)
+      .ilike('telefone', `%${searchSuffix}%`)
+      .limit(10)
+
+    const matchedArchived = (archivedLeads ?? []).find(l => {
+      const d = (l.telefone as string).replace(/\D/g, '')
+      return d === digitsAll || d === digitsShort || d.endsWith(digitsShort)
+    })
+
+    if (matchedArchived) {
+      leadId = matchedArchived.id
+      const defaultStage = await getDefaultStage(supabase, unitId)
+      await supabase.from('leads').update({
+        arquivado: false,
+        motivo_perda: null,
+        ...(defaultStage ? { funnel_id: defaultStage.funnel_id, stage_id: defaultStage.stage_id, stage_changed_at: new Date().toISOString() } : {}),
+      }).eq('id', leadId)
+      console.log(`[WA webhook] lead arquivado reativado: ${leadId}`)
+
+      await supabase.from('wa_conversations').update({ lead_id: leadId }).eq('id', convId)
+      return leadId
+    }
     // 2. Cria novo lead com os dados do WhatsApp
     const { nome, sobrenome } = splitName(contactName)
 

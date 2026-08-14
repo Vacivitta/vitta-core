@@ -162,6 +162,8 @@ export interface LeadKanban extends Lead {
   modelo:             string | null
   valor_negociado:    number | null
   stage_alerta_horas: number | null
+  valor_orcamentos:   number
+  proxima_tarefa_data: string | null
   tarefas_pendentes:  number
   total_notas:        number
   total_contatos:     number
@@ -529,6 +531,16 @@ export const ARCHIVE_REASONS = [
 ] as const
 
 export type ArchiveReason = typeof ARCHIVE_REASONS[number]
+
+export const MOTIVO_RECUSA_OPTIONS = [
+  'Concorrência',
+  'Indisponibilidade',
+  'Falta de contato',
+  'Experiência anterior',
+  'Outros',
+] as const
+
+export type MotivoRecusa = typeof MOTIVO_RECUSA_OPTIONS[number]
 
 export const ORIGEM_OPTIONS = [
   'Indicação',

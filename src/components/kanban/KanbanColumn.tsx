@@ -21,7 +21,7 @@ const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL',
 export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, tagsByLead = {}, onMarkUnread }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
-  const totalValue  = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? 0), 0)
+  const totalValue  = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? l.valor_orcamentos ?? 0), 0)
   const stageUnread = leads.reduce((sum, l) => sum + (unreadByLead[l.id] ?? 0), 0)
 
   const sortedLeads = [...leads].sort((a, b) => {

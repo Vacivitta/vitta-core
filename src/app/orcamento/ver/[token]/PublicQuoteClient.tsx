@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { QuoteWithItems, QuoteStatus } from '@/types/database'
-import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS } from '@/types/database'
+import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
 import dynamic from 'next/dynamic'
 
 const PdfButton = dynamic(() => import('@/components/orcamento/PdfButton'), {
@@ -39,6 +39,7 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
 
   const [quote,        setQuote]        = useState(initialQuote)
   const [showRefuse,   setShowRefuse]   = useState(false)
+  const [showOutro,    setShowOutro]    = useState(false)
   const [motivoRecusa, setMotivoRecusa] = useState('')
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState('')
@@ -284,13 +285,40 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
         {canRespond && showRefuse && (
           <div className="bg-white rounded-2xl shadow-sm px-6 py-5 space-y-3">
             <p className="text-sm font-medium text-gray-700">Por que deseja recusar?</p>
-            <textarea
-              value={motivoRecusa}
-              onChange={e => setMotivoRecusa(e.target.value)}
-              rows={3}
-              placeholder="Descreva o motivo..."
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
-            />
+            <div className="space-y-2">
+              {MOTIVO_RECUSA_OPTIONS.filter(o => o !== 'Outros').map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => { setMotivoRecusa(opt); setError('') }}
+                  className={`w-full text-left text-sm px-4 py-2.5 rounded-xl border transition-colors ${
+                    motivoRecusa === opt
+                      ? 'border-red-400 bg-red-50 text-red-700 font-medium'
+                      : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+              <button
+                onClick={() => { setMotivoRecusa(motivoRecusa && !MOTIVO_RECUSA_OPTIONS.includes(motivoRecusa as any) ? motivoRecusa : ''); setShowOutro(true); setError('') }}
+                className={`w-full text-left text-sm px-4 py-2.5 rounded-xl border transition-colors ${
+                  showOutro || (motivoRecusa && !MOTIVO_RECUSA_OPTIONS.slice(0, -1).some(o => o === motivoRecusa))
+                    ? 'border-red-400 bg-red-50 text-red-700 font-medium'
+                    : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Outros
+              </button>
+              {showOutro && (
+                <textarea
+                  value={MOTIVO_RECUSA_OPTIONS.slice(0, -1).some(o => o === motivoRecusa) ? '' : motivoRecusa}
+                  onChange={e => setMotivoRecusa(e.target.value)}
+                  rows={2}
+                  placeholder="Descreva o motivo..."
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+                />
+              )}
+            </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-3">
               <button
@@ -301,7 +329,7 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
                 {loading ? 'Processando...' : 'Confirmar recusa'}
               </button>
               <button
-                onClick={() => { setShowRefuse(false); setError('') }}
+                onClick={() => { setShowRefuse(false); setShowOutro(false); setError('') }}
                 className="px-4 py-3 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 Voltar
