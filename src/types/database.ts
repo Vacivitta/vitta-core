@@ -109,6 +109,7 @@ export interface FunnelStage {
   cor:          string
   ordem:        number
   alerta_horas: number | null
+  sla_mensal:   boolean
   unit_id:      string | null
   created_at:   string
 }
@@ -162,6 +163,7 @@ export interface LeadKanban extends Lead {
   modelo:             string | null
   valor_negociado:    number | null
   stage_alerta_horas: number | null
+  stage_sla_mensal:   boolean
   valor_orcamentos:   number
   proxima_tarefa_data: string | null
   tarefas_pendentes:  number

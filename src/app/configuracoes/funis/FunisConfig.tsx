@@ -147,6 +147,16 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     ))
   }
 
+  async function handleSlaMensalToggle(stage: FunnelStage) {
+    const next = !stage.sla_mensal
+    await updateStage(stage.id, { sla_mensal: next })
+    setFunnels(prev => prev.map(f =>
+      f.id === stage.funnel_id
+        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, sla_mensal: next } : s) }
+        : f
+    ))
+  }
+
   async function handleChangeColor(stage: FunnelStage, cor: string) {
     await updateStage(stage.id, { cor })
     setFunnels(prev => prev.map(f =>
@@ -406,6 +416,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           onColorPickerToggle={() => setColorPickerStageId(colorPickerStageId === stage.id ? null : stage.id)}
                           onColorChange={cor => void handleChangeColor(stage, cor)}
                           onAlertHoursChange={h => void handleAlertDaysChange(stage, h)}
+                          onSlaMensalToggle={() => void handleSlaMensalToggle(stage)}
                           onDeleteRequest={() => { setConfirmDeleteStageId(stage.id); setDeleteError(null) }}
                           confirmDelete={confirmDeleteStageId === stage.id}
                           onDeleteConfirm={() => void handleDeleteStage(stage)}
@@ -473,6 +484,7 @@ interface StageRowProps {
   onColorPickerToggle:() => void
   onColorChange:      (cor: string) => void
   onAlertHoursChange: (h: number | null) => void
+  onSlaMensalToggle:  () => void
   onDeleteRequest:    () => void
   confirmDelete:      boolean
   onDeleteConfirm:    () => void
@@ -486,6 +498,7 @@ function SortableStageRow({
   isEditingName, editNameValue, onEditNameChange, onEditNameStart, onEditNameSave, onEditNameCancel,
   showColorPicker, onColorPickerToggle, onColorChange,
   onAlertHoursChange,
+  onSlaMensalToggle,
   onDeleteRequest, confirmDelete, onDeleteConfirm, onDeleteCancel,
   deleteError,
   busy,
@@ -568,6 +581,25 @@ function SortableStageRow({
             horas
           </span>
         </div>
+
+        {/* SLA mensal toggle */}
+        <button
+          onClick={onSlaMensalToggle}
+          title="SLA mensal: card fica vermelho ao virar o mês"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+            padding: '3px 8px', borderRadius: 8,
+            background: stage.sla_mensal ? '#FEF2F2' : '#F9FAFB',
+            border: `1px solid ${stage.sla_mensal ? '#FECACA' : '#EBE7DA'}`,
+            cursor: 'pointer', fontSize: 10, fontWeight: 600,
+            color: stage.sla_mensal ? '#DC2626' : '#9CA3AF',
+          }}
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Mensal
+        </button>
 
         {/* Delete */}
         {leadCount > 0 ? (

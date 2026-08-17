@@ -55,7 +55,13 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
   const hoursInStage = lead.stage_changed_at
     ? Math.floor((Date.now() - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
     : 0
-  const isSlaOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
+  const isHoursSlaOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
+  const isMonthlySlaOverdue = !!(lead.stage_sla_mensal && lead.stage_changed_at && (() => {
+    const now = new Date()
+    const changed = new Date(lead.stage_changed_at)
+    return changed.getFullYear() < now.getFullYear() || changed.getMonth() < now.getMonth()
+  })())
+  const isSlaOverdue = isHoursSlaOverdue || isMonthlySlaOverdue
 
   const taskOverdue = lead.proxima_tarefa_data
     ? new Date(lead.proxima_tarefa_data).getTime() < Date.now()
@@ -196,7 +202,9 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
             <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            {hoursInStage >= 24 ? `${Math.floor(hoursInStage / 24)}d` : `${hoursInStage}h`} na etapa
+            {isMonthlySlaOverdue && !isHoursSlaOverdue
+              ? 'mês anterior'
+              : `${hoursInStage >= 24 ? `${Math.floor(hoursInStage / 24)}d` : `${hoursInStage}h`} na etapa`}
           </div>
         )}
       </div>
