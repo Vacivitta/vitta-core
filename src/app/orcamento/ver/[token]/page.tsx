@@ -1,4 +1,4 @@
-﻿import { createClient } from '@/lib/supabase/server'
+﻿import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import PublicQuoteClient from './PublicQuoteClient'
 import type { QuoteWithItems } from '@/types/database'
@@ -11,7 +11,7 @@ interface Props {
 
 export default async function PublicQuotePage({ params }: Props) {
   const { token } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data } = await supabase
     .from('quotes')
