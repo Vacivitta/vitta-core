@@ -562,7 +562,7 @@ function SortableStageRow({
               if (valid !== stage.alerta_horas) onAlertHoursChange(valid)
               setAlertInput(valid?.toString() ?? '')
             }}
-            style={{ width: 32, textAlign: 'center', fontSize: 11, fontWeight: 600, border: 'none', borderRadius: 4, padding: '2px 2px', outline: 'none', background: 'transparent', color: stage.alerta_horas ? '#DC2626' : '#71856F' }}
+            style={{ width: 48, textAlign: 'center', fontSize: 11, fontWeight: 600, border: 'none', borderRadius: 4, padding: '2px 2px', outline: 'none', background: 'transparent', color: stage.alerta_horas ? '#DC2626' : '#71856F' }}
           />
           <span style={{ fontSize: 10, fontWeight: 500, color: stage.alerta_horas ? '#DC2626' : '#9CA3AF', whiteSpace: 'nowrap' }}>
             horas

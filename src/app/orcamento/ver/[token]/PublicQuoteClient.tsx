@@ -91,25 +91,10 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
   const cnpj          = t?.cnpj             ?? null
   const txtCabecalho  = t?.texto_cabecalho  ?? null
   const txtRodape     = t?.texto_rodape?.replace('{validade_dias}', String(validadeDias)) ?? null
-  const paginas       = t?.paginas_imagens  ?? {}
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-xl mx-auto space-y-4">
-
-        {/* Capa */}
-        {paginas.capa && (
-          <div className="rounded-2xl overflow-hidden shadow-sm">
-            <img src={paginas.capa} alt="Capa" className="w-full block" />
-          </div>
-        )}
-
-        {/* Intro pages */}
-        {paginas.intro?.map((url, i) => (
-          <div key={i} className="rounded-2xl overflow-hidden shadow-sm">
-            <img src={url} alt={`Página ${i + 1}`} className="w-full block" />
-          </div>
-        ))}
 
         {/* Header card */}
         <div className="rounded-2xl overflow-hidden shadow-sm">
@@ -346,13 +331,6 @@ export default function PublicQuoteClient({ quote: initialQuote, token }: Props)
         {txtRodape && (
           <div className="bg-white rounded-2xl shadow-sm px-6 py-4">
             <p className="text-xs text-gray-400 leading-relaxed">{txtRodape}</p>
-          </div>
-        )}
-
-        {/* Encerramento */}
-        {paginas.encerramento && (
-          <div className="rounded-2xl overflow-hidden shadow-sm">
-            <img src={paginas.encerramento} alt="Encerramento" className="w-full block" />
           </div>
         )}
 

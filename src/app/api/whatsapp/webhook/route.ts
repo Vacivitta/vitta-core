@@ -253,6 +253,23 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   let resolvedLeadId = conv.lead_id
   if (!conv.lead_id) {
     resolvedLeadId = await autoLinkOrCreateLead(supabase, conv.id, unitId, waPhone, contactName, isOptOut)
+  } else {
+    // Reativar lead arquivado que mandou mensagem
+    const { data: linkedLead } = await supabase
+      .from('leads')
+      .select('id, arquivado')
+      .eq('id', conv.lead_id)
+      .single()
+
+    if (linkedLead?.arquivado) {
+      const defaultStage = await getDefaultStage(supabase, unitId)
+      await supabase.from('leads').update({
+        arquivado: false,
+        motivo_perda: null,
+        ...(defaultStage ? { funnel_id: defaultStage.funnel_id, stage_id: defaultStage.stage_id, stage_changed_at: new Date().toISOString() } : {}),
+      }).eq('id', linkedLead.id)
+      console.log(`[WA webhook] lead arquivado reativado (conversa existente): ${linkedLead.id}`)
+    }
   }
 
   // 4b. Verifica campanha — lead existente ou contato XLS sem lead
