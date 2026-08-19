@@ -574,9 +574,15 @@ function splitName(fullName: string | null): { nome: string; sobrenome: string |
 }
 
 function formatPhone(waPhone: string): string {
-  // Converte E.164 sem '+' para formato brasileiro legível: (11) 98453-5197
   const d = waPhone.replace(/\D/g, '')
-  const local = d.startsWith('55') ? d.slice(2) : d
+  let local = d.startsWith('55') ? d.slice(2) : d
+  // Celular com 10 dígitos (sem o 9): adiciona o 9 para normalizar
+  if (local.length === 10) {
+    const firstDigit = local[2]
+    if ('6789'.includes(firstDigit)) {
+      local = local.slice(0, 2) + '9' + local.slice(2)
+    }
+  }
   if (local.length === 11) {
     return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
   }
