@@ -477,13 +477,14 @@ async function autoLinkOrCreateLead(
       return null
     }
 
+    const formattedPhone = formatPhone(waPhone)
     const { data: newLead, error: leadErr } = await supabase
       .from('leads')
       .insert({
         unit_id:   unitId,
         nome,
         sobrenome,
-        telefone:  formatPhone(waPhone),
+        telefone:  formattedPhone,
         origem:    'whatsapp',
         funnel_id: defaultStage.funnel_id,
         stage_id:  defaultStage.stage_id,
@@ -492,13 +493,31 @@ async function autoLinkOrCreateLead(
       .select('id')
       .single()
 
-    if (leadErr || !newLead) {
-      console.error('[WA webhook] erro ao criar lead:', leadErr)
-      return null
+    if (leadErr) {
+      // Race condition: outro request criou o lead entre a busca e o insert
+      if (leadErr.code === '23505') {
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('unit_id', unitId)
+          .eq('telefone', formattedPhone)
+          .eq('arquivado', false)
+          .single()
+        if (existing) {
+          leadId = existing.id
+          console.log(`[WA webhook] lead já criado por request concorrente: ${leadId}`)
+        } else {
+          console.error('[WA webhook] conflito mas lead não encontrado')
+          return null
+        }
+      } else {
+        console.error('[WA webhook] erro ao criar lead:', leadErr)
+        return null
+      }
+    } else {
+      leadId = newLead!.id
+      console.log(`[WA webhook] novo lead criado: ${leadId} (${nome})`)
     }
-
-    leadId = newLead.id
-    console.log(`[WA webhook] novo lead criado: ${leadId} (${nome})`)
   }
 
   // Vincula a conversa ao lead
