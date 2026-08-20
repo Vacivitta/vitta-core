@@ -17,6 +17,12 @@ function validadeDate(iso: string, dias: number) {
   d.setDate(d.getDate() + dias)
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
+function fmtPhone(phone: string): string {
+  const d = phone.replace(/\D/g, '')
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return phone
+}
 
 // ─── Full-page background image (A4 = 595 × 842 pt) ─────────────────────────
 
@@ -197,12 +203,27 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
   const totalCalc    = quote.total_calculado ?? quote.items.reduce((s, i) => s + i.valor_final, 0)
   const rodapeText   = (t?.texto_rodape ?? '').replace('{validade_dias}', String(t?.validade_dias ?? 7))
 
-  // ── With template — solid-color content page + optional image pages ─────────
-  if (t) {
-    const S = makeDataStyles(corTexto, corPrimaria)
+  // ── Helper: interpolate between two hex colors ──────────────────────────────
+  function lerpColor(a: string, b: string, t: number): string {
+    const ar = parseInt(a.slice(1, 3), 16), ag = parseInt(a.slice(3, 5), 16), ab = parseInt(a.slice(5, 7), 16)
+    const br = parseInt(b.slice(1, 3), 16), bg = parseInt(b.slice(3, 5), 16), bb = parseInt(b.slice(5, 7), 16)
+    const rr = Math.round(ar + (br - ar) * t), gg = Math.round(ag + (bg - ag) * t), bbb = Math.round(ab + (bb - ab) * t)
+    return `#${rr.toString(16).padStart(2, '0')}${gg.toString(16).padStart(2, '0')}${bbb.toString(16).padStart(2, '0')}`
+  }
 
-    // Inline styles for the content page (no absolute positioning)
-    const txt   = corTexto
+  // ── With template — content page matching template art design ──────────────
+  if (t) {
+    // Row colors for the table (uses corPrimaria)
+    const rowColor = corPrimaria
+    const cardBg = blendWhite(corSecundaria, 0.15)
+
+    // Gradient simulation: 100 horizontal strips for smooth blend
+    const STRIP_COUNT = 100
+    const stripHeight = Math.ceil(842 / STRIP_COUNT) + 1
+    const gradientStrips = Array.from({ length: STRIP_COUNT }, (_, i) => ({
+      color: lerpColor(corSecundaria, corPrimaria, i / (STRIP_COUNT - 1)),
+      top: Math.floor(i * (842 / STRIP_COUNT)),
+    }))
 
     return (
       <Document title={`Orçamento #${numStr}`} author={nomeClinica}>
@@ -221,42 +242,138 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
           </Page>
         ))}
 
-        {/* Content page — solid backgroundColor, normal flow */}
-        <Page size="A4" style={{
-          padding: 0,
-          fontFamily: 'Helvetica',
-          fontSize: 9,
-          backgroundColor: corPrimaria,
-        }}>
-          <View style={{ paddingHorizontal: 36, paddingTop: 36, paddingBottom: 60 }}>
-            <View style={{ flexDirection: 'row', gap: 20, backgroundColor: S.lineVisible, borderRadius: 6, padding: 12, marginBottom: 16 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 7, color: txt, opacity: 0.65, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Paciente</Text>
-                <Text style={{ fontSize: 10, color: txt, fontFamily: 'Helvetica-Bold' }}>{patientName}</Text>
-              </View>
-              {patientPhone && (
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 7, color: txt, opacity: 0.65, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Telefone</Text>
-                  <Text style={{ fontSize: 10, color: txt, fontFamily: 'Helvetica-Bold' }}>{patientPhone}</Text>
-                </View>
-              )}
+        {/* Content page — design matching template art */}
+        <Page size="A4" style={{ padding: 0, fontFamily: 'Helvetica', fontSize: 9, backgroundColor: corPrimaria }}>
+
+          {/* Gradient background — smooth horizontal strips */}
+          {gradientStrips.map((strip, i) => (
+            <View key={i} fixed style={{
+              position: 'absolute', top: strip.top, left: 0,
+              width: 595, height: stripHeight + 1,
+              backgroundColor: strip.color,
+            }} />
+          ))}
+
+          {/* Header — patient info with background */}
+          <View style={{
+            marginHorizontal: 32, marginTop: 40, marginBottom: 14,
+            backgroundColor: blendWhite(corSecundaria, 0.2), borderRadius: 10,
+            paddingVertical: 14, paddingHorizontal: 20,
+            flexDirection: 'row', gap: 30,
+          }}>
+            <View>
+              <Text style={{ fontSize: 7.5, color: '#ffffff', opacity: 0.65, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Paciente</Text>
+              <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>{patientName}</Text>
             </View>
-
-            <ItemsTable items={quote.items} styles={S} />
-
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: S.lineVisible }}>
-              <Text style={{ fontSize: 11, color: txt, opacity: 0.75 }}>TOTAL</Text>
-              <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: txt }}>{fmtBRL(totalCalc)}</Text>
-            </View>
-
-            <PacoteTable quote={quote} corTexto={corTexto} corPrimaria={corPrimaria} />
-
-            {rodapeText && (
-              <View style={{ marginTop: 16, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: S.lineSubtle }}>
-                <Text style={{ fontSize: 7, color: txt, opacity: 0.55, lineHeight: 1.5 }}>{rodapeText}</Text>
+            {patientPhone && (
+              <View>
+                <Text style={{ fontSize: 7.5, color: '#ffffff', opacity: 0.65, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Telefone</Text>
+                <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>{fmtPhone(patientPhone)}</Text>
               </View>
             )}
           </View>
+
+          {/* White card */}
+          {(() => {
+            const showDiscount = !quote.pacote_ativo || !quote.pacote_opcoes?.length
+            return (
+          <View style={{
+            marginHorizontal: 32, backgroundColor: '#ffffff',
+            borderRadius: 12, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 18,
+            minHeight: 480,
+          }}>
+            {/* Table header row */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'center',
+              backgroundColor: rowColor, borderRadius: 8,
+              paddingVertical: 11, paddingHorizontal: 16, marginBottom: 8,
+            }}>
+              <View style={{ width: 40 }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Nº</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Descrição</Text>
+              </View>
+              <View style={{ width: 50, alignItems: 'center' }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Qnt.</Text>
+              </View>
+              {showDiscount && (
+                <View style={{ width: 50, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Desc.</Text>
+                </View>
+              )}
+              <View style={{ width: 85, alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Preço</Text>
+              </View>
+            </View>
+
+            {/* Item rows — alternating colored / white */}
+            {quote.items.map((item, i) => {
+              const colored = i % 2 !== 0
+              const txtColor = colored ? '#ffffff' : '#444444'
+              return (
+                <View key={item.id} style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  backgroundColor: colored ? rowColor : '#f8f8f8',
+                  borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 8,
+                }}>
+                  <View style={{ width: 40 }}>
+                    <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: txtColor }}>
+                      {String(i + 1).padStart(2, '0')}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, color: txtColor }}>{item.nome_snapshot}</Text>
+                  </View>
+                  <View style={{ width: 50, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, color: txtColor }}>
+                      {String(item.quantidade).padStart(2, '0')}
+                    </Text>
+                  </View>
+                  {showDiscount && (
+                    <View style={{ width: 50, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 11, fontFamily: item.desconto > 0 ? 'Helvetica-Bold' : 'Helvetica', color: txtColor }}>
+                        {item.desconto > 0 ? `${item.desconto}%` : '—'}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={{ width: 85, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 11, color: txtColor }}>{fmtBRL(item.valor_final)}</Text>
+                  </View>
+                </View>
+              )
+            })}
+
+            {/* Spacer — pushes Total to the bottom of the card */}
+            <View style={{ flex: 1, minHeight: 30 }} />
+
+            {/* Total row */}
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              backgroundColor: rowColor, borderRadius: 8,
+              paddingVertical: 13, paddingHorizontal: 16,
+            }}>
+              <Text style={{ fontSize: 15, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Total:</Text>
+              <Text style={{ fontSize: 15, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>{fmtBRL(totalCalc)}</Text>
+            </View>
+          </View>
+            )
+          })()}
+
+          {/* Payment conditions */}
+          {quote.pacote_ativo && quote.pacote_opcoes?.length ? (
+            <View style={{ marginHorizontal: 32, marginTop: 10 }}>
+              <PacoteTable quote={quote} corTexto="#ffffff" corPrimaria={corPrimaria} />
+            </View>
+          ) : null}
+
+          {/* Footer text */}
+          {rodapeText && (
+            <View style={{ paddingHorizontal: 44, marginTop: 14, paddingBottom: 44 }}>
+              <Text style={{ fontSize: 9.5, color: '#ffffff', lineHeight: 1.6 }}>{rodapeText}</Text>
+            </View>
+          )}
+
         </Page>
 
         {/* Encerramento */}
