@@ -207,6 +207,8 @@ async function handleSendTemplate(
 
   const waId = metaData.messages?.[0]?.id ?? null
 
+  const autoImgUrl = (template.header_type === 'IMAGE' && template.header_image_url) ? template.header_image_url as string : null
+
   await Promise.all([
     supabase.from('wa_messages').insert({
       conversation_id: conversationId,
@@ -216,6 +218,8 @@ async function handleSendTemplate(
       type: 'template',
       content: renderedText,
       template_name: template.template_name,
+      media_url: autoImgUrl,
+      media_mime_type: autoImgUrl ? 'image/jpeg' : null,
       status: 'sent',
     }),
     supabase.from('wa_conversations').update({

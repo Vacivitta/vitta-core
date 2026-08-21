@@ -142,6 +142,8 @@ export async function POST(req: NextRequest) {
   if (components && components.length > 0) tpl.components = components
   const metaPayload = { messaging_product: 'whatsapp', to: phone, type: 'template', template: tpl }
 
+  console.log(`[start-conv] payload para Meta:`, JSON.stringify(metaPayload))
+
   const metaRes  = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
     method:  'POST',
     headers: { Authorization: `Bearer ${creds.accessToken}`, 'Content-Type': 'application/json' },
@@ -159,6 +161,11 @@ export async function POST(req: NextRequest) {
   const preview     = `📋 ${template_name}`
 
   // 3. Salva mensagem outbound
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const headerImg = (components as any[])?.find((c: any) => c.type === 'header' && c.parameters?.[0]?.type === 'image')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const headerImageUrl = (headerImg?.parameters?.[0] as any)?.image?.link as string | undefined
+
   await supabase.from('wa_messages').insert({
     conversation_id: conv.id,
     unit_id,
@@ -167,6 +174,8 @@ export async function POST(req: NextRequest) {
     type:            'template',
     template_name,
     content:         body_text || null,
+    media_url:       headerImageUrl ?? null,
+    media_mime_type: headerImageUrl ? 'image/jpeg' : null,
     status:          'sent',
     sent_by:         user.id,
   })

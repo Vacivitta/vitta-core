@@ -107,6 +107,11 @@ async function handler(req: NextRequest) {
 
       const waId = metaData.messages?.[0]?.id ?? null
 
+      // Extrai image URL do header component (se houver)
+      const comps = msg.components as { type?: string; parameters?: { type?: string; image?: { link?: string } }[] }[] | null
+      const hdrImg = comps?.find(c => c.type === 'header' && c.parameters?.[0]?.type === 'image')
+      const hdrUrl = hdrImg?.parameters?.[0]?.image?.link ?? null
+
       // As duas escritas são independentes — paralelizar
       await Promise.all([
         admin.from('wa_messages').insert({
@@ -117,6 +122,8 @@ async function handler(req: NextRequest) {
           type:            msg.type,
           content:         msg.content,
           template_name:   msg.type === 'template' ? msg.template_name : null,
+          media_url:       hdrUrl,
+          media_mime_type: hdrUrl ? 'image/jpeg' : null,
           status:          'sent',
         }),
         admin.from('wa_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', msg.conversation_id),
