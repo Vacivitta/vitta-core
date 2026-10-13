@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { AutomationTrigger, QuoteStatus } from '@/types/database'
 
 // POST /api/orcamento/respond
@@ -7,6 +8,14 @@ import type { AutomationTrigger, QuoteStatus } from '@/types/database'
 //
 // 'criado' é especial: só dispara automação, não altera o status do orçamento.
 // Demais triggers também atualizam o status na tabela quotes.
+//
+// Rota pública (o paciente não tem login). O acesso ao banco é feito com o
+// service-role filtrando pelo token — não existem policies públicas em quotes.
+// O paciente só pode aceitar/recusar; os demais status exigem usuário logado
+// com acesso ao orçamento via RLS.
+
+/** Status que o paciente pode definir pelo link público, sem login. */
+const PUBLIC_STATUSES: AutomationTrigger[] = ['aceito', 'recusado']
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -24,7 +33,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'motivo obrigatório para status recusado' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  if (!PUBLIC_STATUSES.includes(status)) {
+    const userClient = await createClient()
+    const { data: { user } } = await userClient.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+    // RLS (unit_members_quotes) garante que o usuário pertence à unidade do orçamento
+    const { data: own } = await userClient.from('quotes').select('id').eq('token_publico', token).maybeSingle()
+    if (!own) return NextResponse.json({ error: 'Orçamento não encontrado' }, { status: 404 })
+  }
+
+  const supabase = createAdminClient()
 
   // ── 1. Buscar o orçamento pelo token ──────────────────────────────────────
   const { data: quote, error: fetchErr } = await supabase

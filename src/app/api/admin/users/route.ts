@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkGestorUnidadeScope } from '@/lib/admin-guard'
 
 // POST /api/admin/users — convida novo usuário
 export async function POST(req: NextRequest) {
@@ -29,6 +30,14 @@ export async function POST(req: NextRequest) {
   const primaryUnitId = resolvedUnitIds[0] ?? null
 
   const admin = createAdminClient()
+
+  if (caller.perfil === 'gestor_unidade') {
+    if (resolvedUnitIds.length === 0) {
+      return NextResponse.json({ error: 'Informe ao menos uma unidade' }, { status: 400 })
+    }
+    const denied = await checkGestorUnidadeScope(admin, user.id, { perfil, unitIds: resolvedUnitIds })
+    if (denied) return NextResponse.json({ error: denied }, { status: 403 })
+  }
 
   // ── Modo: criação direta com senha (sem e-mail real) ──────────────────────
   if (password) {

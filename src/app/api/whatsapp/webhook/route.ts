@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { createClient }             from '@supabase/supabase-js'
 import { runAutoAssign }            from '../auto-assign/route'
 import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
@@ -27,11 +28,40 @@ export async function GET(req: NextRequest) {
   return new NextResponse('Forbidden', { status: 403 })
 }
 
+/**
+ * Valida o header `X-Hub-Signature-256` enviado pela Meta (HMAC-SHA256 do corpo
+ * bruto com o App Secret). Sem isso, qualquer um pode forjar mensagens recebidas.
+ * Enquanto `WHATSAPP_APP_SECRET` não estiver configurado, aceita a requisição e
+ * registra um aviso — para não derrubar o recebimento de mensagens.
+ *
+ * @param rawBody - Corpo da requisição exatamente como recebido
+ * @param signature - Valor do header `X-Hub-Signature-256` (formato `sha256=<hex>`)
+ * @returns `true` se a assinatura confere (ou se a validação ainda não está ativa)
+ */
+function isValidSignature(rawBody: string, signature: string | null): boolean {
+  const secret = process.env.WHATSAPP_APP_SECRET
+  if (!secret) {
+    console.warn('[WA webhook] WHATSAPP_APP_SECRET não configurado — assinatura NÃO validada')
+    return true
+  }
+  if (!signature?.startsWith('sha256=')) return false
+
+  const expected = Buffer.from(createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex'), 'hex')
+  const received = Buffer.from(signature.slice('sha256='.length), 'hex')
+  return received.length === expected.length && timingSafeEqual(received, expected)
+}
+
 // ── POST: receber eventos do Meta ─────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const rawBody = await req.text()
+  if (!isValidSignature(rawBody, req.headers.get('x-hub-signature-256'))) {
+    console.warn('[WA webhook] assinatura inválida — requisição rejeitada')
+    return new NextResponse('Forbidden', { status: 403 })
+  }
+
   let body: WAPayload
   try {
-    body = await req.json()
+    body = JSON.parse(rawBody)
   } catch {
     return new NextResponse('Bad Request', { status: 400 })
   }

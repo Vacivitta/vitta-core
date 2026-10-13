@@ -1,7 +1,6 @@
 ﻿'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { QuoteWithItems, QuoteStatus } from '@/types/database'
 import { QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
 import dynamic from 'next/dynamic'
@@ -35,8 +34,6 @@ interface Props {
 }
 
 export default function PublicQuoteClient({ quote: initialQuote, token }: Props) {
-  const supabase = createClient()
-
   const [quote,        setQuote]        = useState(initialQuote)
   const [showRefuse,   setShowRefuse]   = useState(false)
   const [showOutro,    setShowOutro]    = useState(false)
