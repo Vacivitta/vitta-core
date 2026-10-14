@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   '/auth/reset-password',
   '/orcamento/ver',
   '/api/orcamento/respond',
+  '/api/orcamento/check-expiring', // cron (pg_cron) — a rota valida o CRON_SECRET
   '/api/whatsapp',
 ]
 
