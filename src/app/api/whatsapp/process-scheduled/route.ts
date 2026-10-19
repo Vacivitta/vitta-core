@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { runWaAutomation } from '@/lib/whatsapp/automation'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -130,6 +131,13 @@ async function handler(req: NextRequest) {
         admin.from('wa_scheduled_messages').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', msg.id),
       ])
       processed++
+
+      // Automação de mensagem enviada (ex.: mover lead para Em atendimento)
+      try {
+        await runWaAutomation(admin, 'outbound_message', msg.unit_id, msg.conversation_id)
+      } catch (e) {
+        console.error(`[process-scheduled] runWaAutomation outbound falhou id=${msg.id}:`, e)
+      }
     } catch {
       await admin.from('wa_scheduled_messages').update({ status: 'failed' }).eq('id', msg.id)
     }

@@ -7,8 +7,12 @@ const META_API_URL = 'https://graph.facebook.com/v20.0'
  * Executa automações configuradas em `wa_automations` para um evento de WhatsApp.
  * Triggers suportados: `inbound_message`, `outbound_message`, `conversation_resolved`.
  *
- * Para inbound/outbound, só dispara se não houve mensagem na mesma direção
- * nas últimas 24h — evita loop de ping-pong entre estágios do funil.
+ * `move_stage` roda a cada evento: o card acompanha a vez da conversa (cliente
+ * escreveu → etapa do inbound; equipe respondeu → etapa do outbound). Para não
+ * tirar leads de etapas comerciais (Orçamento, Agendado...), só move a partir
+ * das etapas de atendimento — ver `getMovableStages`.
+ * `send_template` mantém o limite de uma vez por janela de 24h, para não repetir
+ * o template a cada mensagem.
  *
  * @param supabase - Cliente Supabase (service-role, chamado do webhook/send)
  * @param trigger - Tipo do evento: 'inbound_message' | 'outbound_message' | 'conversation_resolved'
@@ -21,11 +25,6 @@ export async function runWaAutomation(
   unitId:         string,
   conversationId: string,
 ) {
-  if (trigger === 'inbound_message' || trigger === 'outbound_message') {
-    const shouldSkip = await isRepeatedWithin24h(supabase, conversationId, trigger)
-    if (shouldSkip) return
-  }
-
   const { data: automations } = await supabase
     .from('wa_automations')
     .select('action, stage_id, template_id')
@@ -37,17 +36,49 @@ export async function runWaAutomation(
 
   for (const automation of automations) {
     if (automation.action === 'move_stage' && automation.stage_id) {
-      await handleMoveStage(supabase, conversationId, automation.stage_id)
+      await handleMoveStage(supabase, unitId, conversationId, automation.stage_id, trigger)
     } else if (automation.action === 'send_template' && automation.template_id) {
+      const isMessageTrigger = trigger === 'inbound_message' || trigger === 'outbound_message'
+      if (isMessageTrigger && await isRepeatedWithin24h(supabase, conversationId, trigger)) continue
       await handleSendTemplate(supabase, unitId, conversationId, automation.template_id)
     }
   }
 }
 
 /**
+ * Etapas de onde uma automação de mensagem pode tirar o lead.
+ * - Etapas de atendimento: destinos das regras inbound/outbound da unidade
+ *   (ex.: Sem atendimento ↔ Em atendimento).
+ * - Mensagem recebida também reabre leads da etapa de "conversa resolvida"
+ *   (ex.: Finalizados), pois o cliente voltou a escrever.
+ * Etapas comerciais (Orçamento, Agendado, Captações, Perdido) nunca são alteradas.
+ *
+ * @param supabase - Cliente Supabase
+ * @param unitId - ID da unidade
+ * @param trigger - Evento que disparou a automação
+ * @returns Conjunto de stage_ids de origem permitidos
+ */
+async function getMovableStages(supabase: SupabaseClient, unitId: string, trigger: string): Promise<Set<string>> {
+  const { data: rules } = await supabase
+    .from('wa_automations')
+    .select('trigger, stage_id')
+    .eq('unit_id', unitId)
+    .eq('action', 'move_stage')
+    .eq('ativo', true)
+
+  const movable = new Set<string>()
+  for (const r of rules ?? []) {
+    if (!r.stage_id) continue
+    if (r.trigger === 'inbound_message' || r.trigger === 'outbound_message') movable.add(r.stage_id)
+    if (r.trigger === 'conversation_resolved' && trigger === 'inbound_message') movable.add(r.stage_id)
+  }
+  return movable
+}
+
+/**
  * Verifica se já houve mensagem na mesma direção (inbound/outbound) nas últimas 24h.
- * Usado para garantir que a automação só dispare na primeira mensagem de uma
- * nova janela de conversa, respeitando o ciclo de 24h da API do WhatsApp.
+ * Usado para que templates automáticos só sejam enviados na primeira mensagem
+ * de uma nova janela de conversa.
  *
  * @param supabase - Cliente Supabase
  * @param conversationId - ID da conversa
@@ -82,13 +113,22 @@ async function isRepeatedWithin24h(
  * Move o lead associado à conversa para um estágio do funil.
  * Atualiza tanto `stage_id` quanto `funnel_id` para evitar que o card
  * desapareça do kanban quando o estágio destino pertence a outro funil.
- * Pula a operação se o lead já está no estágio destino.
+ * Pula se o lead já está no destino ou se está numa etapa que a automação
+ * não pode alterar (ver `getMovableStages`). Registra a mudança no histórico.
  *
  * @param supabase - Cliente Supabase
+ * @param unitId - ID da unidade (define as etapas que podem ser alteradas)
  * @param conversationId - ID da conversa para localizar o lead
  * @param stageId - ID do estágio destino em `funnel_stages`
+ * @param trigger - Evento que disparou a automação
  */
-async function handleMoveStage(supabase: SupabaseClient, conversationId: string, stageId: string) {
+async function handleMoveStage(
+  supabase: SupabaseClient,
+  unitId: string,
+  conversationId: string,
+  stageId: string,
+  trigger: string,
+) {
   const { data: conv } = await supabase
     .from('wa_conversations')
     .select('lead_id')
@@ -103,7 +143,12 @@ async function handleMoveStage(supabase: SupabaseClient, conversationId: string,
     .eq('id', conv.lead_id)
     .single()
 
-  if (lead?.stage_id === stageId) return
+  if (!lead || lead.stage_id === stageId) return
+
+  if (lead.stage_id) {
+    const movable = await getMovableStages(supabase, unitId, trigger)
+    if (!movable.has(lead.stage_id)) return
+  }
 
   const { data: stage } = await supabase
     .from('funnel_stages')
@@ -114,10 +159,23 @@ async function handleMoveStage(supabase: SupabaseClient, conversationId: string,
   const updatePayload: Record<string, string> = { stage_id: stageId }
   if (stage?.funnel_id) updatePayload.funnel_id = stage.funnel_id
 
-  await supabase
+  const { error } = await supabase
     .from('leads')
     .update(updatePayload)
     .eq('id', conv.lead_id)
+
+  if (error) {
+    console.error(`[wa-automation] move_stage falhou lead=${conv.lead_id}:`, error.message)
+    return
+  }
+
+  await supabase.from('lead_stage_history').insert({
+    lead_id:       conv.lead_id,
+    de_stage_id:   lead.stage_id,
+    para_stage_id: stageId,
+    movido_por:    null,
+    movido_via:    'automacao',
+  })
 }
 
 /**

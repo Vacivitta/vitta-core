@@ -655,14 +655,24 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   async function updateStatus(status: 'open' | 'pending' | 'resolved') {
     if (!selectedConv) return
     if (status === 'resolved') { setResolveDialogOpen(true); return }
-    await supabase.from('wa_conversations').update({ status }).eq('id', selectedConv.id)
+    const { error } = await supabase.from('wa_conversations').update({ status }).eq('id', selectedConv.id)
+    if (error) { alert('Não foi possível alterar o status da conversa'); return }
     setSelectedConv(prev => prev ? { ...prev, status } : null)
     setConversations(prev => prev.map(c => c.id === selectedConv.id ? { ...c, status } : c))
   }
 
   async function confirmResolve(reason: string, note: string) {
     if (!selectedConv) return
-    await supabase.from('wa_conversations').update({ status: 'resolved', resolved_reason: reason, resolved_note: note || null, resolved_at: new Date().toISOString() }).eq('id', selectedConv.id)
+    // Passa pelo servidor para disparar a automação "conversa resolvida"
+    const res = await fetch('/api/whatsapp/resolve', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: selectedConv.id, reason, note }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      alert(data.error ?? 'Não foi possível resolver a conversa')
+      return
+    }
     setSelectedConv(prev => prev ? { ...prev, status: 'resolved' } : null)
     setConversations(prev => prev.map(c => c.id === selectedConv.id ? { ...c, status: 'resolved' } : c))
     setResolveDialogOpen(false)

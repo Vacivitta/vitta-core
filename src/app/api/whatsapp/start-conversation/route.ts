@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getWaCredentials }         from '@/lib/whatsapp/credentials'
+import { runWaAutomation }          from '@/lib/whatsapp/automation'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -188,6 +189,13 @@ export async function POST(req: NextRequest) {
     assigned_to:            user.id,
     status:                 'open',
   }).eq('id', conv.id)
+
+  // 4b. Automação de mensagem enviada (ex.: mover lead para Em atendimento)
+  try {
+    await runWaAutomation(supabase, 'outbound_message', unit_id, conv.id)
+  } catch (e) {
+    console.error('[start-conv] runWaAutomation outbound falhou:', e)
+  }
 
   // 5. Registra optin no lead vinculado ao telefone (se solicitado)
   if (register_optin) {

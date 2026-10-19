@@ -1830,7 +1830,8 @@ function LeadDrawer({
                       {waConversation.status === 'resolved' ? (
                         <button
                           onClick={async () => {
-                            await supabase.from('wa_conversations').update({ status: 'open' }).eq('id', waConversation.id)
+                            const { error } = await supabase.from('wa_conversations').update({ status: 'open' }).eq('id', waConversation.id)
+                            if (error) { alert('Não foi possível reabrir a conversa'); return }
                             setWaConversation(prev => prev ? { ...prev, status: 'open' } : prev)
                           }}
                           style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#3E9849', display: 'flex', alignItems: 'center', gap: 4 }}
@@ -1841,7 +1842,12 @@ function LeadDrawer({
                       ) : (
                         <button
                           onClick={async () => {
-                            await supabase.from('wa_conversations').update({ status: 'resolved' }).eq('id', waConversation.id)
+                            // Passa pelo servidor para disparar a automação "conversa resolvida"
+                            const res = await fetch('/api/whatsapp/resolve', {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ conversation_id: waConversation.id }),
+                            })
+                            if (!res.ok) { alert('Não foi possível resolver a conversa'); return }
                             setWaConversation(prev => prev ? { ...prev, status: 'resolved' } : prev)
                           }}
                           style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}
