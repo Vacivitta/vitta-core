@@ -17,6 +17,7 @@ import type { LeadKanban, FunnelStage } from '@/types/database'
 import { moveLeadStage, reorderLeads } from '@/lib/leads'
 import KanbanColumn from './KanbanColumn'
 import LeadCard from './LeadCard'
+import { sortKanbanLeads, DEFAULT_KANBAN_SORT, type KanbanSortMode, type KanbanSortContext } from './sort'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -25,20 +26,26 @@ interface Props {
   onAddLead: (stage: FunnelStage) => void
   unreadByLead?: Record<string, number>
   lastMsgByLead?: Record<string, string>
+  lastDirByLead?: Record<string, 'inbound' | 'outbound'>
   tagsByLead?: Record<string, Array<{ id: string; name: string; color: string }>>
   onMarkUnread?: (leadId: string) => void
+  sortMode?: KanbanSortMode
 }
 
-function groupByStage(leads: LeadKanban[], stages: FunnelStage[]): Record<string, LeadKanban[]> {
+/** Agrupa os leads por etapa, já na ordem exibida em cada coluna. */
+function groupByStage(
+  leads: LeadKanban[], stages: FunnelStage[], sortMode: KanbanSortMode, ctx: KanbanSortContext,
+): Record<string, LeadKanban[]> {
   const groups: Record<string, LeadKanban[]> = {}
   for (const s of stages) groups[s.id] = []
   for (const lead of leads) {
     if (groups[lead.stage_id] !== undefined) groups[lead.stage_id].push(lead)
   }
+  for (const id of Object.keys(groups)) groups[id] = sortKanbanLeads(groups[id], sortMode, ctx)
   return groups
 }
 
-export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, tagsByLead = {}, onMarkUnread }: Props) {
+export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
   // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
@@ -54,7 +61,8 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
   )
 
   const stageIds = new Set(stages.map(s => s.id))
-  const grouped  = groupByStage(leads, stages)
+  const sortCtx: KanbanSortContext = { unreadByLead, lastMsgByLead, lastDirByLead }
+  const grouped  = groupByStage(leads, stages, sortMode, sortCtx)
   const activeLead = activeId ? leads.find(l => l.id === activeId) : null
 
   function resolveStageId(overId: string): string | undefined {
@@ -91,7 +99,8 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
     if (!lead) return
 
     const targetStageId = resolveStageId(over.id as string) ?? lead.stage_id
-    const columnLeads   = leads.filter(l => l.stage_id === targetStageId)
+    // Mesma ordem exibida na coluna, para os índices do arraste baterem com a tela
+    const columnLeads   = sortKanbanLeads(leads.filter(l => l.stage_id === targetStageId), sortMode, sortCtx)
 
     let newLeads = [...leads]
 
@@ -99,7 +108,9 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
       if (originStage && originStage !== targetStageId) {
         newLeads = newLeads.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l)
         await moveLeadStage(lead.id, targetStageId, columnLeads.length, originStage, 'kanban')
-      } else if (over.id !== active.id) {
+      } else if (over.id !== active.id && sortMode === 'manual') {
+        // Reordenar dentro da coluna só faz sentido na ordem manual; nas demais
+        // a posição é definida pelo critério escolhido.
         const oldIndex  = columnLeads.findIndex(l => l.id === active.id)
         const newIndex  = columnLeads.findIndex(l => l.id === over.id)
         const reordered = arrayMove(columnLeads, oldIndex, newIndex).map((l, i) => ({ ...l, ordem: i }))
@@ -112,7 +123,7 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
 
     setLeads(newLeads)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leads, stageIds])
+  }, [leads, stageIds, sortMode, unreadByLead, lastMsgByLead, lastDirByLead])
 
   return (
     <DndContext

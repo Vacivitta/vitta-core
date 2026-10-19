@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
+import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, type KanbanSortMode } from '@/components/kanban/sort'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
@@ -132,11 +133,29 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [unitTags, setUnitTags]           = useState<Array<{ id: string; name: string; color: string }>>([])
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>({})
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>({})
+  const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>({})
+  const [sortMode, setSortMode]                 = useState<KanbanSortMode>(DEFAULT_KANBAN_SORT)
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>({})
   const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>({})
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
   const [msgMatchLeadIds, setMsgMatchLeadIds] = useState<Set<string> | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Ordenação escolhida fica salva por usuário neste navegador
+  const SORT_STORAGE_KEY = 'funil_sort_mode'
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SORT_STORAGE_KEY)
+      // Lido após montar (não no useState) para não divergir do HTML renderizado no servidor
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved && KANBAN_SORT_OPTIONS.some(o => o.value === saved)) setSortMode(saved as KanbanSortMode)
+    } catch { /* storage indisponível — mantém o padrão */ }
+  }, [])
+
+  function changeSortMode(mode: KanbanSortMode) {
+    setSortMode(mode)
+    try { localStorage.setItem(SORT_STORAGE_KEY, mode) } catch { /* ignora */ }
+  }
 
   const searchMessages = useCallback(async (q: string) => {
     if (!q || q.length < 3) { setMsgMatchLeadIds(null); return }
@@ -164,13 +183,14 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   // Carrega conversas (unread + last_message_at + id + tags) e assina atualizações em tempo real
   useEffect(() => {
     void supabase.from('wa_conversations')
-      .select('id, lead_id, unread_count, last_message_at, tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .select('id, lead_id, unread_count, last_message_at, last_message_direction, tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .eq('unit_id', currentUser.unit_id)
       .not('lead_id', 'is', null)
       .then(({ data }) => {
         if (!data) return
         const unread: Record<string, number> = {}
         const lastMsg: Record<string, string> = {}
+        const lastDir: Record<string, 'inbound' | 'outbound'> = {}
         const convIds: Record<string, string> = {}
         const tags: Record<string, Array<{ id: string; name: string; color: string }>> = {}
         for (const row of data) {
@@ -180,6 +200,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           if (row.last_message_at) {
             if (!lastMsg[row.lead_id] || row.last_message_at > lastMsg[row.lead_id]) {
               lastMsg[row.lead_id] = row.last_message_at
+              if (row.last_message_direction) lastDir[row.lead_id] = row.last_message_direction
             }
           }
           const rowTags = ((row.tags ?? []) as unknown as Array<{ tag: { id: string; name: string; color: string } }>)
@@ -188,12 +209,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         }
         setUnreadByLead(unread)
         setLastMsgByLead(lastMsg)
+        setLastDirByLead(lastDir)
         setConvIdByLead(convIds)
         setTagsByLead(tags)
       })
 
     function handleConvChange(payload: { new: Record<string, unknown> }) {
-      const conv = payload.new as { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null }
+      const conv = payload.new as { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: 'inbound' | 'outbound' | null }
       if (!conv.lead_id) return
       setConvIdByLead(prev => ({ ...prev, [conv.lead_id!]: conv.id }))
       setUnreadByLead(prev => {
@@ -204,6 +226,9 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       })
       if (conv.last_message_at) {
         setLastMsgByLead(prev => ({ ...prev, [conv.lead_id!]: conv.last_message_at! }))
+      }
+      if (conv.last_message_direction) {
+        setLastDirByLead(prev => ({ ...prev, [conv.lead_id!]: conv.last_message_direction! }))
       }
     }
 
@@ -369,6 +394,22 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             />
           </div>
 
+          <label className="flex items-center gap-1.5" title="Ordem dos cards em cada etapa"
+            style={{ fontSize: 13, padding: '0 6px 0 12px', borderRadius: 999, border: sortMode !== DEFAULT_KANBAN_SORT ? '1px solid #3E9849' : '1px solid #E5E7EB', background: sortMode !== DEFAULT_KANBAN_SORT ? '#E8F4E6' : '#F9FAFB', color: sortMode !== DEFAULT_KANBAN_SORT ? '#3E9849' : '#71856F', fontWeight: 700 }}>
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h12M3 12h8m-8 5h4m10-9v12m0 0l-3-3m3 3l3-3" />
+            </svg>
+            <span className="hidden lg:inline">Ordenar:</span>
+            <select
+              value={sortMode}
+              onChange={e => changeSortMode(e.target.value as KanbanSortMode)}
+              aria-label="Ordenar cards por"
+              style={{ fontSize: 13, fontWeight: 700, background: 'transparent', border: 'none', outline: 'none', color: 'inherit', paddingBlock: 6, cursor: 'pointer', maxWidth: 190 }}
+            >
+              {KANBAN_SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+
           <button
             onClick={() => setShowFilters(v => !v)}
             className="flex items-center gap-1.5"
@@ -477,6 +518,8 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           onAddLead={handleAddLead}
           unreadByLead={unreadByLead}
           lastMsgByLead={lastMsgByLead}
+          lastDirByLead={lastDirByLead}
+          sortMode={sortMode}
           tagsByLead={tagsByLead}
           onMarkUnread={leadId => {
             const convId = convIdByLead[leadId]

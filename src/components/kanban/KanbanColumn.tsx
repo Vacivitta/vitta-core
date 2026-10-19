@@ -24,16 +24,8 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unr
   const totalValue  = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? (Number(l.valor_orcamentos) || 0)), 0)
   const stageUnread = leads.reduce((sum, l) => sum + (unreadByLead[l.id] ?? 0), 0)
 
-  const sortedLeads = [...leads].sort((a, b) => {
-    const ua = unreadByLead[a.id] ?? 0
-    const ub = unreadByLead[b.id] ?? 0
-    if (ua > 0 && ub === 0) return -1
-    if (ub > 0 && ua === 0) return 1
-    const ma = lastMsgByLead[a.id] ?? ''
-    const mb = lastMsgByLead[b.id] ?? ''
-    if (ma || mb) return mb.localeCompare(ma)
-    return 0
-  })
+  // Os leads já chegam ordenados pelo KanbanBoard (critério escolhido no funil)
+  const sortedLeads = leads
 
   return (
     <div className="flex flex-col shrink-0 snap-start" style={{ width: 264, gap: 6 }}>
