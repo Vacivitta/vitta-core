@@ -113,8 +113,9 @@ async function isRepeatedWithin24h(
  * Move o lead associado à conversa para um estágio do funil.
  * Atualiza tanto `stage_id` quanto `funnel_id` para evitar que o card
  * desapareça do kanban quando o estágio destino pertence a outro funil.
- * Pula se o lead já está no destino ou se está numa etapa que a automação
- * não pode alterar (ver `getMovableStages`). Registra a mudança no histórico.
+ * Pula se o lead já está no destino. Para eventos de mensagem, também pula se o
+ * lead está numa etapa que a automação não pode alterar (ver `getMovableStages`);
+ * `conversation_resolved` move de qualquer etapa. Registra a mudança no histórico.
  *
  * @param supabase - Cliente Supabase
  * @param unitId - ID da unidade (define as etapas que podem ser alteradas)
@@ -145,7 +146,9 @@ async function handleMoveStage(
 
   if (!lead || lead.stage_id === stageId) return
 
-  if (lead.stage_id) {
+  // Resolver a conversa é uma ação explícita do atendente: move de qualquer etapa.
+  // Já as mensagens só movem a partir das etapas de atendimento.
+  if (lead.stage_id && trigger !== 'conversation_resolved') {
     const movable = await getMovableStages(supabase, unitId, trigger)
     if (!movable.has(lead.stage_id)) return
   }
