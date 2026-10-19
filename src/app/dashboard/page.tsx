@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import DashboardClient from './DashboardClient'
 import type { Profile, SalesGoal } from '@/types/database'
 
@@ -42,11 +43,14 @@ export default async function DashboardPage() {
     { data: salesGoalsRaw },
     { data: stageHistoryRaw },
   ] = await Promise.all([
-    supabase
+    // Consultas que passam de 1000 linhas por unidade usam fetchAll (o Supabase corta em 1000)
+    fetchAll((from, to) => supabase
       .from('leads')
       .select('id, stage_id, created_at, origem, motivo_perda')
       .eq('arquivado', false)
-      .eq('unit_id', unitId),
+      .eq('unit_id', unitId)
+      .order('id')
+      .range(from, to)),
     supabase
       .from('quotes')
       .select('id, status, total_calculado, criado_em, aceito_em, responsavel_id, motivo_recusa, validade_ate')
@@ -58,31 +62,38 @@ export default async function DashboardPage() {
       .eq('unit_id', unitId)
       .order('funnel_id')
       .order('ordem'),
+    // As colunas são concluida/data_limite (concluida_em/data_vencimento não existem:
+    // a consulta falhava e "Tarefas pendentes" ficava sempre zerado)
     supabase
       .from('lead_tasks')
-      .select('id, concluida_em, data_vencimento, responsavel_id')
+      .select('id, concluida, data_limite, responsavel_id')
       .eq('unit_id', unitId)
-      .is('concluida_em', null),
-    supabase
+      .eq('concluida', false),
+    fetchAll((from, to) => supabase
       .from('wa_conversations')
       .select('id, lead_id, unread_count, last_message_at, last_message_direction, status, assigned_to, queue_id, resolved_at')
       .eq('unit_id', unitId)
-      .order('last_message_at', { ascending: false }),
-    supabase
+      .order('last_message_at', { ascending: false })
+      .order('id')
+      .range(from, to)),
+    fetchAll((from, to) => supabase
       .from('wa_messages')
       .select('id, conversation_id, direction, created_at, sent_by')
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false })
-      .limit(2000),
+      .order('id')
+      .range(from, to), 2000),
     supabase
       .from('profiles')
       .select('id, full_name, apelido, perfil')
       .eq('unit_id', unitId),
-    supabase
+    fetchAll((from, to) => supabase
       .from('wa_message_costs')
       .select('category, cost_usd, billable')
       .eq('unit_id', unitId)
-      .eq('month_year', monthYear),
+      .eq('month_year', monthYear)
+      .order('id')
+      .range(from, to)),
     supabase
       .from('wa_queues')
       .select('id, nome, cor')
@@ -96,11 +107,13 @@ export default async function DashboardPage() {
       .eq('unit_id', unitId)
       .is('user_id', null)
       .order('month', { ascending: false }),
-    supabase
+    fetchAll((from, to) => supabase
       .from('lead_stage_history')
       .select('id, lead_id, de_stage_id, para_stage_id, criado_em, lead:leads!inner(unit_id)')
       .eq('lead.unit_id', unitId)
-      .order('criado_em'),
+      .order('criado_em')
+      .order('id')
+      .range(from, to)),
   ])
 
   return (

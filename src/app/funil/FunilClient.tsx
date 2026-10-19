@@ -8,6 +8,7 @@ import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 
 interface Props {
@@ -182,12 +183,16 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
   // Carrega conversas (unread + last_message_at + id + tags) e assina atualizações em tempo real
   useEffect(() => {
-    void supabase.from('wa_conversations')
+    // Paginado: com mais de 1000 conversas o Supabase cortava a lista e os leads
+    // de fora ficavam sem última mensagem (iam para o fim em "Atividade recente")
+    void fetchAll((from, to) => supabase.from('wa_conversations')
       .select('id, lead_id, unread_count, last_message_at, last_message_direction, tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .eq('unit_id', currentUser.unit_id)
       .not('lead_id', 'is', null)
+      .order('id')
+      .range(from, to))
       .then(({ data }) => {
-        if (!data) return
+        if (!data.length) return
         const unread: Record<string, number> = {}
         const lastMsg: Record<string, string> = {}
         const lastDir: Record<string, 'inbound' | 'outbound'> = {}
@@ -318,14 +323,17 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const totalVendidos = leads.filter(l => l.funnel_id === selectedFunnelId && l.stage_ordem === Math.max(...(selectedFunnel?.stages.map(s => s.ordem) ?? [0])) - 1).length
 
   async function reloadLeads() {
-    const { data } = await supabase
+    const { data, error } = await fetchAll((from, to) => supabase
       .from('leads_kanban')
       .select('*')
       .eq('unit_id', currentUser.unit_id)
       .order('stage_ordem')
       .order('ordem')
       .order('created_at')
-    if (data) {
+      .order('id')
+      .range(from, to))
+    // Em erro, mantém o quadro atual em vez de substituir por uma lista parcial
+    if (!error) {
       const fresh = data as LeadKanban[]
       setLeads(fresh)
       // Atualiza o modal com os dados frescos sem fechar

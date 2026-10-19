@@ -9,7 +9,7 @@ import { displayName, MOTIVO_RECUSA_OPTIONS, ARCHIVE_REASONS } from '@/types/dat
 interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null; motivo_perda: string | null }
 interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null; validade_ate: string | null }
 interface StageRow    { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
-interface TaskRow     { id: string; concluida_em: string | null; data_vencimento: string | null; responsavel_id: string | null }
+interface TaskRow     { id: string; concluida: boolean; data_limite: string | null; responsavel_id: string | null }
 interface ConvRow     { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: string | null; status: string; assigned_to: string | null; queue_id: string | null; resolved_at: string | null }
 interface MsgRow      { id: string; conversation_id: string; direction: string; created_at: string; sent_by: string | null }
 interface ProfileRow  { id: string; full_name: string; apelido: string | null; perfil?: string }
@@ -302,8 +302,8 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
   // ── Tasks
   const taskStats = useMemo(() => {
     const now = new Date().toISOString().slice(0, 10)
-    const pending = tasks.filter(t => !t.concluida_em)
-    return { pending: pending.length, overdue: pending.filter(t => t.data_vencimento && t.data_vencimento < now).length }
+    const pending = tasks.filter(t => !t.concluida)
+    return { pending: pending.length, overdue: pending.filter(t => t.data_limite && t.data_limite < now).length }
   }, [tasks])
 
   // ── Leads por origem

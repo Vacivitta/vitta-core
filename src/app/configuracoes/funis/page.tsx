@@ -1,5 +1,6 @@
 ﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import FunisConfig from './FunisConfig'
 import type { FunnelWithStages } from '@/types/database'
 
@@ -18,11 +19,14 @@ export default async function ConfigFunisPage() {
   const [{ data: funnels }, { data: stages }, { data: leadCounts }] = await Promise.all([
     supabase.from('funnels').select('*').eq('unit_id', unitId).order('ordem'),
     supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
-    supabase
+    // Paginado: o Supabase corta em 1000 linhas e a contagem por etapa ficava menor
+    fetchAll((from, to) => supabase
       .from('leads')
       .select('stage_id')
       .eq('arquivado', false)
-      .eq('unit_id', unitId),
+      .eq('unit_id', unitId)
+      .order('id')
+      .range(from, to)),
   ])
 
   const countsByStage: Record<string, number> = {}
