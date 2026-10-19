@@ -252,8 +252,17 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, scheduleReload)
       .subscribe()
 
+    // O Realtime só entrega eventos de linhas que o usuário ainda enxerga: um lead
+    // transferido para outra unidade não gera evento aqui. Recarrega ao voltar para a
+    // aba e periodicamente enquanto visível (também cobre quedas de conexão).
+    const onVisible = () => { if (document.visibilityState === 'visible') scheduleReload() }
+    document.addEventListener('visibilitychange', onVisible)
+    const periodic = setInterval(onVisible, 120_000)
+
     return () => {
       if (reloadTimer) clearTimeout(reloadTimer)
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(periodic)
       void supabase.removeChannel(ch); void supabase.removeChannel(chLeads)
     }
   }, [supabase])

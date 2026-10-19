@@ -14,11 +14,13 @@ interface Props {
   lastMsgByLead?: Record<string, string>
   tagsByLead?: Record<string, Array<{ id: string; name: string; color: string }>>
   onMarkUnread?: (leadId: string) => void
+  /** Relógio compartilhado do quadro (ver useNow) */
+  now: number
 }
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 })
 
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, tagsByLead = {}, onMarkUnread }: Props) {
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, tagsByLead = {}, onMarkUnread, now }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   const totalValue  = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? (Number(l.valor_orcamentos) || 0)), 0)
@@ -93,7 +95,7 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unr
       >
         <SortableContext items={sortedLeads.map(l => l.id)} strategy={verticalListSortingStrategy}>
           {sortedLeads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} tags={tagsByLead[lead.id]} onMarkUnread={onMarkUnread} lastMsgAt={lastMsgByLead[lead.id]} />
+            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} tags={tagsByLead[lead.id]} onMarkUnread={onMarkUnread} lastMsgAt={lastMsgByLead[lead.id]} now={now} />
           ))}
         </SortableContext>
 

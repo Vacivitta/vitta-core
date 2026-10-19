@@ -17,6 +17,7 @@ import type { LeadKanban, FunnelStage } from '@/types/database'
 import { moveLeadStage, reorderLeads } from '@/lib/leads'
 import KanbanColumn from './KanbanColumn'
 import LeadCard from './LeadCard'
+import { useNow } from './useNow'
 import { sortKanbanLeads, DEFAULT_KANBAN_SORT, type KanbanSortMode, type KanbanSortContext } from './sort'
 
 interface Props {
@@ -48,11 +49,15 @@ function groupByStage(
 export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const now = useNow()
   // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
   // independente de quantas re-renders o handleDragOver disparar.
   const dragOriginStageRef = useRef<string | null>(null)
 
+  // Sincroniza com os leads do funil (Realtime/filtros), exceto durante um arraste —
+  // senão o card voltaria para a coluna de origem no meio do movimento
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeId === null) setLeads(initialLeads)
   }, [initialLeads]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -145,6 +150,7 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
             lastMsgByLead={lastMsgByLead}
             tagsByLead={tagsByLead}
             onMarkUnread={onMarkUnread}
+            now={now}
           />
         ))}
       </div>
@@ -152,7 +158,7 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
       <DragOverlay>
         {activeLead && (
           <div className="rotate-2 opacity-90">
-            <LeadCard lead={activeLead} onClick={() => {}} />
+            <LeadCard lead={activeLead} onClick={() => {}} now={now} />
           </div>
         )}
       </DragOverlay>

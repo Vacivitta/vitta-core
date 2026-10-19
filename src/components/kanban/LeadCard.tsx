@@ -14,10 +14,12 @@ interface Props {
   tags?: TagInfo[]
   onMarkUnread?: (leadId: string) => void
   lastMsgAt?: string
+  /** Relógio compartilhado do quadro (ver useNow) */
+  now: number
 }
 
-function timeSince(dateStr: string): { label: string; isLong: boolean } {
-  const diff = Date.now() - new Date(dateStr).getTime()
+function timeSince(dateStr: string, now: number): { label: string; isLong: boolean } {
+  const diff = now - new Date(dateStr).getTime()
   const mins  = Math.floor(diff / 60_000)
   const hours = Math.floor(diff / 3_600_000)
   const days  = Math.floor(diff / 86_400_000)
@@ -29,9 +31,9 @@ function timeSince(dateStr: string): { label: string; isLong: boolean } {
 
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-function fmtTaskDate(iso: string): string {
+function fmtTaskDate(iso: string, nowMs: number): string {
   const d = new Date(iso)
-  const now = new Date()
+  const now = new Date(nowMs)
   const isToday = d.toDateString() === now.toDateString()
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -43,7 +45,7 @@ function fmtTaskDate(iso: string): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ` ${time}`
 }
 
-export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread, lastMsgAt }: Props) {
+export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread, lastMsgAt, now }: Props) {
   const [hovered, setHovered] = useState(false)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -53,25 +55,25 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
   const dndStyle = { transform: CSS.Transform.toString(transform), transition }
 
   const hoursInStage = lead.stage_changed_at
-    ? Math.floor((Date.now() - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
+    ? Math.floor((now - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
     : 0
   const isHoursSlaOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
   const isMonthlySlaOverdue = !!(lead.stage_sla_mensal && lead.stage_changed_at && (() => {
-    const now = new Date()
+    const today = new Date(now)
     const changed = new Date(lead.stage_changed_at)
-    return changed.getFullYear() < now.getFullYear() || changed.getMonth() < now.getMonth()
+    return changed.getFullYear() < today.getFullYear() || changed.getMonth() < today.getMonth()
   })())
   const isSlaOverdue = isHoursSlaOverdue || isMonthlySlaOverdue
 
   const taskOverdue = lead.proxima_tarefa_data
-    ? new Date(lead.proxima_tarefa_data).getTime() < Date.now()
+    ? new Date(lead.proxima_tarefa_data).getTime() < now
     : false
 
   const orcVal = Number(lead.valor_orcamentos) || 0
   const displayValue = lead.valor_negociado ?? lead.valor_proposta ?? (orcVal > 0 ? orcVal : null)
 
   const initials = `${(lead.nome?.[0] ?? '').toUpperCase()}${(lead.sobrenome?.[0] ?? '').toUpperCase()}`
-  const timeInfo = lastMsgAt ? timeSince(lastMsgAt) : lead.stage_changed_at ? timeSince(lead.stage_changed_at) : null
+  const timeInfo = lastMsgAt ? timeSince(lastMsgAt, now) : lead.stage_changed_at ? timeSince(lead.stage_changed_at, now) : null
 
   const cardStyle: React.CSSProperties = {
     ...dndStyle,
@@ -171,7 +173,7 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
                 <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                {fmtTaskDate(lead.proxima_tarefa_data)}
+                {fmtTaskDate(lead.proxima_tarefa_data, now)}
               </span>
             )}
           </div>

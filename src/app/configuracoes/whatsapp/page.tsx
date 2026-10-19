@@ -1,6 +1,7 @@
 import { redirect }     from 'next/navigation'
 import { headers }      from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import WhatsAppConfigClient from './WhatsAppConfigClient'
 
 export const metadata = { title: 'WhatsApp API — VittaDesk' }
@@ -44,11 +45,17 @@ export default async function WhatsAppConfigPage() {
       ? supabase.from('units').select('id, nome').order('nome')
       : supabase.from('units').select('id, nome').eq('id', profile.unit_id),
 
-    // Carrega configs existentes para pré-preencher e encontrar o verify_token global
-    supabase
-      .from('wa_config')
-      .select('unit_id, phone_number_id, access_token, verify_token, waba_id, display_phone, updated_at')
-      .order('updated_at', { ascending: false }) as unknown as Promise<{ data: WaConfigRow[] | null; error: unknown }>,
+    // Carrega configs existentes para pré-preencher e encontrar o verify_token global.
+    // wa_config não tem policy para o navegador (guarda o access_token): lê com
+    // service-role, já restrito a gestores acima e à própria unidade para gestor_unidade.
+    (isMultiUnit
+      ? createAdminClient().from('wa_config')
+          .select('unit_id, phone_number_id, access_token, verify_token, waba_id, display_phone, updated_at')
+          .order('updated_at', { ascending: false })
+      : createAdminClient().from('wa_config')
+          .select('unit_id, phone_number_id, access_token, verify_token, waba_id, display_phone, updated_at')
+          .eq('unit_id', profile.unit_id)
+    ) as unknown as Promise<{ data: WaConfigRow[] | null; error: unknown }>,
   ])
 
   const units   = unitsResult.data   ?? []

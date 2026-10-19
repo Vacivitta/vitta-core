@@ -846,8 +846,13 @@ function ScheduledMessageModal({
 
   async function handleCancel() {
     setCancelling(true)
-    await fetch(`/api/whatsapp/schedule?id=${msg.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/whatsapp/schedule?id=${msg.id}`, { method: 'DELETE' })
     setCancelling(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      alert(data.error ?? 'Não foi possível cancelar a mensagem')
+      return
+    }
     onCancelled()
   }
 
