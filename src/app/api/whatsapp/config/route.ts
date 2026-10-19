@@ -90,6 +90,11 @@ export async function POST(req: NextRequest) {
     display_phone?:   string
   }
 
+  // Trocar número/token do WhatsApp é configuração da unidade — atendente não altera
+  if (caller.perfil === 'atendente') {
+    return NextResponse.json({ error: 'Sem permissão para alterar a configuração do WhatsApp' }, { status: 403 })
+  }
+
   const unitId = resolveUnitId(caller, body.unit_id)
   if (!unitId) return NextResponse.json({ error: 'Unidade não encontrada' }, { status: 400 })
 

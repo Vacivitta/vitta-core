@@ -3,6 +3,7 @@ import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
+import { canAccessUnit }            from '@/lib/auth/access'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -63,6 +64,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unit_id obrigatório' }, { status: 400 })
   if (!template_name)
     return NextResponse.json({ error: 'template_name obrigatório' }, { status: 400 })
+
+  // Autorização: unit_id vem do navegador — o usuário precisa pertencer à unidade
+  if (!await canAccessUnit(supabaseUser, user.id, unit_id))
+    return NextResponse.json({ error: 'Sem permissão para esta unidade' }, { status: 403 })
 
   const supabase = adminClient()
 

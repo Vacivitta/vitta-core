@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getAccessibleConversation } from '@/lib/auth/access'
 
 // POST   /api/whatsapp/conversation-tags  { conversation_id, tag_id } — atribui
 // DELETE /api/whatsapp/conversation-tags?conversation_id=&tag_id=     — remove
@@ -12,6 +13,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as { conversation_id: string; tag_id: string }
   if (!body.conversation_id || !body.tag_id) {
     return NextResponse.json({ error: 'conversation_id e tag_id são obrigatórios' }, { status: 400 })
+  }
+
+  // A policy de wa_conversation_tags só valida a tag; a conversa também precisa ser da unidade
+  if (!await getAccessibleConversation(supabase, body.conversation_id)) {
+    return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
 
   const { error } = await supabase

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { getAccessibleConversation } from '@/lib/auth/access'
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -19,6 +20,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as { conversation_id: string; queue_id: string }
   if (!body.conversation_id || !body.queue_id) {
     return NextResponse.json({ error: 'conversation_id e queue_id são obrigatórios' }, { status: 400 })
+  }
+
+  // Autorização: a conversa precisa ser de uma unidade do usuário (RLS)
+  if (!await getAccessibleConversation(supabase, body.conversation_id)) {
+    return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
 
   const result = await runAutoAssign(adminClient(), body.conversation_id, body.queue_id)

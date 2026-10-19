@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
+import { getAccessibleConversation } from '@/lib/auth/access'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -32,6 +33,11 @@ export async function POST(req: NextRequest) {
 
     if (!file || !conversation_id) {
       return NextResponse.json({ error: 'file e conversation_id obrigatórios' }, { status: 400 })
+    }
+
+    // Autorização: a conversa precisa ser de uma unidade do usuário (RLS)
+    if (!await getAccessibleConversation(supabase, conversation_id)) {
+      return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
     }
 
     const admin = adminClient()

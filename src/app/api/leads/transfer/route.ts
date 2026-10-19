@@ -32,7 +32,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'leadId, targetUnitId e targetFunnelId são obrigatórios' }, { status: 400 })
   }
 
+  // Autorização: o lead de origem precisa ser visível ao usuário (RLS de leads)
+  const { data: ownLead } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle()
+  if (!ownLead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
+
   const admin = createAdminClient()
+
+  // O funil destino precisa ser da unidade destino — senão o lead some do kanban
+  const { data: targetFunnel } = await admin
+    .from('funnels').select('id').eq('id', targetFunnelId).eq('unit_id', targetUnitId).maybeSingle()
+  if (!targetFunnel) return NextResponse.json({ error: 'Funil não pertence à unidade destino' }, { status: 400 })
 
   const { data: profile } = await admin
     .from('profiles').select('id, unit_id, full_name').eq('id', user.id).single()

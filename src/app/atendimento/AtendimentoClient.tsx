@@ -386,11 +386,17 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   useEffect(() => { void loadConversations() }, [loadConversations])
 
   useEffect(() => {
+    // Filtra pela unidade ativa e agrupa mudanças próximas: cada mensagem recebida gera
+    // várias atualizações na conversa (prévia, não lidas, atribuição) — uma recarga basta
+    let timer: ReturnType<typeof setTimeout> | null = null
     const ch = supabase.channel('wa_conv_list')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_conversations' },
-        () => { void loadConversations() }).subscribe()
-    return () => { void supabase.removeChannel(ch) }
-  }, [supabase, loadConversations])
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_conversations', filter: `unit_id=eq.${currentUser.unit_id}` },
+        () => {
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(() => { void loadConversations() }, 300)
+        }).subscribe()
+    return () => { if (timer) clearTimeout(timer); void supabase.removeChannel(ch) }
+  }, [supabase, loadConversations, currentUser.unit_id])
 
   // ── Load chat ───────────────────────────────────────────────────────────────
   useEffect(() => {

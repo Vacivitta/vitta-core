@@ -129,7 +129,8 @@ async function processLeadStuckStage(admin: ReturnType<typeof adminClient>, auto
     .eq('unit_id', auto.unit_id)
     .eq('stage_id', auto.filter_stage_id)
     .eq('arquivado', false)
-    .lt('updated_at', cutoff)
+    // stage_changed_at = entrada na etapa; updated_at muda com qualquer edição do lead
+    .lt('stage_changed_at', cutoff)
     .limit(50)
 
   if (auto.filter_funnel_id) {
@@ -160,12 +161,18 @@ async function processLeadNoTask(admin: ReturnType<typeof adminClient>, auto: an
   if (!leads || leads.length === 0) return 0
 
   const leadIds = leads.map(l => l.id)
-  const { data: tasksWithLead } = await admin
+  const { data: tasksWithLead, error: tasksErr } = await admin
     .from('lead_tasks')
     .select('lead_id')
     .in('lead_id', leadIds)
-    .gte('due_date', new Date().toISOString())
-    .eq('completed', false)
+    .gte('data_limite', new Date().toISOString())
+    .eq('concluida', false)
+
+  // Sem essa checagem, uma falha na consulta faria todos os leads parecerem "sem tarefa"
+  if (tasksErr) {
+    console.error(`[timed-auto] lead_no_task: erro ao buscar tarefas automation=${auto.id}:`, tasksErr.message)
+    return 0
+  }
 
   const leadsWithTask = new Set((tasksWithLead ?? []).map(t => t.lead_id))
   const leadsWithout = leads.filter(l => !leadsWithTask.has(l.id))

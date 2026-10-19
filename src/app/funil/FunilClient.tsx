@@ -232,17 +232,30 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       }
     }
 
+    // Só a unidade ativa — sem filtro, admins globais recebiam mudanças de todas as unidades
+    const unitFilter = `unit_id=eq.${currentUser.unit_id}`
     const ch = supabase.channel('funil_wa_unread')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_conversations' }, handleConvChange)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_conversations' }, handleConvChange)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wa_conversations', filter: unitFilter }, handleConvChange)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wa_conversations', filter: unitFilter }, handleConvChange)
       .subscribe()
 
+    // Agrupa mudanças próximas (ex.: automação + atribuição na mesma mensagem) numa só recarga
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleReload = () => {
+      if (reloadTimer) clearTimeout(reloadTimer)
+      reloadTimer = setTimeout(() => { void reloadLeads() }, 400)
+    }
     const chLeads = supabase.channel('funil_leads_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' },
-        () => { void reloadLeads() })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads', filter: unitFilter }, scheduleReload)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads', filter: unitFilter }, scheduleReload)
+      // DELETE não aceita filtro por coluna no Realtime
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, scheduleReload)
       .subscribe()
 
-    return () => { void supabase.removeChannel(ch); void supabase.removeChannel(chLeads) }
+    return () => {
+      if (reloadTimer) clearTimeout(reloadTimer)
+      void supabase.removeChannel(ch); void supabase.removeChannel(chLeads)
+    }
   }, [supabase])
 
   // Carrega tags disponíveis da unidade
