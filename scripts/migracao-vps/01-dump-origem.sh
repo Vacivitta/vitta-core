@@ -31,11 +31,19 @@ echo "== auth (usuários e identidades, com hash de senha)"
   --file=/out/03_auth_data.sql
 
 echo "== storage (buckets — arquivos são copiados pela etapa 3)"
-"${PGDUMP[@]}" --data-only --table=storage.buckets --file=/out/04_storage_buckets.sql
+# INSERT só com colunas comuns: o storage gerenciado tem colunas novas
+# (ex.: versioning_status) que a versão do storage na VPS não tem.
+docker run --rm -e PGCONNECT_TIMEOUT=20 postgres:17 psql "$SRC_DB_URL" -At -c \
+  "SELECT format('INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES (%L, %L, %L, %s, %L) ON CONFLICT (id) DO NOTHING;', id, name, public, coalesce(file_size_limit::text, 'NULL'), allowed_mime_types) FROM storage.buckets" \
+  > "$OUT/04_storage_buckets.sql"
 
-# pg_dump 17 emite parâmetros que versões antigas não conhecem; o destino é 17,
-# mas removemos por segurança caso a imagem do Coolify ainda seja 15.
-sed -i '/^SET transaction_timeout/d' "$OUT"/*.sql
+# O destino é Postgres 15 (imagem do Coolify). O pg_dump 17 emite comandos que o
+# psql 15 não conhece: o parâmetro transaction_timeout e os meta-comandos
+# \restrict / \unrestrict (proteção contra injeção no restore, pg_dump ≥ 17.6).
+# (o "." casa a barra invertida sem depender de escape)
+sed -i -e '/^SET transaction_timeout/d' -e '/^.restrict /d' -e '/^.unrestrict /d' "$OUT"/*.sql
+# O schema public já existe no Supabase de destino
+sed -i '/^CREATE SCHEMA public;$/d' "$OUT/01_public_schema.sql"
 
 ls -lh "$OUT"
 echo "Dump salvo em $OUT"
