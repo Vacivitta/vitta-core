@@ -82,17 +82,17 @@ Roteiro original do ensaio:
 - Chaves do R2 em `/root/backups/r2.env` (modo 600). Restauração testada: contagens idênticas.
 - Gestão e VittaMaster continuam só com backup local (decisão: R2 só para o vitta-core).
 
-### 5. Preparar a troca — agendada para **domingo 25/10/2026, 21h** (equipe não será avisada)
-Até domingo 20h (usuário):
+### 5. Preparar a troca — agendada para **segunda 26/10/2026, 9h** (equipe não será avisada; usuário presente — não fazer a troca sem ele)
+Até domingo 25/10 (usuário):
 - Coolify → app `vitta-core-ensaio` → Environment Variables: colar os valores **reais** da Vercel de
   `WHATSAPP_APP_SECRET` (sem ele o webhook rejeita toda mensagem da Meta), `WHATSAPP_VERIFY_TOKEN`,
   `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_WABA_ID`, `WHATSAPP_APP_ID`.
 - Corrigir a variável de usuário `SUPABASE_ORIGEM_DB_URL` no Windows (senha sem colchetes, session pooler).
 
-Domingo 20h–21h (Claude):
+Segunda 8h–9h (Claude):
 - Variável `VPS_APP_URL` do GitHub e `NEXT_PUBLIC_APP_URL` do app → `https://vittadesk.com.br`; novo build.
 - Adicionar `https://vittadesk.com.br` aos domínios do app no Coolify (mantendo o de teste).
-- Enviar a connection string da origem para a VPS (base64 → arquivo modo 600).
+- Connection string da origem: já corrigida e testada em 23/10 (/root/vitta-migracao/.origem, modo 600).
 
 ### 6. Troca (janela de ~30 min)
 1. Pausar os jobs do pg_cron na origem (para não processar agendadas em dobro).
@@ -116,7 +116,6 @@ Até o passo 6.5, basta não trocar o DNS. Depois: reapontar o DNS para a Vercel
 copiar para a origem o delta gerado na VPS.
 
 ## Pendências
-- Connection string do banco de origem (senha) — fornecer só na VPS, via variável de ambiente.
-- Variáveis `WHATSAPP_*` reais no app do Coolify (ver etapa 5).
+- `WHATSAPP_APP_ID` e `WHATSAPP_APP_SECRET` (painel da Meta) no app do Coolify — demais credenciais vêm do `wa_config`.
 
-Resolvidas: backup no R2 (etapa 4.1), SMTP do Auth via Brevo, token do Coolify só de deploy no GitHub Actions.
+Resolvidas: connection string da origem (testada 23/10), backup no R2 (etapa 4.1), SMTP do Auth via Brevo, token do Coolify só de deploy no GitHub Actions.
