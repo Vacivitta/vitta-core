@@ -116,6 +116,6 @@ Até o passo 6.5, basta não trocar o DNS. Depois: reapontar o DNS para a Vercel
 copiar para a origem o delta gerado na VPS.
 
 ## Pendências
-- `WHATSAPP_APP_ID` e `WHATSAPP_APP_SECRET` (painel da Meta) no app do Coolify — demais credenciais vêm do `wa_config`.
+- Nenhuma. Tudo pronto para a troca de 26/10.
 
-Resolvidas: connection string da origem (testada 23/10), backup no R2 (etapa 4.1), SMTP do Auth via Brevo, token do Coolify só de deploy no GitHub Actions.
+Resolvidas: `WHATSAPP_APP_ID`/`WHATSAPP_APP_SECRET` no Coolify (validados na Meta em 23/10), connection string da origem (testada 23/10), backup no R2 (etapa 4.1), SMTP do Auth via Brevo, token do Coolify só de deploy no GitHub Actions.
