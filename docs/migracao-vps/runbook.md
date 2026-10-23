@@ -76,10 +76,23 @@ Roteiro original do ensaio:
 - Coolify → banco do Supabase do vitta-core → Scheduled backups para um S3 externo (diário, reter 14 dias).
 - Testar uma restauração do backup num banco descartável.
 
-### 5. Preparar a troca
-- Baixar o TTL do registro de `vittadesk.com.br` (Vercel DNS) para 60 s, um dia antes.
-- Escolher horário de pouco movimento (noite).
-- Avisar a equipe: todos precisarão entrar de novo (o JWT do Supabase novo é outro).
+### 4.1 Backups — feito em 23/10/2026
+- `/root/backups/vitta-core/backup.sh` (cron `/etc/cron.d/backup-vitta-core`, todo dia 06:30): pg_dump + Storage,
+  enviados ao R2 (`vacivitta-backups/vitta-core/`), 14 dias diários + 8 semanas semanais; local 7 dias.
+- Chaves do R2 em `/root/backups/r2.env` (modo 600). Restauração testada: contagens idênticas.
+- Gestão e VittaMaster continuam só com backup local (decisão: R2 só para o vitta-core).
+
+### 5. Preparar a troca — agendada para **domingo 25/10/2026, 21h** (equipe não será avisada)
+Até domingo 20h (usuário):
+- Coolify → app `vitta-core-ensaio` → Environment Variables: colar os valores **reais** da Vercel de
+  `WHATSAPP_APP_SECRET` (sem ele o webhook rejeita toda mensagem da Meta), `WHATSAPP_VERIFY_TOKEN`,
+  `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_WABA_ID`, `WHATSAPP_APP_ID`.
+- Corrigir a variável de usuário `SUPABASE_ORIGEM_DB_URL` no Windows (senha sem colchetes, session pooler).
+
+Domingo 20h–21h (Claude):
+- Variável `VPS_APP_URL` do GitHub e `NEXT_PUBLIC_APP_URL` do app → `https://vittadesk.com.br`; novo build.
+- Adicionar `https://vittadesk.com.br` aos domínios do app no Coolify (mantendo o de teste).
+- Enviar a connection string da origem para a VPS (base64 → arquivo modo 600).
 
 ### 6. Troca (janela de ~30 min)
 1. Pausar os jobs do pg_cron na origem (para não processar agendadas em dobro).
@@ -104,6 +117,6 @@ copiar para a origem o delta gerado na VPS.
 
 ## Pendências
 - Connection string do banco de origem (senha) — fornecer só na VPS, via variável de ambiente.
-- Credenciais de um S3 externo para backup.
-- Servidor SMTP para os e-mails de autenticação.
-- Token do Coolify dedicado ao GitHub Actions (só deploy).
+- Variáveis `WHATSAPP_*` reais no app do Coolify (ver etapa 5).
+
+Resolvidas: backup no R2 (etapa 4.1), SMTP do Auth via Brevo, token do Coolify só de deploy no GitHub Actions.
