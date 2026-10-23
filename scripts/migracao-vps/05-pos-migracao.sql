@@ -22,12 +22,15 @@ DECLARE c record; n bigint; total bigint := 0;
   de text := current_setting('mig.de'); para text := current_setting('mig.para');
 BEGIN
   FOR c IN
-    SELECT table_name, column_name FROM information_schema.columns
-    WHERE table_schema = 'public' AND data_type IN ('text', 'character varying')
+    SELECT table_name, column_name, data_type FROM information_schema.columns
+    WHERE table_schema = 'public' AND data_type IN ('text', 'character varying', 'jsonb', 'json')
       AND table_name IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE')
   LOOP
-    EXECUTE format('UPDATE public.%I SET %I = replace(%I, $1, $2) WHERE %I LIKE $3',
-                   c.table_name, c.column_name, c.column_name, c.column_name)
+    -- Colunas JSON (ex.: quote_templates.paginas_imagens) são tratadas como texto e convertidas de volta
+    EXECUTE format('UPDATE public.%I SET %I = replace(%I::text, $1, $2)::%s WHERE %I::text LIKE $3',
+                   c.table_name, c.column_name, c.column_name,
+                   CASE WHEN c.data_type IN ('jsonb', 'json') THEN c.data_type ELSE 'text' END,
+                   c.column_name)
       USING de, para, '%' || de || '%';
     GET DIAGNOSTICS n = ROW_COUNT;
     IF n > 0 THEN RAISE NOTICE '%.%: % linhas', c.table_name, c.column_name, n; total := total + n; END IF;

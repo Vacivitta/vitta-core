@@ -37,7 +37,28 @@ Orçamento de memória do vitta-core: ~1,0–1,3 GB (Supabase enxuto) + ~0,3–0
   `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME`).
 - O Studio (~170 MB) pode ser parado quando não estiver em uso.
 
-### 3. Ensaio com cópia dos dados (produção segue na Vercel)
+### 3. Ensaio com cópia dos dados — feito em 23/10/2026
+
+Resultado:
+- App de teste: `https://vittadesk.app.vacivitta.com.br` (Coolify app `vitta-core-ensaio`, `oicsvqqwkb9mwvxfww7ce8lj`,
+  imagem `ghcr.io/vacivitta/vitta-core:latest`, ~55 MB de RAM). Login ~0,1 s; orçamento público ~0,3 s.
+- Contagens iguais à origem (leads 2.854, conversas 3.900, mensagens 28 mil, orçamentos 272, 10 usuários, 65 policies,
+  views com security_invoker, Realtime nas 7 tabelas).
+- Storage: 2.900 arquivos / 279 MB (cópia leva ~35 min; a 2ª execução copia só o delta). 4.759 links reescritos.
+- **No ensaio o WhatsApp fica desativado**: `wa_config.access_token = 'ENSAIO-DESATIVADO'`, `is_active = false`,
+  e nenhum job do pg_cron foi criado (só a parte de links do `05-pos-migracao.sql` foi aplicada).
+  O app de teste tem `CRON_SECRET` e `WHATSAPP_APP_SECRET` próprios.
+
+Problemas encontrados e já corrigidos nos scripts:
+- pg_dump 17.6+ gera `\restrict`/`\unrestrict`, que o psql 15 não entende → removidos no dump.
+- `CREATE SCHEMA public` no dump → removido.
+- `storage.buckets` da origem tem colunas que o storage da VPS não tem → buckets exportados como INSERT com colunas comuns.
+- Links de arquivos também em colunas JSON (`quote_templates.paginas_imagens`) → `05-pos-migracao.sql` trata json/jsonb.
+- Connection string: a senha não pode ficar entre colchetes (o `[YOUR-PASSWORD]` do painel inclui os colchetes).
+- O endpoint de deploy do Coolify 4.4 é POST (workflow ajustado).
+- Credenciais usadas no ensaio ficam em `/root/vitta-migracao/.origem*` (modo 600) e foram apagadas ao final.
+
+Roteiro original do ensaio:
 1. Na VPS: `export SRC_DB_URL=...` (connection string do Supabase de origem, *session pooler*) e
    `bash scripts/migracao-vps/01-dump-origem.sh`.
 2. `bash scripts/migracao-vps/02-restaurar-destino.sh /root/vitta-migracao/<pasta> <container-supabase-db>`.
