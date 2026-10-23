@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.github
+.claude
+.vercel
+.env*
+!.env.example
+docs
+supabase
+scripts
+*.md
+npm-debug.log*

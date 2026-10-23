@@ -1,0 +1,72 @@
+# Build da imagem Docker do vitta-core fora da VPS e deploy no Coolify.
+#
+# Por que no GitHub: o build do Next.js consome 1,5–2,5 GB de RAM e os 2 vCPUs da
+# VPS, que também hospeda Gestão e VittaMaster. Aqui a VPS só baixa a imagem pronta.
+#
+# Configuração no GitHub (Settings → Secrets and variables → Actions):
+#   Variables:
+#     VPS_SUPABASE_URL       URL pública do Supabase da VPS (embutida no bundle do navegador)
+#     VPS_SUPABASE_ANON_KEY  chave pública (anon) do Supabase da VPS
+#     VPS_APP_URL            URL pública do app (ex.: https://vittadesk.com.br)
+#   Secrets:
+#     COOLIFY_DEPLOY_URL     https://coolify.vacivitta.com.br/api/v1/deploy?uuid=<uuid-do-app>
+#     COOLIFY_TOKEN          token da API do Coolify com permissão de deploy
+#
+# Enquanto VPS_SUPABASE_URL não estiver definida, o workflow não roda (a produção
+# continua na Vercel durante a preparação).
+
+name: Docker image (VPS)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-image
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    if: ${{ vars.VPS_SUPABASE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Nome da imagem (minúsculo)
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:latest
+            ${{ steps.img.outputs.name }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.VPS_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.VPS_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_APP_URL=${{ vars.VPS_APP_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy no Coolify
+        if: ${{ env.COOLIFY_DEPLOY_URL != '' }}
+        env:
+          COOLIFY_DEPLOY_URL: ${{ secrets.COOLIFY_DEPLOY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $COOLIFY_TOKEN" "$COOLIFY_DEPLOY_URL&force=false"
