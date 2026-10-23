@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { LeadKanban } from '@/types/database'
 import { paraHorarioBR, partesBR } from '@/lib/datas-br'
+import { primeiraLetra } from '@/lib/texto'
 
 interface TagInfo { id: string; name: string; color: string }
 
@@ -77,7 +78,7 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
   const orcVal = Number(lead.valor_orcamentos) || 0
   const displayValue = lead.valor_negociado ?? lead.valor_proposta ?? (orcVal > 0 ? orcVal : null)
 
-  const initials = `${(lead.nome?.[0] ?? '').toUpperCase()}${(lead.sobrenome?.[0] ?? '').toUpperCase()}`
+  const initials = `${primeiraLetra(lead.nome)}${primeiraLetra(lead.sobrenome)}`
   const timeInfo = lastMsgAt ? timeSince(lastMsgAt, now) : lead.stage_changed_at ? timeSince(lead.stage_changed_at, now) : null
 
   const cardStyle: React.CSSProperties = {
@@ -233,7 +234,7 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
                   background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <span style={{ fontSize: 8, fontWeight: 700, color: '#9CA3AF' }}>
-                    {lead.responsavel_nome[0]?.toUpperCase()}
+                    {primeiraLetra(lead.responsavel_nome)}
                   </span>
                 </div>
               )}

@@ -14,6 +14,7 @@ import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
 import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
+import { primeiraLetra } from '@/lib/texto'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1648,7 +1649,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
         </button>
         <div style={{ width: 56, height: 56, borderRadius: 999, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 19, fontWeight: 800, color: '#3E9849' }}>{lead.nome[0]?.toUpperCase()}{lead.sobrenome?.[0]?.toUpperCase() ?? ''}</span>
+          <span style={{ fontSize: 19, fontWeight: 800, color: '#3E9849' }}>{primeiraLetra(lead.nome)}{primeiraLetra(lead.sobrenome)}</span>
         </div>
         <p style={{ margin: 0, fontSize: 14.5, fontWeight: 900, color: '#25402C', textAlign: 'center', lineHeight: 1.2 }}>
           {lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}
@@ -1737,7 +1738,7 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
               return (
                 <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <div style={{ width: 28, height: 28, borderRadius: 999, background: palette.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 10.5, fontWeight: 800, color: palette.color }}>{c.nome[0]?.toUpperCase()}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: palette.color }}>{primeiraLetra(c.nome)}</span>
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</p>
@@ -1855,7 +1856,7 @@ function LinkLeadView({ showPanel, onToggle, searchQ, onSearch, results, searchi
             <button key={lead.id} onClick={() => onLink(lead)}
               style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid #EBE7DA', borderRadius: 12, background: '#fff', cursor: 'pointer' }}>
               <div style={{ width: 32, height: 32, borderRadius: 999, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#25402C' }}>{lead.nome[0]?.toUpperCase()}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#25402C' }}>{primeiraLetra(lead.nome)}</span>
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 800, color: '#25402C', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.nome}{lead.sobrenome ? ` ${lead.sobrenome}` : ''}</p>

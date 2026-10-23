@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Unit, UserPerfil } from '@/types/database'
 import { PERFIL_LABELS } from '@/types/database'
+import { primeiraLetra } from '@/lib/texto'
 
 interface UserProfile {
   id:         string
@@ -307,7 +308,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-bold text-purple-600">{u.full_name[0].toUpperCase()}</span>
+                          <span className="text-xs font-bold text-purple-600">{primeiraLetra(u.full_name)}</span>
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">{u.full_name}</p>
@@ -422,7 +423,7 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                         <div className="flex items-center gap-1">
                           {unitUsers.slice(0, 4).map(usr => (
                             <div key={usr.id} className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center" title={usr.full_name}>
-                              <span className="text-[9px] font-bold text-purple-600">{usr.full_name[0].toUpperCase()}</span>
+                              <span className="text-[9px] font-bold text-purple-600">{primeiraLetra(usr.full_name)}</span>
                             </div>
                           ))}
                           {unitUsers.length > 4 && (

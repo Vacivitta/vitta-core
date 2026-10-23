@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { LeadKanban, FunnelWithStages } from '@/types/database'
 import { getArchivedLeads } from '@/lib/leads'
+import { primeiraLetra } from '@/lib/texto'
 
 interface Props {
   funnels: FunnelWithStages[]
@@ -84,7 +85,7 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
                   {/* Avatar */}
                   <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                     <span className="text-xs font-bold text-gray-500">
-                      {lead.nome[0]?.toUpperCase()}
+                      {primeiraLetra(lead.nome)}
                     </span>
                   </div>
 

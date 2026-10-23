@@ -7,6 +7,7 @@ import Drawer from '@/components/ui/Drawer'
 import { ptBR } from 'date-fns/locale'
 import { useProfile } from '@/hooks/useProfile'
 import type { Lead, Unit } from '@/types/database'
+import { primeiraLetra } from '@/lib/texto'
 
 interface Profile { id: string; full_name: string }
 
@@ -346,7 +347,7 @@ export default function ClientesClient({
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       <div className="rounded-full flex items-center justify-center shrink-0" style={{ width: 30, height: 30, background: '#D6EBD2' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{c.nome[0].toUpperCase()}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{primeiraLetra(c.nome)}</span>
                       </div>
                       <div>
                         <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>{c.nome}{c.sobrenome ? ` ${c.sobrenome}` : ''}</p>

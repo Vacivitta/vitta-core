@@ -9,6 +9,7 @@ import type {
   UnitPaymentFees,
 } from '@/types/database'
 import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS, PAYMENT_METHOD_LABELS, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
+import { primeiraLetra } from '@/lib/texto'
 
 const PdfButton = dynamic(
   () => import('@/components/orcamento/PdfButton'),
@@ -523,7 +524,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, payme
               {selectedPatient && (
                 <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: '#E8F4E6', border: '1px solid #CDE8CB' }}>
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#D6EBD2' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{selectedPatient.nome[0]}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#35853F' }}>{primeiraLetra(selectedPatient.nome)}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>
@@ -617,7 +618,7 @@ function QuoteModal({ editing, unitId, userId, products, templates, leads, payme
                           className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                           style={isSelected ? { background: 'var(--color-brand)', color: '#fff' } : { background: 'var(--color-track)', color: 'var(--color-text)' }}
                         >
-                          {p.nome[0]}
+                          {primeiraLetra(p.nome)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[#25402C] truncate">

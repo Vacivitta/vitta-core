@@ -22,6 +22,7 @@ import {
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import { updateLead, archiveLead, restoreLead } from '@/lib/leads'
+import { primeiraLetra } from '@/lib/texto'
 
 interface Props {
   lead: LeadKanban | null
@@ -887,7 +888,7 @@ function LeadDrawer({
               background: '#D6EBD2', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <span style={{ fontSize: 21, fontWeight: 900, color: '#35853F' }}>
-                {lead.nome[0]?.toUpperCase() ?? '?'}
+                {primeiraLetra(lead.nome) || '?'}
               </span>
             </div>
           </div>
