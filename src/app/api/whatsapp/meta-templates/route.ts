@@ -54,67 +54,94 @@ export async function GET(req: NextRequest) {
   const templates = data.data ?? []
 
   // Carrega dados locais antes do sync para preservar variable_order/header_image_url já configurados
-  let localMap = new Map<string, { variable_order: string[]; header_image_url: string | null; folder_id: string | null }>()
+  interface LocalTemplate {
+    content: string | null; language: string | null; header_type: string | null; ativo: boolean
+    variable_order: string[]; header_image_url: string | null; folder_id: string | null
+  }
+  let localMap = new Map<string, LocalTemplate>()
   if (unitId && templates.length > 0) {
     const { data: localRows } = await admin
       .from('wa_message_templates')
-      .select('template_name, variable_order, header_image_url, folder_id')
+      .select('template_name, content, language, header_type, ativo, variable_order, header_image_url, folder_id')
       .eq('unit_id', unitId)
       .eq('category', 'meta_api')
     localMap = new Map((localRows ?? []).map(r => [r.template_name as string, {
+      content: r.content as string | null,
+      language: r.language as string | null,
+      header_type: r.header_type as string | null,
+      ativo: r.ativo as boolean,
       variable_order: (r.variable_order ?? []) as string[],
       header_image_url: r.header_image_url as string | null,
       folder_id: r.folder_id as string | null,
     }]))
   }
 
-  // Sincronizar aprovados na tabela local para o picker do chat funcionar offline
+  // Sincroniza aprovados na tabela local (picker do chat funciona offline).
+  // Só grava o que mudou, numa única operação: antes eram ~90 upserts em sequência
+  // a cada abertura do atendimento/card, gerando carga contínua de escrita no banco.
   if (templates.length > 0 && unitId) {
-    const approved = templates.filter(t => t.status === 'APPROVED')
-    for (const t of approved) {
-      const bodyComponent = t.components?.find(c => c.type === 'BODY')
-      const bodyText = bodyComponent?.text ?? ''
+    const changed: Record<string, unknown>[] = []
+    const needImageFromOtherUnit: string[] = []
+
+    for (const t of templates.filter(t => t.status === 'APPROVED')) {
+      const bodyText = t.components?.find(c => c.type === 'BODY')?.text ?? ''
       const headerComponent = t.components?.find(c => c.type === 'HEADER')
       const hasImageHeader = headerComponent?.format === 'IMAGE'
-
-      const varMatches = bodyText.match(/\{\{\d+\}\}/g) ?? []
-      const varCount = varMatches.length
-      const defaultOrder = ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+      const headerType = hasImageHeader ? 'IMAGE' : (headerComponent?.format === 'TEXT' ? 'TEXT' : null)
+      const varCount = (bodyText.match(/\{\{\d+\}\}/g) ?? []).length
 
       const existing = localMap.get(t.name)
+      const variableOrder = existing?.variable_order?.length
+        ? existing.variable_order
+        : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
+      const missingImage = hasImageHeader && !existing?.header_image_url
 
-      const upsertData: Record<string, unknown> = {
-        unit_id:       unitId,
-        name:          t.name,
-        content:       bodyText,
-        category:      'meta_api',
-        template_name: t.name,
-        language:      t.language,
-        ativo:         true,
-        header_type:   hasImageHeader ? 'IMAGE' : (headerComponent?.format === 'TEXT' ? 'TEXT' : null),
+      const upToDate = existing
+        && existing.ativo
+        && existing.content === bodyText
+        && existing.language === t.language
+        && existing.header_type === headerType
+        && (varCount === 0 || existing.variable_order.length > 0)
+        && !missingImage
+      if (upToDate) continue
+
+      if (missingImage) needImageFromOtherUnit.push(t.name)
+      // Todas as linhas levam as mesmas colunas: num upsert em lote, coluna ausente
+      // numa linha viraria NULL — por isso variable_order/header_image_url vão sempre,
+      // com o valor já existente preservado.
+      changed.push({
+        unit_id:          unitId,
+        name:             t.name,
+        content:          bodyText,
+        category:         'meta_api',
+        template_name:    t.name,
+        language:         t.language,
+        ativo:            true,
+        header_type:      headerType,
+        variable_order:   variableOrder,
+        header_image_url: existing?.header_image_url ?? null,
+      })
+    }
+
+    // Template com header de imagem sem imagem nesta unidade: reaproveita a de outra unidade
+    if (needImageFromOtherUnit.length > 0) {
+      const { data: others } = await admin
+        .from('wa_message_templates')
+        .select('template_name, header_image_url')
+        .in('template_name', needImageFromOtherUnit)
+        .eq('category', 'meta_api')
+        .neq('unit_id', unitId)
+        .not('header_image_url', 'is', null)
+      const imageByName = new Map((others ?? []).map(o => [o.template_name as string, o.header_image_url as string]))
+      for (const row of changed) {
+        if (!row.header_image_url) row.header_image_url = imageByName.get(row.name as string) ?? null
       }
+    }
 
-      if (!existing?.variable_order?.length && varCount > 0) {
-        upsertData.variable_order = defaultOrder
-      }
-
-      if (hasImageHeader && !existing?.header_image_url) {
-        const { data: otherUnit } = await admin
-          .from('wa_message_templates')
-          .select('header_image_url')
-          .eq('template_name', t.name)
-          .eq('category', 'meta_api')
-          .not('header_image_url', 'is', null)
-          .neq('unit_id', unitId)
-          .limit(1)
-          .single()
-        if (otherUnit?.header_image_url) {
-          upsertData.header_image_url = otherUnit.header_image_url
-        }
-      }
-
-      await admin.from('wa_message_templates')
-        .upsert(upsertData, { onConflict: 'unit_id,name,category' })
+    if (changed.length > 0) {
+      const { error } = await admin.from('wa_message_templates')
+        .upsert(changed, { onConflict: 'unit_id,name,category' })
+      if (error) console.error('[meta-templates GET] erro ao sincronizar templates:', error.message)
     }
   }
 

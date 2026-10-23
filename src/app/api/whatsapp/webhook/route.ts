@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { createClient }             from '@supabase/supabase-js'
 import { runAutoAssign }            from '../auto-assign/route'
 import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
+
+// Tempo para o processamento em after() (mídia, automações) terminar após a resposta
+export const maxDuration = 60
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -66,22 +69,46 @@ export async function POST(req: NextRequest) {
     return new NextResponse('Bad Request', { status: 400 })
   }
 
+  // Responde 200 à Meta na hora e processa depois (after = waitUntil no Vercel,
+  // background no `next start`). Processar antes de responder levava vários
+  // segundos por mensagem (dezenas de idas ao banco, mídia, automações); quando o
+  // banco ficava lento a Meta não recebia a confirmação a tempo e reenviava o
+  // evento mais tarde — atrasando mensagens e automações.
+  after(() => processPayload(body))
+
+  return new NextResponse('OK', { status: 200 })
+}
+
+/**
+ * Processa o payload do webhook já confirmado à Meta: mensagens recebidas e
+ * atualizações de status. Erros são logados por item para que uma falha não
+ * impeça o processamento dos demais.
+ *
+ * @param body - Payload do webhook da Meta
+ */
+async function processPayload(body: WAPayload) {
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       if (change.field !== 'messages') continue
       const value = change.value
 
       for (const msg of value.messages ?? []) {
-        await handleInboundMessage(value, msg)
+        try {
+          await handleInboundMessage(value, msg)
+        } catch (e) {
+          console.error(`[WA webhook] erro ao processar mensagem ${msg.id}:`, e)
+        }
       }
 
       for (const status of value.statuses ?? []) {
-        await handleStatusUpdate(status, value.metadata.phone_number_id)
+        try {
+          await handleStatusUpdate(status, value.metadata.phone_number_id)
+        } catch (e) {
+          console.error(`[WA webhook] erro ao processar status ${status.id}:`, e)
+        }
       }
     }
   }
-
-  return new NextResponse('OK', { status: 200 })
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
