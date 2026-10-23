@@ -52,6 +52,9 @@ export default async function FunilPage() {
       funnels={funnelsWithStages}
       profiles={allProfiles as Profile[]}
       currentUser={profileData as Profile}
+      // Instante desta requisição: servidor e navegador partem do mesmo "agora"
+      // eslint-disable-next-line react-hooks/purity -- server component roda uma vez por requisição
+      agoraServidor={Date.now()}
     />
   )
 }

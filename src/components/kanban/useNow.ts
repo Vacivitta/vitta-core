@@ -8,11 +8,15 @@ import { useEffect, useState } from 'react'
  * instável — e faz os cards se atualizarem sozinhos a cada intervalo.
  *
  * @param intervalMs - De quanto em quanto tempo o valor é atualizado
+ * @param inicial - Date.now() do servidor: a primeira renderização usa o mesmo instante
+ *   no servidor e no navegador (sem isso o React acusa diferença de hidratação, erro #418)
  * @returns Timestamp atual em milissegundos
  */
-export function useNow(intervalMs = 60_000): number {
-  const [now, setNow] = useState(() => Date.now())
+export function useNow(intervalMs = 60_000, inicial?: number): number {
+  const [now, setNow] = useState(() => inicial ?? Date.now())
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza com o relógio real após hidratar
+    setNow(Date.now())
     const t = setInterval(() => setNow(Date.now()), intervalMs)
     return () => clearInterval(t)
   }, [intervalMs])

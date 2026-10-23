@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   format, startOfWeek, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths,
-  startOfMonth, endOfMonth, isSameDay, isSameMonth, isToday,
+  startOfMonth, endOfMonth, isSameDay, isSameMonth,
   parseISO, eachDayOfInterval, isBefore,
 } from 'date-fns'
+import { paraHorarioBR, deHorarioBR, agoraBR } from '@/lib/datas-br'
 import { ptBR } from 'date-fns/locale'
 import type { LeadTask, Profile } from '@/types/database'
 import { displayName } from '@/types/database'
@@ -43,6 +44,8 @@ interface Props {
   initialMessages: ScheduledMsg[]
   profiles: Profile[]
   currentUser: Profile
+  /** Date.now() no momento da renderização no servidor — mesmo ponto de partida para servidor e navegador */
+  agoraServidor: number
 }
 
 type CalView = 'day' | 'week' | 'month'
@@ -60,13 +63,12 @@ const WEEK_SHORT  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Converte "YYYY-MM-DDTHH:mm" (hora local do input) para ISO UTC
-// Usa o construtor posicional do Date, que SEMPRE interpreta como hora local
+// Converte "YYYY-MM-DDTHH:mm" (horário de Brasília digitado no input) para ISO UTC
 function localInputToISO(s: string): string {
   const [date, time] = s.split('T')
   const [y, mo, d] = date.split('-').map(Number)
   const [h, mi]    = time.split(':').map(Number)
-  return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
+  return deHorarioBR(y, mo, d, h, mi).toISOString()
 }
 
 function taskColor(task: TaskWithLead) {
@@ -89,8 +91,9 @@ function itemColor(item: AgendaItem) {
   return item.kind === 'task' ? taskColor(item.task) : msgColor(item.message)
 }
 
+/** Data do item no relógio de parede de Brasília (posição na grade, dia e "HH:mm"). */
 function itemDate(item: AgendaItem): Date {
-  return parseISO(item.date)
+  return paraHorarioBR(parseISO(item.date))
 }
 
 function itemTitle(item: AgendaItem): string {
@@ -130,11 +133,13 @@ function getMonthGrid(date: Date): Date[] {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function AgendaClient({ initialTasks, initialMessages, profiles, currentUser }: Props) {
+export default function AgendaClient({ initialTasks, initialMessages, profiles, currentUser, agoraServidor }: Props) {
   const supabase = createClient()
 
+  // Servidor e navegador partem do mesmo instante (agoraServidor) e do mesmo fuso
+  // (Brasília): a primeira renderização sai idêntica nos dois lados
   const [view,              setView]              = useState<CalView>('week')
-  const [currentDate,       setCurrentDate]       = useState(new Date())
+  const [currentDate,       setCurrentDate]       = useState(() => paraHorarioBR(new Date(agoraServidor)))
   const [tasks,             setTasks]             = useState<TaskWithLead[]>(initialTasks)
   const [messages,          setMessages]          = useState<ScheduledMsg[]>(initialMessages)
   const [filterResponsavel, setFilterResponsavel] = useState('')
@@ -143,10 +148,12 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
   const [showNewForm,       setShowNewForm]       = useState(false)
   const [newFormDate,       setNewFormDate]       = useState<Date | null>(null)
   const [showTarefas,       setShowTarefas]       = useState(false)
-  const [now,               setNow]               = useState(new Date())
+  const [now,               setNow]               = useState(() => paraHorarioBR(new Date(agoraServidor)))
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza com o relógio real após hidratar
+    setNow(agoraBR())
+    const id = setInterval(() => setNow(agoraBR()), 60_000)
     return () => clearInterval(id)
   }, [])
 
@@ -248,7 +255,7 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
             </svg>
           </button>
           <button
-            onClick={() => setCurrentDate(new Date())}
+            onClick={() => setCurrentDate(agoraBR())}
             className="transition-colors"
             style={{ fontSize: '12px', fontWeight: 800, padding: '6px 12px', borderRadius: 10, border: '1px solid #EBE7DA', color: '#71856F', background: '#fff', cursor: 'pointer' }}
           >
@@ -311,6 +318,7 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
         {view === 'month' && (
           <MonthView
             currentDate={currentDate}
+            now={now}
             itemsForDay={itemsForDay}
             onDayClick={d => { setCurrentDate(d); setView('day') }}
             onItemClick={handleItemClick}
@@ -369,12 +377,15 @@ export default function AgendaClient({ initialTasks, initialMessages, profiles, 
 
 function MonthView({
   currentDate,
+  now,
   itemsForDay,
   onDayClick,
   onItemClick,
   onNewTask,
 }: {
   currentDate: Date
+  /** "agora" no relógio de Brasília — define o dia destacado como hoje */
+  now: Date
   itemsForDay: (d: Date) => AgendaItem[]
   onDayClick: (d: Date) => void
   onItemClick: (item: AgendaItem) => void
@@ -402,7 +413,7 @@ function MonthView({
         {grid.map(day => {
           const dayItems = itemsForDay(day)
           const inMonth  = isSameMonth(day, currentDate)
-          const today    = isToday(day)
+          const today    = isSameDay(day, now)
 
           return (
             <div
@@ -484,7 +495,7 @@ function TimeGridView({
 
   useEffect(() => {
     if (!gridRef.current) return
-    const todayVisible = days.some(d => isToday(d))
+    const todayVisible = days.some(d => isSameDay(d, now))
     const nowTop = (now.getHours() - START_HOUR) * HOUR_HEIGHT + (now.getMinutes() / 60) * HOUR_HEIGHT
     gridRef.current.scrollTop = todayVisible ? Math.max(0, nowTop - 120) : HOUR_HEIGHT
   }, [days[0].toDateString()]) // eslint-disable-line
@@ -503,7 +514,7 @@ function TimeGridView({
             </div>
             <div
               className="text-lg font-bold mx-auto w-8 h-8 flex items-center justify-center rounded-full"
-              style={isToday(day) ? { background: 'var(--color-brand)', color: '#fff' } : { color: 'var(--color-ink)' }}
+              style={isSameDay(day, now) ? { background: 'var(--color-brand)', color: '#fff' } : { color: 'var(--color-ink)' }}
             >
               {format(day, 'd')}
             </div>
@@ -531,7 +542,7 @@ function TimeGridView({
           {/* Day columns */}
           {days.map(day => {
             const dayItems = itemsForDay(day)
-            const showNow  = isToday(day) && nowTop >= 0 && nowTop <= TOTAL_H
+            const showNow  = isSameDay(day, now) && nowTop >= 0 && nowTop <= TOTAL_H
 
             return (
               <div
@@ -641,7 +652,7 @@ function TaskDetailModal({
   const [confirm, setConfirm] = useState(false)
   const [form,    setForm]    = useState({
     titulo:         task.titulo,
-    data_limite:    task.data_limite ? format(new Date(task.data_limite), "yyyy-MM-dd'T'HH:mm") : '',
+    data_limite:    task.data_limite ? format(paraHorarioBR(new Date(task.data_limite)), "yyyy-MM-dd'T'HH:mm") : '',
     responsavel_id: task.responsavel_id ?? '',
     descricao:      task.descricao ?? '',
   })
@@ -800,7 +811,7 @@ function TaskDetailModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span className={overdue ? 'text-red-600 font-medium' : ''}>
-                  {format(parseISO(task.data_limite), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  {format(paraHorarioBR(parseISO(task.data_limite)), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
                   {overdue && ' · Vencida'}
                 </span>
               </div>
@@ -893,7 +904,7 @@ function ScheduledMessageModal({
           <svg className="w-4 h-4 text-[#9AA79C] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {format(parseISO(msg.scheduled_for), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+          {format(paraHorarioBR(parseISO(msg.scheduled_for)), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
         </div>
         <p className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</p>
         {msg.content && (

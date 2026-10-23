@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { LeadKanban } from '@/types/database'
+import { paraHorarioBR, partesBR } from '@/lib/datas-br'
 
 interface TagInfo { id: string; name: string; color: string }
 
@@ -31,18 +32,21 @@ function timeSince(dateStr: string, now: number): { label: string; isLong: boole
 
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
+/** Data da próxima tarefa no horário de Brasília ("Hoje 14:00", "Amanhã 09:30", "25/10 10:00"). */
 function fmtTaskDate(iso: string, nowMs: number): string {
-  const d = new Date(iso)
-  const now = new Date(nowMs)
+  // Relógio de parede de Brasília: mesmo resultado no servidor (UTC) e no navegador
+  const d = paraHorarioBR(new Date(iso))
+  const now = paraHorarioBR(new Date(nowMs))
   const isToday = d.toDateString() === now.toDateString()
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
   const isTomorrow = d.toDateString() === tomorrow.toDateString()
 
-  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   if (isToday) return `Hoje ${time}`
   if (isTomorrow) return `Amanhã ${time}`
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ` ${time}`
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${time}`
 }
 
 export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread, lastMsgAt, now }: Props) {
@@ -58,10 +62,11 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     ? Math.floor((now - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
     : 0
   const isHoursSlaOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
+  // Virada do mês pelo calendário de Brasília (em UTC o mês vira 3 h antes)
   const isMonthlySlaOverdue = !!(lead.stage_sla_mensal && lead.stage_changed_at && (() => {
-    const today = new Date(now)
-    const changed = new Date(lead.stage_changed_at)
-    return changed.getFullYear() < today.getFullYear() || changed.getMonth() < today.getMonth()
+    const today = partesBR(new Date(now))
+    const changed = partesBR(new Date(lead.stage_changed_at))
+    return changed.ano * 12 + changed.mes < today.ano * 12 + today.mes
   })())
   const isSlaOverdue = isHoursSlaOverdue || isMonthlySlaOverdue
 

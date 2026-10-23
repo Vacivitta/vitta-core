@@ -31,6 +31,8 @@ interface Props {
   tagsByLead?: Record<string, Array<{ id: string; name: string; color: string }>>
   onMarkUnread?: (leadId: string) => void
   sortMode?: KanbanSortMode
+  /** Date.now() do servidor — evita diferença de hidratação nos tempos dos cards */
+  agoraServidor?: number
 }
 
 /** Agrupa os leads por etapa, já na ordem exibida em cada coluna. */
@@ -46,10 +48,10 @@ function groupByStage(
   return groups
 }
 
-export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT }: Props) {
+export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT, agoraServidor }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const now = useNow()
+  const now = useNow(60_000, agoraServidor)
   // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
   // independente de quantas re-renders o handleDragOver disparar.
   const dragOriginStageRef = useRef<string | null>(null)
