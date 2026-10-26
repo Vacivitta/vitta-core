@@ -50,7 +50,10 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
 
   // ── Formulário de usuário ──────────────────────────────────────────────────
   const [inviteMode,      setInviteMode]      = useState<'email' | 'password'>('email')
-  const [createdCreds,    setCreatedCreds]    = useState<{ email: string; password: string } | null>(null)
+  // Credenciais exibidas uma única vez: após criar conta com senha ou redefinir a senha
+  const [createdCreds,    setCreatedCreds]    = useState<{ email: string; password: string; redefinida?: boolean } | null>(null)
+  const [newPassword,     setNewPassword]     = useState('')
+  const [resettingPwd,    setResettingPwd]    = useState(false)
   const [userForm, setUserForm] = useState({
     full_name: '', apelido: '', email: '', password: '', perfil: 'atendente' as UserPerfil, unit_ids: [] as string[],
   })
@@ -74,7 +77,31 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
     setUserForm({ full_name: u.full_name, apelido: u.apelido ?? '', email: u.email ?? '', password: '', perfil: u.perfil, unit_ids: u.unit_ids ?? (u.unit_id ? [u.unit_id] : []) })
     setSelUser(u)
     setFormError('')
+    setNewPassword('')
+    setCreatedCreds(null)
     setUserModal('edit')
+  }
+
+  /** Define uma nova senha para o usuário em edição e mostra as credenciais para repassar. */
+  async function handleResetPassword() {
+    if (!selUser) return
+    if (newPassword.length < 6) { setFormError('Nova senha deve ter pelo menos 6 caracteres.'); return }
+    setResettingPwd(true); setFormError('')
+    try {
+      const res = await fetch(`/api/admin/users/${selUser.id}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setFormError(json.error ?? 'Erro ao redefinir a senha.'); return }
+      setCreatedCreds({ email: json.email ?? selUser.email ?? '', password: newPassword, redefinida: true })
+      setNewPassword('')
+    } catch {
+      setFormError('Erro inesperado.')
+    } finally {
+      setResettingPwd(false)
+    }
   }
 
   async function handleSaveUser() {
@@ -494,12 +521,14 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                     <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <p className="text-sm text-green-800 font-medium">Conta criada com sucesso!</p>
+                    <p className="text-sm text-green-800 font-medium">
+                      {createdCreds.redefinida ? 'Senha redefinida!' : 'Conta criada com sucesso!'}
+                    </p>
                   </div>
                   <p className="text-xs text-gray-500">Compartilhe as credenciais abaixo com o usuário. Elas não serão exibidas novamente.</p>
                   <div className="space-y-2">
                     <CredField label="Login (e-mail)" value={createdCreds.email} />
-                    <CredField label="Senha temporária" value={createdCreds.password} />
+                    <CredField label={createdCreds.redefinida ? 'Nova senha' : 'Senha temporária'} value={createdCreds.password} />
                   </div>
                 </div>
                 <div className="flex justify-end px-6 py-4 border-t border-gray-100">
@@ -599,6 +628,31 @@ export default function EquipeClient({ initialUsers, initialUnits }: Props) {
                     <p className="text-xs text-gray-500 bg-amber-50 rounded-xl px-3 py-2 border border-amber-100">
                       Nenhum e-mail é enviado. Após criar, você verá as credenciais de acesso para repassar pessoalmente.
                     </p>
+                  )}
+
+                  {/* Redefinir senha — principal saída para contas com e-mail interno (sem "esqueci a senha") */}
+                  {userModal === 'edit' && selUser && (
+                    <div className="pt-3 border-t border-gray-100">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Redefinir senha</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          placeholder="Nova senha (mínimo 6 caracteres)"
+                          autoComplete="new-password"
+                          className="flex-1 min-w-0 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3E9849]"
+                        />
+                        <button
+                          onClick={handleResetPassword}
+                          disabled={resettingPwd || newPassword.length === 0}
+                          className="px-3 py-2 text-sm font-medium text-[#3E9849] border border-[#3E9849] rounded-xl hover:bg-[#E8F4E6] disabled:opacity-50 transition-colors shrink-0"
+                        >
+                          {resettingPwd ? 'Salvando...' : 'Redefinir'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">A senha atual deixa de funcionar na hora.</p>
+                    </div>
                   )}
                   {formError && <p className="text-xs text-red-500">{formError}</p>}
                 </div>
