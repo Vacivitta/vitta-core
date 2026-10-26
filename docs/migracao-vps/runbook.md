@@ -1,6 +1,7 @@
 # Migração do vitta-core para a VPS (Coolify)
 
-> Status: **em preparação**. Produção continua na Vercel + Supabase gerenciado até a etapa 6.
+> Status: **migrado em 26/10/2026, 08h31–08h51**. Produção em https://vittadesk.com.br (VPS/Coolify).
+> Vercel congelada (página de manutenção + repasse do webhook) e jobs do pg_cron da origem pausados.
 > Decisão: opção 1 do diagnóstico de out/2026 — VPS atual (2 vCPU / 8 GB), build fora da VPS,
 > Supabase próprio enxuto. Se a VPS ficar no limite, usar este documento como argumento para o upgrade.
 
@@ -105,6 +106,17 @@ Segunda 8h–9h (Claude):
    copiar o delta (`created_at > horário do dump`) de `wa_messages`, `wa_conversations`, `leads`,
    `lead_stage_history`, `wa_message_costs` e rodar de novo o `04-copiar-storage.mjs` (é idempotente).
 7. O webhook da Meta não muda (continua `https://vittadesk.com.br/api/whatsapp/webhook`).
+
+### 6.1 Como foi a troca (26/10/2026)
+- 08:30 push do congelamento (`src/lib/migracao.ts`): na Vercel, telas em manutenção e webhook repassado à VPS.
+- 08:31 jobs da origem pausados com `cron.alter_job(..., active := false)` (UPDATE direto em cron.job dá permissão negada).
+- 08:32–08:33 dump (49 s) + `06-recarregar-dados.sh` (estrutura idêntica à do ensaio) + delta do storage + `05-pos-migracao.sql`.
+  Contagens iguais à origem (2.882 leads, 28.252 mensagens, 3.926 conversas, 272 orçamentos, 10 usuários).
+- 08:38 DNS trocado (A → 200.141.17.224). O 1º pedido de certificado falhou (DNS ainda na Vercel); um redeploy resolveu.
+- O DNS da Hostinger (153.92.2.6, usado pela VPS) segurou o IP antigo por mais tempo: os jobs do pg_cron passaram a chamar
+  `https://vittadesk.app.vacivitta.com.br` (mesmo app, sem depender do DNS da Vercel).
+- `CRON_SECRET` trocado depois da troca (app + jobs).
+- GitHub Actions: o passo de deploy pode estourar o tempo se a VPS estiver ocupada; nesse caso, deploy manual pela API.
 
 ### 7. Depois da troca
 - Acompanhar 48 h: webhook, realtime, jobs (`SELECT * FROM cron.job_run_details ORDER BY start_time DESC`).
