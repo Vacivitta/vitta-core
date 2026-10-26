@@ -23,6 +23,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { updateLead, archiveLead, restoreLead } from '@/lib/leads'
 import { primeiraLetra } from '@/lib/texto'
+import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 
 interface Props {
   lead: LeadKanban | null
@@ -539,6 +540,8 @@ function LeadDrawer({
   const [quotes,      setQuotes]      = useState<LeadQuote[]>([])
   const [quotesLoaded, setQuotesLoaded] = useState(false)
   const [copiedQuoteId, setCopiedQuoteId] = useState<string | null>(null)
+  // Formulário de orçamento aberto aqui mesmo, sem ir para a tela de Orçamentos
+  const [novoOrcamento, setNovoOrcamento] = useState(false)
 
   useEffect(() => {
     const id = lead.id
@@ -1648,15 +1651,22 @@ function LeadDrawer({
               return (
                 <div className="space-y-3">
                   {/* Botão novo orçamento — pré-seleciona lead ou cliente */}
-                  <a
-                    href={`/orcamento?lead_id=${lead.id}`}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#3E9849', color: '#fff', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s' }}
+                  <button
+                    onClick={() => setNovoOrcamento(true)}
+                    style={{ width: '100%', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#3E9849', color: '#fff', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 6px 16px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
                     onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14M5 12h14"/></svg>
                     Novo orçamento
-                  </a>
+                  </button>
+                  {novoOrcamento && (
+                    <NovoOrcamentoRapido
+                      leadId={lead.id}
+                      onClose={() => setNovoOrcamento(false)}
+                      onSaved={q => setQuotes(prev => [q, ...prev])}
+                    />
+                  )}
 
                   {!quotesLoaded && (
                     <p style={{ fontSize: 12, color: '#9AA79C', textAlign: 'center', padding: '32px 0' }}>Carregando...</p>

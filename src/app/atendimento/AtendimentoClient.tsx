@@ -15,6 +15,7 @@ import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode, ConvTag } f
 import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import { primeiraLetra } from '@/lib/texto'
+import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   }
 
   const [leadDetail,    setLeadDetail]    = useState<LeadDetail | null>(null)
+  // Lead do orçamento aberto aqui mesmo (sem ir para a tela de Orçamentos)
+  const [orcamentoLeadId, setOrcamentoLeadId] = useState<string | null>(null)
   const [loadingLead,   setLoadingLead]   = useState(false)
   const [linkSearchQ,   setLinkSearchQ]   = useState('')
   const [linkResults,   setLinkResults]   = useState<LeadKanban[]>([])
@@ -948,7 +951,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#3E9849" /></div>
             ) : leadDetail ? (
               <LeadContextView detail={leadDetail} conv={selectedConv} onOpen={lead => setModalLead(lead)} onUnlink={unlinkLead}
-                onCreateQuote={() => router.push('/orcamento')}
+                onCreateQuote={() => setOrcamentoLeadId(selectedConv.lead_id)}
                 onSchedule={() => router.push('/agenda')}
                 onTransfer={openTransferModal} />
             ) : (
@@ -959,6 +962,17 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           )}
         </div>
       </div>
+
+      {orcamentoLeadId && (
+        <NovoOrcamentoRapido
+          leadId={orcamentoLeadId}
+          onClose={() => {
+            setOrcamentoLeadId(null)
+            // Atualiza o "último orçamento" do painel do lead
+            if (selectedConv?.lead_id) void loadLeadDetail(selectedConv.lead_id)
+          }}
+        />
+      )}
 
       {modalLead !== undefined && (
         <LeadModal lead={modalLead} defaultStageId={defaultStage?.id ?? ''}
