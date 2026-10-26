@@ -4,6 +4,7 @@ import { createClient }             from '@supabase/supabase-js'
 import { runAutoAssign }            from '../auto-assign/route'
 import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
+import { MIGRACAO_VPS_URL }         from '@/lib/migracao'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
 export const maxDuration = 60
@@ -57,6 +58,27 @@ function isValidSignature(rawBody: string, signature: string | null): boolean {
 // ── POST: receber eventos do Meta ─────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
+
+  // Troca para a VPS: repassa o corpo bruto (a assinatura continua válida lá).
+  // Se a VPS falhar, 503 faz a Meta reenviar o evento mais tarde.
+  if (MIGRACAO_VPS_URL) {
+    try {
+      const res = await fetch(`${MIGRACAO_VPS_URL}/api/whatsapp/webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Hub-Signature-256': req.headers.get('x-hub-signature-256') ?? '',
+        },
+        body: rawBody,
+        signal: AbortSignal.timeout(10_000),
+      })
+      return new NextResponse(res.ok ? 'OK' : 'Indisponível', { status: res.ok ? 200 : 503 })
+    } catch (err) {
+      console.error('[WA webhook] repasse para a VPS falhou:', err)
+      return new NextResponse('Indisponível', { status: 503 })
+    }
+  }
+
   if (!isValidSignature(rawBody, req.headers.get('x-hub-signature-256'))) {
     console.warn('[WA webhook] assinatura inválida — requisição rejeitada')
     return new NextResponse('Forbidden', { status: 403 })

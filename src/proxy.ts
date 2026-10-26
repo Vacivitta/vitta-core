@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { MIGRACAO_VPS_URL, PAGINA_MANUTENCAO } from '@/lib/migracao'
 
 const PUBLIC_PATHS = [
   '/login',
@@ -15,6 +16,17 @@ const PUBLIC_PATHS = [
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Troca para a VPS: na Vercel só o webhook da Meta passa (é repassado à VPS)
+  if (MIGRACAO_VPS_URL && !pathname.startsWith('/api/whatsapp/webhook')) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Sistema em manutenção' }, { status: 503 })
+    }
+    return new NextResponse(PAGINA_MANUTENCAO, {
+      status: 503,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Retry-After': '120' },
+    })
+  }
 
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
   if (isPublic) return NextResponse.next({ request })
