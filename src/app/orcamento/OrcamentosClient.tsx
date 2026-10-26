@@ -10,6 +10,7 @@ import type {
 } from '@/types/database'
 import { QUOTE_STATUS_LABELS, PRODUCT_TIPO_LABELS, PACOTE_DEFAULTS, PAYMENT_METHOD_LABELS, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
+import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
 
 const PdfButton = dynamic(
   () => import('@/components/orcamento/PdfButton'),
@@ -1051,6 +1052,8 @@ export default function OrcamentosClient({
   const [editing,     setEditing]     = useState<QuoteRow | null>(null)
   const [copiedId,    setCopiedId]    = useState<string | null>(null)
   const [deletingId,  setDeletingId]  = useState<string | null>(null)
+  const [enviandoId,  setEnviandoId]  = useState<string | null>(null)
+  const [enviadoId,   setEnviadoId]   = useState<string | null>(null)
 
   const canDelete = currentUser.perfil === 'admin' || currentUser.perfil === 'gestor_unidade' || currentUser.perfil === 'gestor_vacivitta'
 
@@ -1129,6 +1132,21 @@ export default function OrcamentosClient({
     await navigator.clipboard.writeText(url)
     setCopiedId(q.id)
     setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  /** Envia o PDF do orçamento na conversa de WhatsApp do cliente (ver enviarOrcamentoWhatsapp). */
+  async function handleEnviarWhatsapp(q: QuoteRow) {
+    setEnviandoId(q.id)
+    try {
+      const novoStatus = await enviarOrcamentoWhatsapp(q.id)
+      setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, status: novoStatus } : x))
+      setEnviadoId(q.id)
+      setTimeout(() => setEnviadoId(null), 3000)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao enviar o orçamento.')
+    } finally {
+      setEnviandoId(null)
+    }
   }
 
   return (
@@ -1315,6 +1333,32 @@ export default function OrcamentosClient({
                             d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
+                      {q.lead_id && (
+                        <button
+                          onClick={() => handleEnviarWhatsapp(q)}
+                          disabled={enviandoId === q.id}
+                          title={enviadoId === q.id ? 'Enviado no WhatsApp!' : 'Enviar PDF no WhatsApp do cliente'}
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-60"
+                          style={{ color: enviadoId === q.id ? '#3E9849' : '#9AA79C', background: enviadoId === q.id ? '#E8F4E6' : '' }}
+                          onMouseEnter={e => { if (enviadoId !== q.id) { e.currentTarget.style.color = '#25D366'; e.currentTarget.style.background = '#E8F4E6' } }}
+                          onMouseLeave={e => { if (enviadoId !== q.id) { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' } }}
+                        >
+                          {enviandoId === q.id ? (
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : enviadoId === q.id ? (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleCopyLink(q)}
                         title={copiedId === q.id ? 'Link copiado!' : 'Copiar link do paciente'}

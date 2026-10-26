@@ -51,6 +51,18 @@ async function resolveImages(quote: QuoteWithItems): Promise<QuoteWithItems> {
   }
 }
 
+/**
+ * Gera o PDF do orçamento no navegador (mesmo layout do botão "Baixar PDF").
+ * Usado também pelo envio do orçamento no WhatsApp.
+ *
+ * @param quote - Orçamento com itens e template
+ * @returns Arquivo PDF em memória
+ */
+export async function gerarPdfBlob(quote: QuoteWithItems): Promise<Blob> {
+  const resolved = await resolveImages(quote)
+  return pdf(<OrcamentoPDF quote={resolved} />).toBlob()
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PdfButton({ quote, label = 'Baixar PDF', variant = 'download', className }: Props) {
@@ -65,8 +77,7 @@ export default function PdfButton({ quote, label = 'Baixar PDF', variant = 'down
     setLoading(true)
     setError(null)
     try {
-      const resolved = await resolveImages(quote)
-      const blob     = await pdf(<OrcamentoPDF quote={resolved} />).toBlob()
+      const blob     = await gerarPdfBlob(quote)
       const url      = URL.createObjectURL(blob)
       if (variant === 'preview') {
         window.open(url, '_blank')
