@@ -18,6 +18,8 @@ interface Props {
   currentUser: Profile
   /** Date.now() da renderização no servidor — ponto de partida do relógio dos cards */
   agoraServidor: number
+  /** Etapas cujo alerta conta o cliente sem resposta (destinos das automações de mensagem) */
+  etapasAtendimento: string[]
 }
 
 function MultiCheckFilter({ label, selected, options, onChange }: {
@@ -116,7 +118,7 @@ interface Filters {
   tag_ids: string[]
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento }: Props) {
   const supabase = createClient()
 
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
@@ -545,6 +547,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       <main className="flex-1 overflow-auto" style={{ background: '#F5F5F5', padding: 16 }}>
         <KanbanBoard
           agoraServidor={agoraServidor}
+          etapasAtendimento={etapasAtendimento}
           initialLeads={filteredLeads}
           stages={selectedFunnel.stages}
           onLeadClick={handleLeadClick}

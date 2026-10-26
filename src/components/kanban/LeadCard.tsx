@@ -16,6 +16,13 @@ interface Props {
   tags?: TagInfo[]
   onMarkUnread?: (leadId: string) => void
   lastMsgAt?: string
+  /** Direção da última mensagem da conversa do lead */
+  lastDir?: 'inbound' | 'outbound'
+  /**
+   * Etapa de atendimento (Sem/Em atendimento): o alerta conta há quanto tempo o
+   * cliente está sem resposta, não o tempo parado na etapa.
+   */
+  alertaPorResposta?: boolean
   /** Relógio compartilhado do quadro (ver useNow) */
   now: number
 }
@@ -50,7 +57,7 @@ function fmtTaskDate(iso: string, nowMs: number): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${time}`
 }
 
-export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread, lastMsgAt, now }: Props) {
+export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread, lastMsgAt, lastDir, alertaPorResposta = false, now }: Props) {
   const [hovered, setHovered] = useState(false)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -59,10 +66,17 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
 
   const dndStyle = { transform: CSS.Transform.toString(transform), transition }
 
-  const hoursInStage = lead.stage_changed_at
-    ? Math.floor((now - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
-    : 0
-  const isHoursSlaOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas)
+  // Etapas de atendimento com conversa: conta o tempo desde a última mensagem do
+  // cliente ainda sem resposta (respondeu → zera). Demais etapas, ou leads sem
+  // conversa: tempo parado na etapa.
+  const contaSemResposta = alertaPorResposta && !!lastMsgAt
+  const hoursInStage = contaSemResposta
+    ? (lastDir === 'inbound' ? Math.floor((now - new Date(lastMsgAt).getTime()) / 3_600_000) : 0)
+    : lead.stage_changed_at
+      ? Math.floor((now - new Date(lead.stage_changed_at).getTime()) / 3_600_000)
+      : 0
+  const isHoursSlaOverdue = !!(lead.stage_alerta_horas && hoursInStage >= lead.stage_alerta_horas
+    && (!contaSemResposta || lastDir === 'inbound'))
   // Virada do mês pelo calendário de Brasília (em UTC o mês vira 3 h antes)
   const isMonthlySlaOverdue = !!(lead.stage_sla_mensal && lead.stage_changed_at && (() => {
     const today = partesBR(new Date(now))
@@ -212,7 +226,7 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
             </svg>
             {isMonthlySlaOverdue && !isHoursSlaOverdue
               ? 'mês anterior'
-              : `${hoursInStage >= 24 ? `${Math.floor(hoursInStage / 24)}d` : `${hoursInStage}h`} na etapa`}
+              : `${hoursInStage >= 24 ? `${Math.floor(hoursInStage / 24)}d` : `${hoursInStage}h`} ${contaSemResposta ? 'sem resposta' : 'na etapa'}`}
           </div>
         )}
       </div>

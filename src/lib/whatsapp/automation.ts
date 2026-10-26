@@ -7,10 +7,9 @@ const META_API_URL = 'https://graph.facebook.com/v20.0'
  * Executa automações configuradas em `wa_automations` para um evento de WhatsApp.
  * Triggers suportados: `inbound_message`, `outbound_message`, `conversation_resolved`.
  *
- * `move_stage` roda a cada evento: o card acompanha a vez da conversa (cliente
- * escreveu → etapa do inbound; equipe respondeu → etapa do outbound). Para não
- * tirar leads de etapas comerciais (Orçamento, Agendado...), só move a partir
- * das etapas de atendimento — ver `getMovableStages`.
+ * `move_stage` roda a cada evento, mas só a partir de etapas específicas — ver
+ * `getMovableStages`: mensagem recebida reabre leads finalizados; mensagem enviada
+ * tira o lead da etapa de entrada. Etapas comerciais (Orçamento, Agendado...) não mudam.
  * `send_template` mantém o limite de uma vez por janela de 24h, para não repetir
  * o template a cada mensagem.
  *
@@ -47,10 +46,13 @@ export async function runWaAutomation(
 
 /**
  * Etapas de onde uma automação de mensagem pode tirar o lead.
- * - Etapas de atendimento: destinos das regras inbound/outbound da unidade
- *   (ex.: Sem atendimento ↔ Em atendimento).
- * - Mensagem recebida também reabre leads da etapa de "conversa resolvida"
- *   (ex.: Finalizados), pois o cliente voltou a escrever.
+ * - Mensagem recebida: só reabre leads da etapa de "conversa resolvida"
+ *   (ex.: Finalizados), pois o cliente voltou a escrever. Leads que já estão em
+ *   atendimento ficam onde estão — antes cada mensagem do cliente devolvia o lead
+ *   para "Sem atendimento" e cada resposta o empurrava de volta (vai-e-volta).
+ *   O "cliente aguardando" aparece no alerta do card (ver LeadCard).
+ * - Mensagem enviada: tira o lead da etapa de entrada (destino da regra de
+ *   mensagem recebida, ex.: Sem atendimento) para "Em atendimento".
  * Etapas comerciais (Orçamento, Agendado, Captações, Perdido) nunca são alteradas.
  *
  * @param supabase - Cliente Supabase
@@ -69,8 +71,8 @@ async function getMovableStages(supabase: SupabaseClient, unitId: string, trigge
   const movable = new Set<string>()
   for (const r of rules ?? []) {
     if (!r.stage_id) continue
-    if (r.trigger === 'inbound_message' || r.trigger === 'outbound_message') movable.add(r.stage_id)
-    if (r.trigger === 'conversation_resolved' && trigger === 'inbound_message') movable.add(r.stage_id)
+    if (trigger === 'inbound_message' && r.trigger === 'conversation_resolved') movable.add(r.stage_id)
+    if (trigger === 'outbound_message' && r.trigger === 'inbound_message') movable.add(r.stage_id)
   }
   return movable
 }

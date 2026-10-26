@@ -21,6 +21,7 @@ export default async function FunilPage() {
     { data: stagesData },
     { data: leadsData },
     { data: userUnits },
+    { data: automacoes },
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
     supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
@@ -28,7 +29,15 @@ export default async function FunilPage() {
     fetchAll((from, to) => supabase.from('leads_kanban').select('*').eq('unit_id', unitId)
       .order('stage_ordem').order('ordem').order('created_at').order('id').range(from, to)),
     supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
+    supabase.from('wa_automations').select('trigger, stage_id')
+      .eq('unit_id', unitId).eq('action', 'move_stage').eq('ativo', true),
   ])
+
+  // Etapas de atendimento (destinos das automações de mensagem): nelas o alerta do
+  // card conta o tempo do cliente sem resposta, e não o tempo parado na etapa
+  const etapasAtendimento = (automacoes ?? [])
+    .filter(a => a.stage_id && (a.trigger === 'inbound_message' || a.trigger === 'outbound_message'))
+    .map(a => a.stage_id as string)
 
   const extraUserIds = (userUnits ?? [])
     .map(r => r.user_id as string)
@@ -52,6 +61,7 @@ export default async function FunilPage() {
       funnels={funnelsWithStages}
       profiles={allProfiles as Profile[]}
       currentUser={profileData as Profile}
+      etapasAtendimento={etapasAtendimento}
       // Instante desta requisição: servidor e navegador partem do mesmo "agora"
       // eslint-disable-next-line react-hooks/purity -- server component roda uma vez por requisição
       agoraServidor={Date.now()}

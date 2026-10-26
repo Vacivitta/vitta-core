@@ -33,6 +33,8 @@ interface Props {
   sortMode?: KanbanSortMode
   /** Date.now() do servidor — evita diferença de hidratação nos tempos dos cards */
   agoraServidor?: number
+  /** Etapas cujo alerta conta o cliente sem resposta, e não o tempo na etapa */
+  etapasAtendimento?: string[]
 }
 
 /** Agrupa os leads por etapa, já na ordem exibida em cada coluna. */
@@ -48,7 +50,7 @@ function groupByStage(
   return groups
 }
 
-export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT, agoraServidor }: Props) {
+export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT, agoraServidor, etapasAtendimento = [] }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
   const now = useNow(60_000, agoraServidor)
@@ -150,6 +152,8 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
             onAddLead={onAddLead}
             unreadByLead={unreadByLead}
             lastMsgByLead={lastMsgByLead}
+            lastDirByLead={lastDirByLead}
+            alertaPorResposta={etapasAtendimento.includes(stage.id)}
             tagsByLead={tagsByLead}
             onMarkUnread={onMarkUnread}
             now={now}
