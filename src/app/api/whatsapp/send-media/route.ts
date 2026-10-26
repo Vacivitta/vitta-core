@@ -69,16 +69,24 @@ export async function POST(req: NextRequest) {
       const oggBlob = new Blob([new Uint8Array(oggBuf)], { type: 'audio/ogg' })
       uploadFile = new File([oggBlob], file.name.replace(/\.webm$/, '.ogg'), { type: 'audio/ogg' })
       mime = 'audio/ogg'
+    }
 
-      // Also save to Supabase Storage for permanent URL
-      const fileName = `${conv.unit_id}/outbound_${Date.now()}.ogg`
-      const { error: storageErr } = await admin.storage
-        .from('wa-media')
-        .upload(fileName, oggBuf, { contentType: 'audio/ogg; codecs=opus', upsert: false })
-
+    // Cópia permanente no Storage para qualquer tipo de arquivo. Antes só o áudio
+    // gravado era salvo: imagens e PDFs ficavam só com o ID da Meta, que expira em
+    // ~30 dias e deixava a mídia "expirada" na conversa.
+    {
+      const ext = uploadFile.name.includes('.') ? uploadFile.name.split('.').pop()!.toLowerCase().replace(/[^a-z0-9]/g, '') : 'bin'
+      const fileName = `${conv.unit_id}/outbound_${Date.now()}.${ext || 'bin'}`
+      const buf = Buffer.from(await uploadFile.arrayBuffer())
+      const contentType = mime === 'audio/ogg' ? 'audio/ogg; codecs=opus' : mime
+      let { error: storageErr } = await admin.storage.from('wa-media').upload(fileName, buf, { contentType, upsert: false })
+      // Tipos fora da lista do bucket (ex.: .doc, .xls) vão como binário genérico
+      if (storageErr) {
+        ({ error: storageErr } = await admin.storage.from('wa-media')
+          .upload(fileName, buf, { contentType: 'application/octet-stream', upsert: false }))
+      }
       if (!storageErr) {
-        const { data: urlData } = admin.storage.from('wa-media').getPublicUrl(fileName)
-        permanentUrl = urlData.publicUrl
+        permanentUrl = admin.storage.from('wa-media').getPublicUrl(fileName).data.publicUrl
         console.log(`[send-media] stored in Supabase: ${permanentUrl}`)
       } else {
         console.warn('[send-media] Supabase Storage upload failed, using Meta media ID only:', storageErr.message)
