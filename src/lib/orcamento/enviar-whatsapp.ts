@@ -69,7 +69,10 @@ export async function enviarOrcamentoWhatsapp(quoteId: string): Promise<QuoteSta
   const link   = `${window.location.origin}/orcamento/ver/${quote.token_publico}`
 
   const form = new FormData()
-  form.append('file', new File([blob], `Orcamento-${numero}.pdf`, { type: 'application/pdf' }))
+  // Nome exibido no WhatsApp (ex.: "Orçamento 0123 - Maria Silva.pdf")
+  const nomeCompleto = quote.paciente_nome || [quote.lead?.nome, quote.lead?.sobrenome].filter(Boolean).join(' ')
+  const nomeArquivo  = `Orçamento ${numero}${nomeCompleto ? ` - ${nomeCompleto}` : ''}`.replace(/[\\/:*?"<>|]/g, '').trim()
+  form.append('file', new File([blob], `${nomeArquivo}.pdf`, { type: 'application/pdf' }))
   form.append('conversation_id', conv.id)
   form.append('caption',
     `Olá${nome ? `, ${nome}` : ''}! Segue o seu orçamento nº ${numero}.\n` +

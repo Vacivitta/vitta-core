@@ -129,9 +129,12 @@ export async function POST(req: NextRequest) {
       type: msgType,
       [msgType]: msgType === 'audio'
           ? { id: mediaId, voice: true }
-          : caption
-            ? { id: mediaId, caption }
-            : { id: mediaId },
+          : {
+              id: mediaId,
+              ...(caption ? { caption } : {}),
+              // Sem filename o WhatsApp mostra o documento sem nome
+              ...(msgType === 'document' ? { filename: uploadFile.name } : {}),
+            },
     }
 
     let sendData: { messages?: { id: string }[]; error?: { is_transient?: boolean; message?: string } } = {}
