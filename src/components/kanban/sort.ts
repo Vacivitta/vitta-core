@@ -28,6 +28,9 @@ export const KANBAN_SORT_OPTIONS: { value: KanbanSortMode; label: string }[] = [
   { value: 'manual',            label: 'Manual (arrastar)' },
 ]
 
+/** Cookie com a ordenação escolhida no funil (lido no servidor para a 1ª tela já vir ordenada). */
+export const COOKIE_ORDENACAO_FUNIL = 'funil_sort_mode'
+
 export const DEFAULT_KANBAN_SORT: KanbanSortMode = 'atividade'
 
 /** Dados de conversa usados por alguns critérios, indexados por lead_id. */

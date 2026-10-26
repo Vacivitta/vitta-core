@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
-import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, type KanbanSortMode } from '@/components/kanban/sort'
+import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
+import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil, type ResumoConversas } from '@/lib/funil/resumo-conversas'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
@@ -20,6 +21,10 @@ interface Props {
   agoraServidor: number
   /** Etapas cujo alerta conta o cliente sem resposta (destinos das automações de mensagem) */
   etapasAtendimento: string[]
+  /** Dados das conversas por lead já calculados no servidor (1ª tela sem "pulo") */
+  resumoInicial: ResumoConversas
+  /** Ordenação salva no cookie; null = ainda não salva (lê a preferência antiga do localStorage) */
+  ordenacaoInicial: KanbanSortMode | null
 }
 
 function MultiCheckFilter({ label, selected, options, onChange }: {
@@ -118,7 +123,13 @@ interface Filters {
   tag_ids: string[]
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento }: Props) {
+/** Grava a ordenação no cookie (1 ano) e no localStorage. */
+function salvarOrdenacao(mode: string) {
+  document.cookie = `${COOKIE_ORDENACAO_FUNIL}=${mode}; path=/; max-age=31536000; samesite=lax`
+  try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
+}
+
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, ordenacaoInicial }: Props) {
   const supabase = createClient()
 
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
@@ -136,30 +147,33 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   })
   const [showFilters, setShowFilters]     = useState(false)
   const [unitTags, setUnitTags]           = useState<Array<{ id: string; name: string; color: string }>>([])
-  const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>({})
-  const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>({})
-  const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>({})
-  const [sortMode, setSortMode]                 = useState<KanbanSortMode>(DEFAULT_KANBAN_SORT)
-  const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>({})
-  const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>({})
+  const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>(resumoInicial.unreadByLead)
+  const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>(resumoInicial.lastMsgByLead)
+  const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>(resumoInicial.lastDirByLead)
+  const [sortMode, setSortMode]                 = useState<KanbanSortMode>(ordenacaoInicial ?? DEFAULT_KANBAN_SORT)
+  const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>(resumoInicial.convIdByLead)
+  const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>(resumoInicial.tagsByLead)
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
   const [msgMatchLeadIds, setMsgMatchLeadIds] = useState<Set<string> | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Ordenação escolhida fica salva por usuário neste navegador
-  const SORT_STORAGE_KEY = 'funil_sort_mode'
+  // Ordenação escolhida fica salva por usuário neste navegador, num cookie lido pelo
+  // servidor (a 1ª tela já vem ordenada). Quem salvou antes no localStorage migra uma vez.
   useEffect(() => {
+    if (ordenacaoInicial) return
     try {
-      const saved = localStorage.getItem(SORT_STORAGE_KEY)
-      // Lido após montar (não no useState) para não divergir do HTML renderizado no servidor
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved && KANBAN_SORT_OPTIONS.some(o => o.value === saved)) setSortMode(saved as KanbanSortMode)
+      const saved = localStorage.getItem(COOKIE_ORDENACAO_FUNIL)
+      if (saved && KANBAN_SORT_OPTIONS.some(o => o.value === saved)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSortMode(saved as KanbanSortMode)
+        salvarOrdenacao(saved)
+      }
     } catch { /* storage indisponível — mantém o padrão */ }
-  }, [])
+  }, [ordenacaoInicial])
 
   function changeSortMode(mode: KanbanSortMode) {
     setSortMode(mode)
-    try { localStorage.setItem(SORT_STORAGE_KEY, mode) } catch { /* ignora */ }
+    salvarOrdenacao(mode)
   }
 
   const searchMessages = useCallback(async (q: string) => {
@@ -190,37 +204,19 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     // Paginado: com mais de 1000 conversas o Supabase cortava a lista e os leads
     // de fora ficavam sem última mensagem (iam para o fim em "Atividade recente")
     void fetchAll((from, to) => supabase.from('wa_conversations')
-      .select('id, lead_id, unread_count, last_message_at, last_message_direction, tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .select(SELECT_CONVERSAS_FUNIL)
       .eq('unit_id', currentUser.unit_id)
       .not('lead_id', 'is', null)
       .order('id')
       .range(from, to))
       .then(({ data }) => {
         if (!data.length) return
-        const unread: Record<string, number> = {}
-        const lastMsg: Record<string, string> = {}
-        const lastDir: Record<string, 'inbound' | 'outbound'> = {}
-        const convIds: Record<string, string> = {}
-        const tags: Record<string, Array<{ id: string; name: string; color: string }>> = {}
-        for (const row of data) {
-          if (!row.lead_id) continue
-          convIds[row.lead_id] = row.id
-          if (row.unread_count > 0) unread[row.lead_id] = (unread[row.lead_id] ?? 0) + row.unread_count
-          if (row.last_message_at) {
-            if (!lastMsg[row.lead_id] || row.last_message_at > lastMsg[row.lead_id]) {
-              lastMsg[row.lead_id] = row.last_message_at
-              if (row.last_message_direction) lastDir[row.lead_id] = row.last_message_direction
-            }
-          }
-          const rowTags = ((row.tags ?? []) as unknown as Array<{ tag: { id: string; name: string; color: string } }>)
-            .map(t => t.tag).filter(Boolean)
-          if (rowTags.length > 0) tags[row.lead_id] = rowTags
-        }
-        setUnreadByLead(unread)
-        setLastMsgByLead(lastMsg)
-        setLastDirByLead(lastDir)
-        setConvIdByLead(convIds)
-        setTagsByLead(tags)
+        const r = montarResumoConversas(data as ConversaFunil[])
+        setUnreadByLead(r.unreadByLead)
+        setLastMsgByLead(r.lastMsgByLead)
+        setLastDirByLead(r.lastDirByLead)
+        setConvIdByLead(r.convIdByLead)
+        setTagsByLead(r.tagsByLead)
       })
 
     function handleConvChange(payload: { new: Record<string, unknown> }) {

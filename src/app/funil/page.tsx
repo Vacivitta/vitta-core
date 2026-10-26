@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { cookies } from 'next/headers'
 import FunilClient from './FunilClient'
+import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil } from '@/lib/funil/resumo-conversas'
+import { KANBAN_SORT_OPTIONS, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
 import type { Profile, FunnelWithStages } from '@/types/database'
 
 export default async function FunilPage() {
@@ -22,6 +25,8 @@ export default async function FunilPage() {
     { data: leadsData },
     { data: userUnits },
     { data: automacoes },
+    { data: conversas },
+    cookieStore,
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
     supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
@@ -31,7 +36,15 @@ export default async function FunilPage() {
     supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
     supabase.from('wa_automations').select('trigger, stage_id')
       .eq('unit_id', unitId).eq('action', 'move_stage').eq('ativo', true),
+    fetchAll((from, to) => supabase.from('wa_conversations').select(SELECT_CONVERSAS_FUNIL)
+      .eq('unit_id', unitId).not('lead_id', 'is', null).order('id').range(from, to)),
+    cookies(),
   ])
+
+  // Primeira tela já com os dados das conversas e a ordenação escolhida pelo usuário
+  const resumoInicial = montarResumoConversas((conversas ?? []) as ConversaFunil[])
+  const ordemSalva = cookieStore.get(COOKIE_ORDENACAO_FUNIL)?.value
+  const ordenacaoInicial = KANBAN_SORT_OPTIONS.some(o => o.value === ordemSalva) ? ordemSalva as KanbanSortMode : null
 
   // Etapas de atendimento (destinos das automações de mensagem): nelas o alerta do
   // card conta o tempo do cliente sem resposta, e não o tempo parado na etapa
@@ -62,6 +75,8 @@ export default async function FunilPage() {
       profiles={allProfiles as Profile[]}
       currentUser={profileData as Profile}
       etapasAtendimento={etapasAtendimento}
+      resumoInicial={resumoInicial}
+      ordenacaoInicial={ordenacaoInicial}
       // Instante desta requisição: servidor e navegador partem do mesmo "agora"
       // eslint-disable-next-line react-hooks/purity -- server component roda uma vez por requisição
       agoraServidor={Date.now()}

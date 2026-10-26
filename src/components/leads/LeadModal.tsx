@@ -24,6 +24,7 @@ import { createClient } from '@/lib/supabase/client'
 import { updateLead, archiveLead, restoreLead } from '@/lib/leads'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
+import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 
 interface Props {
   lead: LeadKanban | null
@@ -182,7 +183,6 @@ function LeadDrawer({
   const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
   const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
-  const waMsgsEndRef = useRef<HTMLDivElement>(null)
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
@@ -220,11 +220,12 @@ function LeadDrawer({
         const [{ data: msgs }, { data: intNotes }] = await Promise.all([
           supabase.from('wa_messages')
             .select('id, wa_message_id, direction, type, content, media_url, media_mime_type, template_name, status, created_at, sent_by, reply_to_wa_message_id')
-            .eq('conversation_id', conv.id).order('created_at', { ascending: true }),
+            // As mais recentes (o Supabase corta em 1000 linhas; em ordem crescente as novas ficavam de fora)
+            .eq('conversation_id', conv.id).order('created_at', { ascending: false }).limit(500),
           supabase.from('wa_internal_notes').select('id, content, author_id, created_at')
             .eq('conversation_id', conv.id).order('created_at', { ascending: true }),
         ])
-        if (msgs) setWaMessages(msgs as WaMessage[])
+        if (msgs) setWaMessages((msgs as WaMessage[]).reverse())
         if (intNotes) setWaInternalNotes(intNotes)
 
         // Carrega templates, quick replies e tags para o ChatInput
@@ -287,10 +288,8 @@ function LeadDrawer({
     return () => { supabase.removeChannel(channel); supabase.removeChannel(notesChannel) }
   }, [waConversation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll para o fim ao receber novas mensagens
-  useEffect(() => {
-    waMsgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [waMessages.length, waInternalNotes.length])
+  // Abre a conversa na mensagem mais recente e acompanha mensagens/mídias novas
+  const rolagemWaRef = useRolagemNoFim(waLoaded ? waConversation?.id : null, waMessages.length + waInternalNotes.length)
 
   async function handleWaSend() {
     if (!waInput.trim() || !waConversation || waSending) return
@@ -1880,7 +1879,7 @@ function LeadDrawer({
                     />
                   )}
                   {/* Messages */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 6, background: '#F2EEE1' }}>
+                  <div ref={rolagemWaRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 6, background: '#F2EEE1' }}>
                     {waRenderItems.map(item => {
                       if ('kind' in item && item.kind === 'date') {
                         return (
@@ -2019,7 +2018,6 @@ function LeadDrawer({
                         )
                       })()
                     })}
-                    <div ref={waMsgsEndRef} />
                   </div>
 
                   {/* Reply bar */}

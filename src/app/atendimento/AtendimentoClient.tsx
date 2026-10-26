@@ -16,6 +16,7 @@ import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
+import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,6 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   )
   const soundEnabledRef = useRef(soundEnabled)
   useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
-  const msgsEndRef        = useRef<HTMLDivElement>(null)
   const selectedConvIdRef = useRef<string | null>(null)
 
   function selectConv(conv: WaConversation | null) {
@@ -409,7 +409,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     void Promise.all([
       supabase.from('wa_messages')
         .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id')
-        .eq('conversation_id', selectedConv.id).order('created_at').limit(200),
+        // As 200 mais RECENTES (antes vinham as 200 mais antigas e as novas ficavam de fora)
+        .eq('conversation_id', selectedConv.id).order('created_at', { ascending: false }).limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
         .eq('conversation_id', selectedConv.id).order('created_at'),
     ]).then(([{ data: msgs, error: msgsErr }, { data: notes, error: notesErr }]) => {
@@ -417,7 +418,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         console.error('[chat load] erro ao carregar mensagens:', msgsErr, notesErr)
       }
       const items: ChatItem[] = [
-        ...(msgs ?? []).map(m => ({ kind: 'message' as const, id: m.id, created_at: m.created_at, message: m as WaMessage })),
+        ...(msgs ?? []).reverse().map(m => ({ kind: 'message' as const, id: m.id, created_at: m.created_at, message: m as WaMessage })),
         ...(notes ?? []).map(n => ({
           kind: 'note' as const, id: n.id, created_at: n.created_at,
           note: { ...n, author_name: profiles.find(p => p.id === n.author_id)?.full_name ?? 'Agente' } as WaNote,
@@ -489,7 +490,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     return () => { void supabase.removeChannel(ch) }
   }, [selectedConv?.id, supabase, profiles]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatItems.length])
+  // Abre a conversa na mensagem mais recente e acompanha mensagens/mídias novas
+  const rolagemChatRef = useRolagemNoFim(msgsLoaded ? selectedConv?.id : null, chatItems.length)
 
   // ── Send / media ─────────────────────────────────────────────────────────────
   async function handleSend() {
@@ -863,7 +865,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     ? { ...c, tags: (c.tags ?? []).filter(t => t.tag.id !== tagId) } : c))
                 }}
               />
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(37,64,44,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F2EEE1' }}>
+              <div ref={rolagemChatRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(37,64,44,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F2EEE1' }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#3E9849" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#9AA79C', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
                 {(() => {
@@ -887,7 +889,6 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     return <InternalNoteBubble key={item.id} note={item.note!} />
                   })
                 })()}
-                <div ref={msgsEndRef} />
               </div>
               {replyTo && (
                 <div style={{ padding: '8px 14px', background: '#fff', borderTop: '1px solid #E9E5D8', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
