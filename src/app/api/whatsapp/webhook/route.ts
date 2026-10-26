@@ -5,6 +5,7 @@ import { runAutoAssign }            from '../auto-assign/route'
 import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { MIGRACAO_VPS_URL }         from '@/lib/migracao'
+import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
 export const maxDuration = 60
@@ -210,19 +211,31 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
 
   const { unit_id: unitId, access_token: accessToken, phone_number_id: phoneNumberId } = config
 
-  // 1. Upsert da conversa
-  const { data: conv, error: convErr } = await supabase
-    .from('wa_conversations')
-    .upsert(
-      { unit_id: unitId, wa_phone: waPhone, wa_contact_name: contactName },
-      { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
-    )
-    .select('id, lead_id, profile_picture_url')
-    .maybeSingle()
-
-  if (convErr || !conv) {
-    console.error('[WA webhook] erro ao upsert conversa de', waPhone, contactName ?? '', convErr)
-    return
+  // 1. Conversa: se a equipe abriu a conversa com a outra versão do número (com/sem
+  // o 9º dígito), adota essa conversa e passa a usar o wa_id da Meta nela; senão, upsert.
+  let conv: { id: string; lead_id: string | null; profile_picture_url: string | null } | null = null
+  const existente = await buscarConversaPorTelefone(supabase, unitId, waPhone)
+  if (existente && existente.wa_phone !== waPhone) {
+    const { error: adoptErr } = await supabase
+      .from('wa_conversations')
+      .update({ wa_phone: waPhone, ...(contactName ? { wa_contact_name: contactName } : {}) })
+      .eq('id', existente.id)
+    if (!adoptErr) conv = existente
+  }
+  if (!conv) {
+    const { data, error: convErr } = await supabase
+      .from('wa_conversations')
+      .upsert(
+        { unit_id: unitId, wa_phone: waPhone, wa_contact_name: contactName },
+        { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
+      )
+      .select('id, lead_id, profile_picture_url')
+      .maybeSingle()
+    if (convErr || !data) {
+      console.error('[WA webhook] erro ao upsert conversa de', waPhone, contactName ?? '', convErr)
+      return
+    }
+    conv = data
   }
 
   // 1b. Busca foto de perfil do contato se ainda não tiver (fire-and-forget)

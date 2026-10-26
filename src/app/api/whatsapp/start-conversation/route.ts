@@ -4,6 +4,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { canAccessUnit }            from '@/lib/auth/access'
+import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -71,18 +72,25 @@ export async function POST(req: NextRequest) {
 
   const supabase = adminClient()
 
-  // 1. Upsert da conversa
-  const { data: conv, error: convErr } = await supabase
-    .from('wa_conversations')
-    .upsert(
-      { unit_id, wa_phone: phone, wa_contact_name: contact_name || null },
-      { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
-    )
-    .select('id, lead_id')
-    .maybeSingle()
-
-  if (convErr || !conv)
-    return NextResponse.json({ error: 'Erro ao criar conversa', details: convErr?.message }, { status: 500 })
+  // 1. Reaproveita a conversa existente (com ou sem o 9º dígito) ou cria uma nova.
+  // O envio usa o wa_phone da conversa encontrada — o mesmo wa_id pelo qual o
+  // cliente responde —, evitando abrir uma segunda conversa para a mesma pessoa.
+  const existente = await buscarConversaPorTelefone(supabase, unit_id, phone)
+  let conv: { id: string; lead_id: string | null } | null = existente
+  const destino = existente?.wa_phone ?? phone
+  if (!conv) {
+    const { data: criada, error: convErr } = await supabase
+      .from('wa_conversations')
+      .upsert(
+        { unit_id, wa_phone: phone, wa_contact_name: contact_name || null },
+        { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
+      )
+      .select('id, lead_id')
+      .maybeSingle()
+    if (convErr || !criada)
+      return NextResponse.json({ error: 'Erro ao criar conversa', details: convErr?.message }, { status: 500 })
+    conv = criada
+  }
 
   // 1b. Criar ou vincular lead com o nome fornecido
   if (!conv.lead_id && contact_name) {
@@ -146,7 +154,7 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tpl: any = { name: template_name, language: { code: language } }
   if (components && components.length > 0) tpl.components = components
-  const metaPayload = { messaging_product: 'whatsapp', to: phone, type: 'template', template: tpl }
+  const metaPayload = { messaging_product: 'whatsapp', to: destino, type: 'template', template: tpl }
 
   console.log(`[start-conv] payload para Meta:`, JSON.stringify(metaPayload))
 
@@ -163,7 +171,7 @@ export async function POST(req: NextRequest) {
   }
 
   const waMessageId = metaData.messages?.[0]?.id ?? null
-  console.log(`[start-conv] enviado para=${phone} template=${template_name} wamid=${waMessageId} phone_number_id=${creds.phoneNumberId}`)
+  console.log(`[start-conv] enviado para=${destino} template=${template_name} wamid=${waMessageId} phone_number_id=${creds.phoneNumberId}`)
   const preview     = `📋 ${template_name}`
 
   // 3. Salva mensagem outbound
