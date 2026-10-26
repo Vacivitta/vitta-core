@@ -25,6 +25,7 @@ import { updateLead, archiveLead, restoreLead } from '@/lib/leads'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
+import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
 
 interface Props {
   lead: LeadKanban | null
@@ -539,6 +540,9 @@ function LeadDrawer({
   const [quotes,      setQuotes]      = useState<LeadQuote[]>([])
   const [quotesLoaded, setQuotesLoaded] = useState(false)
   const [copiedQuoteId, setCopiedQuoteId] = useState<string | null>(null)
+  // Envio do PDF do orçamento no WhatsApp a partir da lista da ficha
+  const [enviandoQuoteId, setEnviandoQuoteId] = useState<string | null>(null)
+  const [enviadoQuoteId,  setEnviadoQuoteId]  = useState<string | null>(null)
   // Formulário de orçamento aberto aqui mesmo, sem ir para a tela de Orçamentos
   const [novoOrcamento, setNovoOrcamento] = useState(false)
 
@@ -1647,6 +1651,20 @@ function LeadDrawer({
                 setTimeout(() => setCopiedQuoteId(null), 2000)
               }
 
+              async function handleEnviarWhatsapp(q: LeadQuote) {
+                setEnviandoQuoteId(q.id)
+                try {
+                  const novoStatus = await enviarOrcamentoWhatsapp(q.id)
+                  setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, status: novoStatus } : x))
+                  setEnviadoQuoteId(q.id)
+                  setTimeout(() => setEnviadoQuoteId(null), 3000)
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : 'Erro ao enviar o orçamento.')
+                } finally {
+                  setEnviandoQuoteId(null)
+                }
+              }
+
               return (
                 <div className="space-y-3">
                   {/* Botão novo orçamento — pré-seleciona lead ou cliente */}
@@ -1709,6 +1727,22 @@ function LeadDrawer({
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '12px', color: '#9AA79C', flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleEnviarWhatsapp(q)}
+                          disabled={enviandoQuoteId === q.id}
+                          title={enviadoQuoteId === q.id ? 'Enviado no WhatsApp!' : 'Enviar PDF no WhatsApp do cliente'}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: enviandoQuoteId === q.id ? 'wait' : 'pointer', color: enviadoQuoteId === q.id ? '#3E9849' : '#9AA79C', transition: 'color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = enviadoQuoteId === q.id ? '#3E9849' : '#25D366')}
+                          onMouseLeave={e => (e.currentTarget.style.color = enviadoQuoteId === q.id ? '#3E9849' : '#9AA79C')}
+                        >
+                          {enviandoQuoteId === q.id ? (
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25"/><path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                          ) : enviadoQuoteId === q.id ? (
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg>
+                          ) : (
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                          )}
+                        </button>
                         <button
                           onClick={() => handleCopyLink(q)}
                           title={copiedQuoteId === q.id ? 'Copiado!' : 'Copiar link do paciente'}
