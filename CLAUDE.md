@@ -19,8 +19,8 @@ There are no automated tests. TypeScript (`npx tsc --noEmit`) is the primary cor
 
 ### Stack
 - **Next.js 16** (App Router) — server components fetch data and pass as props to a single `*Client.tsx` file per page. No mixing of server/client code in the same file.
-- **Supabase auto-hospedado na VPS** (Coolify, serviço `supabase-vitta-core`, API em `https://api-vittadesk.app.vacivitta.com.br`) — PostgreSQL 15 + Auth + Realtime + Storage. Stack enxuta: sem analytics, edge functions nem supavisor. Não é o supabase.com.
-- **Produção:** `https://vittadesk.com.br`, na VPS desde 26/10/2026. A imagem `ghcr.io/vacivitta/vitta-core` é gerada pelo GitHub Actions a cada push na `main` e o Coolify faz o deploy. Detalhes e histórico em `docs/migracao-vps/runbook.md`.
+- **Self-hosted Supabase on the VPS** (Coolify, service `supabase-vitta-core`, API at `https://api-vittadesk.app.vacivitta.com.br`) — PostgreSQL 15 + Auth + Realtime + Storage. Lean stack: no analytics, edge functions or supavisor. It is not supabase.com.
+- **Production:** `https://vittadesk.com.br`, on the VPS since 2026-10-26. GitHub Actions builds the `ghcr.io/vacivitta/vitta-core` image on every push to `main` and Coolify deploys it. Details and history in `docs/migracao-vps/runbook.md`.
 - **Tailwind CSS v4** — utility classes plus inline `style={}` for dynamic values
 - **Meta Graph API v20.0** — WhatsApp Business messaging
 
@@ -63,14 +63,14 @@ Templates with `{{N}}` variables require:
 3. At send time, `variable_order` is read to build the `components` parameter with resolved values
 
 ### Database migrations
-Migrations live in `supabase/migrations/` as plain SQL files numbered sequentially (e.g., `057_*.sql`). Nunca edite uma migração já aplicada; crie outra.
+Migrations live in `supabase/migrations/` as plain SQL files numbered sequentially (e.g., `057_*.sql`). Never edit a migration that has already been applied; create a new one.
 
-- **Não há banco local nem Supabase Studio/SQL Editor do supabase.com.** Não rode nada contra produção para testar: escreva a migração, valide sintaxe e lógica por leitura e abra o PR.
-- **Aplicar em produção exige aprovação humana explícita** (com o arquivo revisado antes) e é feito pelo Infra ou pelo humano, por SSH na VPS, com `psql` dentro do contêiner do Postgres do serviço `supabase-vitta-core`, em transação única (`--single-transaction`, `ON_ERROR_STOP=1`). Depois, registrar a versão em `supabase_migrations.schema_migrations` e executar `notify pgrst, 'reload schema'`. Procedimento na skill `supabase-vps`.
-- Migração destrutiva (DROP, DELETE, ALTER que perde dado) só com backup feito antes (há backup diário do VittaCore, ver runbook) e aprovação específica.
-- **Consultas em produção: somente leitura**, via SSH + `psql` com `set default_transaction_read_only = on`. Prefira contagens e agregados; não traga dados de pessoas (LGPD).
-- Depois de mexer no schema, atualize `src/types/database.ts` e rode o typecheck.
-- RLS ligado em todas as tabelas de `public`, por `unit_id`; nunca desligue RLS para testar.
+- **There is no local database and no supabase.com SQL Editor.** Never run anything against production to test: write the migration, check syntax and logic by reading, and open a PR. The self-hosted Supabase Studio exists on the VPS (a Coolify service container that is normally stopped to save memory); it is not for applying migrations — ask Infra if you need it.
+- **Applying in production requires explicit human approval** (with the file reviewed beforehand) and is done by Infra or the human, over SSH on the VPS, running `psql` inside the Postgres container of the `supabase-vitta-core` service in a single transaction (`--single-transaction`, `ON_ERROR_STOP=1`). Afterwards, record the version in `supabase_migrations.schema_migrations` and run `notify pgrst, 'reload schema'`. Procedure in the `supabase-vps` skill.
+- Before applying, confirm with Infra that today's backup exists (see the runbook); do not assume it. Destructive migrations (DROP, DELETE, ALTER that loses data) also need a fresh backup and specific approval.
+- **Production queries are read-only**: SSH + `psql` with `set default_transaction_read_only = on`. Prefer counts and aggregates; never pull personal data (LGPD).
+- After changing the schema, update `src/types/database.ts` and run the typecheck.
+- RLS is on for every `public` table, scoped by `unit_id`; never disable it to test.
 
 ### Types
 `src/types/database.ts` is the single source of truth for all entity shapes. It exports both interfaces and utility types (`displayName`, `QUOTE_STATUS_LABELS`, etc.). Supabase query results are cast to these types at the server component layer before being passed to clients.
