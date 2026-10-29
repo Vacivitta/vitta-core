@@ -13,6 +13,22 @@
 -- índices e o trigger de updated_at (função handle_wa_templates_updated_at(),
 -- corpo não colhido). Pendência do PR-D.
 
+-- Guarda: só roda em banco NOVO (montado do zero pelas migrações). Aborta se
+-- houver dados em leads ou se o registro de versões já tiver a linha de base 089
+-- (banco que já passou da 089, como a produção). Não basta o registro existir:
+-- a CLI do Supabase cria a tabela num banco local novo antes de aplicar as migrações.
+DO $$
+DECLARE ja_passou boolean := false;
+BEGIN
+  IF to_regclass('supabase_migrations.schema_migrations') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations WHERE version >= ''089'')'
+      INTO ja_passou;
+  END IF;
+  IF ja_passou OR (to_regclass('public.leads') IS NOT NULL AND EXISTS (SELECT 1 FROM public.leads)) THEN
+    RAISE EXCEPTION '%: só para banco novo (há dados em leads ou o registro já passou da 089)', '066b';
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.wa_templates (
   id               uuid        NOT NULL DEFAULT gen_random_uuid(),
   unit_id          uuid        NOT NULL,

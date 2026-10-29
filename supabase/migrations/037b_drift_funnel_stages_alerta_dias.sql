@@ -16,6 +16,22 @@
 -- Em produção este arquivo fica coberto pela linha de base 089 do registro de
 -- versões e nunca é aplicado.
 
+-- Guarda: só roda em banco NOVO (montado do zero pelas migrações). Aborta se
+-- houver dados em leads ou se o registro de versões já tiver a linha de base 089
+-- (banco que já passou da 089, como a produção). Não basta o registro existir:
+-- a CLI do Supabase cria a tabela num banco local novo antes de aplicar as migrações.
+DO $$
+DECLARE ja_passou boolean := false;
+BEGIN
+  IF to_regclass('supabase_migrations.schema_migrations') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations WHERE version >= ''089'')'
+      INTO ja_passou;
+  END IF;
+  IF ja_passou OR (to_regclass('public.leads') IS NOT NULL AND EXISTS (SELECT 1 FROM public.leads)) THEN
+    RAISE EXCEPTION '%: só para banco novo (há dados em leads ou o registro já passou da 089)', '037b';
+  END IF;
+END $$;
+
 ALTER TABLE public.funnel_stages ADD COLUMN IF NOT EXISTS alerta_dias integer;
 
 DROP VIEW IF EXISTS public.leads_kanban;

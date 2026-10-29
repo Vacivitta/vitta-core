@@ -22,6 +22,17 @@
 
 SET LOCAL lock_timeout = '5s';
 
+-- Guarda: exige transação única. Fora de uma transação o SET LOCAL acima não vale
+-- (lock_timeout continua no padrão), e um erro depois do laço de DROP abaixo
+-- deixaria as tabelas sem policy nenhuma (RLS ligado = tudo negado = atendimento
+-- parado). Rodar com psql --single-transaction.
+DO $$
+BEGIN
+  IF current_setting('lock_timeout') <> '5s' THEN
+    RAISE EXCEPTION '092: rode com --single-transaction (lock_timeout atual: %)', current_setting('lock_timeout');
+  END IF;
+END $$;
+
 -- ── 1. Funções ───────────────────────────────────────────────────────────────
 -- Texto de pg_get_functiondef em produção.
 CREATE OR REPLACE FUNCTION public.is_admin()
