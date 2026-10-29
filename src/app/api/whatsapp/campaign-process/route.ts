@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   // ── Configs WhatsApp (sempre o número da unidade da campanha) ───────────────
   const { phoneNumberId, accessToken } = await getWaCredentials(campaign.unit_id)
   if (!phoneNumberId || !accessToken) {
-    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
+    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
   }
 
   // ── Marca campanha como "enviando" ──────────────────────────────────────────

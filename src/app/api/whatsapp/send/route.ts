@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   const creds = await getWaCredentials(conv.unit_id)
 
   if (!creds.phoneNumberId || !creds.accessToken) {
-    return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
+    return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
   }
 
   console.log(`[WA send] payload para Meta:`, JSON.stringify(metaPayload))

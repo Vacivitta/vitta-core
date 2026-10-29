@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
   const unitId = profile?.unit_id ?? undefined
 
   const { wabaId, accessToken } = await getCredentials(unitId)
-  if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 500 })
-  if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
+  if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 503 })
+  if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
 
   const fields = 'id,name,status,category,language,components,rejected_reason'
   const url    = `${META}/${wabaId}/message_templates?fields=${fields}&limit=100`
@@ -167,8 +167,8 @@ export async function POST(req: NextRequest) {
   const unitId = profile.unit_id ?? undefined
 
   const { wabaId, accessToken } = await getCredentials(unitId)
-  if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 500 })
-  if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
+  if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 503 })
+  if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
 
   const body = await req.json() as CreateTemplateBody
 
@@ -243,8 +243,8 @@ export async function DELETE(req: NextRequest) {
   const unitId = profile.unit_id ?? undefined
 
   const { wabaId, accessToken } = await getCredentials(unitId)
-  if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 500 })
-  if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
+  if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 503 })
+  if (!accessToken) return NextResponse.json({ error: 'Token não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
 
   const name   = req.nextUrl.searchParams.get('name')
   const hsmId  = req.nextUrl.searchParams.get('hsm_id')

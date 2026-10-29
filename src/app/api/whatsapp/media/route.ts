@@ -24,8 +24,7 @@ export async function GET(req: NextRequest) {
 
   const { accessToken } = await getWaCredentials(unitId)
   if (!accessToken) {
-    console.error('[WA media] unidade sem WhatsApp configurado:', unitId)
-    return new NextResponse('Token não configurado', { status: 500 })
+    return new NextResponse('WhatsApp não configurado para esta unidade', { status: 503 })
   }
 
   // 1. Busca a URL temporária do arquivo

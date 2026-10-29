@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
   // 2. Envia o template pelo Meta
   const creds = await getWaCredentials(unit_id)
   if (!creds.phoneNumberId || !creds.accessToken)
-    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
+    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tpl: any = { name: template_name, language: { code: language } }

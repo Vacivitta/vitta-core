@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
  * Valida o header `X-Hub-Signature-256` enviado pela Meta (HMAC-SHA256 do corpo
  * bruto com o App Secret). Sem isso, qualquer um pode forjar mensagens recebidas.
  * Sem `WHATSAPP_APP_SECRET` não há como validar, então a requisição é recusada
- * (o POST responde 500 antes de chegar aqui, e a Meta reenvia depois).
+ * (o POST responde 503 antes de chegar aqui, e a Meta reenvia depois).
  *
  * @param rawBody - Corpo da requisição exatamente como recebido
  * @param signature - Valor do header `X-Hub-Signature-256` (formato `sha256=<hex>`)
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
   const appSecret = process.env.WHATSAPP_APP_SECRET
   if (!appSecret) {
     console.error('[WA webhook] WHATSAPP_APP_SECRET não configurado — requisição recusada sem processar')
-    return new NextResponse('Webhook não configurado', { status: 500 })
+    return new NextResponse('Webhook não configurado', { status: 503 })
   }
 
   if (!isValidSignature(rawBody, req.headers.get('x-hub-signature-256'), appSecret)) {
