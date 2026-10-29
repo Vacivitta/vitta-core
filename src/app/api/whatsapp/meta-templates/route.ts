@@ -160,8 +160,11 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const admin = adminClient()
-  const { data: profile } = await admin.from('profiles').select('unit_id').eq('id', user.id).single()
-  const unitId = profile?.unit_id ?? undefined
+  const { data: profile } = await admin.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  if (!profile || profile.perfil === 'atendente') {
+    return NextResponse.json({ error: 'Sem permissão para alterar modelos de WhatsApp' }, { status: 403 })
+  }
+  const unitId = profile.unit_id ?? undefined
 
   const { wabaId, accessToken } = await getCredentials(unitId)
   if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 500 })
@@ -233,8 +236,11 @@ export async function DELETE(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const admin = adminClient()
-  const { data: profile } = await admin.from('profiles').select('unit_id').eq('id', user.id).single()
-  const unitId = profile?.unit_id ?? undefined
+  const { data: profile } = await admin.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  if (!profile || profile.perfil === 'atendente') {
+    return NextResponse.json({ error: 'Sem permissão para alterar modelos de WhatsApp' }, { status: 403 })
+  }
+  const unitId = profile.unit_id ?? undefined
 
   const { wabaId, accessToken } = await getCredentials(unitId)
   if (!wabaId)      return NextResponse.json({ error: 'WABA ID não configurado. Acesse Configurações → WhatsApp API e salve o WABA ID.' }, { status: 500 })
