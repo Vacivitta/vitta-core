@@ -954,7 +954,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <LeadContextView detail={leadDetail} conv={selectedConv} onOpen={lead => setModalLead(lead)} onUnlink={unlinkLead}
                 onCreateQuote={() => setOrcamentoLeadId(selectedConv.lead_id)}
                 onSchedule={() => router.push('/agenda')}
-                onTransfer={openTransferModal} />
+                onTransfer={isAtendente ? undefined : openTransferModal} />
             ) : (
               <LinkLeadView showPanel={showLinkPanel} onToggle={() => setShowLinkPanel(v => !v)}
                 searchQ={linkSearchQ} onSearch={setLinkSearchQ} results={linkResults} searching={linkSearching}
@@ -1639,7 +1639,7 @@ function quoteStatusStyle(s: string): React.CSSProperties {
 function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSchedule, onTransfer }: {
   detail: LeadDetail; conv: WaConversation
   onOpen: (l: LeadKanban) => void; onUnlink: () => void
-  onCreateQuote: () => void; onSchedule: () => void; onTransfer: () => void
+  onCreateQuote: () => void; onSchedule: () => void; onTransfer?: () => void
 }) {
   const { lead, latestNote, tasks, contacts, lastQuote } = detail
   const fmtDate = (s: string) => format(new Date(s), "d MMM 'às' HH:mm", { locale: ptBR })
@@ -1819,14 +1819,16 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             Agendar tarefa
           </button>
         </div>
-        <button onClick={onTransfer}
-          style={{ width: '100%', padding: 10, fontSize: 11.5, fontWeight: 800, color: '#4F46E5', background: '#fff', border: '1px solid #C7D2FE', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
-        >
-          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-          Transferir unidade
-        </button>
+        {onTransfer && (
+          <button onClick={onTransfer}
+            style={{ width: '100%', padding: 10, fontSize: 11.5, fontWeight: 800, color: '#4F46E5', background: '#fff', border: '1px solid #C7D2FE', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+          >
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+            Transferir unidade
+          </button>
+        )}
       </div>
     </div>
   )
