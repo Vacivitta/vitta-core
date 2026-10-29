@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const phoneNumberId = creds.phoneNumberId
     const accessToken   = creds.accessToken
     if (!phoneNumberId || !accessToken)
-      return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
+      return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
 
     let mime = normalizeMime(file.type)
 

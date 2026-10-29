@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
   const { accessToken } = await getWaCredentials(unitId)
   const appId       = process.env.WHATSAPP_APP_ID || ''
 
-  if (!accessToken) return NextResponse.json({ error: 'Token não configurado' }, { status: 500 })
-  if (!appId)       return NextResponse.json({ error: 'WHATSAPP_APP_ID não configurado nas variáveis de ambiente' }, { status: 500 })
+  if (!accessToken) return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
+  if (!appId)       return NextResponse.json({ error: 'WHATSAPP_APP_ID não configurado nas variáveis de ambiente' }, { status: 503 })
 
   const formData = await req.formData()
   const file = formData.get('file') as File | null

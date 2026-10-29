@@ -34,7 +34,8 @@ const SEM_CREDENCIAIS: WaCredentials = { phoneNumberId: '', accessToken: '', ver
  * Não há fallback para as variáveis de ambiente: elas são o número da clínica, e
  * uma unidade sem `wa_config` (ex.: uma unidade nova) enviaria por ele. Sem
  * configuração, devolve campos vazios — os chamadores já tratam isso como
- * "WhatsApp não configurado".
+ * "WhatsApp não configurado" (503). Registra no log qual parte falta, sem
+ * nunca registrar o token.
  *
  * @param unitId - Unidade dona do envio; sem unidade, não há credenciais
  */
@@ -57,6 +58,16 @@ export async function getWaCredentials(unitId: string | null | undefined): Promi
         wabaId:        data.waba_id      ?? '',
       }
     }
+
+    // Só presença dos campos — nunca o valor do token
+    console.warn(
+      `[WA credenciais] unidade ${unitId} sem WhatsApp utilizável:`,
+      data
+        ? `wa_config ativo incompleto (phone_number_id: ${data.phone_number_id ? 'ok' : 'falta'}, access_token: ${data.access_token ? 'ok' : 'falta'})`
+        : `nenhum wa_config ativo${result.error ? ` (erro na consulta: ${result.error.message})` : ''}`,
+    )
+  } else {
+    console.warn('[WA credenciais] chamada sem unidade — envio bloqueado')
   }
 
   return SEM_CREDENCIAIS
