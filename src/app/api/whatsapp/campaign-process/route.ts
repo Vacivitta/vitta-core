@@ -272,6 +272,18 @@ export async function PATCH(req: NextRequest) {
 
   const supabase = adminClient()
 
+  // Mesma autorização do POST: vínculo com a unidade da campanha e perfil acima de atendente
+  const { data: campaign } = await supabase.from('wa_campaigns').select('unit_id').eq('id', campaign_id).maybeSingle()
+  if (!campaign) return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 })
+
+  const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
+  if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+  if (profile.perfil === 'atendente') {
+    return NextResponse.json({ error: 'Sem permissão para alterar campanhas' }, { status: 403 })
+  }
+
   const newStatus = action === 'cancel' ? 'cancelada' : 'pausada'
   const { error } = await supabase
     .from('wa_campaigns')
