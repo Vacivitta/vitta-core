@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -264,7 +265,7 @@ async function handleSendTemplate(
   const metaData = await metaRes.json() as { messages?: { id: string }[] }
 
   if (!metaRes.ok) {
-    console.error('[wa-automation] send_template failed:', JSON.stringify(metaData))
+    console.error(`[wa-automation] send_template failed conversa=${conversationId}:`, resumoErro(metaData))
     return
   }
 

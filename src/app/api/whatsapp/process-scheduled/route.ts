@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
+import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -101,7 +102,7 @@ async function handler(req: NextRequest) {
       const metaData = await metaRes.json() as { messages?: { id: string }[]; error?: { message: string } }
 
       if (!metaRes.ok) {
-        console.error(`[process-scheduled] erro Meta id=${msg.id} type=${msg.type} response=${JSON.stringify(metaData)}`)
+        console.error(`[process-scheduled] erro Meta id=${msg.id} type=${msg.type}:`, resumoErro(metaData))
         await admin.from('wa_scheduled_messages').update({ status: 'failed' }).eq('id', msg.id)
         continue
       }
