@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { canAccessUnit } from '@/lib/auth/access'
+import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
 
 interface TransferPayload {
   leadId:      string
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   // Perfil e acesso à unidade destino (a tela só lista unidades vinculadas, pelo RLS de units)
   const { data: perfilRow } = await admin.from('profiles').select('perfil').eq('id', user.id).single()
-  if (!perfilRow || perfilRow.perfil === 'atendente') {
+  if (!perfilRow || !isPerfilGestor(perfilRow.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para transferir leads' }, { status: 403 })
   }
   if (!(await canAccessUnit(supabase, user.id, targetUnitId))) {
