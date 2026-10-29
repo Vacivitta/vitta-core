@@ -36,19 +36,15 @@ export async function GET(req: NextRequest) {
 /**
  * Valida o header `X-Hub-Signature-256` enviado pela Meta (HMAC-SHA256 do corpo
  * bruto com o App Secret). Sem isso, qualquer um pode forjar mensagens recebidas.
- * Enquanto `WHATSAPP_APP_SECRET` não estiver configurado, aceita a requisição e
- * registra um aviso — para não derrubar o recebimento de mensagens.
+ * Sem `WHATSAPP_APP_SECRET` não há como validar, então a requisição é recusada
+ * (o POST responde 500 antes de chegar aqui, e a Meta reenvia depois).
  *
  * @param rawBody - Corpo da requisição exatamente como recebido
  * @param signature - Valor do header `X-Hub-Signature-256` (formato `sha256=<hex>`)
- * @returns `true` se a assinatura confere (ou se a validação ainda não está ativa)
+ * @param secret - App Secret da Meta (`WHATSAPP_APP_SECRET`)
+ * @returns `true` só se a assinatura confere
  */
-function isValidSignature(rawBody: string, signature: string | null): boolean {
-  const secret = process.env.WHATSAPP_APP_SECRET
-  if (!secret) {
-    console.warn('[WA webhook] WHATSAPP_APP_SECRET não configurado — assinatura NÃO validada')
-    return true
-  }
+function isValidSignature(rawBody: string, signature: string | null, secret: string): boolean {
   if (!signature?.startsWith('sha256=')) return false
 
   const expected = Buffer.from(createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex'), 'hex')
@@ -80,7 +76,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!isValidSignature(rawBody, req.headers.get('x-hub-signature-256'))) {
+  const appSecret = process.env.WHATSAPP_APP_SECRET
+  if (!appSecret) {
+    console.error('[WA webhook] WHATSAPP_APP_SECRET não configurado — requisição recusada sem processar')
+    return new NextResponse('Webhook não configurado', { status: 500 })
+  }
+
+  if (!isValidSignature(rawBody, req.headers.get('x-hub-signature-256'), appSecret)) {
     console.warn('[WA webhook] assinatura inválida — requisição rejeitada')
     return new NextResponse('Forbidden', { status: 403 })
   }

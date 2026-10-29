@@ -1,29 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { canAccessUnit } from '@/lib/auth/access'
+import { getWaCredentials } from '@/lib/whatsapp/credentials'
 
 // GET /api/whatsapp/media?id={media_id}[&unit_id={unit_id}]
-// Proxy para buscar mídia do Meta — não expõe o access token ao client
+// Proxy para buscar mídia do Meta — não expõe o access token ao client.
+// Usa o token da unidade informada (ou da unidade ativa do usuário), só se o
+// usuário tiver vínculo com ela.
 export async function GET(req: NextRequest) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
   const mediaId = req.nextUrl.searchParams.get('id')
-  const unitId  = req.nextUrl.searchParams.get('unit_id')
-  if (!mediaId) return new NextResponse('Missing id', { status: 400 })
+  let unitId = req.nextUrl.searchParams.get('unit_id')
+  if (!unitId) {
+    const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).maybeSingle()
+    unitId = profile?.unit_id ?? null
+  }
+  if (!unitId || !(await canAccessUnit(supabase, user.id, unitId))) {
+    return new NextResponse('Forbidden', { status: 403 })
+  }
 
-  const admin = createAdminClient()
-  const q = admin.from('wa_config').select('access_token').eq('is_active', true)
-  const { data: config, error: cfgErr } = await (unitId ? q.eq('unit_id', unitId) : q)
-    .order('updated_at', { ascending: false })
-    .limit(1).maybeSingle()
-
-  if (cfgErr) console.error('[WA media] erro ao buscar wa_config:', cfgErr.message)
-
-  const accessToken = config?.access_token ?? process.env.WHATSAPP_ACCESS_TOKEN
+  const { accessToken } = await getWaCredentials(unitId)
   if (!accessToken) {
-    console.error('[WA media] nenhum token encontrado. config:', config, 'cfgErr:', cfgErr?.message)
+    console.error('[WA media] unidade sem WhatsApp configurado:', unitId)
     return new NextResponse('Token não configurado', { status: 500 })
   }
 

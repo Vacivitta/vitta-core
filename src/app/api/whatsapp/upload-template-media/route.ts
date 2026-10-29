@@ -3,7 +3,7 @@
  * Faz upload de imagem para o Meta usando a Resumable Upload API,
  * retornando o handle necessário para cabeçalho IMAGE de templates.
  *
- * Requer env: WHATSAPP_APP_ID, WHATSAPP_ACCESS_TOKEN (ou wa_config no banco)
+ * Requer env: WHATSAPP_APP_ID; o token vem do `wa_config` da unidade ativa do usuário.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -28,8 +28,7 @@ export async function POST(req: NextRequest) {
   const { data: profile } = await admin.from('profiles').select('unit_id').eq('id', user.id).single()
   const unitId = profile?.unit_id ?? undefined
 
-  const creds = await getWaCredentials(unitId)
-  const accessToken = creds.accessToken || process.env.WHATSAPP_ACCESS_TOKEN || ''
+  const { accessToken } = await getWaCredentials(unitId)
   const appId       = process.env.WHATSAPP_APP_ID || ''
 
   if (!accessToken) return NextResponse.json({ error: 'Token não configurado' }, { status: 500 })
