@@ -5,6 +5,7 @@ import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { canAccessUnit }            from '@/lib/auth/access'
 import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
+import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
   if (components && components.length > 0) tpl.components = components
   const metaPayload = { messaging_product: 'whatsapp', to: destino, type: 'template', template: tpl }
 
-  console.log(`[start-conv] payload para Meta:`, JSON.stringify(metaPayload))
+  console.log(`[start-conv] enviando template=${template_name} unidade=${unit_id}`)
 
   const metaRes  = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
     method:  'POST',
@@ -166,12 +167,12 @@ export async function POST(req: NextRequest) {
   const metaData = await metaRes.json() as { messages?: { id: string }[]; error?: { message: string } }
 
   if (!metaRes.ok) {
-    console.error('[start-conv] Meta erro:', JSON.stringify(metaData))
+    console.error(`[start-conv] Meta erro unidade=${unit_id}:`, resumoErro(metaData))
     return NextResponse.json({ error: metaData.error?.message ?? 'Falha ao enviar template' }, { status: metaRes.status })
   }
 
   const waMessageId = metaData.messages?.[0]?.id ?? null
-  console.log(`[start-conv] enviado para=${destino} template=${template_name} wamid=${waMessageId} phone_number_id=${creds.phoneNumberId}`)
+  console.log(`[start-conv] enviado conversa=${conv.id} template=${template_name} wamid=${waMessageId}`)
   const preview     = `📋 ${template_name}`
 
   // 3. Salva mensagem outbound

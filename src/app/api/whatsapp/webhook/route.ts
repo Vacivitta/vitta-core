@@ -6,6 +6,7 @@ import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { MIGRACAO_VPS_URL }         from '@/lib/migracao'
 import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
+import { resumoErro } from '@/lib/log-seguro'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
 export const maxDuration = 60
@@ -234,7 +235,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
       .select('id, lead_id, profile_picture_url')
       .maybeSingle()
     if (convErr || !data) {
-      console.error('[WA webhook] erro ao upsert conversa de', waPhone, contactName ?? '', convErr)
+      console.error(`[WA webhook] erro ao upsert conversa unidade=${unitId} msg=${msg.id}:`, resumoErro(convErr))
       return
     }
     conv = data
@@ -276,7 +277,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     .maybeSingle()
 
   if (msgErr) {
-    console.error('[WA webhook] erro ao inserir mensagem:', msgErr)
+    console.error(`[WA webhook] erro ao inserir mensagem ${msg.id}:`, resumoErro(msgErr))
     return
   }
 
@@ -605,12 +606,12 @@ async function autoLinkOrCreateLead(
           return null
         }
       } else {
-        console.error('[WA webhook] erro ao criar lead:', leadErr)
+        console.error('[WA webhook] erro ao criar lead:', resumoErro(leadErr))
         return null
       }
     } else {
       leadId = newLead!.id
-      console.log(`[WA webhook] novo lead criado: ${leadId} (${nome})`)
+      console.log(`[WA webhook] novo lead criado: ${leadId}`)
     }
   }
 
