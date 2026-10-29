@@ -131,3 +131,10 @@ copiar para a origem o delta gerado na VPS.
 - Nenhuma. Tudo pronto para a troca de 26/10.
 
 Resolvidas: `WHATSAPP_APP_ID`/`WHATSAPP_APP_SECRET` no Coolify (validados na Meta em 23/10), connection string da origem (testada 23/10), backup no R2 (etapa 4.1), SMTP do Auth via Brevo, token do Coolify só de deploy no GitHub Actions.
+
+## Registro de migrações e restauração (desde 28–29/10/2026)
+- **Registro de versões:** `supabase_migrations.schema_migrations` não existia na VPS. É criado uma vez por `docs/migracao-vps/registro-migracoes.sql` (Infra, com aprovação, como `supabase_admin`), com uma linha de base `089` para 001–089. Não registrar 001–089 uma a uma: a 085 foi aplicada só em parte e algumas migrações antigas não rodam num banco do zero.
+- **Cada migração nova** (090 em diante): aplicar com `--single-transaction`, registrar a versão (`INSERT ... (version, name) VALUES ('0NN', '<nome>') ON CONFLICT DO NOTHING`) e rodar `notify pgrst, 'reload schema'`.
+- **Nunca usar a CLI do Supabase contra a produção** (`db push`, `migration repair`, `db reset`): ela tentaria aplicar 001–089.
+- **Papel:** migração com GRANT/REVOKE ou que substitui função `SECURITY DEFINER` roda como `supabase_admin`. Como `postgres`, o REVOKE não tem efeito e só gera aviso.
+- **Depois de qualquer restauração do backup:** reaplicar a `090_function_execute_grants.sql` como `supabase_admin` e conferir com `has_function_privilege('anon', ..., 'EXECUTE')`, que deve dar `false` nas funções `SECURITY DEFINER`. O teste de restauração de 29/10 mostrou que o dump traz de volta os grants antigos e reabre essas funções ao `anon`. A correção de raiz (privilégios padrão) é a migração 091, ainda a aplicar.

@@ -66,11 +66,19 @@ Templates with `{{N}}` variables require:
 Migrations live in `supabase/migrations/` as plain SQL files numbered sequentially (e.g., `057_*.sql`). Never edit a migration that has already been applied; create a new one.
 
 - **There is no local database and no supabase.com SQL Editor.** Never run anything against production to test: write the migration, check syntax and logic by reading, and open a PR. The self-hosted Supabase Studio exists on the VPS (a Coolify service container that is normally stopped to save memory); it is not for applying migrations — ask Infra if you need it.
-- **Applying in production requires explicit human approval** (with the file reviewed beforehand) and is done by Infra or the human, over SSH on the VPS, running `psql` inside the Postgres container of the `supabase-vitta-core` service in a single transaction (`--single-transaction`, `ON_ERROR_STOP=1`). Afterwards, record the version in `supabase_migrations.schema_migrations` and run `notify pgrst, 'reload schema'`. Procedure in the `supabase-vps` skill.
-- Before applying, confirm with Infra that today's backup exists (see the runbook); do not assume it. Destructive migrations (DROP, DELETE, ALTER that loses data) also need a fresh backup and specific approval.
+- **Applying in production requires explicit human approval** (with the file reviewed beforehand) and is done by Infra or the human, over SSH on the VPS, running `psql` inside the Postgres container of the `supabase-vitta-core` service in a single transaction (`--single-transaction`, `ON_ERROR_STOP=1`; no `BEGIN`/`COMMIT` inside the file). Afterwards, record the version and run `notify pgrst, 'reload schema'`. Procedure in the `supabase-vps` skill.
+- **Run as `supabase_admin`** any migration that grants/revokes privileges or replaces a `SECURITY DEFINER` function: it owns those functions and granted their privileges, so a `REVOKE` run as `postgres` silently does nothing (that is why 085's revokes never took effect).
+- **Version registry:** `supabase_migrations.schema_migrations`, created by `docs/migracao-vps/registro-migracoes.sql`. Migrations 001–089 are covered by a single baseline row (`089`); from 090 on, each applied migration inserts its own row (`version` = number only, e.g. `090`).
+- **Never use the Supabase CLI against production** (`db push`, `migration repair`, `db reset`): it does not see 001–089 in the registry and would try to apply them.
+- **`SECURITY DEFINER` functions:** revoke `EXECUTE` from `PUBLIC` and `anon` explicitly (and from `authenticated` unless the browser calls it), and prove it after applying with `has_function_privilege(...)`, not by reading the migration. Only `is_global_admin`, `is_admin`, `record_stage_history` and `get_agent_stats` are executable by `authenticated` today (migration 090).
+- **After any database restore, re-apply migration 090 as `supabase_admin`** and check `has_function_privilege`: the dump restores the old grants and reopens those functions to `anon` (restore test of 2026-10-29).
+- Before applying, confirm with Infra that today's backup exists and that restoring it has been tested (see the runbook); do not assume it. Destructive migrations (DROP, DELETE, ALTER that loses data) also need a fresh backup and specific approval.
 - **Production queries are read-only**: SSH + `psql` with `set default_transaction_read_only = on`. Prefer counts and aggregates; never pull personal data (LGPD).
 - After changing the schema, update `src/types/database.ts` and run the typecheck.
 - RLS is on for every `public` table, scoped by `unit_id`; never disable it to test.
+
+### Public routes
+Routes without a logged-in user (e.g. the public quote link) use the service-role client on the server with their own checks (e.g. by `token_publico`). Do not rely on the `anon` key reading tables or calling RPCs: helper functions such as `is_global_admin()` are no longer executable by `anon`, so those calls now fail instead of returning empty results.
 
 ### Types
 `src/types/database.ts` is the single source of truth for all entity shapes. It exports both interfaces and utility types (`displayName`, `QUOTE_STATUS_LABELS`, etc.). Supabase query results are cast to these types at the server component layer before being passed to clients.
