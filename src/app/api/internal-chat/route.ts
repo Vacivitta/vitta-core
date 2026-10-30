@@ -22,6 +22,15 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
 
   if (channelId) {
+    // Só lê mensagens de canal do qual a unidade do usuário participa (mesma regra do POST)
+    const { data: channel } = await admin
+      .from('internal_channels')
+      .select('unit_a_id, unit_b_id')
+      .eq('id', channelId)
+      .maybeSingle()
+    if (!channel || (channel.unit_a_id !== profile.unit_id && channel.unit_b_id !== profile.unit_id))
+      return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 })
+
     const { data: msgs, error } = await admin
       .from('internal_channel_messages')
       .select('id, channel_id, autor_id, conteudo, created_at, media_url, media_type, autor:profiles(id, full_name, apelido)')

@@ -26,11 +26,20 @@ function adminClient() {
   return _admin as any
 }
 
+const SEM_CREDENCIAIS: WaCredentials = { phoneNumberId: '', accessToken: '', verifyToken: '', wabaId: '' }
+
 /**
- * Retorna as credenciais do WhatsApp para uma unidade.
- * Prioridade: wa_config no banco → env vars (compatibilidade).
+ * Retorna as credenciais do WhatsApp da unidade, lidas do `wa_config` ativo dela.
+ *
+ * Não há fallback para as variáveis de ambiente: elas são o número da clínica, e
+ * uma unidade sem `wa_config` (ex.: uma unidade nova) enviaria por ele. Sem
+ * configuração, devolve campos vazios — os chamadores já tratam isso como
+ * "WhatsApp não configurado" (503). Registra no log qual parte falta, sem
+ * nunca registrar o token.
+ *
+ * @param unitId - Unidade dona do envio; sem unidade, não há credenciais
  */
-export async function getWaCredentials(unitId?: string): Promise<WaCredentials> {
+export async function getWaCredentials(unitId: string | null | undefined): Promise<WaCredentials> {
   if (unitId) {
     const result = await adminClient()
       .from('wa_config')
@@ -49,14 +58,19 @@ export async function getWaCredentials(unitId?: string): Promise<WaCredentials> 
         wabaId:        data.waba_id      ?? '',
       }
     }
+
+    // Só presença dos campos — nunca o valor do token
+    console.warn(
+      `[WA credenciais] unidade ${unitId} sem WhatsApp utilizável:`,
+      data
+        ? `wa_config ativo incompleto (phone_number_id: ${data.phone_number_id ? 'ok' : 'falta'}, access_token: ${data.access_token ? 'ok' : 'falta'})`
+        : `nenhum wa_config ativo${result.error ? ` (erro na consulta: ${result.error.message})` : ''}`,
+    )
+  } else {
+    console.warn('[WA credenciais] chamada sem unidade — envio bloqueado')
   }
 
-  return {
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
-    accessToken:   process.env.WHATSAPP_ACCESS_TOKEN    ?? '',
-    verifyToken:   process.env.WHATSAPP_VERIFY_TOKEN    ?? '',
-    wabaId:        process.env.WHATSAPP_WABA_ID         ?? '',
-  }
+  return SEM_CREDENCIAIS
 }
 
 /**

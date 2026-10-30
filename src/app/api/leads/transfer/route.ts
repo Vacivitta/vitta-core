@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canAccessUnit } from '@/lib/auth/access'
 
 interface TransferPayload {
   leadId:      string
@@ -18,7 +19,8 @@ interface TransferPayload {
  * POST /api/leads/transfer
  * Body: { leadId, targetUnitId, targetFunnelId, observacao }
  * Resposta: { ok: true } | { error: string }
- * Erros: 401 (não autenticado), 400 (campos faltando), 404 (lead/funil não encontrado), 403 (mesma unidade), 500
+ * Só gestor ou admin, e só para uma unidade à qual o usuário tem acesso (admin global ou user_units).
+ * Erros: 401 (não autenticado), 400 (campos faltando), 404 (lead/funil não encontrado), 403 (sem permissão, sem acesso ao destino ou mesma unidade), 500
  */
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -37,6 +39,15 @@ export async function POST(req: NextRequest) {
   if (!ownLead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
 
   const admin = createAdminClient()
+
+  // Perfil e acesso à unidade destino (a tela só lista unidades vinculadas, pelo RLS de units)
+  const { data: perfilRow } = await admin.from('profiles').select('perfil').eq('id', user.id).single()
+  if (!perfilRow || perfilRow.perfil === 'atendente') {
+    return NextResponse.json({ error: 'Sem permissão para transferir leads' }, { status: 403 })
+  }
+  if (!(await canAccessUnit(supabase, user.id, targetUnitId))) {
+    return NextResponse.json({ error: 'Sem acesso à unidade destino' }, { status: 403 })
+  }
 
   // O funil destino precisa ser da unidade destino — senão o lead some do kanban
   const { data: targetFunnel } = await admin

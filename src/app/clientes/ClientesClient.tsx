@@ -29,7 +29,7 @@ export default function ClientesClient({
   initialClients, initialError, units, defaultFunnelId, defaultStageId,
 }: Props) {
   const supabase    = createClient()
-  const { profile } = useProfile()
+  const { profile, isGestor } = useProfile()
 
   const [clients,    setClients]    = useState<Lead[]>(initialClients)
   const [fetchError, setFetchError] = useState<string | null>(initialError)
@@ -293,7 +293,7 @@ export default function ClientesClient({
                 <li key={i} className="text-xs text-amber-700">
                   {group.map(c => `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`).join(' · ')}
                   {group[0].telefone && <span className="text-amber-500 ml-1">({group[0].telefone})</span>}
-                  <button
+                  {isGestor && (<button
                     onClick={() => {
                       const toDelete = group[group.length - 1]
                       void handleDelete(toDelete.id)
@@ -301,7 +301,7 @@ export default function ClientesClient({
                     className="ml-2 underline hover:no-underline text-amber-600"
                   >
                     Remover duplicata
-                  </button>
+                  </button>)}
                 </li>
               ))}
             </ul>
@@ -401,19 +401,21 @@ export default function ClientesClient({
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
                       </button>
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        disabled={deleting === c.id}
-                        className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
-                        style={{ color: '#9AA79C' }}
-                        onMouseEnter={e => { e.currentTarget.style.color = '#C05B3A'; e.currentTarget.style.background = '#F9E7E0' }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
-                        title="Excluir"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      {isGestor && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          disabled={deleting === c.id}
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
+                          style={{ color: '#9AA79C' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#C05B3A'; e.currentTarget.style.background = '#F9E7E0' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
+                          title="Excluir"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

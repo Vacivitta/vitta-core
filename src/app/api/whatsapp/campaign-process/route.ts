@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { canAccessUnit }            from '@/lib/auth/access'
+import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 
 const META_API_URL  = 'https://graph.facebook.com/v20.0'
 const BATCH_SIZE    = 10     // mensagens por lote (conservador — evita timeout Vercel)
@@ -52,9 +54,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Campanha no status "${campaign.status}" não pode ser disparada` }, { status: 422 })
   }
 
-  // Verifica que o usuário pertence à mesma unidade
-  const { data: profile } = await supabase.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
-  if (!profile || profile.unit_id !== campaign.unit_id) {
+  // Verifica que o usuário tem vínculo com a unidade da campanha
+  const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
+  if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
   if (profile.perfil === 'atendente') {
@@ -70,11 +72,10 @@ export async function POST(req: NextRequest) {
 
   if (!template) return NextResponse.json({ error: 'Template não encontrado' }, { status: 404 })
 
-  // ── Configs WhatsApp ────────────────────────────────────────────────────────
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
-  const accessToken   = process.env.WHATSAPP_ACCESS_TOKEN
+  // ── Configs WhatsApp (sempre o número da unidade da campanha) ───────────────
+  const { phoneNumberId, accessToken } = await getWaCredentials(campaign.unit_id)
   if (!phoneNumberId || !accessToken) {
-    return NextResponse.json({ error: 'Variáveis de WhatsApp não configuradas' }, { status: 500 })
+    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
   }
 
   // ── Marca campanha como "enviando" ──────────────────────────────────────────
@@ -168,7 +169,7 @@ export async function POST(req: NextRequest) {
 
       // 401: token inválido — para a campanha definitivamente
       if (res.status === 401) {
-        errMsg = 'Token de acesso inválido (401) — verifique WHATSAPP_ACCESS_TOKEN'
+        errMsg = 'Token de acesso inválido (401) — verifique o token em Configurações → WhatsApp API'
         stopCampaign = true
       } else {
         const data = await res.json() as { messages?: { id: string }[]; error?: { message: string } }
@@ -270,6 +271,18 @@ export async function PATCH(req: NextRequest) {
   if (!campaign_id || !action) return NextResponse.json({ error: 'campaign_id e action obrigatórios' }, { status: 400 })
 
   const supabase = adminClient()
+
+  // Mesma autorização do POST: vínculo com a unidade da campanha e perfil acima de atendente
+  const { data: campaign } = await supabase.from('wa_campaigns').select('unit_id').eq('id', campaign_id).maybeSingle()
+  if (!campaign) return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 })
+
+  const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
+  if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+  if (profile.perfil === 'atendente') {
+    return NextResponse.json({ error: 'Sem permissão para alterar campanhas' }, { status: 403 })
+  }
 
   const newStatus = action === 'cancel' ? 'cancelada' : 'pausada'
   const { error } = await supabase

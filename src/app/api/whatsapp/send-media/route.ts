@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
+import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -48,12 +49,12 @@ export async function POST(req: NextRequest) {
     const phoneNumberId = creds.phoneNumberId
     const accessToken   = creds.accessToken
     if (!phoneNumberId || !accessToken)
-      return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 500 })
+      return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
 
     let mime = normalizeMime(file.type)
 
     const inputSize = file.size
-    console.log(`[send-media] input: mime=${mime} size=${inputSize}B name=${file.name}`)
+    console.log(`[send-media] input: conversa=${conversation_id} mime=${mime} size=${inputSize}B`)
 
     let uploadFile: File = file
     let permanentUrl: string | null = null
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       }
       if (!storageErr) {
         permanentUrl = admin.storage.from('wa-media').getPublicUrl(fileName).data.publicUrl
-        console.log(`[send-media] stored in Supabase: ${permanentUrl}`)
+        console.log(`[send-media] arquivo guardado no Storage conversa=${conversation_id}`)
       } else {
         console.warn('[send-media] Supabase Storage upload failed, using Meta media ID only:', storageErr.message)
       }
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
     let uploadData: { id?: string; error?: unknown }
     try { uploadData = JSON.parse(uploadText) } catch { uploadData = {} }
 
-    console.log(`[send-media] upload status=${uploadRes.status} mime=${mime} name=${uploadFile.name} body=${uploadText.slice(0, 300)}`)
+    console.log(`[send-media] upload status=${uploadRes.status} mime=${mime}`)
 
     if (!uploadRes.ok || !uploadData.id) {
       return NextResponse.json({ error: 'Falha no upload da mídia', details: uploadData }, { status: 502 })
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
       })
       sendData = await sendRes.json() as typeof sendData
 
-      console.log(`[send-media] send attempt=${attempt + 1} status=${sendRes.status} type=${msgType} response=${JSON.stringify(sendData).slice(0, 300)}`)
+      console.log(`[send-media] send attempt=${attempt + 1} status=${sendRes.status} type=${msgType}`)
 
       if (sendRes.ok) { sendOk = true; break }
       if (!sendData.error?.is_transient) break
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!sendOk) {
-      console.error('[send-media] Meta send error:', JSON.stringify(sendData))
+      console.error(`[send-media] Meta send error conversa=${conversation_id}:`, resumoErro(sendData))
       return NextResponse.json({ error: 'Falha ao enviar mídia', details: sendData }, { status: 502 })
     }
 

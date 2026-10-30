@@ -19,7 +19,8 @@ There are no automated tests. TypeScript (`npx tsc --noEmit`) is the primary cor
 
 ### Stack
 - **Next.js 16** (App Router) — server components fetch data and pass as props to a single `*Client.tsx` file per page. No mixing of server/client code in the same file.
-- **Supabase** (project `kewupumnkvglodidwuqz`, region us-east-2) — PostgreSQL + Auth + Realtime + Storage
+- **Self-hosted Supabase on the VPS** (Coolify, service `supabase-vitta-core`, API at `https://api-vittadesk.app.vacivitta.com.br`) — PostgreSQL 15 + Auth + Realtime + Storage. Lean stack: no analytics, edge functions or supavisor. It is not supabase.com.
+- **Production:** `https://vittadesk.com.br`, on the VPS since 2026-10-26. GitHub Actions builds the `ghcr.io/vacivitta/vitta-core` image on every push to `main` and Coolify deploys it. Details and history in `docs/migracao-vps/runbook.md`.
 - **Tailwind CSS v4** — utility classes plus inline `style={}` for dynamic values
 - **Meta Graph API v20.0** — WhatsApp Business messaging
 
@@ -62,7 +63,22 @@ Templates with `{{N}}` variables require:
 3. At send time, `variable_order` is read to build the `components` parameter with resolved values
 
 ### Database migrations
-Migrations live in `supabase/migrations/` as plain SQL files numbered sequentially (e.g., `057_*.sql`). Apply via the Supabase SQL Editor or `supabase db push`. There is no local Supabase instance — all development is against the hosted project.
+Migrations live in `supabase/migrations/` as plain SQL files numbered sequentially (e.g., `057_*.sql`). Never edit a migration that has already been applied; create a new one.
+
+- **There is no local database and no supabase.com SQL Editor.** Never run anything against production to test: write the migration, check syntax and logic by reading, and open a PR. The self-hosted Supabase Studio exists on the VPS (a Coolify service container that is normally stopped to save memory); it is not for applying migrations — ask Infra if you need it.
+- **Applying in production requires explicit human approval** (with the file reviewed beforehand) and is done by Infra or the human, over SSH on the VPS, running `psql` inside the Postgres container of the `supabase-vitta-core` service in a single transaction (`--single-transaction`, `ON_ERROR_STOP=1`; no `BEGIN`/`COMMIT` inside the file). Afterwards, record the version and run `notify pgrst, 'reload schema'`. Procedure in the `supabase-vps` skill.
+- **Run as `supabase_admin`** any migration that grants/revokes privileges or replaces a `SECURITY DEFINER` function: it owns those functions and granted their privileges, so a `REVOKE` run as `postgres` silently does nothing (that is why 085's revokes never took effect).
+- **Version registry:** `supabase_migrations.schema_migrations`, created by `docs/migracao-vps/registro-migracoes.sql`. Migrations 001–089 are covered by a single baseline row (`089`); from 090 on, each applied migration inserts its own row (`version` = number only, e.g. `090`). **Insert the row as `supabase_admin`**: in production (Postgres 15.8) `postgres` is not a superuser and cannot write to the registry, on purpose (it can only read it, through `pg_read_all_data`).
+- **Never use the Supabase CLI against production** (`db push`, `migration repair`, `db reset`): it does not see 001–089 in the registry and would try to apply them.
+- **`SECURITY DEFINER` functions:** revoke `EXECUTE` from `PUBLIC` and `anon` explicitly (and from `authenticated` unless the browser calls it), and prove it after applying with `has_function_privilege(...)`, not by reading the migration. Only `is_global_admin`, `is_admin`, `record_stage_history` and `get_agent_stats` are executable by `authenticated` today (migration 090).
+- **After any database restore, re-apply migration 090 as `supabase_admin`** and check `has_function_privilege` — this step is **mandatory**: the restore reopens those functions to `anon` **and** `authenticated` (restore test of 2026-10-29). The default-privileges fix planned for migration 091 keeps `anon` closed after a restore, but `authenticated` still comes back on the 12 restricted functions, so it does not replace this step.
+- Before applying, confirm with Infra that today's backup exists and that restoring it has been tested (see the runbook); do not assume it. Destructive migrations (DROP, DELETE, ALTER that loses data) also need a fresh backup and specific approval.
+- **Production queries are read-only**: SSH + `psql` with `set default_transaction_read_only = on`. Prefer counts and aggregates; never pull personal data (LGPD).
+- After changing the schema, update `src/types/database.ts` and run the typecheck.
+- RLS is on for every `public` table, scoped by `unit_id`; never disable it to test.
+
+### Public routes
+Routes without a logged-in user (e.g. the public quote link) use the service-role client on the server with their own checks (e.g. by `token_publico`). `src/proxy.ts` lets these paths through **without a session**: `/api/whatsapp*` (all of it), `/api/orcamento/respond` and `/api/orcamento/check-expiring`. Any new route under those paths must authenticate by itself (user session, `CRON_SECRET`, webhook signature or public token). Do not rely on the `anon` key reading tables or calling RPCs: helper functions such as `is_global_admin()` are no longer executable by `anon`, so those calls now fail instead of returning empty results.
 
 ### Types
 `src/types/database.ts` is the single source of truth for all entity shapes. It exports both interfaces and utility types (`displayName`, `QUOTE_STATUS_LABELS`, etc.). Supabase query results are cast to these types at the server component layer before being passed to clients.

@@ -4,6 +4,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
+import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -67,10 +68,10 @@ export async function POST(req: NextRequest) {
   const creds = await getWaCredentials(conv.unit_id)
 
   if (!creds.phoneNumberId || !creds.accessToken) {
-    return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 500 })
+    return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
   }
 
-  console.log(`[WA send] payload para Meta:`, JSON.stringify(metaPayload))
+  console.log(`[WA send] enviando conversa=${conversation_id} unidade=${conv.unit_id} tipo=${type}`)
 
   let metaData: MetaResponse = {}
   let metaOk = false
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!metaOk) {
-    console.error('[WA send] erro da API do Meta:', metaData)
+    console.error(`[WA send] erro da API do Meta conversa=${conversation_id}:`, resumoErro(metaData))
     return NextResponse.json(
       { error: 'Falha ao enviar mensagem', details: metaData },
       { status: 502 }
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (msgErr) {
-    console.error('[WA send] erro ao salvar mensagem:', msgErr)
+    console.error(`[WA send] erro ao salvar mensagem conversa=${conversation_id}:`, resumoErro(msgErr))
     // Não retorna erro — a mensagem já foi enviada ao Meta
   }
 

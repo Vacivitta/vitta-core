@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 const MULTI_UNIT_PERFIS = ['admin', 'gestor_vacivitta']
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
     .upsert(upsertPayload as any, { onConflict: 'unit_id' })
 
   if (error) {
-    console.error('[wa_config] upsert error:', error)
+    console.error('[wa_config] upsert error:', resumoErro(error))
     return NextResponse.json({ error: 'Erro ao salvar configuração' }, { status: 500 })
   }
 
