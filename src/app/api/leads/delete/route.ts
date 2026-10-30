@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { canAccessUnit } from '@/lib/auth/access'
+import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   // Só gestor ou admin, com vínculo à unidade do lead (admin global ou user_units)
   const { data: profile } = await admin.from('profiles').select('perfil').eq('id', user.id).single()
-  if (!profile || profile.perfil === 'atendente' || !(await canAccessUnit(supabase, user.id, lead.unit_id))) {
+  if (!profile || !isPerfilGestor(profile.perfil) || !(await canAccessUnit(supabase, user.id, lead.unit_id))) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 

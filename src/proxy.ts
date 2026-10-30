@@ -28,6 +28,9 @@ export async function proxy(request: NextRequest) {
     })
   }
 
+  // Health check do Coolify: só este caminho exato, sem sessão
+  if (pathname === '/api/saude') return NextResponse.next({ request })
+
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
   if (isPublic) return NextResponse.next({ request })
 

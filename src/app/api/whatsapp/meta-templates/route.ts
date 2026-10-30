@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { isPerfilGestor } from '@/lib/auth/access'
 
 const META = 'https://graph.facebook.com/v20.0'
 
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
 
   const admin = adminClient()
   const { data: profile } = await admin.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
-  if (!profile || profile.perfil === 'atendente') {
+  if (!profile || !isPerfilGestor(profile.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para alterar modelos de WhatsApp' }, { status: 403 })
   }
   const unitId = profile.unit_id ?? undefined
@@ -237,7 +238,7 @@ export async function DELETE(req: NextRequest) {
 
   const admin = adminClient()
   const { data: profile } = await admin.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
-  if (!profile || profile.perfil === 'atendente') {
+  if (!profile || !isPerfilGestor(profile.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para alterar modelos de WhatsApp' }, { status: 403 })
   }
   const unitId = profile.unit_id ?? undefined
