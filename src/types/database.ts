@@ -19,10 +19,14 @@ export interface Tenant {
   criado_em:  string
 }
 
+export type UnitTipo = 'clinica' | 'comercial'
+
 export interface Unit {
   id:         string
   tenant_id:  string
   nome:       string
+  /** Migração 093. Lead só muda entre unidades de tipos diferentes por admin global. */
+  tipo:       UnitTipo
   cidade:     string | null
   estado:     string | null
   telefone:   string | null

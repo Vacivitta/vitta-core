@@ -20,6 +20,7 @@ interface TransferPayload {
  * Body: { leadId, targetUnitId, targetFunnelId, observacao }
  * Resposta: { ok: true } | { error: string }
  * Só gestor ou admin, e só para uma unidade à qual o usuário tem acesso (admin global ou user_units).
+ * Entre unidades de tipos diferentes (clínica x comercial), só admin global.
  * Erros: 401 (não autenticado), 400 (campos faltando), 404 (lead/funil não encontrado), 403 (sem permissão, sem acesso ao destino ou mesma unidade), 500
  */
 export async function POST(req: NextRequest) {
@@ -64,6 +65,11 @@ export async function POST(req: NextRequest) {
 
   if (lead.unit_id === targetUnitId) {
     return NextResponse.json({ error: 'Lead já pertence a esta unidade' }, { status: 403 })
+  }
+
+  // Clínica x comercial: transferência entre tipos diferentes só por admin global
+  if (!(await mesmoTipoOuAdmin(admin, supabase, lead.unit_id, targetUnitId))) {
+    return NextResponse.json({ error: 'Transferência entre clínica e comercial só por um administrador' }, { status: 403 })
   }
 
   // Verifica se já existe lead com mesmo telefone na unidade destino
@@ -177,4 +183,32 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ ok: true })
+}
+
+/**
+ * Confere se as duas unidades têm o mesmo tipo (clínica/comercial) ou se o
+ * usuário é admin global. Antes da migração 093 a coluna `tipo` não existe e todas
+ * as unidades são clínica: nesse caso (erro 42703) o tipo vale 'clinica' para as
+ * duas (mesmo comportamento de hoje). Qualquer outro erro de consulta bloqueia.
+ *
+ * @param admin - Client service-role
+ * @param userClient - Client com a sessão do usuário (para `is_global_admin`)
+ * @param origemId - Unidade atual do lead
+ * @param destinoId - Unidade destino
+ */
+async function mesmoTipoOuAdmin(
+  admin: ReturnType<typeof createAdminClient>,
+  userClient: Awaited<ReturnType<typeof createClient>>,
+  origemId: string | null,
+  destinoId: string,
+): Promise<boolean> {
+  const ids = [origemId, destinoId].filter((x): x is string => !!x)
+  const { data, error } = await admin.from('units').select('id, tipo').in('id', ids)
+  // 42703 = coluna inexistente (093 ainda não aplicada). Qualquer outro erro bloqueia.
+  if (error && error.code !== '42703') return false
+  const tipoDe = (id: string | null) =>
+    error ? 'clinica' : ((data ?? []).find(u => u.id === id)?.tipo ?? 'clinica')
+  if (tipoDe(origemId) === tipoDe(destinoId)) return true
+  const { data: isAdmin } = await userClient.rpc('is_global_admin')
+  return isAdmin === true
 }
