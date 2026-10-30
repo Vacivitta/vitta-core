@@ -40,3 +40,20 @@ export async function canAccessUnit(userClient: SupabaseClient, userId: string, 
   ])
   return isAdmin === true || !!link
 }
+
+/**
+ * Perfis com poder de gestão (apagar e transferir lead, alterar modelos de
+ * WhatsApp, pausar campanha). Mesma lista da função is_gestor() do banco
+ * (migração 113). Lista explícita: um perfil novo não ganha esse poder sem
+ * entrar aqui.
+ */
+export const PERFIS_GESTOR = ['admin', 'gestor_vacivitta', 'gestor_unidade'] as const
+
+/**
+ * Indica se o perfil está na lista de gestão.
+ *
+ * @param perfil - Valor de `profiles.perfil` (ou nulo)
+ */
+export function isPerfilGestor(perfil: string | null | undefined): boolean {
+  return !!perfil && (PERFIS_GESTOR as readonly string[]).includes(perfil)
+}

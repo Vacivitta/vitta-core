@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { canAccessUnit }            from '@/lib/auth/access'
+import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
 import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 
 const META_API_URL  = 'https://graph.facebook.com/v20.0'
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
-  if (profile.perfil === 'atendente') {
+  if (!isPerfilGestor(profile.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para disparar campanhas' }, { status: 403 })
   }
 
@@ -280,7 +280,7 @@ export async function PATCH(req: NextRequest) {
   if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
-  if (profile.perfil === 'atendente') {
+  if (!isPerfilGestor(profile.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para alterar campanhas' }, { status: 403 })
   }
 
