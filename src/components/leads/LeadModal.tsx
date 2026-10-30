@@ -929,9 +929,8 @@ function LeadDrawer({
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                   Editar dados
                 </button>
-                {!isArchived && !isAtendente && (
-                  <>
-                    <button
+                {!isArchived && (
+                  <button
                       onClick={openTransferModal}
                       title="Transferir para outra unidade"
                       style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
@@ -939,7 +938,9 @@ function LeadDrawer({
                       onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                    </button>
+                  </button>
+                )}
+                {!isArchived && !isAtendente && (
                     <button
                       onClick={() => setArchiveModal(true)}
                       title="Arquivar contato"
@@ -949,7 +950,6 @@ function LeadDrawer({
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
                     </button>
-                  </>
                 )}
               </>
             ) : (

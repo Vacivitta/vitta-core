@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
+import { canAccessUnit } from '@/lib/auth/access'
 
 interface TransferPayload {
   leadId:      string
@@ -19,9 +19,9 @@ interface TransferPayload {
  * POST /api/leads/transfer
  * Body: { leadId, targetUnitId, targetFunnelId, observacao }
  * Resposta: { ok: true } | { error: string }
- * Só gestor ou admin, e só para uma unidade à qual o usuário tem acesso (admin global ou user_units).
+ * Qualquer perfil (inclusive atendente), mas só para uma unidade à qual o usuário tem acesso (admin global ou user_units).
  * Entre unidades de tipos diferentes (clínica x comercial), só admin global.
- * Erros: 401 (não autenticado), 400 (campos faltando), 404 (lead/funil não encontrado), 403 (sem permissão, sem acesso ao destino ou mesma unidade), 500
+ * Erros: 401 (não autenticado), 400 (campos faltando), 404 (lead/funil não encontrado), 403 (sem acesso ao destino, clínica x comercial ou mesma unidade), 500
  */
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -41,11 +41,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Perfil e acesso à unidade destino (a tela só lista unidades vinculadas, pelo RLS de units)
-  const { data: perfilRow } = await admin.from('profiles').select('perfil').eq('id', user.id).single()
-  if (!perfilRow || !isPerfilGestor(perfilRow.perfil)) {
-    return NextResponse.json({ error: 'Sem permissão para transferir leads' }, { status: 403 })
-  }
+  // Qualquer perfil transfere, mas só para unidade vinculada (a tela só lista essas, pelo RLS de units)
   if (!(await canAccessUnit(supabase, user.id, targetUnitId))) {
     return NextResponse.json({ error: 'Sem acesso à unidade destino' }, { status: 403 })
   }

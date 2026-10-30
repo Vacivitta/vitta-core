@@ -954,7 +954,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <LeadContextView detail={leadDetail} conv={selectedConv} onOpen={lead => setModalLead(lead)} onUnlink={unlinkLead}
                 onCreateQuote={() => setOrcamentoLeadId(selectedConv.lead_id)}
                 onSchedule={() => router.push('/agenda')}
-                onTransfer={isAtendente ? undefined : openTransferModal} />
+                onTransfer={openTransferModal} />
             ) : (
               <LinkLeadView showPanel={showLinkPanel} onToggle={() => setShowLinkPanel(v => !v)}
                 searchQ={linkSearchQ} onSearch={setLinkSearchQ} results={linkResults} searching={linkSearching}
