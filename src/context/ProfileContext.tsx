@@ -63,7 +63,11 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       .from('profiles')
       .update({ unit_id: unitId })
       .eq('id', profile.id)
-    if (error) { console.error('[switchUnit]', error.message); return }
+    if (error) {
+      console.error('[switchUnit]', error.message)
+      alert('Não foi possível trocar de unidade. Tente de novo ou fale com o administrador.')
+      return
+    }
     setProfile(prev => prev ? { ...prev, unit_id: unitId } : prev)
     window.location.reload()
   }, [profile, supabase])
