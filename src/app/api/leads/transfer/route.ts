@@ -68,7 +68,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Clínica x comercial: transferência entre tipos diferentes só por admin global
-  if (!(await mesmoTipoOuAdmin(admin, supabase, lead.unit_id, targetUnitId))) {
+  const tipos = await conferirTipos(admin, supabase, lead.unit_id, targetUnitId)
+  if (tipos === 'erro') {
+    return NextResponse.json({ error: 'Não foi possível conferir o tipo das unidades. Tente de novo.' }, { status: 503 })
+  }
+  if (tipos === 'bloqueado') {
     return NextResponse.json({ error: 'Transferência entre clínica e comercial só por um administrador' }, { status: 403 })
   }
 
@@ -187,7 +191,8 @@ export async function POST(req: NextRequest) {
 
 /**
  * Confere se as duas unidades têm o mesmo tipo (clínica/comercial) ou se o
- * usuário é admin global. Antes da migração 093 a coluna `tipo` não existe e todas
+ * usuário é admin global: 'ok' libera, 'bloqueado' é tipo diferente sem ser
+ * admin (403) e 'erro' é falha na consulta (503, sem dizer que é clínica x comercial). Antes da migração 093 a coluna `tipo` não existe e todas
  * as unidades são clínica: nesse caso (erro 42703) o tipo vale 'clinica' para as
  * duas (mesmo comportamento de hoje). Qualquer outro erro de consulta bloqueia.
  *
@@ -196,19 +201,20 @@ export async function POST(req: NextRequest) {
  * @param origemId - Unidade atual do lead
  * @param destinoId - Unidade destino
  */
-async function mesmoTipoOuAdmin(
+async function conferirTipos(
   admin: ReturnType<typeof createAdminClient>,
   userClient: Awaited<ReturnType<typeof createClient>>,
   origemId: string | null,
   destinoId: string,
-): Promise<boolean> {
+): Promise<'ok' | 'bloqueado' | 'erro'> {
   const ids = [origemId, destinoId].filter((x): x is string => !!x)
   const { data, error } = await admin.from('units').select('id, tipo').in('id', ids)
   // 42703 = coluna inexistente (093 ainda não aplicada). Qualquer outro erro bloqueia.
-  if (error && error.code !== '42703') return false
+  if (error && error.code !== '42703') return 'erro'
   const tipoDe = (id: string | null) =>
     error ? 'clinica' : ((data ?? []).find(u => u.id === id)?.tipo ?? 'clinica')
-  if (tipoDe(origemId) === tipoDe(destinoId)) return true
-  const { data: isAdmin } = await userClient.rpc('is_global_admin')
-  return isAdmin === true
+  if (tipoDe(origemId) === tipoDe(destinoId)) return 'ok'
+  const { data: isAdmin, error: adminErr } = await userClient.rpc('is_global_admin')
+  if (adminErr) return 'erro'
+  return isAdmin === true ? 'ok' : 'bloqueado'
 }
