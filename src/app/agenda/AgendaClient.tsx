@@ -12,6 +12,7 @@ import type { LeadTask, Profile } from '@/types/database'
 import { displayName } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import DateTimePicker from '@/components/ui/DateTimePicker'
+import { useProfile } from '@/hooks/useProfile'
 import Drawer from '@/components/ui/Drawer'
 import TarefasPanel from '@/components/agenda/TarefasPanel'
 
@@ -647,6 +648,9 @@ function TaskDetailModal({
   onUpdated: () => void
 }) {
   const supabase = createClient()
+  const { profile, isGestor } = useProfile()
+  // Mesma regra do banco (migração 116): responsável, tarefa sem responsável ou gestor
+  const podeExcluir = isGestor || !task.responsavel_id || task.responsavel_id === profile?.id
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -729,15 +733,17 @@ function TaskDetailModal({
               >
                 Editar
               </button>
-              <button
-                onClick={() => setConfirm(true)}
-                className="py-2 px-3 text-[#9AA79C] hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                title="Excluir"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+              {podeExcluir && (
+                <button
+                  onClick={() => setConfirm(true)}
+                  className="py-2 px-3 text-[#9AA79C] hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                  title="Excluir"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
             </>
           )}
         </div>
