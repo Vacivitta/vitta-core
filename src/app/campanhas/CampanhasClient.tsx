@@ -4,8 +4,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile }  from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from './page'
-import { format } from 'date-fns'
-import { ptBR }   from 'date-fns/locale'
+import { formatarTelefone, normalizarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
+import {
+  descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar, type ResultadoLote,
+} from '@/lib/whatsapp/campanha-regras'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,7 +18,7 @@ interface LeadAudience {
 
 interface XlsContact {
   nome: string
-  telefone: string   // já normalizado E.164 sem +
+  telefone: string
   raw: string        // linha original para debug
 }
 
@@ -30,9 +32,20 @@ interface Props {
 
 type WizardStep = 1 | 2 | 3
 
-const STATUS_LABEL: Record<string, string> = {
-  rascunho: 'Rascunho', agendada: 'Agendada', enviando: 'Enviando',
-  pausada: 'Pausada', concluida: 'Concluída', cancelada: 'Cancelada',
+type ResultadoResumo =
+  | Exclude<ResultadoLote, { tipo: 'limite_diario' }>
+  | (Omit<Extract<ResultadoLote, { tipo: 'limite_diario' }>, 'retomarEm'> & { retomarEm: string })
+
+function mensagemDoLote(r: ResultadoResumo | null): string {
+  if (!r) return 'Envio iniciado; continua sozinho a cada minuto.'
+  switch (r.tipo) {
+    case 'continua':      return `${r.enviados} enviadas agora; o restante continua sozinho a cada minuto.`
+    case 'concluida':     return `${r.enviados} enviadas · campanha concluída.`
+    case 'limite_diario': return `Limite diário do número atingido; retoma em ${formatarDataHora(new Date(r.retomarEm))}.`
+    case 'pausada':       return `Pausada: ${r.detalhe}`
+    case 'ocupada':       return 'Envio em andamento; continua sozinho a cada minuto.'
+    case 'ignorada':      return `Campanha ${r.status}.`
+  }
 }
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   rascunho:  { bg: '#F1EFE5', text: '#71856F' },
@@ -145,9 +158,14 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
   const sentPct = c.total_recipients > 0 ? Math.round(c.sent_count / c.total_recipients * 100) : 0
   const optoutPct = c.sent_count > 0 ? (c.optout_count / c.sent_count * 100).toFixed(1) : '0'
 
-  const canDispatch = ['rascunho', 'agendada', 'pausada'].includes(c.status)
-  const canPause    = c.status === 'enviando'
-  const canCancel   = ['rascunho', 'agendada', 'pausada'].includes(c.status)
+  const estado = lerEstadoCampanha(c)
+  const agora = new Date()
+  const canDispatch = !!estado && podeDisparar(estado, agora).ok
+  const canPause    = estado?.status === 'enviando' || (estado?.status === 'pausada' && estado.motivo === 'limite_diario')
+  const canCancel   = ['rascunho', 'agendada', 'pausada', 'enviando'].includes(c.status)
+  const statusTexto = estado
+    ? descreverStatus(estado, { enviados: c.sent_count, total: c.total_recipients }, agora)
+    : c.status
 
   async function handleDispatch() {
     setActing(true); setActionMsg('Iniciando envio...')
@@ -155,10 +173,10 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ campaign_id: c.id }),
     })
-    const data = await res.json() as { status?: string; reason?: string; sent?: number; error?: string }
-    if (!res.ok) { setActionMsg(data.error ?? 'Erro ao disparar'); setActing(false); return }
-    setActionMsg(`${data.sent} enviadas · status: ${data.status}`)
+    const data = await res.json() as { resultado?: ResultadoResumo | null; error?: string }
     setActing(false)
+    if (!res.ok) { setActionMsg(data.error ?? 'Erro ao disparar'); return }
+    setActionMsg(mensagemDoLote(data.resultado ?? null))
   }
 
   async function handleAction(action: 'pause' | 'cancel') {
@@ -167,8 +185,12 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ campaign_id: c.id, action }),
     })
-    const data = await res.json() as { status?: string; error?: string }
-    if (res.ok && data.status) onUpdate({ ...c, status: data.status })
+    const data = await res.json() as { status?: string; motivo_pausa?: string | null; retomar_em?: string | null; error?: string }
+    if (res.ok && data.status) {
+      onUpdate({ ...c, status: data.status, motivo_pausa: data.motivo_pausa ?? null, retomar_em: data.retomar_em ?? null })
+    } else if (!res.ok) {
+      setActionMsg(data.error ?? 'Erro ao alterar a campanha')
+    }
     setActing(false)
   }
 
@@ -179,7 +201,7 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#25402C' }}>{c.nome}</span>
             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: sc.bg, color: sc.text }}>
-              {STATUS_LABEL[c.status] ?? c.status}
+              {statusTexto}
             </span>
             <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: '#F1EFE5', color: '#71856F' }}>
               {c.template_category === 'marketing' ? 'Marketing' : 'Utility'}
@@ -187,7 +209,8 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
           </div>
           <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>
             {c.template_nome ?? 'Template não definido'}
-            {c.scheduled_at && ` · Agendada para ${format(new Date(c.scheduled_at), "d MMM 'às' HH:mm", { locale: ptBR })}`}
+            {c.scheduled_at && c.status !== 'agendada' && ` · Agendada para ${formatarDataHora(new Date(c.scheduled_at))}`}
+            {` · Limite de ${c.daily_limit} envios por dia neste número`}
           </p>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -259,7 +282,7 @@ function CampaignCard({ c, onUpdate }: { c: CampaignRow; onUpdate: (c: CampaignR
             <button onClick={() => void handleAction('pause')} disabled={acting}
               style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, border: '1px solid #EBE7DA', borderRadius: 9,
                 cursor: 'pointer', background: '#fff', color: '#71856F' }}>
-              ⏸ Pausar
+              {c.status === 'pausada' ? '⏸ Não retomar sozinha' : '⏸ Pausar'}
             </button>
           )}
           {canCancel && (
@@ -308,8 +331,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
 
   // Step 3 — Revisão
   const [scheduleFor, setScheduleFor] = useState('')
-  const [dailyLimit] = useState(250)
-  const [cswMap, setCswMap] = useState<Record<string, boolean>>({}) // phone → in_csw
+  const [dailyLimit, setDailyLimit] = useState(250)
+  const [cswMap, setCswMap] = useState<Record<string, boolean>>({})
 
   const funnels = useMemo(() => {
     const seen = new Set<string>()
@@ -325,7 +348,10 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     return audienceRaw
       .filter(l => !l.wa_optout_at)
       .filter(l => includeNoOptin ? true : !!l.wa_optin_at)
-      .filter(l => !!l.telefone)
+      .flatMap(l => {
+        const norm = normalizarTelefone(l.telefone)
+        return norm ? [{ ...l, norm }] : []
+      })
   }, [audienceRaw, includeNoOptin, audienceSource])
 
   const activeAudienceCount = audienceSource === 'xls' ? xlsContacts.length : audience.length
@@ -345,12 +371,13 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     if (isMarketing) {
       return { freeCount: 0, paidCount: audience.length, totalUsd: audience.length * 0.0625 }
     }
-    const freeCount = audience.filter(l => cswMap[l.telefone ?? '']).length
+    const freeCount = audience.filter(l => cswMap[l.norm]).length
     const paidCount = audience.length - freeCount
     return { freeCount, paidCount, totalUsd: paidCount * 0.0068 }
   }, [audience, xlsContacts, selectedTemplate, isMarketing, cswMap, audienceSource])
 
-  const exceedsLimit = activeAudienceCount > dailyLimit
+  const limiteValido = Number.isInteger(dailyLimit) && dailyLimit >= 1
+  const diasDeEnvio = limiteValido ? Math.ceil(activeAudienceCount / dailyLimit) : 0
 
   async function loadAudience() {
     if (!currentUser.unit_id) return
@@ -372,17 +399,25 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     void checkCsw()
   }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // wa_phone é o wa_id da Meta (celular às vezes sem o 9): compara pelas variantes
   async function checkCsw() {
-    const phones = audience.map(l => l.telefone).filter(Boolean) as string[]
-    if (phones.length === 0) return
+    if (!currentUser.unit_id) return
+    const variantes = [...new Set(audience.flatMap(l => variantesTelefone(l.norm)))]
+    if (variantes.length === 0) return
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const { data } = await supabase
-      .from('wa_conversations')
-      .select('wa_phone, last_message_at')
-      .in('wa_phone', phones)
-      .gte('last_message_at', cutoff)
     const map: Record<string, boolean> = {}
-    for (const row of data ?? []) map[row.wa_phone] = true
+    for (let i = 0; i < variantes.length; i += 200) {
+      const { data } = await supabase
+        .from('wa_conversations')
+        .select('wa_phone')
+        .eq('unit_id', currentUser.unit_id)
+        .in('wa_phone', variantes.slice(i, i + 200))
+        .gte('last_message_at', cutoff)
+      for (const row of data ?? []) {
+        const norm = normalizarWaPhone(row.wa_phone)
+        if (norm) map[norm] = true
+      }
+    }
     setCswMap(map)
   }
 
@@ -390,7 +425,12 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     if (!nome.trim())              { setError('Informe o nome da campanha.'); return }
     if (!selectedTemplate)         { setError('Selecione um template.'); return }
     if (activeAudienceCount === 0) { setError('Nenhum destinatário válido.'); return }
-    if (exceedsLimit) { setError(`Audiência (${activeAudienceCount}) excede o limite diário da conta (${dailyLimit}).`); return }
+    if (!limiteValido) { setError('Informe um limite diário de pelo menos 1 envio.'); return }
+    // datetime-local vem sem fuso; new Date() lê no fuso do navegador
+    const agendadaPara = scheduleFor ? new Date(scheduleFor) : null
+    if (agendadaPara && (Number.isNaN(agendadaPara.getTime()) || agendadaPara.getTime() < Date.now())) {
+      setError('Escolha uma data de agendamento no futuro.'); return
+    }
 
     setSaving(true); setError('')
     try {
@@ -400,8 +440,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
         template_id:        selectedTemplate.id,
         template_nome:      selectedTemplate.name,
         template_category:  selectedTemplate.category === 'utility' ? 'utility' : 'marketing',
-        status:             scheduleFor ? 'agendada' : 'rascunho',
-        scheduled_at:       scheduleFor || null,
+        status:             agendadaPara ? 'agendada' : 'rascunho',
+        scheduled_at:       agendadaPara?.toISOString() ?? null,
         daily_limit:        dailyLimit,
         total_recipients:   activeAudienceCount,
         estimated_cost_usd: costEstimate.totalUsd,
@@ -428,20 +468,23 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
         : audience.map(l => ({
             campaign_id: campaign.id,
             lead_id:     l.id as string | null,
-            phone:       l.telefone!,
+            phone:       l.norm,
             nome:        [l.nome, l.sobrenome].filter(Boolean).join(' '),
             has_optin:   !!l.wa_optin_at,
-            in_csw:      !isMarketing && (cswMap[l.telefone ?? ''] ?? false),
-            cost_usd:    isMarketing ? 0.0625 : (!isMarketing && cswMap[l.telefone ?? '']) ? 0 : 0.0068,
+            in_csw:      !isMarketing && (cswMap[l.norm] ?? false),
+            cost_usd:    isMarketing ? 0.0625 : cswMap[l.norm] ? 0 : 0.0068,
           }))
 
-      // Insere em lotes de 100
       for (let i = 0; i < recipients.length; i += 100) {
-        await supabase.from('wa_campaign_recipients').insert(recipients.slice(i, i + 100))
+        const { error: errRecip } = await supabase.from('wa_campaign_recipients').insert(recipients.slice(i, i + 100))
+        if (errRecip) {
+          await supabase.from('wa_campaigns').delete().eq('id', campaign.id)
+          throw errRecip
+        }
       }
 
       onCreated(campaign as CampaignRow)
-    } catch (e) {
+    } catch {
       setError('Erro ao criar campanha. Tente novamente.')
       setSaving(false)
     }
@@ -570,7 +613,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                         <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid #F1EFE5' }}>
                           <span style={{ fontSize: 12, color: '#25402C' }}>{[l.nome, l.sobrenome].filter(Boolean).join(' ')}</span>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <span style={{ fontSize: 11, color: '#9AA79C' }}>{l.telefone}</span>
+                            <span style={{ fontSize: 11, color: '#9AA79C' }}>{formatarTelefone(l.norm)}</span>
                             {l.wa_optin_at
                               ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: '#DCFCE7', color: '#166534' }}>Autorizado WA</span>
                               : <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: '#FEF3E2', color: '#92400E' }}>Sem autorização</span>}
@@ -639,17 +682,18 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
           {/* ── Step 3: Revisão ── */}
           {step === 3 && (
             <div style={{ paddingBottom: 8 }}>
-              {/* Guardrail: limite diário */}
-              {exceedsLimit && (
-                <div style={{ padding: '12px 14px', background: '#FEE2E2', border: '1px solid #FECBA1', borderRadius: 10, marginBottom: 14 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#B91C1C', margin: 0 }}>
-                    Audiência ({activeAudienceCount}) excede o limite diário da conta ({dailyLimit} destinatários).
-                  </p>
-                  <p style={{ fontSize: 11, color: '#B91C1C', margin: '4px 0 0' }}>
-                    Reduza o número de destinatários ou divida em múltiplas campanhas em dias diferentes.
-                  </p>
-                </div>
-              )}
+              <div style={{ marginBottom: 14 }}>
+                <Label>Limite diário de envios</Label>
+                <input type="number" min={1} step={1} value={Number.isNaN(dailyLimit) ? '' : dailyLimit}
+                  onChange={e => setDailyLimit(e.target.valueAsNumber)}
+                  style={{ ...inputSt, marginTop: 4, width: 140 }} />
+                <p style={{ fontSize: 11, color: '#9AA79C', margin: '4px 0 0' }}>
+                  Vale para o número de WhatsApp da unidade, somando todas as campanhas no dia (horário de Brasília).
+                  Use o limite da sua conta na Meta (250 numa conta nova).
+                  Ao atingir, a campanha pausa e retoma sozinha à meia-noite.
+                  {limiteValido && diasDeEnvio > 1 && ` Com ${activeAudienceCount} destinatários, o envio leva pelo menos ${diasDeEnvio} dias.`}
+                </p>
+              </div>
 
               {/* Resumo */}
               <div style={{ border: '1px solid #EBE7DA', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
@@ -693,6 +737,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                 <input type="datetime-local" value={scheduleFor} onChange={e => setScheduleFor(e.target.value)}
                   style={{ ...inputSt, marginTop: 4 }} />
                 <p style={{ fontSize: 11, color: '#9AA79C', margin: '4px 0 0' }}>
+                  No seu horário local. O envio começa sozinho na hora marcada.
                   Deixe em branco para salvar como rascunho e disparar manualmente.
                 </p>
               </div>
@@ -736,11 +781,11 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                 Próximo
               </button>
             ) : (
-              <button onClick={() => void handleCreate()} disabled={saving || exceedsLimit}
+              <button onClick={() => void handleCreate()} disabled={saving}
                 style={{ padding: '9px 22px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
-                  cursor: saving || exceedsLimit ? 'default' : 'pointer',
-                  background: saving || exceedsLimit ? '#EBE7DA' : '#3E9849',
-                  color: saving || exceedsLimit ? '#9AA79C' : '#fff' }}>
+                  cursor: saving ? 'default' : 'pointer',
+                  background: saving ? '#EBE7DA' : '#3E9849',
+                  color: saving ? '#9AA79C' : '#fff' }}>
                 {saving ? 'Salvando...' : scheduleFor ? 'Agendar campanha' : 'Criar rascunho'}
               </button>
             )}
@@ -782,16 +827,6 @@ const selectSt: React.CSSProperties = {
 // Formato esperado: coluna "nome" e coluna "telefone" (qualquer ordem, header na 1ª linha).
 // Também aceita arquivo sem header se tiver exatamente 2 colunas (nome, telefone).
 
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (digits.length === 0) return ''
-  // Adiciona DDI 55 se não tiver
-  if (digits.startsWith('55') && digits.length >= 12) return digits
-  if (digits.length === 11 || digits.length === 10) return '55' + digits
-  if (digits.length === 13 && digits.startsWith('55')) return digits
-  return digits // retorna como está se não encaixar
-}
-
 function parseRows(text: string): XlsContact[] {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
   if (lines.length < 2) return []
@@ -821,8 +856,8 @@ function parseRows(text: string): XlsContact[] {
       rawPhone = cols[1] ?? ''
     }
 
-    const telefone = normalizePhone(rawPhone)
-    if (!telefone || telefone.length < 10) continue
+    const telefone = normalizarTelefone(rawPhone)
+    if (!telefone) continue
 
     results.push({ nome: nome || 'Contato', telefone, raw: lines[i] })
   }
@@ -916,7 +951,7 @@ function XlsImporter({ contacts, parsing, error, onParse, onParsing }: {
             {contacts.slice(0, 50).map((c, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 14px', borderTop: '1px solid #F1EFE5' }}>
                 <span style={{ fontSize: 12, color: '#25402C' }}>{c.nome}</span>
-                <span style={{ fontSize: 11, color: '#9AA79C' }}>{c.telefone}</span>
+                <span style={{ fontSize: 11, color: '#9AA79C' }}>{formatarTelefone(c.telefone)}</span>
               </div>
             ))}
             {contacts.length > 50 && (

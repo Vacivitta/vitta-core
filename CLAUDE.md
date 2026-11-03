@@ -56,6 +56,7 @@ Key API routes under `src/app/api/whatsapp/`:
 - `send/route.ts` — sends text or template messages
 - `schedule/route.ts` — creates/lists/cancels scheduled messages (`wa_scheduled_messages` table)
 - `process-scheduled/route.ts` — cron target; called every minute via pg_cron + pg_net; needs `Authorization: Bearer <CRON_SECRET>` header. All cron routes check it with `cronAutorizado()` (`src/lib/auth/cron.ts`), which rejects every call when `CRON_SECRET` is unset
+- `process-campaigns/route.ts` — cron target (`process-wa-campaigns`, every minute, `CRON_SECRET`): starts due scheduled campaigns, resumes those paused by the daily limit at São Paulo midnight and sends one batch per `enviando` campaign via `src/lib/whatsapp/campanha.ts`. Recipients are claimed with `reservar_destinatarios_campanha` (migration 123), so the cron and the Disparar button never double-send; the daily limit is per unit (number), summing all its campaigns
 - `meta-templates/route.ts` — CRUD for WhatsApp Business templates against Meta API
 
 ### WhatsApp template variables

@@ -48,6 +48,8 @@ DECLARE app text := current_setting('mig.app'); secret text := current_setting('
 BEGIN
   PERFORM cron.schedule('process-wa-scheduled-messages', '* * * * *',
     format(cmd, app || '/api/whatsapp/process-scheduled', 'Bearer ' || secret));
+  PERFORM cron.schedule('process-wa-campaigns', '* * * * *',
+    format(cmd, app || '/api/whatsapp/process-campaigns', 'Bearer ' || secret));
   PERFORM cron.schedule('process-timed-automations', '0 * * * *',
     format(cmd, app || '/api/whatsapp/process-timed-automations', 'Bearer ' || secret));
   PERFORM cron.schedule('check-expiring-quotes', '0 11 * * *',
