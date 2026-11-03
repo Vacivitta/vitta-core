@@ -9,11 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev      # dev server at http://localhost:3000
 npm run build    # production build (runs tsc + Next.js compilation)
-npm run lint     # eslint across the project
-npx tsc --noEmit --skipLibCheck   # type-check only, no output files
+npm run lint     # eslint; old errors are frozen in eslint-suppressions.json, new ones fail
+npm run typecheck # tsc --noEmit --skipLibCheck
+npm run test:db  # builds the database from scratch in Docker and runs tests/db (Linux + Docker; see tests/db/README.md)
 ```
 
-There are no automated tests. TypeScript (`npx tsc --noEmit`) is the primary correctness gate — run it after every change that touches `src/types/database.ts` or any shared type.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint and the database tests on every PR. There are no app-level tests yet. Run the typecheck after every change that touches `src/types/database.ts` or any shared type, and add a case to `tests/db/` for any migration that changes RLS, privileges or guards.
 
 ## Architecture
 
@@ -53,7 +54,7 @@ Key API routes under `src/app/api/whatsapp/`:
 - `webhook/route.ts` — receives Meta events (messages + status updates), calls `runAutoAssign`
 - `send/route.ts` — sends text or template messages
 - `schedule/route.ts` — creates/lists/cancels scheduled messages (`wa_scheduled_messages` table)
-- `process-scheduled/route.ts` — cron target; called every minute via pg_cron + pg_net; needs `Authorization: Bearer <CRON_SECRET>` header
+- `process-scheduled/route.ts` — cron target; called every minute via pg_cron + pg_net; needs `Authorization: Bearer <CRON_SECRET>` header. All cron routes check it with `cronAutorizado()` (`src/lib/auth/cron.ts`), which rejects every call when `CRON_SECRET` is unset
 - `meta-templates/route.ts` — CRUD for WhatsApp Business templates against Meta API
 
 ### WhatsApp template variables
