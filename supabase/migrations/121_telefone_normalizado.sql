@@ -47,6 +47,9 @@ BEGIN
   IF current_user <> 'supabase_admin' THEN
     RAISE EXCEPTION '121: rodar como supabase_admin (atual: %)', current_user;
   END IF;
+  IF to_regclass('public.automation_runs') IS NULL THEN
+    RAISE EXCEPTION '121: depende da 120 (automation_runs, que mesclar_leads também move)';
+  END IF;
 END $$;
 
 CREATE OR REPLACE FUNCTION public.normalizar_telefone(entrada text)
@@ -149,7 +152,7 @@ BEGIN
        'public.lead_responsible_history.lead_id', 'public.lead_stage_history.lead_id',
        'public.notifications.lead_id', 'public.wa_conversations.lead_id',
        'public.wa_campaign_recipients.lead_id', 'public.wa_timed_automation_log.lead_id',
-       'public.quotes.lead_id', 'public.lead_negotiation.lead_id']);
+       'public.quotes.lead_id', 'public.lead_negotiation.lead_id', 'public.automation_runs.lead_id']);
   IF sem_tratamento IS NOT NULL THEN
     RAISE EXCEPTION 'mesclar_leads: chave estrangeira para leads sem tratamento: %', sem_tratamento;
   END IF;
@@ -164,6 +167,7 @@ BEGIN
   UPDATE public.wa_campaign_recipients   SET lead_id = manter WHERE lead_id = remover;
   UPDATE public.wa_timed_automation_log  SET lead_id = manter WHERE lead_id = remover;
   UPDATE public.quotes                   SET lead_id = manter WHERE lead_id = remover;
+  UPDATE public.automation_runs          SET lead_id = manter WHERE lead_id = remover;
 
   SELECT * INTO nr FROM public.lead_negotiation WHERE lead_id = remover;
   IF FOUND THEN
