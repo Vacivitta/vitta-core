@@ -136,6 +136,7 @@ export interface Lead {
   site:            string | null
   email:           string | null
   telefone:        string | null
+  telefone_norm:   string | null
   origem:          string | null
   funnel_id:       string
   stage_id:        string
@@ -156,7 +157,7 @@ export interface Lead {
   updated_at:      string
 }
 
-export interface LeadKanban extends Lead {
+export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
   responsavel_nome:   string | null
   responsavel_avatar: string | null
   stage_nome:         string | null

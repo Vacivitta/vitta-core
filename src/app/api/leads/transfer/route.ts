@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   if (!profile) return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 401 })
 
   const { data: lead } = await admin
-    .from('leads').select('id, nome, sobrenome, telefone, unit_id').eq('id', leadId).single()
+    .from('leads').select('id, nome, sobrenome, telefone_norm, unit_id').eq('id', leadId).single()
   if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
 
   if (lead.unit_id === targetUnitId) {
@@ -72,19 +72,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Transferência entre clínica e comercial só por um administrador' }, { status: 403 })
   }
 
-  // Verifica se já existe lead com mesmo telefone na unidade destino
-  if (lead.telefone) {
-    const phoneRaw = lead.telefone.replace(/\D/g, '')
-    const { data: existing } = await admin
+  if (lead.telefone_norm) {
+    const { data: duplicate } = await admin
       .from('leads')
-      .select('id, nome, sobrenome, telefone')
+      .select('id, nome, sobrenome')
       .eq('unit_id', targetUnitId)
-      .eq('arquivado', false)
-
-    const duplicate = (existing ?? []).find(e => {
-      const ePhone = (e as { telefone: string | null }).telefone
-      return ePhone && ePhone.replace(/\D/g, '') === phoneRaw
-    })
+      .eq('telefone_norm', lead.telefone_norm)
+      .limit(1)
+      .maybeSingle()
 
     if (duplicate) {
       const dupName = [duplicate.nome, duplicate.sobrenome].filter(Boolean).join(' ')

@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: npx eslint .
 
+      - name: Testes (telefone)
+        run: npm test
+
   db:
     runs-on: ubuntu-latest
     timeout-minutes: 20

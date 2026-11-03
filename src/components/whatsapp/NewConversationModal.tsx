@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { WaTemplate, WaTemplateFolder } from './wa-types'
 import { createClient } from '@/lib/supabase/client'
+import { avisoTelefone } from '@/lib/telefone'
 
 interface Props {
   unitId:     string
@@ -61,22 +62,7 @@ export default function NewConversationModal({ unitId, templates: templatesProp,
     templates.filter(t => t.category === 'meta_api'),
   [templates])
 
-  // Validação do telefone: detecta celular sem 9° dígito
-  const phoneWarning = useMemo(() => {
-    const digits = phone.replace(/\D/g, '')
-    if (!digits) return null
-    const n = digits.startsWith('55') ? digits : digits.startsWith('0') ? '55' + digits.slice(1) : '55' + digits
-    // 55 + DDD(2) + 8 dígitos começando com [6-9] = celular sem 9° dígito
-    if (n.startsWith('55') && n.length === 12) {
-      const local = n.slice(4)
-      if (/^[6-9]/.test(local)) {
-        const ddd = n.slice(2, 4)
-        return `Número de celular sem o 9° dígito. O formato correto é (${ddd}) 9${local.slice(0, 4)}-${local.slice(4)}`
-      }
-    }
-    if (n.length < 12 || n.length > 13) return 'Número inválido. Informe DDD + número (ex: 34999998888)'
-    return null
-  }, [phone])
+  const phoneWarning = useMemo(() => avisoTelefone(phone), [phone])
 
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const selected = useMemo(() => {

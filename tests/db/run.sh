@@ -116,12 +116,35 @@ for m in "${migracoes[@]}"; do
   checagens=$((checagens + 1))
 done
 
-for v in 091 113 115 116 117 118 119 120 124 125; do
+for v in 091 113 115 116 117 118 119 120 121 122 124 125; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118 119 120 124 125; do
+for v in 091 092 093 113 115 116 117 118 119 120 121 122 124 125; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
+
+v122="$(arquivo_da_versao 122)"
+if {
+  cat <<'SQL'
+BEGIN;
+DROP INDEX public.uq_leads_unit_telefone_norm;
+INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8122-0000000000f0', 'Rede 122');
+INSERT INTO public.units (id, tenant_id, nome, tipo)
+VALUES ('00000000-0000-4000-8122-0000000000a0', '00000000-0000-4000-8122-0000000000f0', 'Unidade 122', 'clinica');
+INSERT INTO public.funnels (id, nome, unit_id)
+VALUES ('00000000-0000-4000-8122-0000000000d0', 'Funil 122', '00000000-0000-4000-8122-0000000000a0');
+INSERT INTO public.leads (nome, telefone, funnel_id, unit_id) VALUES
+  ('Um', '(31) 99667-4494', '00000000-0000-4000-8122-0000000000d0', '00000000-0000-4000-8122-0000000000a0'),
+  ('Dois', '5531996674494', '00000000-0000-4000-8122-0000000000d0', '00000000-0000-4000-8122-0000000000a0');
+SQL
+  echo "\\i /migracoes/$v122"
+  echo 'ROLLBACK;'
+} | psql_como supabase_admin >"$saida" 2>&1; then
+  falhar "$v122 com leads duplicados deveria abortar, mas passou"
+fi
+grep -qF "122: 1 grupo(s) de leads com o mesmo telefone" "$saida" ||
+  { cat "$saida"; falhar "$v122 com leads duplicados falhou, mas sem a mensagem esperada"; }
+checagens=$((checagens + 1))
 echo "ok  $checagens checagens de guarda (reaplicação idempotente, papel errado, sem transação única)"
 
 mapfile -t testes < <(find tests/db -maxdepth 1 -name '*.test.sql' | sort)

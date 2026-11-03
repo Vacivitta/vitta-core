@@ -4,7 +4,8 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getWaCredentials }         from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { canAccessUnit }            from '@/lib/auth/access'
-import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
+import { buscarConversaPorTelefone, buscarLeadPorTelefone } from '@/lib/whatsapp/telefone'
+import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
 import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
@@ -14,24 +15,6 @@ function adminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados')
   return createClient(url, key)
-}
-
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-
-  let n: string
-  if (digits.startsWith('55') && digits.length >= 12) n = digits
-  else if (digits.startsWith('0'))                    n = '55' + digits.slice(1)
-  else                                                n = '55' + digits
-
-  // Brasil: 55 + DDD(2) + 8 dígitos começando com 6-9 = celular sem o 9º dígito obrigatório
-  // Ex: 559845351977 → 5598945351977
-  if (n.startsWith('55') && n.length === 12) {
-    const local8 = n.slice(4)
-    if (/^[6-9]/.test(local8)) n = n.slice(0, 4) + '9' + local8
-  }
-
-  return n
 }
 
 // ── POST /api/whatsapp/start-conversation ────────────────────────────────────
@@ -58,10 +41,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { unit_id, template_name, language = 'pt_BR', components = [], register_optin = false, body_text = '', contact_name } = body
-  const phone = normalizePhone(body.phone ?? '')
+  const phone = normalizarTelefone(body.phone)
 
-  if (!phone || phone.length < 12)
-    return NextResponse.json({ error: 'Telefone inválido. Informe DDD + número (ex: 11999998888)' }, { status: 400 })
+  if (!phone)
+    return NextResponse.json({ error: 'Telefone inválido. Informe DDD + número (ex: 11999998888) ou, se for de outro país, + e o DDI' }, { status: 400 })
   if (!unit_id)
     return NextResponse.json({ error: 'unit_id obrigatório' }, { status: 400 })
   if (!template_name)
@@ -99,23 +82,7 @@ export async function POST(req: NextRequest) {
     const nome = parts[0]
     const sobrenome = parts.length > 1 ? parts.slice(1).join(' ') : null
 
-    // Busca lead existente pelo telefone (server-side com ilike)
-    const digitsAll = phone.replace(/\D/g, '')
-    const digitsShort = digitsAll.length > 11 ? digitsAll.slice(-11) : digitsAll
-    const searchSuffix = digitsAll.length >= 8 ? digitsAll.slice(-8) : digitsAll
-    const { data: existingLeads } = await supabase
-      .from('leads')
-      .select('id, telefone')
-      .eq('unit_id', unit_id)
-      .eq('arquivado', false)
-      .not('telefone', 'is', null)
-      .ilike('telefone', `%${searchSuffix}%`)
-      .limit(10)
-
-    const matched = (existingLeads ?? []).find(l => {
-      const d = (l.telefone as string).replace(/\D/g, '')
-      return d === digitsAll || d === digitsShort || d.endsWith(digitsShort)
-    })
+    const matched = await buscarLeadPorTelefone(supabase, unit_id, phone)
 
     let leadId: string | null = null
 
@@ -129,11 +96,10 @@ export async function POST(req: NextRequest) {
         const { data: stage } = await supabase
           .from('funnel_stages').select('id').eq('funnel_id', funnel.id).order('ordem').limit(1).maybeSingle()
         if (stage) {
-          const formatted = phone.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3')
           const { data: newLead } = await supabase
             .from('leads')
             .insert({
-              unit_id, nome, sobrenome, telefone: formatted,
+              unit_id, nome, sobrenome, telefone: formatarTelefone(phone),
               origem: 'whatsapp', funnel_id: funnel.id, stage_id: stage.id, arquivado: false,
             })
             .select('id').single()
@@ -214,18 +180,12 @@ export async function POST(req: NextRequest) {
   // 5. Registra optin no lead vinculado ao telefone (se solicitado)
   if (register_optin) {
     const now = new Date().toISOString()
-    // Tenta todas as variações do telefone que podem estar cadastradas no lead
-    const phoneVariants = [phone]
-    if (phone.startsWith('55')) {
-      const withoutCountry = phone.slice(2)
-      phoneVariants.push(withoutCountry, `0${withoutCountry}`)
-    }
     const { data: leads } = await supabase
       .from('leads')
       .select('id')
       .eq('unit_id', unit_id)
       .is('wa_optin_at', null)
-      .or(phoneVariants.map(p => `telefone.ilike.%${p}`).join(','))
+      .eq('telefone_norm', phone)
       .limit(5)
     if (leads && leads.length > 0) {
       await supabase.from('leads')
