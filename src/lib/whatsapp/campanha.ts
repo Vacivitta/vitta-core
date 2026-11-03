@@ -104,6 +104,9 @@ async function gravarResultado(
  * (`reservar_destinatarios_campanha`), então chamadas simultâneas não enviam
  * em dobro, e respeita o limite diário da unidade.
  */
+/** Tempo que um lote pode gastar enviando; o resto da execução (até maxDuration = 60 s) fica para gravar contadores. */
+export const PRAZO_LOTE_MS = 40_000
+
 export async function processarLoteCampanha(
   supabase: SupabaseClient, campaignId: string, prazo: number,
 ): Promise<ResultadoLote> {

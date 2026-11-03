@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
-import { processarLoteCampanha } from '@/lib/whatsapp/campanha'
+import { PRAZO_LOTE_MS, processarLoteCampanha } from '@/lib/whatsapp/campanha'
 import { lerEstadoCampanha, podeDisparar } from '@/lib/whatsapp/campanha-regras'
 import { resumoErro } from '@/lib/log-seguro'
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (!marcada?.length) return NextResponse.json({ error: 'A campanha mudou de status; atualize a página' }, { status: 409 })
 
   try {
-    const resultado = await processarLoteCampanha(supabase, campaign_id, Date.now() + 40_000)
+    const resultado = await processarLoteCampanha(supabase, campaign_id, Date.now() + PRAZO_LOTE_MS)
     return NextResponse.json({ ok: true, resultado })
   } catch (e) {
     console.error('[campaign-process] primeiro lote falhou:', resumoErro(e))

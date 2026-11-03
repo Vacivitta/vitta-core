@@ -9,12 +9,11 @@ import { after, NextRequest, NextResponse } from 'next/server'
 import { cronAutorizado } from '@/lib/auth/cron'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resumoErro } from '@/lib/log-seguro'
-import { processarLoteCampanha } from '@/lib/whatsapp/campanha'
+import { PRAZO_LOTE_MS, processarLoteCampanha } from '@/lib/whatsapp/campanha'
 
 export const maxDuration = 60
 
 const MAX_CAMPANHAS = 5
-const PRAZO_ENVIOS_MS = 40_000
 
 export async function POST(req: NextRequest) {
   if (!cronAutorizado(req)) {
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient()
   const agora = new Date().toISOString()
-  const prazo = Date.now() + PRAZO_ENVIOS_MS
+  const prazo = Date.now() + PRAZO_LOTE_MS
 
   const { data: agendadas, error: errAgendadas } = await supabase
     .from('wa_campaigns')
