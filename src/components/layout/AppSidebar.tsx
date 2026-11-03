@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/hooks/useProfile'
 import { PERFIL_LABELS } from '@/types/database'
+import { isPerfilAdminGlobal } from '@/lib/auth/access'
 import NotificationBell from './NotificationBell'
 
 // ── Ícones Lucide (stroke 2, 17px) ───────────────────────────────────────────
@@ -165,6 +166,7 @@ interface ConfigItem {
   label:      string
   icon:       React.ReactNode
   gestorOnly: boolean
+  adminGlobalOnly?: true
 }
 
 interface ConfigSection {
@@ -191,6 +193,7 @@ const CONFIG_SECTIONS: ConfigSection[] = [
       { href: '/configuracoes/whatsapp',           label: 'WhatsApp API',       icon: <IcoWhatsApp />,    gestorOnly: true },
       { href: '/configuracoes/equipe',             label: 'Equipe',             icon: <IcoEquipe />,      gestorOnly: true },
       { href: '/configuracoes/taxas',              label: 'Taxas de Pagamento', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, gestorOnly: true },
+      { href: '/configuracoes/erros',              label: 'Erros do servidor',  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, gestorOnly: true, adminGlobalOnly: true },
     ],
   },
 ]
@@ -450,7 +453,8 @@ export default function AppSidebar() {
           {configOpen && !collapsed && (
             <div style={{ marginLeft: 14, paddingLeft: 10, borderLeft: '1px solid #E9E5D8', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {CONFIG_SECTIONS.map(section => {
-                const visible = section.items.filter(i => !i.gestorOnly || isGestor)
+                const visible = section.items.filter(i =>
+                  (!i.gestorOnly || isGestor) && (!i.adminGlobalOnly || isPerfilAdminGlobal(perfil)))
                 if (visible.length === 0) return null
                 const sectionOpen = openSections[section.title] ?? false
                 const sectionActive = visible.some(i => isActive(i.href))
