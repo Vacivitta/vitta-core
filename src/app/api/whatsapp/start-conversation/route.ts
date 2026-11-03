@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
     const nome = parts[0]
     const sobrenome = parts.length > 1 ? parts.slice(1).join(' ') : null
 
-    // Arquivado também conta: com o índice único (migração 122), criar outro falharia
     const matched = await buscarLeadPorTelefone(supabase, unit_id, phone)
 
     let leadId: string | null = null

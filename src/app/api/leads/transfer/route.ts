@@ -72,8 +72,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Transferência entre clínica e comercial só por um administrador' }, { status: 403 })
   }
 
-  // Já existe lead com o mesmo telefone na unidade destino (arquivado também:
-  // o índice único da migração 122 vale para eles)
   if (lead.telefone_norm) {
     const { data: duplicate } = await admin
       .from('leads')

@@ -391,8 +391,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
       await refreshCampaignCounters(supabase, recip.campaign_id)
     }
   } else {
-    // Caso 2: sem lead — verifica se número é destinatário XLS (lead_id IS NULL).
-    // A planilha pode ter o celular com ou sem o 9.
+    // Caso 2: sem lead — verifica se número é destinatário XLS (lead_id IS NULL)
     const norm = normalizarWaPhone(waPhone)
     const { data: xlsRecip } = await supabase
       .from('wa_campaign_recipients')
@@ -559,7 +558,6 @@ async function autoLinkOrCreateLead(
       .single()
 
     if (leadErr) {
-      // Outro request criou o lead entre a busca e o insert (índice único da migração 122)
       if (leadErr.code === '23505') {
         const existing = norm ? await buscarLeadPorTelefone(supabase, unitId, norm) : null
         if (existing) {

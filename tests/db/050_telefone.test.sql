@@ -41,11 +41,8 @@ BEGIN
   END IF;
 END $$;
 
--- Mesmo caminho da produção: sem o índice único (só 121), cria duplicados,
--- mescla e só então reaplica a 122 no fim deste arquivo.
 DROP INDEX public.uq_leads_unit_telefone_norm;
 
--- ── Dados ────────────────────────────────────────────────────────────────────
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8050-0000000000f0', 'Rede Telefone');
 INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
   ('00000000-0000-4000-8050-0000000000a0', '00000000-0000-4000-8050-0000000000f0', 'Unidade A', 'clinica'),
@@ -75,7 +72,6 @@ CREATE FUNCTION pg_temp.lead(id uuid, unidade char, nome text, telefone text, cr
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000a0'::uuid ELSE '00000000-0000-4000-8050-0000000000b0'::uuid END
 $$;
 
--- Mesmo helper da 030: roda como papel/usuário e devolve linhas afetadas ou 'erro <sqlstate>'
 CREATE FUNCTION pg_temp.como(papel text, usuario uuid, comando text) RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -102,7 +98,6 @@ BEGIN
   END IF;
 END $$;
 
--- ── Coluna gerada ────────────────────────────────────────────────────────────
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000101', 'A', 'Gerada', '(31) 99667-4494');
 SELECT pg_temp.esperar('telefone_norm preenchida no INSERT',
   (SELECT telefone_norm FROM public.leads WHERE id = '00000000-0000-4000-8050-000000000101'), '5531996674494');
@@ -113,7 +108,6 @@ UPDATE public.leads SET telefone = 'sem número' WHERE id = '00000000-0000-4000-
 SELECT pg_temp.esperar('telefone inválido vira NULL',
   (SELECT coalesce(telefone_norm, 'NULL') FROM public.leads WHERE id = '00000000-0000-4000-8050-000000000101'), 'NULL');
 
--- O navegador (authenticated) grava leads: precisa executar a função da coluna gerada
 SELECT pg_temp.esperar('atendente cria lead com telefone',
   pg_temp.como('authenticated', '00000000-0000-4000-8050-000000000001', $c$
     INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id)
@@ -124,7 +118,6 @@ SELECT pg_temp.esperar('atendente executa mesclar_leads',
     $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000101', '00000000-0000-4000-8050-000000000101')$c$),
   'erro 42501');
 
--- ── Trigger auto_link_wa_conversation ────────────────────────────────────────
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000111', 'A', 'Antigo', '(31) 98888-1111', now() - interval '2 days');
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000112', 'A', 'Recente', '31 8888-1111', now() - interval '1 day');
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000113', 'A', 'Arquivado', '(31) 98888-1111', now(), true);
@@ -149,8 +142,6 @@ SELECT pg_temp.esperar('vínculo manual não é sobrescrito',
   (SELECT lead_id::text FROM public.wa_conversations WHERE id = '00000000-0000-4000-8050-000000000504'),
   '00000000-0000-4000-8050-000000000111');
 
--- ── mesclar_leads ────────────────────────────────────────────────────────────
--- M (fica) e R (sai), mesma unidade; R mais antigo, com e-mail e opt-out; os dois com negociação
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000201', 'A', 'Maria', '(31) 96666-0001', now() - interval '1 day');
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000202', 'A', 'Maria Duplicada', '31966660001', now() - interval '30 days');
 UPDATE public.leads SET email = 'maria@teste.invalid', wa_optout_at = now() - interval '3 days',
@@ -220,7 +211,6 @@ END $$;
 SELECT pg_temp.esperar('service_role mescla',
   pg_temp.como('service_role', NULL, $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201',
     '00000000-0000-4000-8050-000000000202', '00000000-0000-4000-8050-000000000003')$c$), '1');
--- pg_temp.como desfaz o que roda; agora de verdade:
 SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201', '00000000-0000-4000-8050-000000000202',
                             '00000000-0000-4000-8050-000000000003');
 
@@ -269,7 +259,6 @@ BEGIN
   END IF;
 END $$;
 
--- Só o removido tem negociação: ela é movida
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000211', 'A', 'João', '(31) 95555-0001');
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000212', 'A', 'João Dup', NULL);
 INSERT INTO public.lead_negotiation (id, lead_id, valor_proposta) VALUES
@@ -283,14 +272,12 @@ SELECT pg_temp.esperar('nota de mesclagem sem autor',
     WHERE lead_id = '00000000-0000-4000-8050-000000000211' AND autor_id IS NULL AND conteudo LIKE 'Lead mesclado com João Dup em %'),
   '1');
 
--- Arquivado também conta como duplicado: mescla os três do teste do trigger
 SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000112', '00000000-0000-4000-8050-000000000111');
 SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000112', '00000000-0000-4000-8050-000000000113');
 SELECT pg_temp.esperar('vínculo manual da conversa segue o lead mesclado',
   (SELECT lead_id::text FROM public.wa_conversations WHERE id = '00000000-0000-4000-8050-000000000504'),
   '00000000-0000-4000-8050-000000000112');
 
--- ── 122: um telefone por unidade ─────────────────────────────────────────────
 \i /migracoes/122_telefone_unico.sql
 
 DO $$

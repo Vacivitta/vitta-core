@@ -123,7 +123,6 @@ for v in 091 092 093 113 115 116 117 118 119 121 122; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 
-# A 122 aborta enquanto houver lead duplicado (mesmo telefone_norm na mesma unidade)
 v122="$(arquivo_da_versao 122)"
 if {
   cat <<'SQL'

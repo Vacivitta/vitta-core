@@ -22,7 +22,6 @@ interface Props {
   units:           Pick<Unit, 'id' | 'nome'>[]
   defaultFunnelId: string | null
   defaultStageId:  string | null
-  /** Leads da unidade com o mesmo telefone, inclusive arquivados e não clientes */
   telefoneDuplicados: LeadDuplicado[][]
 }
 
@@ -74,8 +73,6 @@ export default function ClientesClient({
     return () => { void supabase.removeChannel(channel) }
   }, [supabase])
 
-  // Duplicatas: mesmo telefone (do servidor, todos os leads da unidade) ou, entre
-  // os clientes da lista, mesmo e-mail ou CPF
   const duplicateGroups = useMemo(() => {
     const groups: LeadDuplicado[][] = [...gruposTelefone]
     const seen = new Set<string>(gruposTelefone.flat().map(l => l.id))

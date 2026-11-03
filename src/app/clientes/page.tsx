@@ -68,11 +68,6 @@ export default async function ClientesPage() {
   )
 }
 
-/**
- * Grupos de leads da unidade com o mesmo telefone (forma canônica), incluindo
- * arquivados e não convertidos: a migração 122 (índice único) só pode ser
- * aplicada quando não houver nenhum.
- */
 async function buscarTelefonesDuplicados(
   supabase: Awaited<ReturnType<typeof createClient>>,
   unitId: string,

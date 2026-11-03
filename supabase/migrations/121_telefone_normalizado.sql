@@ -49,7 +49,6 @@ BEGIN
   END IF;
 END $$;
 
--- ── 1. normalizar_telefone ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.normalizar_telefone(entrada text)
  RETURNS text
  LANGUAGE plpgsql
@@ -98,13 +97,11 @@ $function$;
 REVOKE EXECUTE ON FUNCTION public.normalizar_telefone(text) FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.normalizar_telefone(text) TO authenticated, service_role;
 
--- ── 2. Coluna gerada e índice ────────────────────────────────────────────────
 ALTER TABLE public.leads
   ADD COLUMN IF NOT EXISTS telefone_norm text GENERATED ALWAYS AS (public.normalizar_telefone(telefone)) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_leads_unit_telefone_norm ON public.leads (unit_id, telefone_norm);
 
--- ── 3. mesclar_leads ─────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.mesclar_leads(manter uuid, remover uuid, por uuid DEFAULT NULL)
  RETURNS void
  LANGUAGE plpgsql
@@ -142,8 +139,6 @@ BEGIN
     RAISE EXCEPTION 'mesclar_leads: os leads são de unidades diferentes' USING ERRCODE = '22023';
   END IF;
 
-  -- Uma FK nova para leads sem tratamento aqui seria apagada em cascata (ou
-  -- zerada) em silêncio ao apagar `remover`: aborta em vez disso.
   SELECT string_agg(format('%s.%s', c.conrelid::regclass, a.attname), ', ') INTO sem_tratamento
     FROM pg_catalog.pg_constraint c
     JOIN pg_catalog.pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
@@ -184,8 +179,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- Apaga antes de completar `manter`: com o índice único da 122, copiar o
-  -- telefone enquanto `remover` existe violaria a unicidade.
   DELETE FROM public.leads WHERE id = remover;
 
   UPDATE public.leads
@@ -215,7 +208,6 @@ $function$;
 REVOKE EXECUTE ON FUNCTION public.mesclar_leads(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.mesclar_leads(uuid, uuid, uuid) TO service_role;
 
--- ── 4. auto_link_wa_conversation ─────────────────────────────────────────────
 -- wa_phone é o wa_id da Meta: tem DDI mas vem sem '+'. O '+' evita que um número
 -- estrangeiro de 11 dígitos seja lido como DDD + celular brasileiro.
 CREATE OR REPLACE FUNCTION public.auto_link_wa_conversation()
@@ -248,8 +240,6 @@ $function$;
 REVOKE EXECUTE ON FUNCTION public.auto_link_wa_conversation() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.auto_link_wa_conversation() TO service_role;
 
--- Em produção o trigger foi criado à mão, com nome desconhecido: remove qualquer
--- trigger de wa_conversations que chame esta função e cria o versionado.
 DO $$
 DECLARE t text;
 BEGIN
@@ -267,7 +257,6 @@ CREATE TRIGGER trg_auto_link_wa_conversation
   BEFORE INSERT ON public.wa_conversations
   FOR EACH ROW EXECUTE FUNCTION public.auto_link_wa_conversation();
 
--- ── Recalcula e confere ──────────────────────────────────────────────────────
 UPDATE public.leads SET telefone = telefone
  WHERE telefone_norm IS DISTINCT FROM public.normalizar_telefone(telefone);
 
