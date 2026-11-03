@@ -1,8 +1,25 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { resumoErro } from '@/lib/log-seguro'
+import {
+  falha,
+  registrarExecucao,
+  tentativasSemSucessoRecentes,
+  type ContextoExecucao,
+  type MotivoPulo,
+  type ResultadoAutomacao,
+} from '@/lib/automacoes/execucao'
+import { moverLeadDeEtapa } from '@/lib/automacoes/mover-etapa'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
+
+// Acontecem a cada mensagem enviada ou recebida (o lead já está em atendimento,
+// numa etapa comercial ou a conversa não tem lead): gravar encheria o histórico.
+const PULOS_DE_ROTINA_POR_MENSAGEM: ReadonlySet<MotivoPulo> = new Set<MotivoPulo>([
+  'sem_lead', 'ja_na_etapa', 'etapa_nao_movivel',
+])
+
+interface ConversaAlvo { lead_id: string | null; wa_phone: string | null }
 
 /**
  * Executa automações configuradas em `wa_automations` para um evento de WhatsApp.
@@ -14,6 +31,9 @@ const META_API_URL = 'https://graph.facebook.com/v20.0'
  * `send_template` mantém o limite de uma vez por janela de 24h, para não repetir
  * o template a cada mensagem.
  *
+ * Cada execução é gravada em `automation_runs`, exceto os pulos de rotina das
+ * mensagens. Nunca lança: quem chama já enviou ou recebeu a mensagem.
+ *
  * @param supabase - Cliente Supabase (service-role, chamado do webhook/send)
  * @param trigger - Tipo do evento: 'inbound_message' | 'outbound_message' | 'conversation_resolved'
  * @param unitId - ID da unidade (clínica) que recebeu/enviou a mensagem
@@ -24,25 +44,84 @@ export async function runWaAutomation(
   trigger:        string,
   unitId:         string,
   conversationId: string,
+): Promise<void> {
+  try {
+    await executarAutomacoes(supabase, trigger, unitId, conversationId)
+  } catch (e) {
+    console.error(`[wa-automation] erro inesperado trigger=${trigger} conversa=${conversationId}:`, resumoErro(e))
+  }
+}
+
+async function executarAutomacoes(
+  supabase:       SupabaseClient,
+  trigger:        string,
+  unitId:         string,
+  conversationId: string,
 ) {
-  const { data: automations } = await supabase
+  const { data: automations, error } = await supabase
     .from('wa_automations')
-    .select('action, stage_id, template_id')
+    .select('id, action, stage_id, template_id')
     .eq('unit_id', unitId)
     .eq('trigger', trigger)
     .eq('ativo', true)
 
-  if (!automations || automations.length === 0) return
-
-  for (const automation of automations) {
-    if (automation.action === 'move_stage' && automation.stage_id) {
-      await handleMoveStage(supabase, unitId, conversationId, automation.stage_id, trigger)
-    } else if (automation.action === 'send_template' && automation.template_id) {
-      const isMessageTrigger = trigger === 'inbound_message' || trigger === 'outbound_message'
-      if (isMessageTrigger && await isRepeatedWithin24h(supabase, conversationId, trigger)) continue
-      await handleSendTemplate(supabase, unitId, conversationId, automation.template_id)
-    }
+  if (error) {
+    console.error(`[wa-automation] leitura de wa_automations falhou unidade=${unitId}:`, resumoErro(error))
+    return
   }
+  const comAcao = (automations ?? []).filter(a => a.action === 'move_stage' || a.action === 'send_template')
+  if (comAcao.length === 0) return
+
+  const isMessageTrigger = trigger === 'inbound_message' || trigger === 'outbound_message'
+
+  const { data: conv } = await supabase
+    .from('wa_conversations')
+    .select('lead_id, wa_phone')
+    .eq('id', conversationId)
+    .maybeSingle<ConversaAlvo>()
+
+  for (const automation of comAcao) {
+    const contexto: ContextoExecucao = {
+      unitId,
+      origem:         'evento',
+      automationId:   automation.id,
+      gatilho:        trigger,
+      acao:           automation.action,
+      leadId:         conv?.lead_id ?? null,
+      conversationId,
+    }
+
+    if (automation.action === 'send_template' && automation.template_id && isMessageTrigger
+        && await isRepeatedWithin24h(supabase, conversationId, trigger)) continue
+
+    const alvo = automation.action === 'move_stage' ? automation.stage_id : automation.template_id
+    if (!alvo) {
+      await registrarMalConfigurada(supabase, contexto)
+      continue
+    }
+
+    let resultado: ResultadoAutomacao
+    try {
+      resultado = automation.action === 'move_stage'
+        ? await handleMoveStage(supabase, unitId, conv?.lead_id ?? null, alvo, trigger)
+        : await handleSendTemplate(supabase, unitId, conversationId, conv, alvo)
+    } catch (e) {
+      resultado = falha('banco', e)
+    }
+
+    if (resultado.kind === 'pulado' && isMessageTrigger && PULOS_DE_ROTINA_POR_MENSAGEM.has(resultado.motivo)) continue
+    await registrarExecucao(supabase, contexto, resultado)
+  }
+}
+
+/**
+ * Regra sem etapa ou modelo escolhido: grava uma vez por dia, sem lead nem
+ * conversa, para não repetir a cada mensagem.
+ */
+async function registrarMalConfigurada(supabase: SupabaseClient, contexto: ContextoExecucao) {
+  const semAlvo = { ...contexto, leadId: null, conversationId: null }
+  if (await tentativasSemSucessoRecentes(supabase, contexto.automationId, semAlvo, ['pulado']) > 0) return
+  await registrarExecucao(supabase, semAlvo, { kind: 'pulado', motivo: 'mal_configurada' })
 }
 
 /**
@@ -113,111 +192,78 @@ async function isRepeatedWithin24h(
 }
 
 /**
- * Move o lead associado à conversa para um estágio do funil.
- * Atualiza tanto `stage_id` quanto `funnel_id` para evitar que o card
- * desapareça do kanban quando o estágio destino pertence a outro funil.
+ * Move o lead da conversa para um estágio do funil (ver `moverLeadDeEtapa`).
  * Pula se o lead já está no destino. Para eventos de mensagem, também pula se o
  * lead está numa etapa que a automação não pode alterar (ver `getMovableStages`);
- * `conversation_resolved` move de qualquer etapa. Registra a mudança no histórico.
+ * `conversation_resolved` move de qualquer etapa.
  *
  * @param supabase - Cliente Supabase
  * @param unitId - ID da unidade (define as etapas que podem ser alteradas)
- * @param conversationId - ID da conversa para localizar o lead
+ * @param leadId - Lead da conversa
  * @param stageId - ID do estágio destino em `funnel_stages`
  * @param trigger - Evento que disparou a automação
  */
 async function handleMoveStage(
   supabase: SupabaseClient,
   unitId: string,
-  conversationId: string,
+  leadId: string | null,
   stageId: string,
   trigger: string,
-) {
-  const { data: conv } = await supabase
-    .from('wa_conversations')
-    .select('lead_id')
-    .eq('id', conversationId)
-    .single()
+): Promise<ResultadoAutomacao> {
+  if (!leadId) return { kind: 'pulado', motivo: 'sem_lead' }
 
-  if (!conv?.lead_id) return
-
-  const { data: lead } = await supabase
+  const { data: lead, error } = await supabase
     .from('leads')
-    .select('stage_id')
-    .eq('id', conv.lead_id)
-    .single()
+    .select('id, stage_id')
+    .eq('id', leadId)
+    .maybeSingle<{ id: string; stage_id: string | null }>()
 
-  if (!lead || lead.stage_id === stageId) return
+  if (error) return falha('banco', error)
+  if (!lead) return { kind: 'pulado', motivo: 'sem_lead' }
+  if (lead.stage_id === stageId) return { kind: 'pulado', motivo: 'ja_na_etapa' }
 
   // Resolver a conversa é uma ação explícita do atendente: move de qualquer etapa.
   // Já as mensagens só movem a partir das etapas de atendimento.
   if (lead.stage_id && trigger !== 'conversation_resolved') {
     const movable = await getMovableStages(supabase, unitId, trigger)
-    if (!movable.has(lead.stage_id)) return
+    if (!movable.has(lead.stage_id)) return { kind: 'pulado', motivo: 'etapa_nao_movivel' }
   }
 
-  const { data: stage } = await supabase
-    .from('funnel_stages')
-    .select('funnel_id')
-    .eq('id', stageId)
-    .single()
-
-  const updatePayload: Record<string, string> = { stage_id: stageId }
-  if (stage?.funnel_id) updatePayload.funnel_id = stage.funnel_id
-
-  const { error } = await supabase
-    .from('leads')
-    .update(updatePayload)
-    .eq('id', conv.lead_id)
-
-  if (error) {
-    console.error(`[wa-automation] move_stage falhou lead=${conv.lead_id}:`, error.message)
-    return
-  }
-
-  await supabase.from('lead_stage_history').insert({
-    lead_id:       conv.lead_id,
-    de_stage_id:   lead.stage_id,
-    para_stage_id: stageId,
-    movido_por:    null,
-    movido_via:    'automacao',
-  })
+  return moverLeadDeEtapa(supabase, lead, stageId)
 }
 
 /**
  * Envia um template de WhatsApp automaticamente para o contato da conversa.
  * Resolve variáveis dinâmicas (nome do cliente, atendente, data, horário),
  * monta o payload da Meta Graph API v20.0, envia e registra em `wa_messages`.
+ * Um `falhou` de banco aqui significa que a Meta já aceitou a mensagem.
  *
  * @param supabase - Cliente Supabase
  * @param unitId - ID da unidade para buscar credenciais WhatsApp
  * @param conversationId - ID da conversa (destino e registro)
+ * @param conv - Telefone e lead da conversa
  * @param templateId - ID do template em `wa_message_templates`
  */
 async function handleSendTemplate(
   supabase: SupabaseClient,
   unitId: string,
   conversationId: string,
+  conv: ConversaAlvo | null,
   templateId: string,
-) {
-  const { data: conv } = await supabase
-    .from('wa_conversations')
-    .select('id, wa_phone, lead_id')
-    .eq('id', conversationId)
-    .single()
+): Promise<ResultadoAutomacao> {
+  if (!conv?.wa_phone) return { kind: 'pulado', motivo: 'sem_telefone' }
 
-  if (!conv?.wa_phone) return
-
-  const { data: template } = await supabase
+  const { data: template, error: templateErr } = await supabase
     .from('wa_message_templates')
     .select('template_name, content, language, variable_order, header_type, header_image_url')
     .eq('id', templateId)
-    .single()
+    .maybeSingle()
 
-  if (!template?.template_name) return
+  if (templateErr) return falha('banco', templateErr)
+  if (!template?.template_name) return { kind: 'pulado', motivo: 'modelo_ausente' }
 
   const creds = await getWaCredentials(unitId)
-  if (!creds.phoneNumberId || !creds.accessToken) return
+  if (!creds.phoneNumberId || !creds.accessToken) return { kind: 'pulado', motivo: 'sem_credenciais' }
 
   const varCount = (template.content?.match(/\{\{\d+\}\}/g) ?? []).length
   let components: object[] = []
@@ -255,25 +301,31 @@ async function handleSendTemplate(
     },
   }
 
-  const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${creds.accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(metaPayload),
-    signal: AbortSignal.timeout(15_000),
-  })
+  let metaRes: Response
+  try {
+    metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${creds.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(metaPayload),
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch (e) {
+    console.error(`[wa-automation] send_template sem resposta da Meta conversa=${conversationId}:`, resumoErro(e))
+    return falha('meta', e)
+  }
 
-  const metaData = await metaRes.json() as { messages?: { id: string }[] }
+  const metaData = await metaRes.json().catch(() => null) as { messages?: { id: string }[] } | null
 
   if (!metaRes.ok) {
     console.error(`[wa-automation] send_template failed conversa=${conversationId}:`, resumoErro(metaData))
-    return
+    return falha('meta', metaData ?? `HTTP ${metaRes.status}`, metaRes.status)
   }
 
-  const waId = metaData.messages?.[0]?.id ?? null
+  const waId = metaData?.messages?.[0]?.id ?? null
 
   const autoImgUrl = (template.header_type === 'IMAGE' && template.header_image_url) ? template.header_image_url as string : null
 
-  await Promise.all([
+  const [{ error: msgErr }, { error: convErr }] = await Promise.all([
     supabase.from('wa_messages').insert({
       conversation_id: conversationId,
       unit_id: unitId,
@@ -292,6 +344,10 @@ async function handleSendTemplate(
       last_message_direction: 'outbound',
     }).eq('id', conversationId),
   ])
+
+  if (msgErr || convErr) return falha('banco', msgErr ?? convErr)
+
+  return { kind: 'modelo_enviado', templateId, waMessageId: waId }
 }
 
 /**
