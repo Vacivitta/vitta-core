@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { FunnelStage, FunnelWithStages, Profile, Lead } from '@/types/database'
 import { ORIGEM_OPTIONS } from '@/types/database'
 import { createLead } from '@/lib/leads'
+import { telefoneParaGravar } from '@/lib/telefone'
 
 interface Props {
   defaultStage: FunnelStage
@@ -54,7 +55,7 @@ export default function QuickLeadForm({
       const lead = await createLead({
         nome:           form.nome.trim(),
         sobrenome:      form.sobrenome.trim()  || null,
-        telefone:       form.telefone.trim()   || null,
+        telefone:       telefoneParaGravar(form.telefone),
         email:          form.email.trim()      || null,
         profissao:      form.profissao.trim()  || null,
         cidade:         form.cidade.trim()     || null,
@@ -76,8 +77,10 @@ export default function QuickLeadForm({
         campanha_id:     null,
       })
       onCreated(lead, openFull)
-    } catch {
-      setError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setError((err as { code?: string }).code === '23505'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado).'
+        : 'Erro ao salvar. Tente novamente.')
       setSaving(false)
     }
   }

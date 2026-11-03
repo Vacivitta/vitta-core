@@ -26,6 +26,7 @@ import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
+import { avisoTelefone, normalizarTelefone, telefoneParaGravar, variantesTelefone } from '@/lib/telefone'
 
 interface Props {
   lead: LeadKanban | null
@@ -123,20 +124,7 @@ function LeadDrawer({
     valor_negociado: lead.valor_negociado?.toString() ?? '',
   })
 
-  const phoneWarning = useMemo(() => {
-    const digits = form.telefone.replace(/\D/g, '')
-    if (!digits) return null
-    const n = digits.startsWith('55') ? digits : digits.startsWith('0') ? '55' + digits.slice(1) : '55' + digits
-    if (n.startsWith('55') && n.length === 12) {
-      const local = n.slice(4)
-      if (/^[6-9]/.test(local)) {
-        const ddd = n.slice(2, 4)
-        return `Celular sem o 9° dígito. Formato correto: (${ddd}) 9${local.slice(0, 4)}-${local.slice(4)}`
-      }
-    }
-    if (digits.length > 3 && (n.length < 12 || n.length > 13)) return 'Número inválido. Informe DDD + número (ex: 34 99999-8888)'
-    return null
-  }, [form.telefone])
+  const phoneWarning = useMemo(() => avisoTelefone(form.telefone), [form.telefone])
 
   const activeFunnel = allFunnels.find(f => f.id === form.funnel_id) ?? funnel
   const activeStages = activeFunnel.stages
@@ -190,8 +178,7 @@ function LeadDrawer({
     if (tab !== 'Atendimento' || !lead.telefone || waLoaded) return
     setWaLoaded(false)
 
-    const phoneRaw = lead.telefone.replace(/\D/g, '')
-    const waPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`
+    const telNorm = normalizarTelefone(lead.telefone)
 
     // Busca por lead_id (link direto) com fallback por telefone
     const findConversation = async () => {
@@ -201,13 +188,15 @@ function LeadDrawer({
         .eq('lead_id', lead.id)
         .eq('unit_id', currentUser.unit_id)
         .maybeSingle()
-      if (byLead) return byLead
+      if (byLead || !telNorm) return byLead
 
       const { data: byPhone } = await supabase
         .from('wa_conversations')
         .select('id, wa_phone, status, unread_count, assigned_to')
-        .eq('wa_phone', waPhone)
+        .in('wa_phone', variantesTelefone(telNorm))
         .eq('unit_id', currentUser.unit_id)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(1)
         .maybeSingle()
       return byPhone
     }
@@ -719,7 +708,19 @@ function LeadDrawer({
     setSaving(true)
     try {
       const previousStageId = lead.stage_id
-      await updateLead(lead.id, { ...form, responsavel_id: form.responsavel_id || null })
+      try {
+        await updateLead(lead.id, {
+          ...form,
+          telefone: telefoneParaGravar(form.telefone),
+          responsavel_id: form.responsavel_id || null,
+        })
+      } catch (err) {
+        if ((err as { code?: string }).code === '23505') {
+          alert('Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.')
+          return
+        }
+        throw err
+      }
 
       // Registrar mudança de stage via SECURITY DEFINER (bypassa RLS)
       console.log('[modal handleSave] stage check:', { previousStageId, newStageId: form.stage_id })
@@ -858,7 +859,7 @@ function LeadDrawer({
   // ── Derived ────────────────────────────────────────────────────────────────
   const pendingTasks   = tasks.filter(t => !t.concluida).length
   const fmtCurrency    = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-  const phone          = (form.telefone ?? '').replace(/\D/g, '')
+  const phone          = normalizarTelefone(form.telefone) ?? ''
   const currentStage   = activeStages.find(s => s.id === form.stage_id)
   const stageNome      = currentStage?.nome      ?? lead.stage_nome
   const stageCor       = currentStage?.cor       ?? lead.stage_cor ?? '#64748b'
@@ -1034,7 +1035,7 @@ function LeadDrawer({
               <>
                 {/* CONTATO card */}
                 <WarmCard title="Contato">
-                  {phone ? (
+                  {form.telefone ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="#35853F"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2zm5.3 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-1-.3-1.6-.6-2.9-1.2-4.7-4-4.9-4.3-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.2c.2-.2.5-.3.6-.3h.5c.2 0 .4 0 .6.5l.7 1.8c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.5l.8 1.3c.5.7 1.1 1.1 1.7 1.5.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.6.8c.3.1.4.2.5.3 0 .2 0 .8-.2 1.3z"/></svg>
@@ -1043,9 +1044,9 @@ function LeadDrawer({
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#25402C' }}>{form.telefone}</p>
                         <p style={{ margin: 0, fontSize: 11, color: '#9AA79C' }}>WhatsApp · Brasil</p>
                       </div>
-                      <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer"
+                      {phone && <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer"
                         style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 99, background: '#E8F4E6', color: '#35853F', textDecoration: 'none', transition: 'background 0.15s' }}
-                      >Ligar</a>
+                      >Ligar</a>}
                     </div>
                   ) : (
                     <p style={{ fontSize: 12, color: '#9AA79C', fontStyle: 'italic', margin: 0 }}>Sem contato cadastrado</p>

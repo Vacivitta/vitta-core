@@ -2,6 +2,7 @@ import {
   Document, Page, Text, View, Image, StyleSheet,
 } from '@react-pdf/renderer'
 import type { QuoteWithItems, TemplatePageImages } from '@/types/database'
+import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -18,10 +19,8 @@ function validadeDate(iso: string, dias: number) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 function fmtPhone(phone: string): string {
-  const d = phone.replace(/\D/g, '')
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return phone
+  const norm = normalizarTelefone(phone)
+  return norm ? formatarTelefone(norm) : phone
 }
 
 // ─── Full-page background image (A4 = 595 × 842 pt) ─────────────────────────

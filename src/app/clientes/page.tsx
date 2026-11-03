@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import ClientesClient from './ClientesClient'
+import ClientesClient, { type LeadDuplicado } from './ClientesClient'
 import type { Profile } from '@/types/database'
 
 export default async function ClientesPage() {
@@ -50,7 +50,9 @@ export default async function ClientesPage() {
     if (extra) allProfiles = [...allProfiles, ...extra]
   }
 
-  const defaultFunnelId = (funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.id ?? null
+  const telefoneDuplicados = unitId ? await buscarTelefonesDuplicados(supabase, unitId) : []
+
+  const defaultFunnelId =(funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.id ?? null
   const defaultStageId  = (funnels as ({ id: string; stages: { id: string }[] }[] | null))?.[0]?.stages?.[0]?.id ?? null
 
   return (
@@ -61,6 +63,46 @@ export default async function ClientesPage() {
       units={units ?? []}
       defaultFunnelId={defaultFunnelId}
       defaultStageId={defaultStageId}
+      telefoneDuplicados={telefoneDuplicados}
     />
   )
+}
+
+/**
+ * Grupos de leads da unidade com o mesmo telefone (forma canônica), incluindo
+ * arquivados e não convertidos: a migração 122 (índice único) só pode ser
+ * aplicada quando não houver nenhum.
+ */
+async function buscarTelefonesDuplicados(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  unitId: string,
+): Promise<LeadDuplicado[][]> {
+  const pagina = 1000
+  const contagem = new Map<string, number>()
+  for (let inicio = 0; ; inicio += pagina) {
+    const { data } = await supabase
+      .from('leads')
+      .select('id, telefone_norm')
+      .eq('unit_id', unitId)
+      .not('telefone_norm', 'is', null)
+      .order('id')
+      .range(inicio, inicio + pagina - 1)
+    for (const l of data ?? []) contagem.set(l.telefone_norm, (contagem.get(l.telefone_norm) ?? 0) + 1)
+    if (!data || data.length < pagina) break
+  }
+  const repetidos = [...contagem].filter(([, n]) => n > 1).map(([norm]) => norm)
+  if (repetidos.length === 0) return []
+
+  const { data: leads } = await supabase
+    .from('leads')
+    .select('id, nome, sobrenome, telefone, telefone_norm, unit_id, created_at, arquivado, is_converted')
+    .eq('unit_id', unitId)
+    .in('telefone_norm', repetidos)
+    .order('created_at')
+  const grupos = new Map<string, LeadDuplicado[]>()
+  for (const l of (leads ?? []) as LeadDuplicado[]) {
+    if (!l.telefone_norm) continue
+    grupos.set(l.telefone_norm, [...(grupos.get(l.telefone_norm) ?? []), l])
+  }
+  return [...grupos.values()].filter(g => g.length > 1)
 }

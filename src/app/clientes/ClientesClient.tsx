@@ -8,8 +8,12 @@ import { ptBR } from 'date-fns/locale'
 import { useProfile } from '@/hooks/useProfile'
 import type { Lead, Unit } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
+import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
 
 interface Profile { id: string; full_name: string }
+
+export type LeadDuplicado = Pick<Lead,
+  'id' | 'nome' | 'sobrenome' | 'telefone' | 'telefone_norm' | 'unit_id' | 'created_at' | 'arquivado' | 'is_converted'>
 
 interface Props {
   initialClients:  Lead[]
@@ -18,6 +22,8 @@ interface Props {
   units:           Pick<Unit, 'id' | 'nome'>[]
   defaultFunnelId: string | null
   defaultStageId:  string | null
+  /** Leads da unidade com o mesmo telefone, inclusive arquivados e não clientes */
+  telefoneDuplicados: LeadDuplicado[][]
 }
 
 const EMPTY_FORM = {
@@ -26,7 +32,7 @@ const EMPTY_FORM = {
 }
 
 export default function ClientesClient({
-  initialClients, initialError, units, defaultFunnelId, defaultStageId,
+  initialClients, initialError, units, defaultFunnelId, defaultStageId, telefoneDuplicados,
 }: Props) {
   const supabase    = createClient()
   const { profile, isGestor } = useProfile()
@@ -41,6 +47,10 @@ export default function ClientesClient({
   const [error,      setError]      = useState('')
   const [deleting,   setDeleting]   = useState<string | null>(null)
   const [dupWarning, setDupWarning] = useState<Lead | null>(null)
+  const [gruposTelefone, setGruposTelefone] = useState<LeadDuplicado[][]>(telefoneDuplicados)
+  const [mesclagem, setMesclagem] = useState<{ grupo: LeadDuplicado[]; manter: string } | null>(null)
+  const [mesclando, setMesclando] = useState(false)
+  const [erroMesclagem, setErroMesclagem] = useState<string | null>(null)
 
   // Realtime: mantém lista sincronizada com outros abas/sessões
   useEffect(() => {
@@ -64,15 +74,15 @@ export default function ClientesClient({
     return () => { void supabase.removeChannel(channel) }
   }, [supabase])
 
-  // Detecta duplicatas: leads com mesmo telefone, email ou CPF
+  // Duplicatas: mesmo telefone (do servidor, todos os leads da unidade) ou, entre
+  // os clientes da lista, mesmo e-mail ou CPF
   const duplicateGroups = useMemo(() => {
-    const groups: Lead[][] = []
-    const seen = new Set<string>()
+    const groups: LeadDuplicado[][] = [...gruposTelefone]
+    const seen = new Set<string>(gruposTelefone.flat().map(l => l.id))
     for (const c of clients) {
       if (seen.has(c.id)) continue
       const matches = clients.filter(x =>
-        x.id !== c.id && (
-          (c.telefone && x.telefone && c.telefone.replace(/\D/g,'') === x.telefone.replace(/\D/g,'')) ||
+        x.id !== c.id && !seen.has(x.id) && (
           (c.email    && x.email    && c.email.toLowerCase() === x.email.toLowerCase()) ||
           (c.cpf      && x.cpf      && c.cpf.replace(/\D/g,'') === x.cpf.replace(/\D/g,''))
         )
@@ -84,7 +94,7 @@ export default function ClientesClient({
       }
     }
     return groups
-  }, [clients])
+  }, [clients, gruposTelefone])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -99,7 +109,7 @@ export default function ClientesClient({
         nome.includes(q) ||
         sobrenome.includes(q) ||
         (c.telefone ?? '').toLowerCase().includes(q) ||
-        (qDigits && tel.includes(qDigits)) ||
+        (qDigits && (tel.includes(qDigits) || (c.telefone_norm ?? '').includes(qDigits))) ||
         (c.email ?? '').toLowerCase().includes(q) ||
         (qDigits && (c.cpf ?? '').replace(/\D/g, '').includes(qDigits))
     })
@@ -130,12 +140,13 @@ export default function ClientesClient({
   async function handleSave(force = false) {
     if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
 
+    const telNorm = normalizarTelefone(form.telefone)
+
     if (modal === 'create' && !force) {
-      const tel   = form.telefone.replace(/\D/g, '')
       const email = form.email.trim().toLowerCase()
       const cpf   = form.cpf.replace(/\D/g, '')
       const potential = clients.find(c =>
-        (tel   && c.telefone && c.telefone.replace(/\D/g,'') === tel)   ||
+        (telNorm && c.telefone_norm === telNorm)                         ||
         (email && c.email    && c.email.toLowerCase()         === email) ||
         (cpf   && c.cpf      && c.cpf.replace(/\D/g,'')       === cpf)
       )
@@ -149,7 +160,7 @@ export default function ClientesClient({
     const payload = {
       nome:            form.nome.trim(),
       sobrenome:       form.sobrenome.trim()       || null,
-      telefone:        form.telefone.trim()        || null,
+      telefone:        telefoneParaGravar(form.telefone),
       email:           form.email.trim()           || null,
       cpf:             form.cpf.trim()             || null,
       data_nascimento: form.data_nascimento        || null,
@@ -188,8 +199,10 @@ export default function ClientesClient({
         setClients(prev => prev.map(c => c.id === selected.id ? data as Lead : c))
       }
       setModal(null)
-    } catch {
-      setError('Erro ao salvar. Tente novamente.')
+    } catch (err) {
+      setError((err as { code?: string }).code === '23505'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado ou ainda não ser cliente).'
+        : 'Erro ao salvar. Tente novamente.')
     } finally {
       setSaving(false)
     }
@@ -216,6 +229,42 @@ export default function ClientesClient({
       setDeleteError('Erro de conexão ao excluir cliente.')
     } finally {
       setDeleting(null)
+    }
+  }
+
+  function abrirMesclagem(grupo: LeadDuplicado[]) {
+    const maisAntigo = [...grupo].sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
+    setErroMesclagem(null)
+    setMesclagem({ grupo, manter: maisAntigo.id })
+  }
+
+  async function confirmarMesclagem() {
+    if (!mesclagem) return
+    const { grupo, manter } = mesclagem
+    setMesclando(true)
+    setErroMesclagem(null)
+    try {
+      for (const remover of grupo.filter(l => l.id !== manter).map(l => l.id)) {
+        const res = await fetch('/api/leads/mesclar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manter, remover }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string }
+          setErroMesclagem(body.error ?? 'Erro ao mesclar.')
+          return
+        }
+        setClients(prev => prev.filter(c => c.id !== remover))
+        setGruposTelefone(prev => prev
+          .map(g => g.filter(l => l.id !== remover))
+          .filter(g => g.length > 1))
+      }
+      setMesclagem(null)
+    } catch {
+      setErroMesclagem('Erro de conexão ao mesclar.')
+    } finally {
+      setMesclando(false)
     }
   }
 
@@ -294,13 +343,10 @@ export default function ClientesClient({
                   {group.map(c => `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}`).join(' · ')}
                   {group[0].telefone && <span className="text-amber-500 ml-1">({group[0].telefone})</span>}
                   {isGestor && (<button
-                    onClick={() => {
-                      const toDelete = group[group.length - 1]
-                      void handleDelete(toDelete.id)
-                    }}
+                    onClick={() => abrirMesclagem(group)}
                     className="ml-2 underline hover:no-underline text-amber-600"
                   >
-                    Remover duplicata
+                    Mesclar
                   </button>)}
                 </li>
               ))}
@@ -459,6 +505,56 @@ export default function ClientesClient({
                 style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 800, background: '#C87F1B', borderRadius: '999px' }}
               >
                 Cadastrar assim mesmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mesclagem && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(37,64,44,0.35)' }}>
+          <div className="bg-white w-full max-w-md space-y-4" style={{ borderRadius: '18px', padding: '22px', boxShadow: '0 16px 40px -12px rgba(37,64,44,0.3)' }}>
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>Mesclar contatos duplicados</p>
+              <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: 2 }}>
+                Escolha qual fica. Notas, tarefas, orçamentos, conversas e históricos dos outros passam para ele, os campos vazios são completados e os outros são apagados. Não dá para desfazer.
+              </p>
+            </div>
+            <div className="space-y-2">
+              {mesclagem.grupo.map(l => (
+                <label key={l.id} className="flex items-start gap-3 cursor-pointer"
+                  style={{ background: mesclagem.manter === l.id ? '#E8F4E6' : '#FBFAF4', borderRadius: 13, padding: '10px 14px', border: `1px solid ${mesclagem.manter === l.id ? '#3E9849' : '#EBE7DA'}` }}>
+                  <input type="radio" name="manter" checked={mesclagem.manter === l.id} disabled={mesclando}
+                    onChange={() => setMesclagem(m => m && { ...m, manter: l.id })} style={{ marginTop: 3 }} />
+                  <div className="min-w-0">
+                    <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>
+                      {l.nome}{l.sobrenome ? ` ${l.sobrenome}` : ''}
+                      {mesclagem.manter === l.id && <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#35853F', marginLeft: 6 }}>FICA</span>}
+                    </p>
+                    <p style={{ fontSize: '11.5px', color: '#9AA79C', marginTop: 2 }}>
+                      {[l.telefone, `cadastro ${fmt(l.created_at)}`, l.is_converted ? 'cliente' : 'lead', l.arquivado ? 'arquivado' : null].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {erroMesclagem && <p style={{ fontSize: '12px', fontWeight: 700, color: '#C05B3A' }}>{erroMesclagem}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMesclagem(null)}
+                disabled={mesclando}
+                className="flex-1 transition-colors disabled:opacity-50"
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, color: '#71856F', border: '1px solid #EBE7DA', borderRadius: '999px' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void confirmarMesclagem()}
+                disabled={mesclando}
+                className="flex-1 text-white transition-colors disabled:opacity-50"
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 800, background: '#C87F1B', borderRadius: '999px' }}
+              >
+                {mesclando ? 'Mesclando...' : `Mesclar ${mesclagem.grupo.length} em 1`}
               </button>
             </div>
           </div>

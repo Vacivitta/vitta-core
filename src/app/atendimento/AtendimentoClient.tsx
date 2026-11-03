@@ -17,6 +17,7 @@ import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
+import { normalizarTelefone } from '@/lib/telefone'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -769,7 +770,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       setLinkSearching(true)
       const digits = q.replace(/\D/g, '')
       const base = supabase.from('leads').select('*').eq('arquivado', false).eq('unit_id', currentUser.unit_id).limit(6).order('nome')
-      const { data } = digits.length >= 6 ? await base.ilike('telefone', `%${digits}%`) : await base.or(`nome.ilike.%${q}%,sobrenome.ilike.%${q}%`)
+      const norm = normalizarTelefone(q)
+      const { data } = norm ? await base.eq('telefone_norm', norm)
+        : digits.length >= 6 ? await base.ilike('telefone_norm', `%${digits}%`)
+        : await base.or(`nome.ilike.%${q}%,sobrenome.ilike.%${q}%`)
       setLinkResults((data ?? []) as LeadKanban[]); setLinkSearching(false)
     }, 300)
     return () => { if (linkTimerRef.current) clearTimeout(linkTimerRef.current) }
