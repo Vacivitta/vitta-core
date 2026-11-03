@@ -138,3 +138,45 @@ Resolvidas: `WHATSAPP_APP_ID`/`WHATSAPP_APP_SECRET` no Coolify (validados na Met
 - **Nunca usar a CLI do Supabase contra a produção** (`db push`, `migration repair`, `db reset`): ela tentaria aplicar 001–089.
 - **Papel:** migração com GRANT/REVOKE ou que substitui função `SECURITY DEFINER` roda como `supabase_admin`. Como `postgres`, o REVOKE não tem efeito e só gera aviso.
 - **Depois de qualquer restauração do backup (OBRIGATÓRIO):** reaplicar a `118_reaplicar_grants_funcoes.sql` como `supabase_admin`, com `--single-transaction` (a 090 não serve mais: a guarda dela é anterior à `is_gestor()` e aborta desde a 113), e conferir com `has_function_privilege`: `anon` = `false` em todas as funções `SECURITY DEFINER` e `authenticated` = `true` só em `is_global_admin`, `is_admin`, `is_gestor`, `get_agent_stats` e nas duas `record_stage_history`. O teste de restauração de 29/10 mostrou que o restore reabre essas funções para `anon` **e** `authenticated`. A mudança de privilégios padrão prevista para a migração 091 (PR-00b, ainda a aplicar) mantém `anon` fechado depois de um restore, mas `authenticated` volta nas 12 funções restritas; por isso ela **não substitui** este passo.
+
+## Campanhas de WhatsApp: migração 123 e job `process-wa-campaigns` (passo manual, [H])
+Desde a 123 as campanhas andam sozinhas: o botão Disparar só marca a campanha como `enviando` e o job
+`process-wa-campaigns` (a cada minuto) inicia as agendadas, retoma as pausadas por limite diário à meia-noite
+de São Paulo e envia um lote por campanha. Sem o job, campanha agendada nunca dispara e as demais param depois
+do primeiro lote. Ordem:
+
+1. Aplicar `123_campanhas_agendamento.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão
+   `123` e rodar `notify pgrst, 'reload schema'`. Conferir:
+   `SELECT has_function_privilege('authenticated', 'public.reservar_destinatarios_campanha(uuid,int)', 'EXECUTE');` → `false`.
+   Depois de um restore, reaplicar a 123 também (é idempotente e fecha o EXECUTE de novo).
+2. Deploy do app com a rota `/api/whatsapp/process-campaigns` (antes disso o job receberia 404).
+3. Campanhas `agendada` criadas antes desta versão têm `scheduled_at` 3 h adiantado (a tela gravava o horário
+   digitado sem fuso e o banco lia como UTC). Assim que o job existir, elas disparam nesse horário adiantado, ou
+   na hora, se ele já passou. Listar (só leitura) e decidir com o responsável antes do passo 4:
+   ```sql
+   SELECT id, nome, total_recipients,
+          scheduled_at AT TIME ZONE 'America/Sao_Paulo' AS como_esta_sp,
+          (scheduled_at + interval '3 hours') AT TIME ZONE 'America/Sao_Paulo' AS provavel_horario_digitado
+     FROM public.wa_campaigns WHERE status = 'agendada' ORDER BY scheduled_at;
+   ```
+   Opções (com aprovação): corrigir as escolhidas com
+   `UPDATE public.wa_campaigns SET scheduled_at = scheduled_at + interval '3 hours' WHERE id IN (...) AND status = 'agendada';`
+   ou voltar para rascunho (`SET status = 'rascunho'`) para alguém disparar à mão.
+4. Criar o job copiando URL e cabeçalho do job de agendadas, sem digitar o segredo:
+   ```sql
+   SELECT cron.schedule('process-wa-campaigns', '* * * * *',
+          replace(command, '/api/whatsapp/process-scheduled', '/api/whatsapp/process-campaigns'))
+     FROM cron.job WHERE jobname = 'process-wa-scheduled-messages';
+   ```
+   Equivalente com os valores explícitos (`<app_url>` e `<cron_secret>` como no `05-pos-migracao.sql`):
+   ```sql
+   SELECT cron.schedule('process-wa-campaigns', '* * * * *',
+     $c$SELECT net.http_post(url := '<app_url>/api/whatsapp/process-campaigns',
+        headers := jsonb_build_object('Authorization', 'Bearer <cron_secret>', 'Content-Type', 'application/json'),
+        body := '{}'::jsonb)$c$);
+   ```
+5. Conferir: `SELECT jobname, schedule, active FROM cron.job;` e, depois de 2 min,
+   `SELECT status, return_message, start_time FROM cron.job_run_details WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'process-wa-campaigns') ORDER BY start_time DESC LIMIT 3;`
+   e `SELECT status_code, created FROM net._http_response ORDER BY created DESC LIMIT 5;` (200; 401 = segredo errado).
+
+Reversão: `SELECT cron.unschedule('process-wa-campaigns');` (as campanhas em `enviando` param onde estão).
