@@ -9,11 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev      # dev server at http://localhost:3000
 npm run build    # production build (runs tsc + Next.js compilation)
-npm run lint     # eslint across the project
-npx tsc --noEmit --skipLibCheck   # type-check only, no output files
+npm run lint     # eslint; old errors are frozen in eslint-suppressions.json, new ones fail
+npm run typecheck # tsc --noEmit --skipLibCheck
+npm run test:db  # builds the database from scratch in Docker and runs tests/db (Linux + Docker; see tests/db/README.md)
 ```
 
-There are no automated tests. TypeScript (`npx tsc --noEmit`) is the primary correctness gate — run it after every change that touches `src/types/database.ts` or any shared type.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint and the database tests on every PR. There are no app-level tests yet. Run the typecheck after every change that touches `src/types/database.ts` or any shared type, and add a case to `tests/db/` for any migration that changes RLS, privileges or guards.
 
 ## Architecture
 
@@ -53,7 +54,7 @@ Key API routes under `src/app/api/whatsapp/`:
 - `webhook/route.ts` — receives Meta events (messages + status updates), calls `runAutoAssign`
 - `send/route.ts` — sends text or template messages
 - `schedule/route.ts` — creates/lists/cancels scheduled messages (`wa_scheduled_messages` table)
-- `process-scheduled/route.ts` — cron target; called every minute via pg_cron + pg_net; needs `Authorization: Bearer <CRON_SECRET>` header
+- `process-scheduled/route.ts` — cron target; called every minute via pg_cron + pg_net; needs `Authorization: Bearer <CRON_SECRET>` header. All cron routes check it with `cronAutorizado()` (`src/lib/auth/cron.ts`), which rejects every call when `CRON_SECRET` is unset
 - `meta-templates/route.ts` — CRUD for WhatsApp Business templates against Meta API
 
 ### WhatsApp template variables
@@ -70,8 +71,8 @@ Migrations live in `supabase/migrations/` as plain SQL files numbered sequential
 - **Run as `supabase_admin`** any migration that grants/revokes privileges or replaces a `SECURITY DEFINER` function: it owns those functions and granted their privileges, so a `REVOKE` run as `postgres` silently does nothing (that is why 085's revokes never took effect).
 - **Version registry:** `supabase_migrations.schema_migrations`, created by `docs/migracao-vps/registro-migracoes.sql`. Migrations 001–089 are covered by a single baseline row (`089`); from 090 on, each applied migration inserts its own row (`version` = number only, e.g. `090`). **Insert the row as `supabase_admin`**: in production (Postgres 15.8) `postgres` is not a superuser and cannot write to the registry, on purpose (it can only read it, through `pg_read_all_data`).
 - **Never use the Supabase CLI against production** (`db push`, `migration repair`, `db reset`): it does not see 001–089 in the registry and would try to apply them.
-- **`SECURITY DEFINER` functions:** revoke `EXECUTE` from `PUBLIC` and `anon` explicitly (and from `authenticated` unless the browser calls it), and prove it after applying with `has_function_privilege(...)`, not by reading the migration. Only `is_global_admin`, `is_admin`, `record_stage_history` and `get_agent_stats` are executable by `authenticated` today (migration 090).
-- **After any database restore, re-apply migration 090 as `supabase_admin`** and check `has_function_privilege` — this step is **mandatory**: the restore reopens those functions to `anon` **and** `authenticated` (restore test of 2026-10-29). The default-privileges fix planned for migration 091 keeps `anon` closed after a restore, but `authenticated` still comes back on the 12 restricted functions, so it does not replace this step.
+- **`SECURITY DEFINER` functions:** revoke `EXECUTE` from `PUBLIC` and `anon` explicitly (and from `authenticated` unless the browser calls it), and prove it after applying with `has_function_privilege(...)`, not by reading the migration. Only `is_global_admin`, `is_admin`, `is_gestor`, `record_stage_history` and `get_agent_stats` are executable by `authenticated` today (migrations 090, 113 and 118); `tests/db/020_privilegios.test.sql` checks this list.
+- **After any database restore, re-apply migration 118 as `supabase_admin`** (not 090: its guard predates `is_gestor()` and aborts since 113) and check `has_function_privilege` — this step is **mandatory**: the restore reopens those functions to `anon` **and** `authenticated` (restore test of 2026-10-29). Migration 091 keeps `anon` closed after a restore, but `authenticated` still comes back on the 12 restricted functions, so it does not replace this step.
 - Before applying, confirm with Infra that today's backup exists and that restoring it has been tested (see the runbook); do not assume it. Destructive migrations (DROP, DELETE, ALTER that loses data) also need a fresh backup and specific approval.
 - **Production queries are read-only**: SSH + `psql` with `set default_transaction_read_only = on`. Prefer counts and aggregates; never pull personal data (LGPD).
 - After changing the schema, update `src/types/database.ts` and run the typecheck.

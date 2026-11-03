@@ -8,6 +8,7 @@
  *   Authorization: Bearer <CRON_SECRET>
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { cronAutorizado } from '@/lib/auth/cron'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
@@ -29,12 +30,8 @@ export async function GET(req: NextRequest) { return handler(req) }
 export async function POST(req: NextRequest) { return handler(req) }
 
 async function handler(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get('authorization') ?? ''
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!cronAutorizado(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const admin = adminClient()
