@@ -9,7 +9,7 @@
  * Rodar duas vezes seguidas (ou junto com o botão Disparar) não envia em dobro:
  * os destinatários são reservados no banco antes do envio.
  */
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { cronAutorizado } from '@/lib/auth/cron'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resumoErro } from '@/lib/log-seguro'
@@ -56,18 +56,24 @@ export async function POST(req: NextRequest) {
     .limit(MAX_CAMPANHAS)
   if (errEnviando) return NextResponse.json({ error: errEnviando.message }, { status: 500 })
 
-  const resultados = await Promise.all((enviando ?? []).map(async ({ id }) => {
-    try {
-      return { id, resultado: await processarLoteCampanha(supabase, id, prazo) }
-    } catch (e) {
-      console.error(`[process-campaigns] campanha=${id}:`, resumoErro(e))
-      return { id, resultado: { tipo: 'erro' as const } }
-    }
-  }))
+  // Os lotes levam ~20 s (2 s entre envios) e o pg_net desiste da resposta em
+  // 5 s: responde já e envia depois da resposta
+  after(async () => {
+    await Promise.all((enviando ?? []).map(async ({ id }) => {
+      try {
+        const resultado = await processarLoteCampanha(supabase, id, prazo)
+        if (resultado.tipo === 'pausada') {
+          console.warn(`[process-campaigns] campanha=${id} pausada (${resultado.motivo}): ${resultado.detalhe}`)
+        }
+      } catch (e) {
+        console.error(`[process-campaigns] campanha=${id}:`, resumoErro(e))
+      }
+    }))
+  })
 
   return NextResponse.json({
     agendadas_iniciadas: agendadas?.length ?? 0,
     retomadas: retomadas?.length ?? 0,
-    lotes: resultados.map(r => ({ id: r.id, tipo: r.resultado.tipo })),
+    lotes: enviando?.length ?? 0,
   })
 }
