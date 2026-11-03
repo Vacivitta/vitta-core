@@ -13,8 +13,6 @@ import { moverLeadDeEtapa } from '@/lib/automacoes/mover-etapa'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
-// Acontecem a cada mensagem enviada ou recebida (o lead já está em atendimento,
-// numa etapa comercial ou a conversa não tem lead): gravar encheria o histórico.
 const PULOS_DE_ROTINA_POR_MENSAGEM: ReadonlySet<MotivoPulo> = new Set<MotivoPulo>([
   'sem_lead', 'ja_na_etapa', 'etapa_nao_movivel',
 ])
@@ -114,10 +112,6 @@ async function executarAutomacoes(
   }
 }
 
-/**
- * Regra sem etapa ou modelo escolhido: grava uma vez por dia, sem lead nem
- * conversa, para não repetir a cada mensagem.
- */
 async function registrarMalConfigurada(supabase: SupabaseClient, contexto: ContextoExecucao) {
   const semAlvo = { ...contexto, leadId: null, conversationId: null }
   if (await tentativasSemSucessoRecentes(supabase, contexto.automationId, semAlvo, ['pulado']) > 0) return

@@ -41,7 +41,6 @@ BEGIN
   END IF;
 END $$;
 
--- ── 1. Tabela ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.automation_runs (
   id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   unit_id         uuid        NOT NULL REFERENCES public.units (id) ON DELETE CASCADE,
@@ -62,7 +61,6 @@ CREATE INDEX IF NOT EXISTS idx_automation_runs_unit_criado
 CREATE INDEX IF NOT EXISTS idx_automation_runs_automation_criado
   ON public.automation_runs (automation_id, criado_em DESC);
 
--- ── 2. Privilégios e RLS ─────────────────────────────────────────────────────
 ALTER TABLE public.automation_runs ENABLE ROW LEVEL SECURITY;
 
 -- Os privilégios padrão do Supabase dão ALL a anon e authenticated em tabela nova
@@ -78,7 +76,6 @@ CREATE POLICY "gestores_automation_runs_select" ON public.automation_runs AS PER
         AND unit_id IN (SELECT unit_id FROM user_units WHERE user_id = (SELECT auth.uid())))
   );
 
--- ── 3. Retenção ──────────────────────────────────────────────────────────────
 SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'purge-automation-runs';
 SELECT cron.schedule(
   'purge-automation-runs',
@@ -86,7 +83,6 @@ SELECT cron.schedule(
   $cmd$DELETE FROM public.automation_runs WHERE criado_em < now() - interval '90 days'$cmd$
 );
 
--- ── Guarda ───────────────────────────────────────────────────────────────────
 DO $$
 DECLARE outras text;
 BEGIN

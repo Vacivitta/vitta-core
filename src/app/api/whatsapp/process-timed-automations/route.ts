@@ -118,7 +118,6 @@ async function processAutomation(admin: Admin, auto: TimedAutomation): Promise<n
   }
 }
 
-/** Uma vez por dia por automação: a regra (etapa/modelo apagado, condição desconhecida) não muda sozinha. */
 async function registrarMalConfigurada(admin: Admin, auto: TimedAutomation) {
   const semAlvo: Alvo = { leadId: null, conversationId: null }
   if (await tentativasSemSucessoRecentes(admin, auto.id, semAlvo, ['pulado']) > 0) return
@@ -330,12 +329,7 @@ function contexto(auto: TimedAutomation, alvo: Alvo) {
   }
 }
 
-/**
- * Se a automação "disparou" para o alvo e não deve rodar de novo.
- *
- * @param falhaDeBancoAposEnvio - O `falhou` de banco veio depois de a Meta aceitar
- *   a mensagem (ver `sendTemplateToConv`): repetir mandaria o modelo duas vezes.
- */
+// MUST KILL
 function disparoConsumado(resultado: ResultadoAutomacao, falhaDeBancoAposEnvio: boolean): boolean {
   switch (resultado.kind) {
     case 'etapa_movida':
@@ -348,7 +342,6 @@ function disparoConsumado(resultado: ResultadoAutomacao, falhaDeBancoAposEnvio: 
   }
 }
 
-/** Grava a execução e, se consumada, trava o alvo. Devolve se houve efeito. */
 async function concluir(
   admin: Admin, auto: TimedAutomation, alvo: Alvo, resultado: ResultadoAutomacao, falhaDeBancoAposEnvio: boolean,
 ): Promise<boolean> {
@@ -373,7 +366,6 @@ async function moverPorTempo(admin: Admin, leadId: string | null, stageId: strin
   return moverLeadDeEtapa(admin, lead, stageId)
 }
 
-/** Um `falhou` de banco aqui significa que a Meta já aceitou a mensagem. */
 async function sendTemplateToConv(
   admin: Admin,
   unitId: string,

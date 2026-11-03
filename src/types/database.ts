@@ -493,8 +493,6 @@ export interface LeadStageHistory {
   criado_em:     string
 }
 
-// ---- Execuções de automação (migração 120) ---------------------------------
-
 export type AutomationRunResultado = 'etapa_movida' | 'modelo_enviado' | 'pulado' | 'falhou'
 
 export interface AutomationRun {
