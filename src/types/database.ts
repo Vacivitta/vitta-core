@@ -493,6 +493,27 @@ export interface LeadStageHistory {
   criado_em:     string
 }
 
+export type AutomationRunResultado = 'etapa_movida' | 'modelo_enviado' | 'pulado' | 'falhou'
+
+export interface AutomationRun {
+  id:              string
+  unit_id:         string
+  origem:          'evento' | 'tempo'
+  automation_id:   string
+  gatilho:         string
+  acao:            string
+  lead_id:         string | null
+  conversation_id: string | null
+  resultado:       AutomationRunResultado
+  motivo:          string | null
+  detalhe:         Record<string, unknown> | null
+  criado_em:       string
+}
+
+export interface AutomationRunComLead extends AutomationRun {
+  lead_nome: string | null
+}
+
 // ---- Tags de conversas WhatsApp --------------------------------------------
 
 export interface WaTag {

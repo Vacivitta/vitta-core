@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Profile, AutomationTrigger } from '@/types/database'
+import type { Profile, AutomationTrigger, AutomationRunComLead, AutomationRunResultado } from '@/types/database'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +39,7 @@ interface Props {
   currentUser: Profile; stages: Stage[]
   initialQuoteAutomations: QuoteAutomation[]; initialWaAutomations: WaAutomation[]
   templates: WaTemplate[]; initialTimedAutomations: TimedAutomation[]; funnels: Funnel[]
+  execucoes: AutomationRunComLead[]; falhas: AutomationRunComLead[]
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -75,10 +76,38 @@ type RowState = { action: ActionType; stage_id: string; template_id: string }
 
 const ACCENT_TIMED = '#F59E0B'
 
+const RESULTADO_META: Record<AutomationRunResultado, { label: string; bg: string; color: string }> = {
+  etapa_movida:   { label: 'Movida',  bg: '#E8F7EE', color: '#1D9E75' },
+  modelo_enviado: { label: 'Enviada', bg: '#E8F7EE', color: '#1D9E75' },
+  pulado:         { label: 'Pulada',  bg: '#F1EFE5', color: '#71856F' },
+  falhou:         { label: 'Falhou',  bg: '#FEF2F2', color: '#DC2626' },
+}
+
+const MOTIVO_PULO_LABEL: Record<string, string> = {
+  sem_lead:          'Conversa sem lead',
+  ja_na_etapa:       'Lead já estava na etapa',
+  etapa_nao_movivel: 'Lead numa etapa que a automação não altera',
+  sem_telefone:      'Conversa sem telefone',
+  sem_conversa:      'Lead sem conversa no WhatsApp',
+  modelo_ausente:    'Template não encontrado',
+  sem_credenciais:   'WhatsApp da unidade não configurado',
+  mal_configurada:   'Regra sem etapa ou template válido',
+}
+
+const FORMATO_DATA_HORA = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
+})
+
+function textoDetalhe(detalhe: Record<string, unknown> | null, chave: string): string | null {
+  const v = detalhe?.[chave]
+  return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AutomacoesClient({
   currentUser, stages, initialQuoteAutomations, initialWaAutomations, templates, initialTimedAutomations, funnels,
+  execucoes, falhas,
 }: Props) {
   const supabase = createClient()
   const unitId   = currentUser.unit_id ?? ''
@@ -484,6 +513,13 @@ export default function AutomacoesClient({
               )
             })}
           </Section>
+
+          <Divider />
+
+          <ExecucoesRecentes
+            execucoes={execucoes} falhas={falhas} stages={stages} templates={templates}
+            timedAutos={timedAutos} conditionLabel={conditionLabel} actionLabel={actionLabel}
+          />
         </div>
       </main>
     </div>
@@ -612,6 +648,95 @@ function AutomationCard({ label, desc, accentColor, row, stages, allStages, temp
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function ExecucoesRecentes({ execucoes, falhas, stages, templates, timedAutos, conditionLabel, actionLabel }: {
+  execucoes: AutomationRunComLead[]; falhas: AutomationRunComLead[]
+  stages: Stage[]; templates: WaTemplate[]; timedAutos: TimedAutomation[]
+  conditionLabel: (key: string) => string; actionLabel: (key: string) => string
+}) {
+  const [filtro, setFiltro] = useState<'todos' | 'falhas'>('todos')
+  const linhas = filtro === 'todos' ? execucoes : falhas
+  const stageNome = (id: string | null) => (id && stages.find(s => s.id === id)?.nome) || '—'
+
+  function nomeAutomacao(run: AutomationRunComLead): string {
+    if (run.origem === 'tempo') {
+      const auto = timedAutos.find(a => a.id === run.automation_id)
+      return auto ? (auto.nome || conditionLabel(auto.condition)) : `${conditionLabel(run.gatilho)} (regra removida)`
+    }
+    const evento = WA_TRIGGERS.find(t => t.key === run.gatilho)?.label ?? run.gatilho
+    return `${evento} → ${actionLabel(run.acao)}`
+  }
+
+  function descricao(run: AutomationRunComLead): string {
+    switch (run.resultado) {
+      case 'etapa_movida':
+        return `${stageNome(textoDetalhe(run.detalhe, 'de'))} → ${stageNome(textoDetalhe(run.detalhe, 'para'))}`
+      case 'modelo_enviado': {
+        const tplId = textoDetalhe(run.detalhe, 'templateId')
+        return `Template ${templates.find(t => t.id === tplId)?.name ?? ''}`.trim()
+      }
+      case 'pulado':
+        return MOTIVO_PULO_LABEL[run.motivo ?? ''] ?? run.motivo ?? ''
+      case 'falhou': {
+        const etapa = textoDetalhe(run.detalhe, 'etapa') === 'meta' ? 'Meta' : 'Banco'
+        const http = textoDetalhe(run.detalhe, 'httpStatus')
+        return `${etapa}${http ? ` (HTTP ${http})` : ''}: ${run.motivo ?? 'sem detalhe'}`
+      }
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
+        <div>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: '#25402C', margin: 0 }}>Execuções recentes</h2>
+          <p style={{ fontSize: 11, color: '#9AA79C', margin: 0 }}>Últimas 100 execuções das automações desta unidade</p>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {([['todos', 'Todas'], ['falhas', 'Falhas']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setFiltro(key)} style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid', cursor: 'pointer',
+              background: filtro === key ? '#25402C' : '#fff', color: filtro === key ? '#fff' : '#9AA79C',
+              borderColor: filtro === key ? '#25402C' : '#EBE7DA',
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {linhas.length === 0 ? (
+        <div style={{ background: '#FBFAF4', border: '1px dashed #EBE7DA', borderRadius: 12, padding: '24px 18px', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: '#9AA79C', margin: 0 }}>
+            {filtro === 'todos' ? 'Nenhuma execução registrada ainda' : 'Nenhuma falha recente'}
+          </p>
+        </div>
+      ) : (
+        <div style={{ background: '#fff', border: '1px solid #F1EFE5', borderRadius: 12, overflow: 'hidden' }}>
+          {linhas.map((run, i) => {
+            const meta = RESULTADO_META[run.resultado]
+            return (
+              <div key={run.id} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px',
+                borderTop: i === 0 ? 'none' : '1px solid #FBFAF4',
+              }}>
+                <span style={{ fontSize: 11, color: '#9AA79C', width: 82, flexShrink: 0, paddingTop: 2 }}>
+                  {FORMATO_DATA_HORA.format(new Date(run.criado_em))}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#25402C', margin: 0 }}>{nomeAutomacao(run)}</p>
+                  <p style={{ fontSize: 11, color: '#71856F', margin: '2px 0 0', wordBreak: 'break-word' }}>
+                    <span style={{ fontWeight: 600 }}>{run.lead_nome ?? 'Sem lead'}</span>
+                    {' · '}{descricao(run)}
+                  </p>
+                </div>
+                <Pill bg={meta.bg} color={meta.color}>{meta.label}</Pill>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
