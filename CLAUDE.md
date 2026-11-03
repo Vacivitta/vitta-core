@@ -12,9 +12,10 @@ npm run build    # production build (runs tsc + Next.js compilation)
 npm run lint     # eslint; old errors are frozen in eslint-suppressions.json, new ones fail
 npm run typecheck # tsc --noEmit --skipLibCheck
 npm run test:db  # builds the database from scratch in Docker and runs tests/db (Linux + Docker; see tests/db/README.md)
+npm test         # node --test tests/*.test.mjs (no deps; Node strips the TS types of src/lib files it imports)
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint and the database tests on every PR. There are no app-level tests yet. Run the typecheck after every change that touches `src/types/database.ts` or any shared type, and add a case to `tests/db/` for any migration that changes RLS, privileges or guards.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, `npm test` and the database tests on every PR. Phone normalization has one rule in two places (`src/lib/telefone.ts` and SQL `normalizar_telefone`, migration 121), both checked against `tests/db/telefone_casos.json`: change the cases and both implementations together. Run the typecheck after every change that touches `src/types/database.ts` or any shared type, and add a case to `tests/db/` for any migration that changes RLS, privileges or guards.
 
 ## Architecture
 
@@ -72,7 +73,7 @@ Migrations live in `supabase/migrations/` as plain SQL files numbered sequential
 - **Version registry:** `supabase_migrations.schema_migrations`, created by `docs/migracao-vps/registro-migracoes.sql`. Migrations 001–089 are covered by a single baseline row (`089`); from 090 on, each applied migration inserts its own row (`version` = number only, e.g. `090`). **Insert the row as `supabase_admin`**: in production (Postgres 15.8) `postgres` is not a superuser and cannot write to the registry, on purpose (it can only read it, through `pg_read_all_data`).
 - **Never use the Supabase CLI against production** (`db push`, `migration repair`, `db reset`): it does not see 001–089 in the registry and would try to apply them.
 - **`SECURITY DEFINER` functions:** revoke `EXECUTE` from `PUBLIC` and `anon` explicitly (and from `authenticated` unless the browser calls it), and prove it after applying with `has_function_privilege(...)`, not by reading the migration. Only `is_global_admin`, `is_admin`, `is_gestor`, `record_stage_history` and `get_agent_stats` are executable by `authenticated` today (migrations 090, 113 and 118); `tests/db/020_privilegios.test.sql` checks this list.
-- **After any database restore, re-apply migration 118 as `supabase_admin`** (not 090: its guard predates `is_gestor()` and aborts since 113) and check `has_function_privilege` — this step is **mandatory**: the restore reopens those functions to `anon` **and** `authenticated` (restore test of 2026-10-29). Migration 091 keeps `anon` closed after a restore, but `authenticated` still comes back on the 12 restricted functions, so it does not replace this step.
+- **After any database restore, re-apply migration 118 as `supabase_admin`** (not 090: its guard predates `is_gestor()` and aborts since 113) and check `has_function_privilege` — this step is **mandatory**: the restore reopens those functions to `anon` **and** `authenticated` (restore test of 2026-10-29). Migration 091 keeps `anon` closed after a restore, but `authenticated` still comes back on the 12 restricted functions, so it does not replace this step. 118 does not know `mesclar_leads` (121): after a restore also re-apply 121 (its own guard refuses calls whose JWT role is `anon`/`authenticated`, but the GRANT must be closed too).
 - Before applying, confirm with Infra that today's backup exists and that restoring it has been tested (see the runbook); do not assume it. Destructive migrations (DROP, DELETE, ALTER that loses data) also need a fresh backup and specific approval.
 - **Production queries are read-only**: SSH + `psql` with `set default_transaction_read_only = on`. Prefer counts and aggregates; never pull personal data (LGPD).
 - After changing the schema, update `src/types/database.ts` and run the typecheck.
