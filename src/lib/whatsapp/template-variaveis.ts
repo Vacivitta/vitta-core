@@ -20,9 +20,6 @@ export function contarVariaveis(content: string | null): number {
  * Monta o `components` do envio de template na Meta: corpo com os valores das
  * variáveis `{{N}}` e cabeçalho de imagem, quando o template tem. Sem eles a Meta
  * recusa templates com variáveis ou cabeçalho.
- *
- * @param valores - Valores das variáveis, na ordem `{{1}}`, `{{2}}`...
- * @returns `components` e o texto com as variáveis substituídas (para registro)
  */
 export function montarComponentesTemplate(template: TemplateParaEnvio, valores: string[]): ComponentesTemplate {
   let components: object[] = []
@@ -49,20 +46,6 @@ export function montarComponentesTemplate(template: TemplateParaEnvio, valores: 
   return { components, renderedText }
 }
 
-/**
- * Resolve variáveis dinâmicas de um template (ex: `{{1}}`, `{{2}}`).
- * A ordem das variáveis vem de `variable_order` no banco; se ausente,
- * usa o fallback padrão: nome_cliente, nome_atendente, data, horario.
- * Se não encontrar o atendente responsável, usa o nome da unidade como fallback.
- *
- * @param supabase - Cliente Supabase
- * @param unitId - ID da unidade (fallback para nome do atendente)
- * @param leadId - ID do lead para buscar nome e responsável
- * @param variableOrder - Mapeamento posição → semântica salvo no template
- * @param varCount - Quantidade de variáveis `{{N}}` no conteúdo do template
- * @param nomeContato - Nome usado quando não há lead (ex.: contato importado de planilha)
- * @returns Array de valores resolvidos na ordem das variáveis
- */
 export async function resolveVariables(
   supabase: SupabaseClient,
   unitId: string,

@@ -2,10 +2,6 @@
  * POST /api/whatsapp/process-campaigns — alvo do job pg_cron process-wa-campaigns
  * (a cada minuto), com `Authorization: Bearer <CRON_SECRET>`.
  *
- * 1. agendada com scheduled_at vencido → enviando;
- * 2. pausada por limite diário com retomar_em vencido → enviando;
- * 3. um lote por campanha 'enviando', até MAX_CAMPANHAS em paralelo.
- *
  * Rodar duas vezes seguidas (ou junto com o botão Disparar) não envia em dobro:
  * os destinatários são reservados no banco antes do envio.
  */
@@ -18,7 +14,6 @@ import { processarLoteCampanha } from '@/lib/whatsapp/campanha'
 export const maxDuration = 60
 
 const MAX_CAMPANHAS = 5
-// Folga para gravar contadores antes do maxDuration
 const PRAZO_ENVIOS_MS = 40_000
 
 export async function POST(req: NextRequest) {
@@ -47,7 +42,6 @@ export async function POST(req: NextRequest) {
     .select('id')
   if (errRetomadas) return NextResponse.json({ error: errRetomadas.message }, { status: 500 })
 
-  // A menos atualizada primeiro, para revezar quando houver mais que MAX_CAMPANHAS
   const { data: enviando, error: errEnviando } = await supabase
     .from('wa_campaigns')
     .select('id')

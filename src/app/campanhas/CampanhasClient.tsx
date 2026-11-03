@@ -18,7 +18,7 @@ interface LeadAudience {
 
 interface XlsContact {
   nome: string
-  telefone: string   // forma canônica (normalizarTelefone)
+  telefone: string
   raw: string        // linha original para debug
 }
 
@@ -32,7 +32,6 @@ interface Props {
 
 type WizardStep = 1 | 2 | 3
 
-// Datas chegam como texto no JSON da rota
 type ResultadoResumo =
   | Exclude<ResultadoLote, { tipo: 'limite_diario' }>
   | (Omit<Extract<ResultadoLote, { tipo: 'limite_diario' }>, 'retomarEm'> & { retomarEm: string })
@@ -333,7 +332,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   // Step 3 — Revisão
   const [scheduleFor, setScheduleFor] = useState('')
   const [dailyLimit, setDailyLimit] = useState(250)
-  const [cswMap, setCswMap] = useState<Record<string, boolean>>({}) // telefone normalizado → in_csw
+  const [cswMap, setCswMap] = useState<Record<string, boolean>>({})
 
   const funnels = useMemo(() => {
     const seen = new Set<string>()
@@ -479,7 +478,6 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
       for (let i = 0; i < recipients.length; i += 100) {
         const { error: errRecip } = await supabase.from('wa_campaign_recipients').insert(recipients.slice(i, i + 100))
         if (errRecip) {
-          // Sem a lista completa a campanha enviaria para parte da audiência
           await supabase.from('wa_campaigns').delete().eq('id', campaign.id)
           throw errRecip
         }

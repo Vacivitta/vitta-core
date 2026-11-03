@@ -18,7 +18,6 @@ test('início do dia de São Paulo', () => {
 test('próxima meia-noite de São Paulo', () => {
   assert.equal(iso(proximaMeiaNoiteSaoPaulo(new Date('2026-11-03T15:00:00Z'))), '2026-11-04T03:00:00.000Z')
   assert.equal(iso(proximaMeiaNoiteSaoPaulo(new Date('2026-11-04T02:59:00Z'))), '2026-11-04T03:00:00.000Z')
-  // exatamente à meia-noite, a próxima é a do dia seguinte
   assert.equal(iso(proximaMeiaNoiteSaoPaulo(new Date('2026-11-04T03:00:00Z'))), '2026-11-05T03:00:00.000Z')
   assert.equal(iso(proximaMeiaNoiteSaoPaulo(new Date('2026-12-31T20:00:00Z'))), '2027-01-01T03:00:00.000Z')
 })
@@ -71,7 +70,6 @@ test('texto do status', () => {
     descreverStatus({ status: 'pausada', motivo: 'limite_diario', retomarEm: proximaMeiaNoiteSaoPaulo(agora) }, progresso, agora),
     'Limite diário atingido · retoma amanhã às 00:00')
   assert.equal(descreverStatus({ status: 'pausada', motivo: 'manual', retomarEm: null }, progresso, agora), 'Pausada manualmente')
-  // agendada às 09:00 de São Paulo = 12:00 UTC
   assert.equal(descreverStatus({ status: 'agendada', agendadaPara: new Date('2026-11-04T12:00:00Z') }, progresso, agora),
     'Agendada para 04/11/2026, 09:00')
 })

@@ -1,9 +1,3 @@
-/**
- * Regras puras das campanhas de WhatsApp: dia de São Paulo, limite diário,
- * tamanho do lote e o que gravar na campanha depois de cada lote. Sem acesso a
- * banco nem rede, para rodar em `node --test` e no navegador.
- */
-
 export const FUSO_CAMPANHAS = 'America/Sao_Paulo'
 
 export type StatusCampanha = 'rascunho' | 'agendada' | 'enviando' | 'pausada' | 'concluida' | 'cancelada'
@@ -35,12 +29,6 @@ function data(iso: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-/**
- * Lê a linha de `wa_campaigns`. Agendada sem `scheduled_at` vira rascunho: não
- * há quando disparar.
- *
- * @returns O estado, ou `null` se o status é desconhecido
- */
 export function lerEstadoCampanha(row: {
   status: string; scheduled_at: string | null; motivo_pausa?: string | null; retomar_em?: string | null
 }): EstadoCampanha | null {
@@ -61,7 +49,6 @@ export function lerEstadoCampanha(row: {
 
 export type Disparo = { ok: true } | { ok: false; motivo: string }
 
-/** Se o usuário pode mandar a campanha para envio agora (botão Disparar/Retomar). */
 export function podeDisparar(estado: EstadoCampanha, agora: Date): Disparo {
   switch (estado.status) {
     case 'rascunho':
@@ -94,14 +81,12 @@ function deslocamentoMs(instante: Date): number {
   return comoUtc - Math.floor(instante.getTime() / 1000) * 1000
 }
 
-/** Instante da meia-noite (00:00 de São Paulo) do dia em que `agora` cai. */
 export function inicioDoDiaSaoPaulo(agora: Date): Date {
   const p = partesEmSaoPaulo(agora)
   const meiaNoiteComoUtc = Date.UTC(p.ano, p.mes - 1, p.dia)
   return new Date(meiaNoiteComoUtc - deslocamentoMs(new Date(meiaNoiteComoUtc)))
 }
 
-/** Próxima meia-noite de São Paulo depois de `agora` (quando o limite diário zera). */
 export function proximaMeiaNoiteSaoPaulo(agora: Date): Date {
   const inicio = inicioDoDiaSaoPaulo(agora)
   // 26 h passa da meia-noite seguinte mesmo num dia de 25 h (horário de verão)
@@ -113,10 +98,6 @@ export type DecisaoLote =
   | { tipo: 'limite_diario'; retomarEm: Date }
   | { tipo: 'enviar'; quantidade: number }
 
-/**
- * Quantos destinatários o próximo lote pode pegar. O limite vale por número
- * (unidade), somando todas as campanhas dela no dia de São Paulo.
- */
 export function decidirLote(p: {
   pendentes: number; lote: number; limiteDiario: number; enviadosHojeNaUnidade: number; agora: Date
 }): DecisaoLote {
@@ -143,12 +124,6 @@ export type AtualizacaoCampanha = {
   completed_at?: string
 }
 
-/**
- * O que gravar em `wa_campaigns` depois do lote. Com pendentes a campanha
- * continua 'enviando' e o job segue no próximo minuto.
- *
- * @returns `null` quando a campanha não deve ser alterada
- */
 export function atualizacaoAposLote(r: ResultadoLote, agora: Date): AtualizacaoCampanha | null {
   switch (r.tipo) {
     case 'concluida':
@@ -165,7 +140,6 @@ export function atualizacaoAposLote(r: ResultadoLote, agora: Date): AtualizacaoC
   }
 }
 
-/** Data e hora em São Paulo, ex.: "04/11/2026 09:30". */
 export function formatarDataHora(d: Date): string {
   return d.toLocaleString('pt-BR', {
     timeZone: FUSO_CAMPANHAS, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -184,7 +158,6 @@ const MOTIVO_TEXTO: Record<MotivoPausa, string> = {
   optout: 'Pausada: muitos pedidos para sair',
 }
 
-/** Texto do status na lista, ex.: "Enviando (40 de 300)", "Retoma amanhã às 00:00". */
 export function descreverStatus(
   estado: EstadoCampanha, progresso: { enviados: number; total: number }, agora: Date,
 ): string {

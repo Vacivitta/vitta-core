@@ -100,13 +100,9 @@ async function gravarResultado(
 }
 
 /**
- * Envia um lote de uma campanha 'enviando'. Chamado pelo job a cada minuto e
- * pelo botão Disparar. Reserva os destinatários no banco antes de enviar
+ * Reserva os destinatários no banco antes de enviar
  * (`reservar_destinatarios_campanha`), então chamadas simultâneas não enviam
  * em dobro, e respeita o limite diário da unidade.
- *
- * @param prazo - Instante (ms) a partir do qual não começa outro envio; o que
- *   sobrar da reserva é devolvido para o próximo lote
  */
 export async function processarLoteCampanha(
   supabase: SupabaseClient, campaignId: string, prazo: number,

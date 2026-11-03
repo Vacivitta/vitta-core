@@ -31,8 +31,6 @@ async function autorizar(campaignId: string) {
   return { supabase, campaign } as const
 }
 
-// POST { campaign_id }: manda a campanha para envio. O job process-campaigns
-// continua em lotes a cada minuto; aqui roda só o primeiro, para retorno imediato.
 export async function POST(req: NextRequest) {
   const { campaign_id } = await req.json() as { campaign_id?: string }
   if (!campaign_id) return NextResponse.json({ error: 'campaign_id obrigatório' }, { status: 400 })
@@ -62,14 +60,11 @@ export async function POST(req: NextRequest) {
     const resultado = await processarLoteCampanha(supabase, campaign_id, Date.now() + 40_000)
     return NextResponse.json({ ok: true, resultado })
   } catch (e) {
-    // A campanha já está 'enviando': o job tenta de novo no próximo minuto
     console.error('[campaign-process] primeiro lote falhou:', resumoErro(e))
     return NextResponse.json({ ok: true, resultado: null })
   }
 }
 
-// PATCH { campaign_id, action: 'pause' | 'cancel' }. Pausa manual não é retomada
-// pelo job; pausar uma campanha que espera o limite diário cancela a retomada.
 export async function PATCH(req: NextRequest) {
   const { campaign_id, action } = await req.json() as { campaign_id?: string; action?: 'pause' | 'cancel' }
   if (!campaign_id || (action !== 'pause' && action !== 'cancel')) {

@@ -3,7 +3,6 @@ INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
   ('00000000-0000-4000-8080-0000000000a0', '00000000-0000-4000-8080-0000000000f0', 'Unidade A', 'clinica'),
   ('00000000-0000-4000-8080-0000000000b0', '00000000-0000-4000-8080-0000000000f0', 'Unidade B', 'clinica');
 
--- c1 e c2 na unidade A (limite 10), c3 e c4 na B, c5 pausada
 INSERT INTO public.wa_campaigns (id, unit_id, nome, status, daily_limit) VALUES
   ('00000000-0000-4000-8080-0000000000c1', '00000000-0000-4000-8080-0000000000a0', 'A envia',   'enviando', 10),
   ('00000000-0000-4000-8080-0000000000c2', '00000000-0000-4000-8080-0000000000a0', 'A já foi',  'enviando', 10),
@@ -14,7 +13,6 @@ INSERT INTO public.wa_campaigns (id, unit_id, nome, status, daily_limit) VALUES
 INSERT INTO public.wa_campaign_recipients (campaign_id, phone)
 SELECT '00000000-0000-4000-8080-0000000000c1', '55319900000' || lpad(i::text, 2, '0') FROM generate_series(1, 12) i;
 
--- Dois envios hoje e um ontem (dia de São Paulo) na unidade A
 INSERT INTO public.wa_campaign_recipients (campaign_id, phone, status, sent_at) VALUES
   ('00000000-0000-4000-8080-0000000000c2', '5531990000101', 'sent', now()),
   ('00000000-0000-4000-8080-0000000000c2', '5531990000102', 'delivered', now()),
@@ -48,7 +46,6 @@ BEGIN
     RAISE EXCEPTION 'duas reservas seguidas devolveram o mesmo destinatário';
   END IF;
 
-  -- unidade A: 2 enviados hoje + 6 reservados = 8 de 10; sobram 2, mesmo pedindo 3
   SELECT array_agg(id) INTO terceira FROM public.reservar_destinatarios_campanha('00000000-0000-4000-8080-0000000000c1', 3);
   IF cardinality(terceira) IS DISTINCT FROM 2 THEN
     RAISE EXCEPTION 'com 8 de 10 usados hoje na unidade, a reserva deveria devolver 2, devolveu %', coalesce(cardinality(terceira), 0);
@@ -65,7 +62,6 @@ END $$;
 DO $$
 DECLARE n int;
 BEGIN
-  -- o uso da unidade A não conta para a B, e p_limite é respeitado
   SELECT count(*) INTO n FROM public.reservar_destinatarios_campanha('00000000-0000-4000-8080-0000000000c3', 1);
   IF n <> 1 THEN
     RAISE EXCEPTION 'p_limite = 1 deveria reservar 1, reservou %', n;
@@ -117,7 +113,6 @@ BEGIN
     RAISE EXCEPTION 'authenticated chamando a reserva deveria dar 42501, deu %', resultado;
   END IF;
 
-  -- mesmo com EXECUTE devolvido (como depois de um restore), a guarda recusa o JWT do navegador
   GRANT EXECUTE ON FUNCTION public.reservar_destinatarios_campanha(uuid, int) TO authenticated;
   BEGIN
     PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated')::text, true);
