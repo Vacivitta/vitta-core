@@ -21,8 +21,6 @@ function origemDe({ routeType, routePath }: ContextoNext): AppErrorOrigem {
   }
 }
 
-// rota = routePath (o arquivo, ex. /clientes/[id]), nunca request.path: o caminho
-// real pode trazer ids e a query string pode trazer telefone ou token.
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const { registrarErro } = await import('@/lib/erros/registrar')

@@ -165,7 +165,6 @@ interface ConfigItem {
   label:      string
   icon:       React.ReactNode
   gestorOnly: boolean
-  /** Só admin e gestor_vacivitta, como is_global_admin() no banco */
   adminGlobalOnly?: true
 }
 

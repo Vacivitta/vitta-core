@@ -21,19 +21,12 @@ interface Janela { inicio: number; gravadas: number; suprimidas: number }
 const janelas = new Map<string, Janela>()
 let janelaTotal = { inicio: 0, gravadas: 0 }
 
-/**
- * Tira da mensagem o que pode identificar pessoas ou dar acesso: e-mails,
- * tokens, UUIDs e sequências de dígitos (telefone, CPF, ids).
- * `resumoErro` só evita objetos inteiros; o `message` de um Error pode trazer
- * o telefone ou o texto que falhou.
- */
 export function mascararDados(texto: string): string {
   return mascararSegredos(texto)
     .replace(/\+?\d[\d\s().-]{6,}\d/g, '<numero>')
     .replace(/\d{4,}/g, '<numero>')
 }
 
-// Na stack os números são linha:coluna, necessários para achar o código
 function mascararSegredos(texto: string): string {
   return texto
     .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>')
@@ -65,7 +58,6 @@ function assinaturaDe(origem: AppErrorOrigem, rota: string, tipo: string, mensag
   return createHash('sha256').update([origem, rota, tipo, normalizada].join('\u0000')).digest('hex')
 }
 
-/** Devolve quantas ocorrências gravar agora (0 = suprimir) e acumula as suprimidas. */
 function cotaDe(assinatura: string, agora: number): number {
   if (agora - janelaTotal.inicio >= MINUTO) janelaTotal = { inicio: agora, gravadas: 0 }
 
@@ -90,13 +82,6 @@ function cotaDe(assinatura: string, agora: number): number {
   return quantidade
 }
 
-/**
- * Grava o erro em `app_errors` (agrupado por assinatura) para a tela
- * Configurações → Erros do servidor. Nunca lança.
- *
- * As ocorrências acima do limite por minuto não viram chamadas ao banco: são
- * somadas na próxima gravação da mesma assinatura.
- */
 export async function registrarErro(erro: unknown, contexto: ContextoErro): Promise<void> {
   try {
     const tipo     = tipoDoErro(erro).slice(0, 200)

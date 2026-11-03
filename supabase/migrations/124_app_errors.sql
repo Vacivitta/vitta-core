@@ -62,7 +62,6 @@ CREATE TABLE IF NOT EXISTS public.app_errors (
   resolvido_por uuid        REFERENCES auth.users (id) ON DELETE SET NULL
 );
 
--- Mesmo dono das demais tabelas do public (criadas como postgres até a 089)
 ALTER TABLE public.app_errors OWNER TO postgres;
 
 CREATE INDEX IF NOT EXISTS idx_app_errors_ultimo_em ON public.app_errors (ultimo_em DESC);

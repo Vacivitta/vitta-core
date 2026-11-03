@@ -518,8 +518,6 @@ export interface Notification {
   criado_em: string
 }
 
-// ---- Erros do servidor (124) -------------------------------------------------
-
 export type AppErrorOrigem = 'rota' | 'renderizacao' | 'acao' | 'cron' | 'webhook' | 'outro'
 
 export const APP_ERROR_ORIGEM_LABELS: Record<AppErrorOrigem, string> = {

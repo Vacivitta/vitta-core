@@ -16,8 +16,6 @@ UPDATE public.profiles SET unit_id = '00000000-0000-4000-8000-0000000006a0',
     ELSE 'atendente' END
  WHERE id::text LIKE '00000000-0000-4000-8000-00000000060_';
 
--- Mesmo mecanismo do 030: o RAISE com SQLSTATE próprio desfaz a subtransação e
--- leva o ROW_COUNT (ou o valor do SELECT) para fora na mensagem
 CREATE FUNCTION pg_temp.como(papel text, usuario uuid, comando text) RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -43,8 +41,6 @@ BEGIN
   RETURN resultado;
 END $$;
 
--- A gravação do service_role precisa persistir entre os casos, então roda direto
--- (fora do pg_temp.como, que desfaz tudo)
 SET LOCAL ROLE service_role;
 SELECT public.registrar_erro_app('teste-assinatura-1', 'rota', '/api/teste', 'POST', 'TypeError',
                                  'falha de teste', '    at teste (arquivo.ts:1:1)', 'digest-1');
@@ -156,7 +152,6 @@ BEGIN
   END IF;
 END $$;
 
--- O comando do job apaga o que deve e mantém o resto
 INSERT INTO public.app_errors (assinatura, origem, tipo, mensagem, ultimo_em, resolvido_em) VALUES
   ('purge-resolvido-antigo', 'cron', 'Error', 'x', now() - interval '40 days', now() - interval '31 days'),
   ('purge-resolvido-recente', 'cron', 'Error', 'x', now() - interval '40 days', now() - interval '5 days'),
