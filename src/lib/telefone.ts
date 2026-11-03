@@ -59,6 +59,18 @@ export function formatarTelefone(norm: string): string {
 }
 
 /**
+ * O que gravar em `leads.telefone` a partir do que foi digitado: a forma de
+ * exibição se o número for válido; senão o texto como está (ou `null` se vazio),
+ * para não perder o que a pessoa escreveu.
+ *
+ * @param raw - Texto digitado
+ */
+export function telefoneParaGravar(raw: string | null | undefined): string | null {
+  const norm = normalizarTelefone(raw)
+  return norm ? formatarTelefone(norm) : (raw?.trim() || null)
+}
+
+/**
  * Versões do número que podem estar em `wa_phone`: para muitos DDDs a Meta
  * identifica o celular SEM o 9 (553196674494), enquanto a forma canônica tem
  * (5531996674494).

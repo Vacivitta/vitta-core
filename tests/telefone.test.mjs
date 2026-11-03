@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  avisoTelefone, formatarTelefone, normalizarTelefone, normalizarWaPhone, variantesTelefone,
+  avisoTelefone, formatarTelefone, normalizarTelefone, normalizarWaPhone, telefoneParaGravar, variantesTelefone,
 } from '../src/lib/telefone.ts'
 
 const casos = JSON.parse(readFileSync(new URL('./db/telefone_casos.json', import.meta.url), 'utf8'))
@@ -45,4 +45,10 @@ test('avisoTelefone', () => {
   assert.equal(avisoTelefone('+1 212 555 1234'), null)
   assert.match(avisoTelefone('31 8888-7777') ?? '', /sem o 9° dígito.*\(31\) 98888-7777/)
   assert.match(avisoTelefone('9966') ?? '', /inválido/)
+})
+
+test('telefoneParaGravar', () => {
+  assert.equal(telefoneParaGravar('31996674494'), '(31) 99667-4494')
+  assert.equal(telefoneParaGravar('  '), null)
+  assert.equal(telefoneParaGravar('ramal 12'), 'ramal 12')
 })

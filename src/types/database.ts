@@ -136,6 +136,7 @@ export interface Lead {
   site:            string | null
   email:           string | null
   telefone:        string | null
+  telefone_norm:   string | null   // gerada pelo banco (normalizar_telefone, migração 121); nunca gravar
   origem:          string | null
   funnel_id:       string
   stage_id:        string
@@ -156,7 +157,8 @@ export interface Lead {
   updated_at:      string
 }
 
-export interface LeadKanban extends Lead {
+// A view leads_kanban não tem telefone_norm (colunas fixadas quando foi criada)
+export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
   responsavel_nome:   string | null
   responsavel_avatar: string | null
   stage_nome:         string | null

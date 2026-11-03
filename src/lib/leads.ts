@@ -39,7 +39,7 @@ export async function getLeadsKanban(filters?: {
 }
 
 export async function createLead(
-  lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'motivo_perda' | 'ordem' | 'stage_changed_at'>
+  lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'telefone_norm'>
 ): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -51,7 +51,7 @@ export async function createLead(
   return data
 }
 
-export async function updateLead(id: string, updates: Partial<Lead>): Promise<Lead> {
+export async function updateLead(id: string, updates: Partial<Omit<Lead, 'telefone_norm'>>): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('leads')

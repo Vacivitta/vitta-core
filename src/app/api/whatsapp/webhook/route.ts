@@ -5,7 +5,8 @@ import { runAutoAssign }            from '../auto-assign/route'
 import { isValidVerifyToken }       from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { MIGRACAO_VPS_URL }         from '@/lib/migracao'
-import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
+import { buscarConversaPorTelefone, buscarLeadPorTelefone } from '@/lib/whatsapp/telefone'
+import { formatarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import { resumoErro } from '@/lib/log-seguro'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
@@ -390,11 +391,13 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
       await refreshCampaignCounters(supabase, recip.campaign_id)
     }
   } else {
-    // Caso 2: sem lead — verifica se número é destinatário XLS (lead_id IS NULL)
+    // Caso 2: sem lead — verifica se número é destinatário XLS (lead_id IS NULL).
+    // A planilha pode ter o celular com ou sem o 9.
+    const norm = normalizarWaPhone(waPhone)
     const { data: xlsRecip } = await supabase
       .from('wa_campaign_recipients')
       .select('id, campaign_id, nome')
-      .eq('phone', waPhone)
+      .in('phone', norm ? [...new Set([waPhone, ...variantesTelefone(norm)])] : [waPhone])
       .is('lead_id', null)
       .in('status', ['sent', 'delivered', 'read', 'pending'])
       .order('created_at', { ascending: false })
@@ -410,7 +413,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
           unit_id:     unitId,
           nome:        nomeCompleto,
           sobrenome,
-          telefone:    formatPhone(waPhone),
+          telefone:    norm ? formatarTelefone(norm) : waPhone,
           origem:      'campanha_whatsapp',
           funnel_id:   defaultStage.funnel_id,
           stage_id:    defaultStage.stage_id,
@@ -509,49 +512,17 @@ async function autoLinkOrCreateLead(
   contactName: string | null,
   isOptOut     = false,
 ): Promise<string | null> {
-  // Normaliza: só dígitos do waPhone, e versão sem DDI (últimos 11 dígitos)
-  const digitsAll   = waPhone.replace(/\D/g, '')
-  const digitsShort = digitsAll.length > 11 ? digitsAll.slice(-11) : digitsAll
-
-  // Busca server-side usando ilike com os últimos 8+ dígitos (evita limit arbitrário)
-  const searchSuffix = digitsAll.length >= 8 ? digitsAll.slice(-8) : digitsAll
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('id, telefone')
-    .eq('unit_id', unitId)
-    .eq('arquivado', false)
-    .not('telefone', 'is', null)
-    .ilike('telefone', `%${searchSuffix}%`)
-    .limit(10)
-
-  const matchedLead = (leads ?? []).find(l => {
-    const d = (l.telefone as string).replace(/\D/g, '')
-    return d === digitsAll || d === digitsShort || d.endsWith(digitsShort)
-  })
+  const norm = normalizarWaPhone(waPhone)
+  const matched = norm ? await buscarLeadPorTelefone(supabase, unitId, norm) : null
 
   let leadId: string
 
-  if (matchedLead) {
-    leadId = matchedLead.id
+  if (matched && !matched.arquivado) {
+    leadId = matched.id
     console.log(`[WA webhook] lead existente encontrado: ${leadId}`)
   } else {
-    // Busca entre leads arquivados antes de criar um novo
-    const { data: archivedLeads } = await supabase
-      .from('leads')
-      .select('id, telefone')
-      .eq('unit_id', unitId)
-      .eq('arquivado', true)
-      .not('telefone', 'is', null)
-      .ilike('telefone', `%${searchSuffix}%`)
-      .limit(10)
-
-    const matchedArchived = (archivedLeads ?? []).find(l => {
-      const d = (l.telefone as string).replace(/\D/g, '')
-      return d === digitsAll || d === digitsShort || d.endsWith(digitsShort)
-    })
-
-    if (matchedArchived) {
-      leadId = matchedArchived.id
+    if (matched) {
+      leadId = matched.id
       const defaultStage = await getDefaultStage(supabase, unitId)
       await supabase.from('leads').update({
         arquivado: false,
@@ -572,14 +543,13 @@ async function autoLinkOrCreateLead(
       return null
     }
 
-    const formattedPhone = formatPhone(waPhone)
     const { data: newLead, error: leadErr } = await supabase
       .from('leads')
       .insert({
         unit_id:   unitId,
         nome,
         sobrenome,
-        telefone:  formattedPhone,
+        telefone:  norm ? formatarTelefone(norm) : waPhone,
         origem:    'whatsapp',
         funnel_id: defaultStage.funnel_id,
         stage_id:  defaultStage.stage_id,
@@ -589,15 +559,9 @@ async function autoLinkOrCreateLead(
       .single()
 
     if (leadErr) {
-      // Race condition: outro request criou o lead entre a busca e o insert
+      // Outro request criou o lead entre a busca e o insert (índice único da migração 122)
       if (leadErr.code === '23505') {
-        const { data: existing } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('unit_id', unitId)
-          .eq('telefone', formattedPhone)
-          .eq('arquivado', false)
-          .single()
+        const existing = norm ? await buscarLeadPorTelefone(supabase, unitId, norm) : null
         if (existing) {
           leadId = existing.id
           console.log(`[WA webhook] lead já criado por request concorrente: ${leadId}`)
@@ -666,25 +630,6 @@ function splitName(fullName: string | null): { nome: string; sobrenome: string |
   const nome     = parts[0]
   const sobrenome = parts.length > 1 ? parts.slice(1).join(' ') : null
   return { nome, sobrenome }
-}
-
-function formatPhone(waPhone: string): string {
-  const d = waPhone.replace(/\D/g, '')
-  let local = d.startsWith('55') ? d.slice(2) : d
-  // Celular com 10 dígitos (sem o 9): adiciona o 9 para normalizar
-  if (local.length === 10) {
-    const firstDigit = local[2]
-    if ('6789'.includes(firstDigit)) {
-      local = local.slice(0, 2) + '9' + local.slice(2)
-    }
-  }
-  if (local.length === 11) {
-    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
-  }
-  if (local.length === 10) {
-    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
-  }
-  return waPhone
 }
 
 async function handleStatusUpdate(status: WAStatus, phoneNumberId: string) {
