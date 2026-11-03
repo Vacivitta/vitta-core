@@ -1,5 +1,3 @@
--- Privilégios de EXECUTE das funções do schema public (090, 091, 113, 115).
-
 DO $$
 DECLARE abertas text;
 BEGIN
@@ -57,8 +55,6 @@ BEGIN
   END LOOP;
 END $$;
 
--- Default privileges da 091: função nova no public, criada por qualquer um dos
--- dois papéis que aplicam migrações, nasce fechada para anon/PUBLIC
 DO $$
 DECLARE papel text;
 BEGIN

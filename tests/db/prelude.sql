@@ -1,7 +1,3 @@
--- Prelúdio do banco de teste: o que a produção tem e as migrações supõem, mas
--- que a imagem supabase/postgres sozinha não traz. Roda como supabase_admin,
--- antes da 001. Nunca vai para produção.
-
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 
@@ -35,7 +31,6 @@ ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS metadata           jsonb;
 
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
--- As migrações rodam como postgres (não superusuário) e criam buckets e policies
 GRANT USAGE ON SCHEMA storage TO postgres;
 GRANT ALL ON storage.buckets, storage.objects TO postgres;
 

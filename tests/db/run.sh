@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Monta o banco do zero numa imagem supabase/postgres descartável, aplica todas as
-# migrações como a produção, confere as guardas das migrações >= 090 e roda
-# tests/db/*.test.sql. Uso, da raiz do repositório: bash tests/db/run.sh
-#
-# Variáveis opcionais:
-#   VC_TESTE_IMAGEM     imagem do Postgres (padrão supabase/postgres:15.8.1.085)
-#   VC_TESTE_CONTAINER  nome do container (padrão vc-teste-db-<pid>)
-#   VC_TESTE_MANTER=1   não apaga o container no fim (para investigar)
 set -euo pipefail
 export LC_ALL=C
 
@@ -117,8 +109,7 @@ arquivo_da_versao() {
 
 for m in "${migracoes[@]}"; do
   (($(numero "$m") >= 90)) || continue
-  # A guarda da 090 só conhece as permitidas de então; a 113 abriu is_gestor()
-  # para authenticated, e desde então a 090 reaplicada aborta (e não muda nada).
+  # MUST KILL: exceção por nome de arquivo para a 090, cuja guarda quebrou com a 113
   if [[ "${m##*/}" == 090_* ]]; then
     esperar_erro "reaplicada depois da 113" "fora das permitidas" supabase_admin "${m##*/}" --single-transaction
     continue
@@ -140,7 +131,6 @@ mapfile -t testes < <(find tests/db -maxdepth 1 -name '*.test.sql' | sort)
 passaram=0
 falharam=()
 for t in "${testes[@]}"; do
-  # Cada arquivo roda numa transação desfeita no fim: nada do teste fica no banco
   if { echo 'BEGIN;'; cat "$t"; printf '\nROLLBACK;\n'; } | psql_como supabase_admin >"$saida" 2>&1; then
     echo "ok  ${t##*/}"
     passaram=$((passaram + 1))

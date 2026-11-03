@@ -1,8 +1,4 @@
--- Matriz de permissões por perfil (ensaio de 30/10), com dados fictícios.
--- Unidades: A (com dados), B (vazia, vinculada ao atendente), C (vazia, sem vínculo).
-
--- Deriva conhecida (PR #16): o trigger quotes_no_delete da 010 existe no banco do
--- zero, mas não em produção. Sem removê-lo nenhum DELETE de orçamento passaria.
+-- MUST KILL: deriva da 010 em relação à produção; corrigir por migração, não no teste
 DROP TRIGGER IF EXISTS quotes_no_delete ON public.quotes;
 
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8000-0000000000f0', 'Rede Teste');
@@ -46,7 +42,6 @@ INSERT INTO public.funnel_stages (id, funnel_id, nome, unit_id)
 VALUES ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000d0', 'Novo',
         '00000000-0000-4000-8000-0000000000a0');
 
--- L1 tem notas, tarefas e orçamento; L2 não tem nada ligado (casos de apagar e transferir)
 INSERT INTO public.leads (id, nome, funnel_id, stage_id, unit_id) VALUES
   ('00000000-0000-4000-8000-000000000101', 'Paciente Um', '00000000-0000-4000-8000-0000000000d0',
    '00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000a0'),
@@ -71,8 +66,7 @@ INSERT INTO public.quotes (id, unit_id, lead_id)
 VALUES ('00000000-0000-4000-8000-000000000401', '00000000-0000-4000-8000-0000000000a0',
         '00000000-0000-4000-8000-000000000101');
 
--- Roda o comando como o usuário logado (ou service_role) numa subtransação sempre
--- desfeita e devolve as linhas afetadas ou 'erro <sqlstate>'
+-- MUST KILL: nome vago; esconde o truque do SQLSTATE VCT01 que desfaz a subtransação e carrega o ROW_COUNT
 CREATE FUNCTION pg_temp.como(papel text, usuario uuid, comando text) RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE

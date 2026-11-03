@@ -1,7 +1,3 @@
-# Checagens de todo PR: typecheck e lint do app, e o banco montado do zero a partir
-# das migrações com os testes de tests/db. Sem segredos: nada aqui fala com a
-# produção.
-
 name: CI
 
 on:
