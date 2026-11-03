@@ -1,7 +1,19 @@
 ﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AutomacoesClient from './AutomacoesClient'
-import type { Profile } from '@/types/database'
+import type { AutomationRun, AutomationRunComLead, Profile } from '@/types/database'
+
+const COLUNAS_EXECUCAO = 'id, unit_id, origem, automation_id, gatilho, acao, lead_id, conversation_id, resultado, motivo, detalhe, criado_em, leads(nome, sobrenome)'
+
+type LinhaExecucao = AutomationRun & {
+  leads: { nome: string | null; sobrenome: string | null } | { nome: string | null; sobrenome: string | null }[] | null
+}
+
+function paraExecucao({ leads, ...run }: LinhaExecucao): AutomationRunComLead {
+  const lead = Array.isArray(leads) ? (leads[0] ?? null) : leads
+  const nome = lead ? [lead.nome, lead.sobrenome].filter(Boolean).join(' ') : ''
+  return { ...run, lead_nome: nome || null }
+}
 
 export const metadata = { title: 'Automações — VittaDesk' }
 
@@ -26,6 +38,8 @@ export default async function AutomacoesPage() {
     { data: templates },
     { data: timedAutomations },
     { data: funnels },
+    { data: execucoes },
+    { data: falhas },
   ] = await Promise.all([
     supabase
       .from('funnel_stages')
@@ -54,6 +68,21 @@ export default async function AutomacoesPage() {
       .from('funnels')
       .select('id, nome')
       .order('nome'),
+    supabase
+      .from('automation_runs')
+      .select(COLUNAS_EXECUCAO)
+      .eq('unit_id', unitId)
+      .order('criado_em', { ascending: false })
+      .limit(100)
+      .returns<LinhaExecucao[]>(),
+    supabase
+      .from('automation_runs')
+      .select(COLUNAS_EXECUCAO)
+      .eq('unit_id', unitId)
+      .eq('resultado', 'falhou')
+      .order('criado_em', { ascending: false })
+      .limit(100)
+      .returns<LinhaExecucao[]>(),
   ])
 
   const normalizedStages = (stages ?? []).map(s => ({
@@ -70,6 +99,8 @@ export default async function AutomacoesPage() {
       templates={templates ?? []}
       initialTimedAutomations={timedAutomations ?? []}
       funnels={(funnels ?? []) as { id: string; nome: string }[]}
+      execucoes={(execucoes ?? []).map(paraExecucao)}
+      falhas={(falhas ?? []).map(paraExecucao)}
     />
   )
 }
