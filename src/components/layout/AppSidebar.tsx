@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/hooks/useProfile'
 import { PERFIL_LABELS } from '@/types/database'
+import { isPerfilAdminGlobal } from '@/lib/auth/access'
 import NotificationBell from './NotificationBell'
 
 // ── Ícones Lucide (stroke 2, 17px) ───────────────────────────────────────────
@@ -453,7 +454,7 @@ export default function AppSidebar() {
             <div style={{ marginLeft: 14, paddingLeft: 10, borderLeft: '1px solid #E9E5D8', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {CONFIG_SECTIONS.map(section => {
                 const visible = section.items.filter(i =>
-                  (!i.gestorOnly || isGestor) && (!i.adminGlobalOnly || perfil === 'admin' || perfil === 'gestor_vacivitta'))
+                  (!i.gestorOnly || isGestor) && (!i.adminGlobalOnly || isPerfilAdminGlobal(perfil)))
                 if (visible.length === 0) return null
                 const sectionOpen = openSections[section.title] ?? false
                 const sectionActive = visible.some(i => isActive(i.href))

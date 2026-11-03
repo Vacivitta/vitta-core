@@ -29,6 +29,7 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
     : undefined
   await registrarErro(err, {
     origem: origemDe(context),
+    // O modelo da rota (ex.: /api/leads/[id]), nunca o caminho real: a URL pode trazer id, telefone ou token
     rota:   context.routePath,
     metodo: request.method,
     digest,

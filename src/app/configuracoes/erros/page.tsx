@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { isPerfilAdminGlobal } from '@/lib/auth/access'
 import type { AppError } from '@/types/database'
 import ErrosClient from './ErrosClient'
 
@@ -12,7 +13,7 @@ export default async function ErrosPage() {
 
   const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
   if (!profile) redirect('/login')
-  if (!['admin', 'gestor_vacivitta'].includes(profile.perfil)) redirect('/funil')
+  if (!isPerfilAdminGlobal(profile.perfil)) redirect('/funil')
 
   const [{ data: abertos }, { data: resolvidos }] = await Promise.all([
     supabase.from('app_errors').select('*').is('resolvido_em', null)

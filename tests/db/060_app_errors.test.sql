@@ -16,7 +16,7 @@ UPDATE public.profiles SET unit_id = '00000000-0000-4000-8000-0000000006a0',
     ELSE 'atendente' END
  WHERE id::text LIKE '00000000-0000-4000-8000-00000000060_';
 
-CREATE FUNCTION pg_temp.como(papel text, usuario uuid, comando text) RETURNS text
+CREATE FUNCTION pg_temp.linhas_afetadas_como(papel text, usuario uuid, comando text) RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE
   linhas bigint;
@@ -128,7 +128,7 @@ DECLARE
   divergentes text[] := '{}';
 BEGIN
   FOR c IN SELECT * FROM casos ORDER BY ordem LOOP
-    obtido := pg_temp.como(c.papel, c.usuario, c.comando);
+    obtido := pg_temp.linhas_afetadas_como(c.papel, c.usuario, c.comando);
     IF obtido IS DISTINCT FROM c.esperado THEN
       divergentes := divergentes || format('%s: esperado %s, obtido %s', c.caso, c.esperado, obtido);
     END IF;

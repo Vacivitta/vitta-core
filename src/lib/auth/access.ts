@@ -57,3 +57,10 @@ export const PERFIS_GESTOR = ['admin', 'gestor_vacivitta', 'gestor_unidade'] as 
 export function isPerfilGestor(perfil: string | null | undefined): boolean {
   return !!perfil && (PERFIS_GESTOR as readonly string[]).includes(perfil)
 }
+
+/** Perfis que veem todas as unidades. Mesma lista da função is_global_admin() do banco. */
+export const PERFIS_ADMIN_GLOBAL = ['admin', 'gestor_vacivitta'] as const
+
+export function isPerfilAdminGlobal(perfil: string | null | undefined): boolean {
+  return !!perfil && (PERFIS_ADMIN_GLOBAL as readonly string[]).includes(perfil)
+}
