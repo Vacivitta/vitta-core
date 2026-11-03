@@ -28,14 +28,19 @@ let janelaTotal = { inicio: 0, gravadas: 0 }
  * o telefone ou o texto que falhou.
  */
 export function mascararDados(texto: string): string {
+  return mascararSegredos(texto)
+    .replace(/\+?\d[\d\s().-]{6,}\d/g, '<numero>')
+    .replace(/\d{4,}/g, '<numero>')
+}
+
+// Na stack os números são linha:coluna, necessários para achar o código
+function mascararSegredos(texto: string): string {
   return texto
     .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>')
     .replace(/\bBearer\s+\S+/gi, 'Bearer <token>')
     .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, '<jwt>')
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<uuid>')
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<token>')
-    .replace(/\+?\d[\d\s().-]{6,}\d/g, '<numero>')
-    .replace(/\d{4,}/g, '<numero>')
 }
 
 function tipoDoErro(erro: unknown): string {
@@ -50,8 +55,9 @@ function framesDaStack(erro: unknown): string | null {
   const frames = erro.stack
     .split('\n')
     .filter(linha => linha.trimStart().startsWith('at '))
+    .map(linha => linha.replace(/[^\s(]*[\\/](?=(\.next|node_modules)[\\/])/g, ''))
     .join('\n')
-  return frames ? mascararDados(frames).slice(0, MAX_STACK) : null
+  return frames ? mascararSegredos(frames).slice(0, MAX_STACK) : null
 }
 
 function assinaturaDe(origem: AppErrorOrigem, rota: string, tipo: string, mensagem: string): string {
