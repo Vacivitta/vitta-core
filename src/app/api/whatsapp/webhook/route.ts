@@ -741,7 +741,8 @@ async function refreshCampaignCounters(
     .eq('id', campaignId)
     .single()
 
-  let newStatus = campaign?.status ?? 'enviando'
+  const oldStatus = campaign?.status ?? 'enviando'
+  let newStatus = oldStatus
   if (pending === 0 && newStatus !== 'cancelada') newStatus = 'concluida'
   else if (optoutRate > 0.05 && !['pausada', 'cancelada', 'concluida'].includes(newStatus)) newStatus = 'pausada'
 
@@ -751,9 +752,16 @@ async function refreshCampaignCounters(
     replied_count:   replied,
     failed_count:    failed,
     optout_count:    optoutCount,
-    status:          newStatus,
-    completed_at:    newStatus === 'concluida' ? new Date().toISOString() : undefined,
   }).eq('id', campaignId)
+
+  // Condicionado ao status lido, para não desfazer uma pausa ou um cancelamento
+  // feitos enquanto o webhook processava
+  if (newStatus !== oldStatus) {
+    await supabase.from('wa_campaigns').update(newStatus === 'concluida'
+      ? { status: 'concluida', motivo_pausa: null, retomar_em: null, completed_at: new Date().toISOString() }
+      : { status: 'pausada', motivo_pausa: 'optout', retomar_em: null },
+    ).eq('id', campaignId).eq('status', oldStatus)
+  }
 }
 
 function calcCostUsd(category: string, billable: boolean): number {

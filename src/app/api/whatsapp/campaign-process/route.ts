@@ -1,296 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
-import { getWaCredentials }         from '@/lib/whatsapp/credentials'
+import { processarLoteCampanha } from '@/lib/whatsapp/campanha'
+import { lerEstadoCampanha, podeDisparar } from '@/lib/whatsapp/campanha-regras'
+import { resumoErro } from '@/lib/log-seguro'
 
-const META_API_URL  = 'https://graph.facebook.com/v20.0'
-const BATCH_SIZE    = 10     // mensagens por lote (conservador — evita timeout Vercel)
-const BATCH_DELAY   = 2000   // ms entre mensagens (≈0,5 msg/s)
-const MAX_ERR_RATE  = 0.20   // pausa automática se erro > 20%
-const RETRY_429_MS  = 8000   // backoff após rate-limit da Meta
-
-// Next.js route segment config — aumenta o timeout máximo de 10 s para 60 s
 export const maxDuration = 60
 
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('[WA] NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados')
-  return createClient(url, key)
-}
-
-// ── POST /api/whatsapp/campaign-process ──────────────────────────────────────
-//
-// Body: { campaign_id: string }
-//
-// Inicia o processamento de uma campanha. Envia até BATCH_SIZE mensagens,
-// atualiza contadores em tempo real e pausa automaticamente se a taxa de
-// erro superar MAX_ERR_RATE.
-//
-// Pode ser chamado repetidamente para retomar campanhas pausadas/em andamento.
-//
-export async function POST(req: NextRequest) {
+async function autorizar(campaignId: string) {
   const supabaseUser = await createServerClient()
   const { data: { user } } = await supabaseUser.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  if (!user) return { erro: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) } as const
 
+  const supabase = createAdminClient()
+  const { data: campaign } = await supabase
+    .from('wa_campaigns')
+    .select('id, unit_id, status, scheduled_at, started_at, motivo_pausa, retomar_em')
+    .eq('id', campaignId)
+    .maybeSingle()
+  if (!campaign) return { erro: NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 }) } as const
+
+  const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
+  if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
+    return { erro: NextResponse.json({ error: 'Acesso negado' }, { status: 403 }) } as const
+  }
+  if (!isPerfilGestor(profile.perfil)) {
+    return { erro: NextResponse.json({ error: 'Sem permissão para alterar campanhas' }, { status: 403 }) } as const
+  }
+  return { supabase, campaign } as const
+}
+
+// POST { campaign_id }: manda a campanha para envio. O job process-campaigns
+// continua em lotes a cada minuto; aqui roda só o primeiro, para retorno imediato.
+export async function POST(req: NextRequest) {
   const { campaign_id } = await req.json() as { campaign_id?: string }
   if (!campaign_id) return NextResponse.json({ error: 'campaign_id obrigatório' }, { status: 400 })
 
-  const supabase = adminClient()
+  const auth = await autorizar(campaign_id)
+  if ('erro' in auth) return auth.erro
+  const { supabase, campaign } = auth
 
-  // ── Carrega campanha ────────────────────────────────────────────────────────
-  const { data: campaign, error: campErr } = await supabase
+  const estado = lerEstadoCampanha(campaign)
+  if (!estado) return NextResponse.json({ error: `Status desconhecido: ${campaign.status}` }, { status: 422 })
+  const disparo = podeDisparar(estado, new Date())
+  if (!disparo.ok) return NextResponse.json({ error: disparo.motivo }, { status: 422 })
+
+  const { data: marcada, error } = await supabase
     .from('wa_campaigns')
-    .select('*')
+    .update({
+      status: 'enviando', motivo_pausa: null, retomar_em: null,
+      started_at: campaign.started_at ?? new Date().toISOString(),
+    })
     .eq('id', campaign_id)
-    .single()
+    .eq('status', campaign.status)
+    .select('id')
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!marcada?.length) return NextResponse.json({ error: 'A campanha mudou de status; atualize a página' }, { status: 409 })
 
-  if (campErr || !campaign) return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 })
-
-  // Apenas rascunho, agendada ou pausada podem ser iniciadas/retomadas
-  if (!['rascunho', 'agendada', 'pausada'].includes(campaign.status)) {
-    return NextResponse.json({ error: `Campanha no status "${campaign.status}" não pode ser disparada` }, { status: 422 })
+  try {
+    const resultado = await processarLoteCampanha(supabase, campaign_id, Date.now() + 40_000)
+    return NextResponse.json({ ok: true, resultado })
+  } catch (e) {
+    // A campanha já está 'enviando': o job tenta de novo no próximo minuto
+    console.error('[campaign-process] primeiro lote falhou:', resumoErro(e))
+    return NextResponse.json({ ok: true, resultado: null })
   }
-
-  // Verifica que o usuário tem vínculo com a unidade da campanha
-  const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
-  if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
-    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-  }
-  if (!isPerfilGestor(profile.perfil)) {
-    return NextResponse.json({ error: 'Sem permissão para disparar campanhas' }, { status: 403 })
-  }
-
-  // ── Busca o template ────────────────────────────────────────────────────────
-  const { data: template } = await supabase
-    .from('wa_message_templates')
-    .select('*')
-    .eq('id', campaign.template_id)
-    .single()
-
-  if (!template) return NextResponse.json({ error: 'Template não encontrado' }, { status: 404 })
-
-  // ── Configs WhatsApp (sempre o número da unidade da campanha) ───────────────
-  const { phoneNumberId, accessToken } = await getWaCredentials(campaign.unit_id)
-  if (!phoneNumberId || !accessToken) {
-    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
-  }
-
-  // ── Marca campanha como "enviando" ──────────────────────────────────────────
-  await supabase.from('wa_campaigns').update({
-    status:     'enviando',
-    started_at: campaign.started_at ?? new Date().toISOString(),
-  }).eq('id', campaign_id)
-
-  // ── Busca destinatários pendentes ───────────────────────────────────────────
-  const { data: pending } = await supabase
-    .from('wa_campaign_recipients')
-    .select('id, phone, lead_id, has_optin, nome')
-    .eq('campaign_id', campaign_id)
-    .eq('status', 'pending')
-    .order('created_at')
-    .limit(BATCH_SIZE)
-
-  if (!pending || pending.length === 0) {
-    // Nenhum pendente — marca como concluída
-    await supabase.from('wa_campaigns').update({
-      status:       'concluida',
-      completed_at: new Date().toISOString(),
-    }).eq('id', campaign_id)
-    return NextResponse.json({ status: 'concluida', sent: 0 })
-  }
-
-  // ── Processa lote ────────────────────────────────────────────────────────────
-  let sentCount   = 0
-  let failedCount = 0
-  const results: { id: string; ok: boolean }[] = []
-
-  for (const recipient of pending) {
-    // Re-verifica opt-out antes de cada envio
-    if (recipient.lead_id) {
-      const { data: lead } = await supabase
-        .from('leads')
-        .select('wa_optout_at')
-        .eq('id', recipient.lead_id)
-        .single()
-
-      if (lead?.wa_optout_at) {
-        await supabase.from('wa_campaign_recipients')
-          .update({ status: 'skipped', error_msg: 'opt-out detectado antes do envio' })
-          .eq('id', recipient.id)
-        results.push({ id: recipient.id, ok: false })
-        failedCount++
-        continue
-      }
-    }
-
-    // Monta payload Meta
-    const metaPayload = {
-      messaging_product: 'whatsapp',
-      to:   recipient.phone,
-      type: 'template',
-      template: {
-        name:     template.template_name ?? template.name,
-        language: { code: template.language ?? 'pt_BR' },
-        components: [],
-      },
-    }
-
-    let ok = false
-    let waId: string | null = null
-    let errMsg: string | null = null
-    let stopCampaign = false // 401 = token inválido, para tudo
-
-    try {
-      let res = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
-        method:  'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify(metaPayload),
-        signal:  AbortSignal.timeout(15_000),
-      })
-
-      // 429: rate limit — aguarda e tenta uma vez
-      if (res.status === 429) {
-        await new Promise(r => setTimeout(r, RETRY_429_MS))
-        res = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
-          method:  'POST',
-          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body:    JSON.stringify(metaPayload),
-          signal:  AbortSignal.timeout(15_000),
-        })
-        if (res.status === 429) {
-          // Ainda 429 — pausa a campanha para tentar mais tarde
-          await supabase.from('wa_campaigns').update({ status: 'pausada' }).eq('id', campaign_id)
-          return NextResponse.json({ status: 'pausada', reason: 'Rate limit da Meta (429) — retome em alguns minutos', sent: sentCount, failed: failedCount })
-        }
-      }
-
-      // 401: token inválido — para a campanha definitivamente
-      if (res.status === 401) {
-        errMsg = 'Token de acesso inválido (401) — verifique o token em Configurações → WhatsApp API'
-        stopCampaign = true
-      } else {
-        const data = await res.json() as { messages?: { id: string }[]; error?: { message: string } }
-        if (res.ok && data.messages?.[0]?.id) {
-          ok   = true
-          waId = data.messages[0].id
-        } else {
-          errMsg = data.error?.message ?? `HTTP ${res.status}`
-        }
-      }
-    } catch (e) {
-      // Timeout ou erro de rede — marca como falha mas não para a campanha
-      errMsg = e instanceof Error ? e.message : 'Erro de rede/timeout'
-    }
-
-    // Atualiza destinatário
-    await supabase.from('wa_campaign_recipients').update({
-      status:    ok ? 'sent' : 'failed',
-      wa_msg_id: waId,
-      sent_at:   ok ? new Date().toISOString() : null,
-      error_msg: errMsg,
-    }).eq('id', recipient.id)
-
-    if (stopCampaign) {
-      await supabase.from('wa_campaigns').update({ status: 'pausada' }).eq('id', campaign_id)
-      return NextResponse.json({ status: 'pausada', reason: errMsg, sent: sentCount, failed: failedCount })
-    }
-
-    if (ok) sentCount++
-    else     failedCount++
-    results.push({ id: recipient.id, ok })
-
-    // Verifica taxa de erro acima do limiar (mínimo 5 tentativas para evitar falso positivo)
-    if (results.length >= 5) {
-      const errRate = failedCount / results.length
-      if (errRate > MAX_ERR_RATE) {
-        // Pausa a campanha
-        await supabase.from('wa_campaigns').update({
-          status:       'pausada',
-          sent_count:   campaign.sent_count + sentCount,
-          failed_count: campaign.failed_count + failedCount,
-        }).eq('id', campaign_id)
-        return NextResponse.json({
-          status:  'pausada',
-          reason:  `Taxa de erro ${(errRate * 100).toFixed(0)}% — campanha pausada automaticamente`,
-          sent:    sentCount,
-          failed:  failedCount,
-        })
-      }
-    }
-
-    // Delay entre envios (respeita rate limit da Meta)
-    if (pending.indexOf(recipient) < pending.length - 1) {
-      await new Promise(r => setTimeout(r, BATCH_DELAY))
-    }
-  }
-
-  // ── Atualiza contadores na campanha ──────────────────────────────────────────
-  const { data: freshCounts } = await supabase
-    .from('wa_campaign_recipients')
-    .select('status')
-    .eq('campaign_id', campaign_id)
-
-  const counts = (freshCounts ?? []).reduce(
-    (acc, r) => { acc[r.status] = (acc[r.status] ?? 0) + 1; return acc },
-    {} as Record<string, number>
-  )
-
-  const totalProcessed = (counts.sent ?? 0) + (counts.failed ?? 0) + (counts.skipped ?? 0)
-  const totalPending   = counts.pending ?? 0
-  const isComplete     = totalPending === 0
-
-  await supabase.from('wa_campaigns').update({
-    status:       isComplete ? 'concluida' : 'pausada',
-    sent_count:   counts.sent    ?? 0,
-    failed_count: (counts.failed ?? 0) + (counts.skipped ?? 0),
-    completed_at: isComplete ? new Date().toISOString() : null,
-  }).eq('id', campaign_id)
-
-  return NextResponse.json({
-    status:   isComplete ? 'concluida' : 'parcial',
-    sent:     sentCount,
-    failed:   failedCount,
-    pending:  totalPending,
-    total:    totalProcessed,
-  })
 }
 
-// ── PATCH /api/whatsapp/campaign-process ─────────────────────────────────────
-//
-// Body: { campaign_id: string, action: 'pause' | 'cancel' }
-//
+// PATCH { campaign_id, action: 'pause' | 'cancel' }. Pausa manual não é retomada
+// pelo job; pausar uma campanha que espera o limite diário cancela a retomada.
 export async function PATCH(req: NextRequest) {
-  const supabaseUser = await createServerClient()
-  const { data: { user } } = await supabaseUser.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-
   const { campaign_id, action } = await req.json() as { campaign_id?: string; action?: 'pause' | 'cancel' }
-  if (!campaign_id || !action) return NextResponse.json({ error: 'campaign_id e action obrigatórios' }, { status: 400 })
-
-  const supabase = adminClient()
-
-  // Mesma autorização do POST: vínculo com a unidade da campanha e perfil acima de atendente
-  const { data: campaign } = await supabase.from('wa_campaigns').select('unit_id').eq('id', campaign_id).maybeSingle()
-  if (!campaign) return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 })
-
-  const { data: profile } = await supabase.from('profiles').select('perfil').eq('id', user.id).single()
-  if (!profile || !(await canAccessUnit(supabaseUser, user.id, campaign.unit_id))) {
-    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-  }
-  if (!isPerfilGestor(profile.perfil)) {
-    return NextResponse.json({ error: 'Sem permissão para alterar campanhas' }, { status: 403 })
+  if (!campaign_id || (action !== 'pause' && action !== 'cancel')) {
+    return NextResponse.json({ error: 'campaign_id e action obrigatórios' }, { status: 400 })
   }
 
-  const newStatus = action === 'cancel' ? 'cancelada' : 'pausada'
-  const { error } = await supabase
+  const auth = await autorizar(campaign_id)
+  if ('erro' in auth) return auth.erro
+  const { supabase } = auth
+
+  const atualizacao = action === 'cancel'
+    ? { status: 'cancelada', motivo_pausa: null, retomar_em: null }
+    : { status: 'pausada', motivo_pausa: 'manual', retomar_em: null }
+  const { data, error } = await supabase
     .from('wa_campaigns')
-    .update({ status: newStatus })
+    .update(atualizacao)
     .eq('id', campaign_id)
-    .in('status', action === 'cancel' ? ['rascunho', 'agendada', 'pausada', 'enviando'] : ['enviando'])
+    .in('status', action === 'cancel' ? ['rascunho', 'agendada', 'pausada', 'enviando'] : ['enviando', 'pausada'])
+    .select('id, status, motivo_pausa, retomar_em')
+    .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, status: newStatus })
+  if (!data) return NextResponse.json({ error: 'A campanha não pode mais ser alterada' }, { status: 409 })
+  return NextResponse.json({ ok: true, ...data })
 }
