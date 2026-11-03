@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { resumoErro } from '@/lib/log-seguro'
+import { contarVariaveis, montarComponentesTemplate, resolveVariables } from '@/lib/whatsapp/template-variaveis'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -219,30 +220,11 @@ async function handleSendTemplate(
   const creds = await getWaCredentials(unitId)
   if (!creds.phoneNumberId || !creds.accessToken) return
 
-  const varCount = (template.content?.match(/\{\{\d+\}\}/g) ?? []).length
-  let components: object[] = []
-  let renderedText = template.content ?? ''
-
-  if (varCount > 0) {
-    const variableValues = await resolveVariables(
-      supabase, unitId, conv.lead_id, template.variable_order as string[] | null, varCount,
-    )
-    components = [{
-      type: 'body',
-      parameters: variableValues.map(v => ({ type: 'text', text: v })),
-    }]
-    renderedText = template.content?.replace(
-      /\{\{(\d+)\}\}/g,
-      (_m: string, n: string) => variableValues[parseInt(n, 10) - 1] ?? `{{${n}}}`,
-    ) ?? ''
-  }
-
-  if (template.header_type === 'IMAGE' && template.header_image_url) {
-    components = [
-      { type: 'header', parameters: [{ type: 'image', image: { link: template.header_image_url } }] },
-      ...components,
-    ]
-  }
+  const varCount = contarVariaveis(template.content)
+  const variableValues = varCount > 0
+    ? await resolveVariables(supabase, unitId, conv.lead_id, template.variable_order as string[] | null, varCount)
+    : []
+  const { components, renderedText } = montarComponentesTemplate(template, variableValues)
 
   const metaPayload = {
     messaging_product: 'whatsapp',
@@ -292,74 +274,4 @@ async function handleSendTemplate(
       last_message_direction: 'outbound',
     }).eq('id', conversationId),
   ])
-}
-
-/**
- * Resolve variáveis dinâmicas de um template (ex: `{{1}}`, `{{2}}`).
- * A ordem das variáveis vem de `variable_order` no banco; se ausente,
- * usa o fallback padrão: nome_cliente, nome_atendente, data, horario.
- * Se não encontrar o atendente responsável, usa o nome da unidade como fallback.
- *
- * @param supabase - Cliente Supabase
- * @param unitId - ID da unidade (fallback para nome do atendente)
- * @param leadId - ID do lead para buscar nome e responsável
- * @param variableOrder - Mapeamento posição → semântica salvo no template
- * @param varCount - Quantidade de variáveis `{{N}}` no conteúdo do template
- * @returns Array de valores resolvidos na ordem das variáveis
- */
-async function resolveVariables(
-  supabase: SupabaseClient,
-  unitId: string,
-  leadId: string | null,
-  variableOrder: string[] | null,
-  varCount: number,
-): Promise<string[]> {
-  const order = variableOrder && variableOrder.length === varCount
-    ? variableOrder
-    : ['nome_cliente', 'nome_atendente', 'data', 'horario'].slice(0, varCount)
-
-  let leadName = ''
-  let atendenteName = ''
-
-  if (order.includes('nome_cliente') || order.includes('nome_atendente')) {
-    if (leadId) {
-      const { data: lead } = await supabase
-        .from('leads')
-        .select('nome, sobrenome, responsavel_id')
-        .eq('id', leadId)
-        .single()
-
-      if (lead) {
-        leadName = [lead.nome, lead.sobrenome].filter(Boolean).join(' ')
-        if (lead.responsavel_id && order.includes('nome_atendente')) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('nome')
-            .eq('id', lead.responsavel_id)
-            .single()
-          atendenteName = profile?.nome ?? ''
-        }
-      }
-    }
-
-    if (!atendenteName && order.includes('nome_atendente')) {
-      const { data: unit } = await supabase
-        .from('units')
-        .select('nome')
-        .eq('id', unitId)
-        .single()
-      atendenteName = unit?.nome ?? 'Equipe'
-    }
-  }
-
-  const now = new Date()
-  return order.map(id => {
-    switch (id) {
-      case 'nome_cliente':    return leadName || 'Cliente'
-      case 'nome_atendente':  return atendenteName || 'Equipe'
-      case 'data':            return now.toLocaleDateString('pt-BR')
-      case 'horario':         return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      default:                return ''
-    }
-  })
 }
