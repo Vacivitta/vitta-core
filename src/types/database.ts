@@ -539,6 +539,34 @@ export interface Notification {
   criado_em: string
 }
 
+export type AppErrorOrigem = 'rota' | 'renderizacao' | 'acao' | 'cron' | 'webhook' | 'outro'
+
+export const APP_ERROR_ORIGEM_LABELS: Record<AppErrorOrigem, string> = {
+  rota:         'Rota de API',
+  renderizacao: 'Página',
+  acao:         'Server action',
+  cron:         'Cron',
+  webhook:      'Webhook',
+  outro:        'Outro',
+}
+
+export interface AppError {
+  id:            string
+  assinatura:    string
+  origem:        AppErrorOrigem
+  rota:          string | null
+  metodo:        string | null
+  tipo:          string
+  mensagem:      string
+  stack:         string | null
+  digest:        string | null
+  ocorrencias:   number
+  primeiro_em:   string
+  ultimo_em:     string
+  resolvido_em:  string | null
+  resolvido_por: string | null
+}
+
 // ---- Constantes estáticas --------------------------------------------------
 
 export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
