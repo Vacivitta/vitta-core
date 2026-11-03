@@ -12,6 +12,8 @@ export interface CampaignRow {
   template_category:  string
   status:             string
   scheduled_at:       string | null
+  motivo_pausa:       string | null
+  retomar_em:         string | null
   started_at:         string | null
   completed_at:       string | null
   daily_limit:        number
@@ -60,7 +62,7 @@ export default async function CampanhasPage() {
   ] = await Promise.all([
     supabase
       .from('wa_campaigns')
-      .select('id,nome,template_nome,template_category,status,scheduled_at,started_at,completed_at,daily_limit,total_recipients,sent_count,delivered_count,read_count,replied_count,optout_count,failed_count,estimated_cost_usd,actual_cost_usd,created_at')
+      .select('id,nome,template_nome,template_category,status,scheduled_at,motivo_pausa,retomar_em,started_at,completed_at,daily_limit,total_recipients,sent_count,delivered_count,read_count,replied_count,optout_count,failed_count,estimated_cost_usd,actual_cost_usd,created_at')
       .order('created_at', { ascending: false }),
     supabase
       .from('wa_message_templates')
