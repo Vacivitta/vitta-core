@@ -14,7 +14,7 @@ Da raiz do repositório:
 bash tests/db/run.sh        # ou: npm run test:db
 ```
 
-Leva cerca de 1 minuto depois que a imagem está baixada. O container sobe com
+Leva uns 20 segundos depois que a imagem está baixada. O container sobe com
 `--network none` e é apagado no fim. Variáveis opcionais: `VC_TESTE_IMAGEM`,
 `VC_TESTE_CONTAINER` e `VC_TESTE_MANTER=1` (mantém o container para investigar
 com `docker exec -it <nome> psql -h 127.0.0.1 -U supabase_admin -d postgres`).
