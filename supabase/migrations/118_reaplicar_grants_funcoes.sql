@@ -1,3 +1,17 @@
+-- 118_reaplicar_grants_funcoes.sql
+-- EXECUTE das funções SECURITY DEFINER do public, no estado atual (090 + 113).
+--
+-- Por quê: a guarda da 090 só conhece as 5 assinaturas permitidas na época. A 113
+-- abriu is_gestor() para authenticated, e desde então reaplicar a 090 aborta
+-- (achado pelos testes de banco em 03/11/2026). Só que reaplicar é o passo
+-- obrigatório depois de qualquer restore (o restore reabre as funções para anon e
+-- authenticated). A partir desta migração, o passo pós-restore é reaplicar a 118.
+--
+-- Mesmo conteúdo da 090, com is_gestor() incluída e guardas de papel e de
+-- transação única. Em produção é um no-op de comportamento: registrar a versão
+-- depois de aplicar. Aplicar como supabase_admin (dono e grantor das funções),
+-- com --single-transaction. Sem BEGIN/COMMIT. Idempotente.
+
 SET LOCAL lock_timeout = '5s';
 
 DO $$
@@ -13,6 +27,7 @@ BEGIN
   END IF;
 END $$;
 
+-- ── A) Todas: tirar de PUBLIC e anon ─────────────────────────────────────────
 REVOKE EXECUTE ON FUNCTION
   public.create_quote_notification(uuid,uuid,text,text,text,uuid,uuid),
   public.execute_quote_automation(uuid,uuid,text,text),
@@ -32,6 +47,7 @@ REVOKE EXECUTE ON FUNCTION
   public.log_responsible_change()
 FROM PUBLIC, anon;
 
+-- ── B) Sem uso pelo usuário logado: tirar de authenticated ───────────────────
 REVOKE EXECUTE ON FUNCTION
   public.create_quote_notification(uuid,uuid,text,text,text,uuid,uuid),
   public.execute_quote_automation(uuid,uuid,text,text),
@@ -46,6 +62,7 @@ REVOKE EXECUTE ON FUNCTION
   public.log_responsible_change()
 FROM authenticated;
 
+-- ── C) Usadas pelo usuário logado ou pelo RLS: manter authenticated ──────────
 GRANT EXECUTE ON FUNCTION
   public.get_agent_stats(uuid),
   public.record_stage_history(uuid,uuid,uuid,uuid),
@@ -54,6 +71,7 @@ GRANT EXECUTE ON FUNCTION
   public.is_gestor()
 TO authenticated;
 
+-- ── D) service_role mantém todas ─────────────────────────────────────────────
 GRANT EXECUTE ON FUNCTION
   public.create_quote_notification(uuid,uuid,text,text,text,uuid,uuid),
   public.execute_quote_automation(uuid,uuid,text,text),
@@ -73,6 +91,7 @@ GRANT EXECUTE ON FUNCTION
   public.log_responsible_change()
 TO service_role;
 
+-- ── E) Funções da deriva (092) ───────────────────────────────────────────────
 DO $$
 BEGIN
   IF to_regprocedure('public.is_admin()') IS NOT NULL THEN
@@ -86,6 +105,10 @@ BEGIN
   END IF;
 END $$;
 
+-- ── Guarda ───────────────────────────────────────────────────────────────────
+-- Aborta se alguma função SECURITY DEFINER do public ficou executável por anon ou
+-- PUBLIC, ou por authenticated fora das 6 assinaturas permitidas. Uma função
+-- SECURITY DEFINER nova que o navegador precise chamar entra aqui por migração.
 DO $$
 DECLARE
   permitidas oid[] := array_remove(ARRAY[

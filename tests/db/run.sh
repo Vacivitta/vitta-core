@@ -109,20 +109,17 @@ arquivo_da_versao() {
 
 for m in "${migracoes[@]}"; do
   (($(numero "$m") >= 90)) || continue
-  # MUST KILL: exceção por nome de arquivo para a 090, cuja guarda quebrou com a 113
-  if [[ "${m##*/}" == 090_* ]]; then
-    esperar_erro "reaplicada depois da 113" "fora das permitidas" supabase_admin "${m##*/}" --single-transaction
-    continue
-  fi
+  # A 090 foi substituída pela 118: a guarda dela é anterior à is_gestor() (113)
+  [[ "${m##*/}" == 090_* ]] && continue
   aplicar supabase_admin "$m" --single-transaction ||
     { cat "$saida"; falhar "reaplicar ${m##*/} como supabase_admin deveria ser idempotente"; }
   checagens=$((checagens + 1))
 done
 
-for v in 091 113 115 116 117 118; do
+for v in 091 113 115 116 117 118 119; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118; do
+for v in 091 092 093 113 115 116 117 118 119; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 echo "ok  $checagens checagens de guarda (reaplicação idempotente, papel errado, sem transação única)"

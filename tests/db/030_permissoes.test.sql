@@ -1,6 +1,3 @@
--- MUST KILL: deriva da 010 em relação à produção; corrigir por migração, não no teste
-DROP TRIGGER IF EXISTS quotes_no_delete ON public.quotes;
-
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8000-0000000000f0', 'Rede Teste');
 INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
   ('00000000-0000-4000-8000-0000000000a0', '00000000-0000-4000-8000-0000000000f0', 'Clínica A', 'clinica'),
@@ -66,8 +63,8 @@ INSERT INTO public.quotes (id, unit_id, lead_id)
 VALUES ('00000000-0000-4000-8000-000000000401', '00000000-0000-4000-8000-0000000000a0',
         '00000000-0000-4000-8000-000000000101');
 
--- MUST KILL: nome vago; esconde o truque do SQLSTATE VCT01 que desfaz a subtransação e carrega o ROW_COUNT
-CREATE FUNCTION pg_temp.como(papel text, usuario uuid, comando text) RETURNS text
+-- O RAISE com SQLSTATE próprio desfaz a subtransação; a mensagem leva o ROW_COUNT para fora
+CREATE FUNCTION pg_temp.linhas_afetadas_como(papel text, usuario uuid, comando text) RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE
   linhas bigint;
@@ -137,7 +134,7 @@ DECLARE
   divergentes text[] := '{}';
 BEGIN
   FOR c IN SELECT * FROM casos ORDER BY ordem LOOP
-    obtido := pg_temp.como(c.papel, c.usuario, c.comando);
+    obtido := pg_temp.linhas_afetadas_como(c.papel, c.usuario, c.comando);
     IF obtido IS DISTINCT FROM c.esperado THEN
       divergentes := divergentes || format('%s: esperado %s, obtido %s', c.caso, c.esperado, obtido);
     END IF;
