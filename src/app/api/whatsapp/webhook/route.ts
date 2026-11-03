@@ -8,6 +8,7 @@ import { MIGRACAO_VPS_URL }         from '@/lib/migracao'
 import { buscarConversaPorTelefone, buscarLeadPorTelefone } from '@/lib/whatsapp/telefone'
 import { formatarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import { resumoErro } from '@/lib/log-seguro'
+import { isViolacaoUnica } from '@/lib/supabase/erros'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
 export const maxDuration = 60
@@ -558,7 +559,7 @@ async function autoLinkOrCreateLead(
       .single()
 
     if (leadErr) {
-      if (leadErr.code === '23505') {
+      if (isViolacaoUnica(leadErr)) {
         const existing = norm ? await buscarLeadPorTelefone(supabase, unitId, norm) : null
         if (existing) {
           leadId = existing.id

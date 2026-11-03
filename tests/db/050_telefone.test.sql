@@ -72,7 +72,7 @@ CREATE FUNCTION pg_temp.lead(id uuid, unidade char, nome text, telefone text, cr
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000a0'::uuid ELSE '00000000-0000-4000-8050-0000000000b0'::uuid END
 $$;
 
-CREATE FUNCTION pg_temp.como(papel text, usuario uuid, comando text) RETURNS text
+CREATE FUNCTION pg_temp.linhas_afetadas_como(papel text, usuario uuid, comando text) RETURNS text
 LANGUAGE plpgsql AS $$
 DECLARE
   linhas bigint;
@@ -109,12 +109,12 @@ SELECT pg_temp.esperar('telefone inválido vira NULL',
   (SELECT coalesce(telefone_norm, 'NULL') FROM public.leads WHERE id = '00000000-0000-4000-8050-000000000101'), 'NULL');
 
 SELECT pg_temp.esperar('atendente cria lead com telefone',
-  pg_temp.como('authenticated', '00000000-0000-4000-8050-000000000001', $c$
+  pg_temp.linhas_afetadas_como('authenticated', '00000000-0000-4000-8050-000000000001', $c$
     INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id)
     VALUES ('Pelo navegador', '(31) 97777-1111', '00000000-0000-4000-8050-0000000000d0',
             '00000000-0000-4000-8050-0000000000d1', '00000000-0000-4000-8050-0000000000a0')$c$), '1');
 SELECT pg_temp.esperar('atendente executa mesclar_leads',
-  pg_temp.como('authenticated', '00000000-0000-4000-8050-000000000001',
+  pg_temp.linhas_afetadas_como('authenticated', '00000000-0000-4000-8050-000000000001',
     $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000101', '00000000-0000-4000-8050-000000000101')$c$),
   'erro 42501');
 
@@ -173,11 +173,11 @@ INSERT INTO public.lead_negotiation (lead_id, valor_proposta, modelo, valor_nego
   ('00000000-0000-4000-8050-000000000202', 100, 'modelo do duplicado', 90);
 
 SELECT pg_temp.esperar('lead de outra unidade',
-  pg_temp.como('service_role', NULL,
+  pg_temp.linhas_afetadas_como('service_role', NULL,
     $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201', '00000000-0000-4000-8050-000000000114')$c$),
   'erro 22023');
 SELECT pg_temp.esperar('mesmo lead nos dois lados',
-  pg_temp.como('service_role', NULL,
+  pg_temp.linhas_afetadas_como('service_role', NULL,
     $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201', '00000000-0000-4000-8050-000000000201')$c$),
   'erro 22023');
 
@@ -209,7 +209,7 @@ BEGIN
 END $$;
 
 SELECT pg_temp.esperar('service_role mescla',
-  pg_temp.como('service_role', NULL, $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201',
+  pg_temp.linhas_afetadas_como('service_role', NULL, $c$SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201',
     '00000000-0000-4000-8050-000000000202', '00000000-0000-4000-8050-000000000003')$c$), '1');
 SELECT public.mesclar_leads('00000000-0000-4000-8050-000000000201', '00000000-0000-4000-8050-000000000202',
                             '00000000-0000-4000-8050-000000000003');
@@ -289,13 +289,13 @@ BEGIN
   END IF;
 END $$;
 SELECT pg_temp.esperar('mesmo telefone (outra máscara) na mesma unidade',
-  pg_temp.como('supabase_admin', NULL, $c$SELECT pg_temp.lead('00000000-0000-4000-8050-000000000301', 'A', 'Dup', '031 95555 0001')$c$),
+  pg_temp.linhas_afetadas_como('supabase_admin', NULL, $c$SELECT pg_temp.lead('00000000-0000-4000-8050-000000000301', 'A', 'Dup', '031 95555 0001')$c$),
   'erro 23505');
 SELECT pg_temp.esperar('mesmo telefone de um lead arquivado',
-  pg_temp.como('supabase_admin', NULL, $c$SELECT pg_temp.lead('00000000-0000-4000-8050-000000000302', 'A', 'Dup', '(31) 97777-2222')$c$),
+  pg_temp.linhas_afetadas_como('supabase_admin', NULL, $c$SELECT pg_temp.lead('00000000-0000-4000-8050-000000000302', 'A', 'Dup', '(31) 97777-2222')$c$),
   'erro 23505');
 SELECT pg_temp.esperar('mesmo telefone em outra unidade',
-  pg_temp.como('supabase_admin', NULL, $c$SELECT pg_temp.lead('00000000-0000-4000-8050-000000000303', 'B', 'Outro', '(31) 95555-0001')$c$),
+  pg_temp.linhas_afetadas_como('supabase_admin', NULL, $c$SELECT pg_temp.lead('00000000-0000-4000-8050-000000000303', 'B', 'Outro', '(31) 95555-0001')$c$),
   '1');
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000304', 'A', 'Sem telefone 1', NULL);
 SELECT pg_temp.lead('00000000-0000-4000-8050-000000000305', 'A', 'Sem telefone 2', 'não sei');

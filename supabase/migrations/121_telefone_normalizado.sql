@@ -179,6 +179,8 @@ BEGIN
     END IF;
   END IF;
 
+  -- Apaga antes de completar `manter`: com o índice único da 122, copiar o
+  -- telefone de `remover` para `manter` com os dois ainda vivos daria 23505
   DELETE FROM public.leads WHERE id = remover;
 
   UPDATE public.leads

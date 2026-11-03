@@ -9,6 +9,7 @@ import { useProfile } from '@/hooks/useProfile'
 import type { Lead, Unit } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
 import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
+import { isViolacaoUnica } from '@/lib/supabase/erros'
 
 interface Profile { id: string; full_name: string }
 
@@ -197,7 +198,7 @@ export default function ClientesClient({
       }
       setModal(null)
     } catch (err) {
-      setError((err as { code?: string }).code === '23505'
+      setError(isViolacaoUnica(err)
         ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado ou ainda não ser cliente).'
         : 'Erro ao salvar. Tente novamente.')
     } finally {

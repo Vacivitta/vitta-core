@@ -5,6 +5,7 @@ import type { FunnelStage, FunnelWithStages, Profile, Lead } from '@/types/datab
 import { ORIGEM_OPTIONS } from '@/types/database'
 import { createLead } from '@/lib/leads'
 import { telefoneParaGravar } from '@/lib/telefone'
+import { isViolacaoUnica } from '@/lib/supabase/erros'
 
 interface Props {
   defaultStage: FunnelStage
@@ -78,7 +79,7 @@ export default function QuickLeadForm({
       })
       onCreated(lead, openFull)
     } catch (err) {
-      setError((err as { code?: string }).code === '23505'
+      setError(isViolacaoUnica(err)
         ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado).'
         : 'Erro ao salvar. Tente novamente.')
       setSaving(false)

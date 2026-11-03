@@ -27,6 +27,7 @@ import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
 import { avisoTelefone, normalizarTelefone, telefoneParaGravar, variantesTelefone } from '@/lib/telefone'
+import { isViolacaoUnica } from '@/lib/supabase/erros'
 
 interface Props {
   lead: LeadKanban | null
@@ -715,7 +716,7 @@ function LeadDrawer({
           responsavel_id: form.responsavel_id || null,
         })
       } catch (err) {
-        if ((err as { code?: string }).code === '23505') {
+        if (isViolacaoUnica(err)) {
           alert('Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.')
           return
         }
