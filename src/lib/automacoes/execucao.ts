@@ -16,11 +16,14 @@ export type MotivoPulo =
  * Os pulos de rotina que acontecem a cada mensagem (janela de 24h do modelo,
  * automação por tempo já disparada) não têm variante de propósito: não são gravados.
  */
+/** `banco_apos_envio`: a Meta aceitou a mensagem e só o registro local falhou. */
+export type EtapaFalha = 'meta' | 'banco' | 'banco_apos_envio'
+
 export type ResultadoAutomacao =
   | { kind: 'etapa_movida'; de: string | null; para: string }
   | { kind: 'modelo_enviado'; templateId: string; waMessageId: string | null }
   | { kind: 'pulado'; motivo: MotivoPulo }
-  | { kind: 'falhou'; etapa: 'meta' | 'banco'; erro: string; httpStatus?: number }
+  | { kind: 'falhou'; etapa: EtapaFalha; erro: string; httpStatus?: number }
 
 export interface ContextoExecucao {
   unitId:         string
@@ -38,7 +41,7 @@ const TAMANHO_MAXIMO_ERRO = 500
  * Monta um `falhou` a partir de um erro do Supabase, da Meta ou de uma exceção,
  * guardando só o resumo (código e mensagem), sem dados de pessoas.
  */
-export function falha(etapa: 'meta' | 'banco', err: unknown, httpStatus?: number): ResultadoAutomacao {
+export function falha(etapa: EtapaFalha, err: unknown, httpStatus?: number): ResultadoAutomacao {
   const erro = resumoErro(err).slice(0, TAMANHO_MAXIMO_ERRO)
   return httpStatus === undefined ? { kind: 'falhou', etapa, erro } : { kind: 'falhou', etapa, erro, httpStatus }
 }

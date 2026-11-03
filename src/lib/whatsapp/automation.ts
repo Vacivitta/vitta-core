@@ -339,7 +339,7 @@ async function handleSendTemplate(
     }).eq('id', conversationId),
   ])
 
-  if (msgErr || convErr) return falha('banco', msgErr ?? convErr)
+  if (msgErr || convErr) return falha('banco_apos_envio', msgErr ?? convErr)
 
   return { kind: 'modelo_enviado', templateId, waMessageId: waId }
 }

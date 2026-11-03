@@ -264,7 +264,7 @@ async function executeForConversations(admin: Admin, auto: TimedAutomation, acao
       ? sendTemplateToConv(admin, auto.unit_id, conv, acao.templateId)
       : moverPorTempo(admin, conv.lead_id, acao.stageId))
 
-    if (await concluir(admin, auto, alvo, resultado, acao.kind === 'send_template')) count++
+    if (await concluir(admin, auto, alvo, resultado)) count++
   }
   return count
 }
@@ -278,7 +278,7 @@ async function executeForLeads(admin: Admin, auto: TimedAutomation, acao: Acao, 
     if (acao.kind === 'move_stage') {
       const alvo: Alvo = { leadId: lead.id, conversationId: null }
       const resultado = await tentar(() => moverPorTempo(admin, lead.id, acao.stageId))
-      if (await concluir(admin, auto, alvo, resultado, false)) count++
+      if (await concluir(admin, auto, alvo, resultado)) count++
       continue
     }
 
@@ -293,14 +293,14 @@ async function executeForLeads(admin: Admin, auto: TimedAutomation, acao: Acao, 
 
     const alvo: Alvo = { leadId: lead.id, conversationId: conv?.id ?? null }
     if (convErr) {
-      await concluir(admin, auto, alvo, falha('banco', convErr), false)
+      await concluir(admin, auto, alvo, falha('banco', convErr))
       continue
     }
     const resultado: ResultadoAutomacao = conv
       ? await tentar(() => sendTemplateToConv(admin, auto.unit_id, conv, acao.templateId))
       : { kind: 'pulado', motivo: 'sem_conversa' }
 
-    if (await concluir(admin, auto, alvo, resultado, true)) count++
+    if (await concluir(admin, auto, alvo, resultado)) count++
   }
   return count
 }
@@ -329,8 +329,7 @@ function contexto(auto: TimedAutomation, alvo: Alvo) {
   }
 }
 
-// MUST KILL
-function disparoConsumado(resultado: ResultadoAutomacao, falhaDeBancoAposEnvio: boolean): boolean {
+function disparoConsumado(resultado: ResultadoAutomacao): boolean {
   switch (resultado.kind) {
     case 'etapa_movida':
     case 'modelo_enviado':
@@ -338,15 +337,15 @@ function disparoConsumado(resultado: ResultadoAutomacao, falhaDeBancoAposEnvio: 
     case 'pulado':
       return resultado.motivo === 'ja_na_etapa'
     case 'falhou':
-      return resultado.etapa === 'banco' && falhaDeBancoAposEnvio
+      return resultado.etapa === 'banco_apos_envio'
   }
 }
 
 async function concluir(
-  admin: Admin, auto: TimedAutomation, alvo: Alvo, resultado: ResultadoAutomacao, falhaDeBancoAposEnvio: boolean,
+  admin: Admin, auto: TimedAutomation, alvo: Alvo, resultado: ResultadoAutomacao,
 ): Promise<boolean> {
   await registrarExecucao(admin, contexto(auto, alvo), resultado)
-  if (!disparoConsumado(resultado, falhaDeBancoAposEnvio)) return false
+  if (!disparoConsumado(resultado)) return false
   await logTrigger(admin, auto.id, alvo.leadId, alvo.conversationId)
   return resultado.kind === 'etapa_movida' || resultado.kind === 'modelo_enviado'
 }
@@ -461,7 +460,7 @@ async function sendTemplateToConv(
     }).eq('id', conv.id),
   ])
 
-  if (msgErr || convErr) return falha('banco', msgErr ?? convErr)
+  if (msgErr || convErr) return falha('banco_apos_envio', msgErr ?? convErr)
 
   return { kind: 'modelo_enviado', templateId, waMessageId: waId }
 }
