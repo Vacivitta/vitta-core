@@ -194,12 +194,12 @@ assinada de 5 minutos pela rota `GET /api/leads/[id]/anexos/[anexoId]`, depois d
    recusa rodar sem elas); registrar a versão `128` e rodar
    `notify pgrst, 'reload schema'`. Conferir: `SELECT public, file_size_limit FROM storage.buckets WHERE id = 'lead-anexos';`
    → `f`, `20971520`; `SELECT has_function_privilege('authenticated', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE');` → `false`.
-   Depois de um restore, reaplicar 118, 121, 126, 127 e por último a 128 (idempotentes; fecham de novo o EXECUTE e
+   Depois de um restore, reaplicar 118, 121, 126, 127, 128 e por último a 129 (idempotentes; fecham de novo o EXECUTE e
    deixam vigente a `mesclar_leads` completa).
 3. Deploy do app. A ordem importa pouco: sem a 128 a aba Anexos mostra erro ao carregar; sem o deploy ninguém usa o bucket.
    A 126, a 127 e a 128 recriam `mesclar_leads` inteira, cada uma partindo do corpo da anterior; a última aplicada é a
    que vale. Reaplicar a 126 ou a 127 depois da 128 traz de volta uma versão sem `lead_anexos` (toda mesclagem aborta
-   com "chave estrangeira para leads sem tratamento"): nesse caso, reaplicar a 128 em seguida.
+   com "chave estrangeira para leads sem tratamento"): nesse caso, reaplicar em seguida a 128 e a 129.
 
 O que muda na operação:
 - **Backup:** o `backup.sh` não está no repositório; pela etapa 4.1 ele copia "pg_dump + Storage". O storage do
@@ -224,3 +224,19 @@ O que muda na operação:
   (Traefik do Coolify não tem por padrão) ou no Kong/storage (`FILE_SIZE_LIMIT`, padrão 50 MB), ele precisa ser ≥ 21 MB.
 
 Reversão: ver o fim da `128_lead_anexos.sql` (os objetos do bucket precisam ser apagados pela API do storage antes).
+
+## Campos personalizados do lead: migração 129 ([H])
+Cria `campos_lead` (definição por unidade, com funil opcional; escrita só gestor/admin) e `leads.campos` (jsonb validado
+por trigger: chave de campo ativo da unidade e do funil do lead, valor do tipo certo, senão erro 23514).
+
+1. Aplicar `129_campos_personalizados.sql` como `supabase_admin`, com `--single-transaction`, **depois da 126, 127 e 128**
+   (a guarda recusa rodar sem elas); registrar a versão `129` e rodar `notify pgrst, 'reload schema'`. O `ADD COLUMN` com
+   default constante não reescreve `leads`. Conferir: `SELECT has_function_privilege('authenticated', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE');`
+   → `false`; `SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'public.mesclar_leads(uuid,uuid,uuid)'::regprocedure;`
+   → `supabase_admin` (o trigger não valida o que o dono junta na mesclagem; a guarda final da 129 confere).
+2. Deploy do app. Sem a 129 a seção Informações da ficha mostra erro ao carregar; sem o deploy ninguém usa os campos.
+3. A 129 recria `mesclar_leads` a partir do corpo da 128 (mais a fusão de `campos`). Depois de um restore, reaplicar
+   118, 121, 126, 127, 128 e por último a 129. Reaplicar uma anterior depois da 129 traz de volta uma versão que perde os
+   campos do lead removido: nesse caso, reaplicar a 129 em seguida.
+
+Reversão: ver o cabeçalho da `129_campos_personalizados.sql` (perde os valores gravados).
