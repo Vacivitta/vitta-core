@@ -12,9 +12,12 @@ export default async function ConfigFunisPage() {
   if (!user) redirect('/login')
 
   const { data: profileData } = await supabase
-    .from('profiles').select('unit_id').eq('id', user.id).single()
+    .from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  if (!profileData) redirect('/login')
+  // Funis, etapas e motivos de perda: só gestor e admin (o RLS da 126 também barra)
+  if (profileData.perfil === 'atendente') redirect('/funil')
 
-  const unitId = profileData?.unit_id
+  const unitId = profileData.unit_id
 
   const [{ data: funnels }, { data: stages }, { data: leadCounts }] = await Promise.all([
     supabase.from('funnels').select('*').eq('unit_id', unitId).order('ordem'),
@@ -23,7 +26,7 @@ export default async function ConfigFunisPage() {
     fetchAll((from, to) => supabase
       .from('leads')
       .select('stage_id')
-      .eq('arquivado', false)
+      .neq('status', 'perdido')
       .eq('unit_id', unitId)
       .order('id')
       .range(from, to)),

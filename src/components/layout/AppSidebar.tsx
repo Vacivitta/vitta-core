@@ -178,7 +178,7 @@ const CONFIG_SECTIONS: ConfigSection[] = [
   {
     title: 'Operação',
     items: [
-      { href: '/configuracoes/funis',        label: 'Funis',            icon: <IcoFunis />,      gestorOnly: false },
+      { href: '/configuracoes/funis',        label: 'Funis',            icon: <IcoFunis />,      gestorOnly: true  },
       { href: '/configuracoes/filas',        label: 'Filas',            icon: <IcoFilas />,      gestorOnly: true  },
       { href: '/configuracoes/tags',         label: 'Tags de Conversa', icon: <IcoTags />,       gestorOnly: false },
       { href: '/configuracoes/automacoes',   label: 'Automações',       icon: <IcoAutomacoes />, gestorOnly: true  },
