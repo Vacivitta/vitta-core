@@ -68,11 +68,6 @@
       "count": 1
     }
   },
-  "src/components/leads/ArchivedLeadsPanel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/leads/LeadModal.tsx": {
     "react-hooks/immutability": {
       "count": 3

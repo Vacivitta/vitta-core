@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { LeadKanban, FunnelWithStages } from '@/types/database'
-import { getArchivedLeads } from '@/lib/leads'
+import { getLeadsPerdidos } from '@/lib/leads'
+import { rotuloMotivoPerda } from '@/lib/status-lead'
 import { primeiraLetra } from '@/lib/texto'
 
 interface Props {
@@ -14,14 +15,13 @@ interface Props {
   onClose: () => void
 }
 
-export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLead, onClose }: Props) {
+export default function PerdidosPanel({ funnels, selectedFunnelId, onOpenLead, onClose }: Props) {
   const [leads, setLeads]         = useState<LeadKanban[]>([])
   const [loading, setLoading]     = useState(true)
   const [funnelFilter, setFunnelFilter] = useState(selectedFunnelId)
 
   useEffect(() => {
-    setLoading(true)
-    getArchivedLeads(funnelFilter || undefined)
+    getLeadsPerdidos(funnelFilter || undefined)
       .then(setLeads)
       .finally(() => setLoading(false))
   }, [funnelFilter])
@@ -36,7 +36,7 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Contatos Arquivados</h2>
+            <h2 className="text-base font-semibold text-gray-900">Negócios perdidos</h2>
             <p className="text-xs text-gray-400">
               {loading ? 'Carregando...' : `${leads.length} ${leads.length === 1 ? 'contato' : 'contatos'}`}
             </p>
@@ -45,7 +45,7 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
             {funnels.length > 1 && (
               <select
                 value={funnelFilter}
-                onChange={e => setFunnelFilter(e.target.value)}
+                onChange={e => { setLoading(true); setFunnelFilter(e.target.value) }}
                 className="text-sm border border-[#EBE7DA] rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3E9849] bg-white"
               >
                 <option value="">Todos os funis</option>
@@ -72,11 +72,13 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
               </svg>
-              <p className="text-sm">Nenhum contato arquivado</p>
+              <p className="text-sm">Nenhum negócio perdido</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {leads.map(lead => (
+              {leads.map(lead => {
+                const motivo = rotuloMotivoPerda(lead.motivo_perda_nome, lead.motivo_perda)
+                return (
                 <button
                   key={lead.id}
                   onClick={() => onOpenLead(lead)}
@@ -103,9 +105,14 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
                           {lead.stage_nome}
                         </span>
                       )}
-                      {lead.motivo_perda && (
+                      {motivo && (
                         <span className="text-[11px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
-                          {lead.motivo_perda}
+                          {motivo}
+                        </span>
+                      )}
+                      {lead.is_converted && (
+                        <span className="text-[11px] text-[#35853F] bg-[#E8F4E6] px-1.5 py-0.5 rounded-full">
+                          Cliente
                         </span>
                       )}
                     </div>
@@ -117,7 +124,7 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
                       <p className="text-xs text-gray-400">{lead.responsavel_nome}</p>
                     )}
                     <p className="text-xs text-gray-300">
-                      {format(new Date(lead.updated_at), "d MMM yy", { locale: ptBR })}
+                      {format(new Date(lead.perdido_em ?? lead.updated_at), "d MMM yy", { locale: ptBR })}
                     </p>
                   </div>
 
@@ -125,7 +132,8 @@ export default function ArchivedLeadsPanel({ funnels, selectedFunnelId, onOpenLe
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

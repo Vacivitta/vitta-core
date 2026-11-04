@@ -13,15 +13,15 @@ import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
-  QuoteStatus, LeadStageHistory,
+  QuoteStatus, LeadStageHistory, MotivoPerda, StatusLead,
 } from '@/types/database'
 import {
-  CONTACT_ROLE_LABELS, ARCHIVE_REASONS, ORIGEM_OPTIONS,
+  CONTACT_ROLE_LABELS, ORIGEM_OPTIONS, STATUS_LEAD_LABELS,
   QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, displayName,
-  type ArchiveReason,
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
-import { updateLead, archiveLead, restoreLead } from '@/lib/leads'
+import { updateLead, marcarGanho, marcarPerdido, reabrir, getMotivosPerda } from '@/lib/leads'
+import { gravacaoPerda, rotuloMotivoPerda } from '@/lib/status-lead'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
@@ -85,7 +85,8 @@ export default function LeadModal(props: Props) {
 function LeadDrawer({
   lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched,
 }: Props & { lead: LeadKanban }) {
-  const isArchived = lead.arquivado === true
+  const [statusAtual, setStatusAtual] = useState<StatusLead>(lead.status)
+  const isPerdido  = statusAtual === 'perdido'
   const supabase   = createClient()
   const router     = useRouter()
 
@@ -748,27 +749,39 @@ function LeadDrawer({
     } finally { setSaving(false) }
   }
 
-  // ── Convert to client ──────────────────────────────────────────────────────
+  // ── Status do negócio (ganho / reabrir) ────────────────────────────────────
   const [isConverted,  setIsConverted]  = useState<boolean>(lead.is_converted)
-  const [converting,   setConverting]   = useState(false)
-  const [convertError, setConvertError] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusError,  setStatusError]  = useState('')
 
-  async function handleConvert() {
-    if (isConverted || converting) return
-    setConverting(true)
-    setConvertError('')
+  async function handleGanho() {
+    if (statusAtual === 'ganho' || statusSaving) return
+    setStatusSaving(true)
+    setStatusError('')
     try {
-      const { error } = await supabase
-        .from('leads')
-        .update({ is_converted: true })
-        .eq('id', lead.id)
-      if (error) throw new Error(error.message)
+      await marcarGanho(lead.id)
+      setStatusAtual('ganho')
       setIsConverted(true)
       onSaved()
     } catch (err) {
-      setConvertError(err instanceof Error ? err.message : 'Erro ao converter. Tente novamente.')
+      setStatusError(err instanceof Error ? err.message : 'Erro ao marcar como ganho. Tente novamente.')
     } finally {
-      setConverting(false)
+      setStatusSaving(false)
+    }
+  }
+
+  async function handleReabrir() {
+    if (statusSaving) return
+    setStatusSaving(true)
+    setStatusError('')
+    try {
+      await reabrir(lead.id)
+      onSaved()
+      handleClose()
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Erro ao reabrir. Tente novamente.')
+    } finally {
+      setStatusSaving(false)
     }
   }
 
@@ -830,24 +843,47 @@ function LeadDrawer({
     }
   }
 
-  // ── Archive ────────────────────────────────────────────────────────────────
-  const [archiveModal,  setArchiveModal]  = useState(false)
-  const [archiveReason, setArchiveReason] = useState<ArchiveReason | ''>('')
-  const [archiveCustom, setArchiveCustom] = useState('')
-  const [archiveSaving, setArchiveSaving] = useState(false)
+  // ── Perda ──────────────────────────────────────────────────────────────────
+  // Mesma regra do antigo Arquivar: atendente não marca perdido pela ficha
+  const podeMarcarPerdido = !isAtendente
+  const [perdaModal,    setPerdaModal]    = useState(false)
+  const [motivos,       setMotivos]       = useState<MotivoPerda[] | null>(null)
+  const [motivoId,      setMotivoId]      = useState('')
+  const [perdaDetalhe,  setPerdaDetalhe]  = useState('')
+  const [perdaSaving,   setPerdaSaving]   = useState(false)
+  const [perdaErro,     setPerdaErro]     = useState('')
+  const motivoEscolhido = motivos?.find(m => m.id === motivoId) ?? null
+  const perdaValidada   = gravacaoPerda(motivoEscolhido, perdaDetalhe)
 
-  async function handleArchive() {
-    if (!archiveReason) return
-    const motivo = archiveReason === 'Outro' ? `Outro: ${archiveCustom.trim() || '—'}` : archiveReason
-    setArchiveSaving(true)
-    try { await archiveLead(lead.id, motivo); onSaved(); handleClose() }
-    finally { setArchiveSaving(false) }
+  async function openPerdaModal() {
+    setPerdaModal(true)
+    setMotivoId('')
+    setPerdaDetalhe('')
+    setPerdaErro('')
+    setMotivos(null)
+    try {
+      setMotivos(await getMotivosPerda(lead.funnel_id))
+    } catch {
+      setMotivos([])
+      setPerdaErro('Não foi possível carregar os motivos de perda.')
+    }
   }
-  async function handleRestore() {
-    await restoreLead(lead.id)
-    onSaved()
-    handleClose()
+
+  async function handlePerdido() {
+    if (!perdaValidada.ok) return
+    setPerdaSaving(true)
+    setPerdaErro('')
+    try {
+      await marcarPerdido(lead.id, perdaValidada.valores.motivo_perda_id, perdaValidada.valores.motivo_perda)
+      onSaved()
+      handleClose()
+    } catch (err) {
+      setPerdaErro(err instanceof Error ? err.message : 'Erro ao marcar como perdido.')
+    } finally {
+      setPerdaSaving(false)
+    }
   }
+  const motivoPerdaAtual = isPerdido ? rotuloMotivoPerda(lead.motivo_perda_nome ?? null, lead.motivo_perda) : null
 
   // ── Timeline ───────────────────────────────────────────────────────────────
   const timeline: TimelineItem[] = [
@@ -906,10 +942,30 @@ function LeadDrawer({
             <p style={{ fontSize: 19, fontWeight: 900, color: '#25402C', margin: 0 }}>
               {form.nome}{form.sobrenome ? ` ${form.sobrenome}` : ''}
             </p>
-            {stageNome && (
-              <span style={{ display: 'inline-block', marginTop: 6, fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#E8F4E6', color: '#35853F' }}>
-                {stageNome}
-              </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {stageNome && (
+                <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#E8F4E6', color: '#35853F' }}>
+                  {stageNome}
+                </span>
+              )}
+              {statusAtual !== 'aberto' && (
+                <span style={{
+                  fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999,
+                  background: isPerdido ? '#FDF1F2' : '#25402C', color: isPerdido ? '#C4534A' : '#fff',
+                }}>
+                  {STATUS_LEAD_LABELS[statusAtual]}
+                </span>
+              )}
+              {isConverted && (
+                <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#FFF7E0', color: '#9A6B00' }}>
+                  Cliente
+                </span>
+              )}
+            </div>
+            {motivoPerdaAtual && (
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#C4534A', margin: '6px 0 0' }}>
+                Motivo da perda: {motivoPerdaAtual}
+              </p>
             )}
             <p style={{ fontSize: 12, fontWeight: 600, color: '#9AA79C', margin: '6px 0 0' }}>
               {lead.created_at ? `Chegou ${format(new Date(lead.created_at), "d MMM", { locale: ptBR })}` : ''}
@@ -931,7 +987,7 @@ function LeadDrawer({
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                   Editar dados
                 </button>
-                {!isArchived && (
+                {!isPerdido && (
                   <button
                       onClick={openTransferModal}
                       title="Transferir para outra unidade"
@@ -942,15 +998,15 @@ function LeadDrawer({
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                   </button>
                 )}
-                {!isArchived && !isAtendente && (
+                {statusAtual === 'aberto' && podeMarcarPerdido && (
                     <button
-                      onClick={() => setArchiveModal(true)}
-                      title="Arquivar contato"
+                      onClick={openPerdaModal}
+                      title="Marcar negócio como perdido"
                       style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#C4534A'; e.currentTarget.style.borderColor = '#E8B4B0'; e.currentTarget.style.background = '#FDF1F2' }}
                       onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" d="M9 9l6 6m0-6l-6 6"/></svg>
                     </button>
                 )}
               </>
@@ -1213,42 +1269,44 @@ function LeadDrawer({
             </div>
           </div>
 
-          {/* ── Pinned footer: Converter ── */}
-          <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {isArchived ? (
+          {/* ── Pinned footer: status do negócio ── */}
+          <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {statusAtual === 'aberto' ? (
               <button
-                onClick={handleRestore}
-                style={{ width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#3E9849', border: '1px solid #C8D9C4', borderRadius: 12, background: 'transparent', cursor: 'pointer', transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                onClick={handleGanho}
+                disabled={statusSaving}
+                style={{
+                  width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#fff',
+                  background: '#3E9849', border: 'none', borderRadius: 12, cursor: statusSaving ? 'not-allowed' : 'pointer',
+                  opacity: statusSaving ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
               >
-                Restaurar contato
+                {statusSaving ? 'Salvando...' : 'Marcar como ganho'}
               </button>
-            ) : isConverted ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', fontSize: 12, color: '#35853F', fontWeight: 700 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Convertido em cliente
-              </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <>
+                {statusAtual === 'ganho' && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 0', fontSize: 12, color: '#35853F', fontWeight: 700 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Negócio ganho
+                  </div>
+                )}
                 <button
-                  onClick={handleConvert}
-                  disabled={converting}
-                  style={{
-                    width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#fff',
-                    background: '#3E9849', border: 'none', borderRadius: 12, cursor: converting ? 'not-allowed' : 'pointer',
-                    opacity: converting ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
+                  onClick={handleReabrir}
+                  disabled={statusSaving}
+                  style={{ width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#3E9849', border: '1px solid #C8D9C4', borderRadius: 12, background: 'transparent', cursor: statusSaving ? 'not-allowed' : 'pointer', opacity: statusSaving ? 0.5 : 1, transition: 'background 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  {converting ? 'Convertendo...' : 'Converter em cliente'}
+                  {statusSaving ? 'Salvando...' : 'Reabrir negócio'}
                 </button>
-                {convertError && <p style={{ fontSize: 11, color: '#C4534A', textAlign: 'center', margin: 0 }}>{convertError}</p>}
-              </div>
+              </>
             )}
+            {statusError && <p style={{ fontSize: 11, color: '#C4534A', textAlign: 'center', margin: 0 }}>{statusError}</p>}
           </div>
         </div>
 
@@ -1266,16 +1324,21 @@ function LeadDrawer({
                 <p style={{ fontSize: '11.5px', fontWeight: 700, color: '#9AA79C', margin: '2px 0 0' }}>online agora</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                {/* Mobile-only archive/restore */}
+                {/* Status no celular (o painel esquerdo fica oculto) */}
                 <div className="sm:hidden" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {!isArchived && (
-                    <button onClick={() => setArchiveModal(true)} style={{ fontSize: 12, color: '#C4534A', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
-                      Arquivar
+                  {statusAtual === 'aberto' && (
+                    <button onClick={handleGanho} disabled={statusSaving} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Ganho
                     </button>
                   )}
-                  {isArchived && (
-                    <button onClick={handleRestore} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
-                      Restaurar
+                  {statusAtual === 'aberto' && podeMarcarPerdido && (
+                    <button onClick={openPerdaModal} style={{ fontSize: 12, color: '#C4534A', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Perdido
+                    </button>
+                  )}
+                  {statusAtual !== 'aberto' && (
+                    <button onClick={handleReabrir} disabled={statusSaving} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Reabrir
                     </button>
                   )}
                 </div>
@@ -2110,37 +2173,50 @@ function LeadDrawer({
         </div>
       </div>
 
-      {/* ── Archive modal ── */}
-      {archiveModal && (
+      {/* ── Modal de perda ── */}
+      {perdaModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
           <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
-            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Arquivar contato</h3>
-            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato será removido do funil e preservado no banco.</p>
+            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Marcar negócio como perdido</h3>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato sai do funil e fica em Perdidos. Se mandar mensagem, o negócio reabre.</p>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo da perda *</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              {ARCHIVE_REASONS.map(reason => (
-                <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${archiveReason === reason ? '#C05B3A' : '#C9C3B2'}`, background: archiveReason === reason ? '#C05B3A' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                    {archiveReason === reason && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+              {motivos === null && <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Carregando motivos...</p>}
+              {motivos?.length === 0 && !perdaErro && (
+                <p style={{ fontSize: 12, color: '#C4534A', margin: 0 }}>Este funil não tem motivos de perda ativos. Peça a um gestor para configurar em Configurações › Funis.</p>
+              )}
+              {motivos?.map(m => (
+                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${motivoId === m.id ? '#C05B3A' : '#C9C3B2'}`, background: motivoId === m.id ? '#C05B3A' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                    {motivoId === m.id && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
                   </div>
-                  <input type="radio" name="archive-reason" value={reason} checked={archiveReason === reason} onChange={() => setArchiveReason(reason)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
-                  <span style={{ fontSize: 13, color: '#35543B' }}>{reason}</span>
+                  <input type="radio" name="motivo-perda" value={m.id} checked={motivoId === m.id} onChange={() => setMotivoId(m.id)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
+                  <span style={{ fontSize: 13, color: '#35543B' }}>{m.nome}</span>
                 </label>
               ))}
             </div>
-            {archiveReason === 'Outro' && (
-              <textarea autoFocus value={archiveCustom} onChange={e => setArchiveCustom(e.target.value)} placeholder="Descreva o motivo..." rows={2} style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }} />
+            {motivoEscolhido && (
+              <textarea
+                autoFocus={motivoEscolhido.nome === 'Outro'}
+                value={perdaDetalhe}
+                onChange={e => setPerdaDetalhe(e.target.value)}
+                placeholder={motivoEscolhido.nome === 'Outro' ? 'Descreva o motivo *' : 'Detalhe (opcional)'}
+                rows={2}
+                style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }}
+              />
             )}
+            {perdaErro && <p style={{ fontSize: 12, color: '#C4534A', margin: '0 0 8px' }}>{perdaErro}</p>}
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button onClick={() => { setArchiveModal(false); setArchiveReason(''); setArchiveCustom('') }} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
+              <button onClick={() => setPerdaModal(false)} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
                 Cancelar
               </button>
               <button
-                onClick={handleArchive}
-                disabled={!archiveReason || (archiveReason === 'Outro' && !archiveCustom.trim()) || archiveSaving}
-                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#C05B3A', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!archiveReason || (archiveReason === 'Outro' && !archiveCustom.trim()) || archiveSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
+                onClick={handlePerdido}
+                disabled={!perdaValidada.ok || perdaSaving}
+                title={perdaValidada.ok ? undefined : perdaValidada.erro}
+                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#C05B3A', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!perdaValidada.ok || perdaSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
               >
-                {archiveSaving ? 'Arquivando...' : 'Arquivar'}
+                {perdaSaving ? 'Salvando...' : 'Marcar perdido'}
               </button>
             </div>
           </div>
