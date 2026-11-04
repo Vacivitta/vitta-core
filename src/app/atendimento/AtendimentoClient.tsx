@@ -12,7 +12,7 @@ import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
-import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import TagsBar from '@/components/whatsapp/TagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
@@ -854,9 +854,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
                 onStatusChange={updateStatus} onAssignAgent={assignAgent} onAssignQueue={assignQueue}
                 contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)} />
-              <ConvTagsBar
-                convId={selectedConv.id}
-                convTags={convTags}
+              <TagsBar
+                alvo={{ tipo: 'conversa', id: selectedConv.id }}
+                tags={convTags}
                 unitTags={unitTags}
                 onTagAdded={tag => {
                   setConvTags(prev => [...prev, tag])
@@ -1106,10 +1106,6 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
     </div>
   )
 }
-
-// ── ConvTagsBar ───────────────────────────────────────────────────────────────
-
-// ConvTagsBar extracted to @/components/whatsapp/ConvTagsBar
 
 // ── ConvList ──────────────────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
 import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
-import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import TagsBar from '@/components/whatsapp/TagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
@@ -174,6 +174,7 @@ function LeadDrawer({
   const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
   const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
+  const [leadTags,       setLeadTags]       = useState<ConvTag[]>([])
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
@@ -229,8 +230,6 @@ function LeadDrawer({
         void supabase.from('wa_conversation_tags').select('tag:wa_tags(id,name,color)').eq('conversation_id', conv.id)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then(({ data }) => setWaConvTags((data ?? []).map((r: any) => r.tag).filter(Boolean)))
-        void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id)
-          .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
 
         // Zera unread_count via API (admin client garante que o update sempre persiste)
         if (conv.unread_count > 0) {
@@ -536,6 +535,18 @@ function LeadDrawer({
   const [enviadoQuoteId,  setEnviadoQuoteId]  = useState<string | null>(null)
   // Formulário de orçamento aberto aqui mesmo, sem ir para a tela de Orçamentos
   const [novoOrcamento, setNovoOrcamento] = useState(false)
+
+  // Tags do lead e catálogo da unidade dele (o mesmo das conversas)
+  useEffect(() => {
+    void supabase.from('lead_tags').select('tag:wa_tags(id,name,color)').eq('lead_id', lead.id)
+      .then(({ data }) => setLeadTags(((data ?? []) as unknown as Array<{ tag: ConvTag | null }>)
+        .flatMap(r => r.tag ? [r.tag] : [])))
+    const unidade = lead.unit_id ?? currentUser.unit_id
+    if (unidade) {
+      void supabase.from('wa_tags').select('id,name,color').eq('unit_id', unidade).order('name')
+        .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
+    }
+  }, [lead.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const id = lead.id
@@ -972,6 +983,14 @@ function LeadDrawer({
               {form.origem ? ` pelo ${form.origem}` : ''}
               {contacts.length === 0 ? ' · ainda sem paciente vinculado' : ` · ${contacts.length} paciente${contacts.length > 1 ? 's' : ''}`}
             </p>
+            <TagsBar
+              alvo={{ tipo: 'lead', id: lead.id }}
+              tags={leadTags}
+              unitTags={waUnitTags}
+              onTagAdded={tag => setLeadTags(prev => [...prev, tag])}
+              onTagRemoved={tagId => setLeadTags(prev => prev.filter(t => t.id !== tagId))}
+              style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+            />
           </div>
 
           {/* Actions row */}
@@ -1971,9 +1990,9 @@ function LeadDrawer({
                   )}
                   {/* Tags */}
                   {waConversation && (
-                    <ConvTagsBar
-                      convId={waConversation.id}
-                      convTags={waConvTags}
+                    <TagsBar
+                      alvo={{ tipo: 'conversa', id: waConversation.id }}
+                      tags={waConvTags}
                       unitTags={waUnitTags}
                       onTagAdded={tag => setWaConvTags(prev => [...prev, tag])}
                       onTagRemoved={tagId => setWaConvTags(prev => prev.filter(t => t.id !== tagId))}
