@@ -24,7 +24,10 @@ O `run.sh`, em ordem:
 1. aplica `prelude.sql` como `supabase_admin`;
 2. aplica cada migração em ordem (`LC_ALL=C sort`) com `--single-transaction` e
    `ON_ERROR_STOP`: 001–089 como `postgres`, 090 em diante como `supabase_admin`,
-   como o Infra aplica em produção. Para no primeiro erro, mostrando o arquivo;
+   como o Infra aplica em produção. Para no primeiro erro, mostrando o arquivo.
+   Antes da migração NNN, se existir `tests/db/dados_antes_NNN.sql`, aplica esse
+   arquivo: dados no formato antigo para a migração converter de verdade (a
+   126 migra arquivado/is_converted para status; `090_status.test.sql` confere);
 3. aplica `docs/migracao-vps/registro-migracoes.sql` e registra as versões ≥ 090
    (sempre depois da 089: a 037b e a 066b abortam se o registro já existir);
 4. checa as guardas: toda migração ≥ 090 reaplicada como `supabase_admin` passa
