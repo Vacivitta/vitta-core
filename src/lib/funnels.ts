@@ -1,5 +1,5 @@
 import { createClient } from './supabase/client'
-import type { Funnel, FunnelStage, FunnelWithStages } from '@/types/database'
+import type { Funnel, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
 
 // ---- Funis ----------------------------------------------------------------
 
@@ -64,7 +64,7 @@ export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .in('stage_id', stageIds)
-      .eq('arquivado', false)
+      .neq('status', 'perdido')
     leadCount = count ?? 0
   }
 
@@ -111,7 +111,7 @@ export async function createStage(
 
 export async function updateStage(
   id: string,
-  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal'>>,
+  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal' | 'resultado'>>,
 ): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from('funnel_stages').update(updates).eq('id', id)
@@ -125,7 +125,7 @@ export async function deleteStage(id: string): Promise<void> {
     .from('leads')
     .select('id', { count: 'exact', head: true })
     .eq('stage_id', id)
-    .eq('arquivado', false)
+    .neq('status', 'perdido')
 
   if (count && count > 0) {
     throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} ativo${count !== 1 ? 's' : ''}. Distribua os leads para outras etapas antes de excluir.`)
@@ -171,7 +171,7 @@ export async function getLeadCountByStage(stage_id: string): Promise<number> {
     .from('leads')
     .select('id', { count: 'exact', head: true })
     .eq('stage_id', stage_id)
-    .eq('arquivado', false)
+    .neq('status', 'perdido')
   if (error) throw error
   return count ?? 0
 }
@@ -185,11 +185,43 @@ export async function getLeadCountsByFunnel(
     .from('leads')
     .select('stage_id')
     .eq('funnel_id', funnel_id)
-    .eq('arquivado', false)
+    .neq('status', 'perdido')
   if (error) throw error
   const counts: Record<string, number> = {}
   for (const row of data ?? []) {
     counts[row.stage_id] = (counts[row.stage_id] ?? 0) + 1
   }
   return counts
+}
+
+// ---- Motivos de perda -------------------------------------------------------
+// Sem exclusão pela tela: desativar tira o motivo da lista sem mexer nos leads que o usam.
+
+export async function createMotivoPerda(funnel_id: string, nome: string, ordem: number): Promise<MotivoPerda> {
+  const supabase = createClient()
+  // unit_id vem do funil (trigger fn_motivo_perda_unidade)
+  const { data, error } = await supabase
+    .from('motivos_perda')
+    .insert({ funnel_id, nome, ordem })
+    .select()
+    .single()
+  if (error) throw error
+  return data as MotivoPerda
+}
+
+export async function updateMotivoPerda(
+  id: string,
+  updates: Partial<Pick<MotivoPerda, 'nome' | 'ativo' | 'ordem'>>,
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('motivos_perda').update(updates).eq('id', id)
+  if (error) throw error
+}
+
+export async function reorderMotivosPerda(orderedIds: string[]): Promise<void> {
+  const supabase = createClient()
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase.from('motivos_perda').update({ ordem: i + 1 }).eq('id', orderedIds[i])
+    if (error) throw error
+  }
 }
