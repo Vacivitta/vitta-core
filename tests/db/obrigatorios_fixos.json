@@ -1,0 +1,12 @@
+[
+  { "chave": "lead:email",           "rotulo": "E-mail" },
+  { "chave": "lead:telefone",        "rotulo": "Telefone" },
+  { "chave": "lead:sobrenome",       "rotulo": "Sobrenome" },
+  { "chave": "lead:cpf",             "rotulo": "CPF" },
+  { "chave": "lead:data_nascimento", "rotulo": "Data de nascimento" },
+  { "chave": "lead:profissao",       "rotulo": "Profissão" },
+  { "chave": "lead:cidade",          "rotulo": "Cidade" },
+  { "chave": "lead:estado",          "rotulo": "Estado" },
+  { "chave": "lead:origem",          "rotulo": "Origem" },
+  { "chave": "lead:responsavel_id",  "rotulo": "Responsável" }
+]
