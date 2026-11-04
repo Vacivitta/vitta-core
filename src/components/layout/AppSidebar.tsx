@@ -180,7 +180,7 @@ const CONFIG_SECTIONS: ConfigSection[] = [
     items: [
       { href: '/configuracoes/funis',        label: 'Funis',            icon: <IcoFunis />,      gestorOnly: true  },
       { href: '/configuracoes/filas',        label: 'Filas',            icon: <IcoFilas />,      gestorOnly: true  },
-      { href: '/configuracoes/tags',         label: 'Tags de Conversa', icon: <IcoTags />,       gestorOnly: false },
+      { href: '/configuracoes/tags',         label: 'Tags',             icon: <IcoTags />,       gestorOnly: false },
       { href: '/configuracoes/automacoes',   label: 'Automações',       icon: <IcoAutomacoes />, gestorOnly: true  },
       { href: '/configuracoes/chat-interno', label: 'Chat Interno',     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h6"/></svg>, gestorOnly: true },
     ],

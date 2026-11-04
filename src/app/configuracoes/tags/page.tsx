@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import TagsConfigClient from './TagsConfigClient'
 import type { WaTag } from '@/types/database'
 
-export const metadata = { title: 'Tags de Conversa — VittaDesk' }
+export const metadata = { title: 'Tags — VittaDesk' }
 
 export default async function TagsPage() {
   const supabase = await createClient()
