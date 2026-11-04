@@ -549,7 +549,7 @@ export interface AutomationRunComLead extends AutomationRun {
   lead_nome: string | null
 }
 
-// ---- Tags de conversas WhatsApp --------------------------------------------
+// ---- Tags (catálogo wa_tags, aplicado em conversas e leads) ----------------
 
 export interface WaTag {
   id:         string
@@ -557,6 +557,15 @@ export interface WaTag {
   name:       string
   color:      string
   created_at: string
+}
+
+/** Tag do catálogo `wa_tags` aplicada no lead (migração 127). */
+export interface LeadTag {
+  lead_id:    string
+  tag_id:     string
+  unit_id:    string
+  criado_em:  string
+  criado_por: string | null
 }
 
 // ---- Notificações ----------------------------------------------------------
