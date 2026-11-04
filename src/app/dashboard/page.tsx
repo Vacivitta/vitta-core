@@ -1,12 +1,21 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { motivoParaAgrupar } from '@/lib/status-lead'
+import { contatosNoPeriodo, montarPainelNegocios, type LeadNegocio } from '@/lib/dashboard/negocios'
+import { janelaDoPeriodo, lerFiltros } from '@/lib/dashboard/filtros'
 import DashboardClient from './DashboardClient'
-import type { Profile, SalesGoal } from '@/types/database'
+import type { Profile, ResultadoEtapa, SalesGoal, StatusLead } from '@/types/database'
 
 export const metadata = { title: 'Dashboard — VittaDesk' }
 
-export default async function DashboardPage() {
+// Visibilidade: qualquer perfil vê a unidade inteira, como antes (o RLS de leads é
+// por unidade, sem recorte por responsável). O filtro de responsável começa em
+// "Todos" para todos os perfis.
+export default async function DashboardPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const params = await searchParams
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -42,13 +51,12 @@ export default async function DashboardPage() {
     { data: agentStatsRaw },
     { data: salesGoalsRaw },
     { data: stageHistoryRaw },
-    { data: perdidosRaw },
+    { data: aceitosRaw },
   ] = await Promise.all([
     // Consultas que passam de 1000 linhas por unidade usam fetchAll (o Supabase corta em 1000)
     fetchAll((from, to) => supabase
       .from('leads')
-      .select('id, stage_id, created_at, origem')
-      .neq('status', 'perdido')
+      .select('id, funnel_id, stage_id, responsavel_id, status, created_at, ganho_em, perdido_em, origem, motivo_perda, motivo:motivos_perda(nome)')
       .eq('unit_id', unitId)
       .order('id')
       .range(from, to)),
@@ -59,7 +67,7 @@ export default async function DashboardPage() {
       .order('criado_em', { ascending: false }),
     supabase
       .from('funnel_stages')
-      .select('id, nome, cor, ordem, funnel_id, funnels(id, nome)')
+      .select('id, nome, cor, ordem, funnel_id, resultado, funnels(id, nome)')
       .eq('unit_id', unitId)
       .order('funnel_id')
       .order('ordem'),
@@ -110,55 +118,96 @@ export default async function DashboardPage() {
       .order('month', { ascending: false }),
     fetchAll((from, to) => supabase
       .from('lead_stage_history')
-      .select('id, lead_id, de_stage_id, para_stage_id, criado_em, lead:leads!inner(unit_id)')
+      .select('id, lead_id, de_stage_id, para_stage_id, criado_em, movido_via, lead:leads!inner(unit_id)')
       .eq('lead.unit_id', unitId)
       .order('criado_em')
       .order('id')
       .range(from, to)),
+    // Todos os aceitos (a consulta de quotes acima corta em 1000) para o valor ganho
     fetchAll((from, to) => supabase
-      .from('leads')
-      .select('id, created_at, perdido_em, motivo_perda, motivo:motivos_perda(nome)')
-      .eq('status', 'perdido')
+      .from('quotes')
+      .select('id, lead_id, status, total_calculado, criado_em, aceito_em')
       .eq('unit_id', unitId)
+      .eq('status', 'aceito')
       .order('id')
       .range(from, to)),
   ])
 
+  const stages = (stagesRaw ?? []).map(s => ({
+    id: s.id as string,
+    nome: s.nome as string,
+    cor: s.cor as string,
+    ordem: s.ordem as number,
+    funnel_id: s.funnel_id as string,
+    resultado: (s.resultado ?? null) as ResultadoEtapa | null,
+    funnel: (Array.isArray(s.funnels) ? (s.funnels[0] ?? null) : s.funnels) as { id: string; nome: string } | null,
+  }))
+  const funis = [...new Map(stages.filter(s => s.funnel).map(s => [s.funnel!.id, s.funnel!])).values()]
+  const profiles = profilesRaw ?? []
+
+  const filtros = lerFiltros(params, { funis: funis.map(f => f.id), responsaveis: profiles.map(p => p.id as string) })
+  const janela = janelaDoPeriodo(filtros.periodo, new Date())
+
+  const leads = (leadsRaw ?? []).map(l => {
+    const motivo = Array.isArray(l.motivo) ? (l.motivo[0] ?? null) : l.motivo
+    return {
+      id:             l.id as string,
+      funnel_id:      l.funnel_id as string | null,
+      stage_id:       l.stage_id as string | null,
+      responsavel_id: l.responsavel_id as string | null,
+      status:         l.status as StatusLead,
+      created_at:     l.created_at as string,
+      ganho_em:       l.ganho_em as string | null,
+      perdido_em:     l.perdido_em as string | null,
+      origem:         l.origem as string | null,
+      motivo:         l.status === 'perdido'
+        ? motivoParaAgrupar((motivo?.nome ?? null) as string | null, l.motivo_perda as string | null)
+        : null,
+    }
+  })
+  const leadsFiltrados: LeadNegocio[] = leads.filter(l =>
+    (!filtros.funilId || l.funnel_id === filtros.funilId) &&
+    (!filtros.responsavelId || l.responsavel_id === filtros.responsavelId))
+
+  const negocios = montarPainelNegocios({
+    leads:      leadsFiltrados,
+    movimentos: (stageHistoryRaw ?? []).map(h => ({
+      lead_id:       h.lead_id as string,
+      de_stage_id:   h.de_stage_id as string | null,
+      para_stage_id: h.para_stage_id as string,
+      criado_em:     h.criado_em as string,
+      movido_via:    h.movido_via as string | null,
+    })),
+    etapas:     stages,
+    funis:      filtros.funilId ? funis.filter(f => f.id === filtros.funilId) : funis,
+    orcamentos: (aceitosRaw ?? []).map(q => ({
+      lead_id:         q.lead_id as string | null,
+      status:          q.status as string,
+      total_calculado: q.total_calculado as number | null,
+      criado_em:       q.criado_em as string,
+      aceito_em:       q.aceito_em as string | null,
+    })),
+    janela,
+  })
+
   return (
     <DashboardClient
       currentUser={profile as Profile}
-      leads={leadsRaw ?? []}
+      filtros={filtros}
+      desdeISO={janela.desde?.toISOString() ?? null}
+      funis={funis}
+      negocios={negocios}
+      contatos={contatosNoPeriodo(leads, janela)}
       quotes={quotesRaw ?? []}
-      stages={(stagesRaw ?? []).map(s => ({
-        ...s,
-        funnel: Array.isArray(s.funnels) ? (s.funnels[0] ?? null) : s.funnels,
-      }))}
       tasks={tasksRaw ?? []}
       conversations={convsRaw ?? []}
       messages={msgsRaw ?? []}
-      profiles={profilesRaw ?? []}
+      profiles={profiles}
       billing={billingRaw ?? []}
       queues={queuesRaw ?? []}
       agentStats={agentStatsRaw ?? []}
       todayISO={todayISO}
       salesGoals={(salesGoalsRaw ?? []) as SalesGoal[]}
-      stageHistory={(stageHistoryRaw ?? []).map((h: Record<string, unknown>) => ({
-        id: h.id as string,
-        lead_id: h.lead_id as string,
-        de_stage_id: h.de_stage_id as string | null,
-        para_stage_id: h.para_stage_id as string,
-        criado_em: h.criado_em as string,
-      }))}
-      perdidos={(perdidosRaw ?? []).map(p => {
-        const motivo = Array.isArray(p.motivo) ? (p.motivo[0] ?? null) : p.motivo
-        return {
-          id: p.id as string,
-          created_at: p.created_at as string,
-          perdido_em: p.perdido_em as string | null,
-          motivo_perda: p.motivo_perda as string | null,
-          motivo_nome: (motivo?.nome ?? null) as string | null,
-        }
-      })}
     />
   )
 }

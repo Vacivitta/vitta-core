@@ -1,30 +1,32 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Profile, SalesGoal } from '@/types/database'
 import { displayName, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
-import { motivoParaAgrupar } from '@/lib/status-lead'
+import type { Contatos, PainelNegocios } from '@/lib/dashboard/negocios'
+import { PERIODOS, queryDosFiltros, type FiltrosDashboard, type Periodo } from '@/lib/dashboard/filtros'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null }
-interface PerdidoRow  { id: string; created_at: string; perdido_em: string | null; motivo_perda: string | null; motivo_nome: string | null }
-interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null; validade_ate: string | null }
-interface StageRow    { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
-interface TaskRow     { id: string; concluida: boolean; data_limite: string | null; responsavel_id: string | null }
+interface QuoteRow   { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null; validade_ate: string | null }
+interface TaskRow    { id: string; concluida: boolean; data_limite: string | null; responsavel_id: string | null }
 interface ConvRow     { id: string; lead_id: string | null; unread_count: number; last_message_at: string | null; last_message_direction: string | null; status: string; assigned_to: string | null; queue_id: string | null; resolved_at: string | null }
 interface MsgRow      { id: string; conversation_id: string; direction: string; created_at: string; sent_by: string | null }
 interface ProfileRow  { id: string; full_name: string; apelido: string | null; perfil?: string }
 interface BillingRow  { category: string; cost_usd: number; billable: boolean }
 interface QueueRow    { id: string; nome: string; cor: string }
 interface AgentStatRow { agent_id: string; open_count: number; resolved_today: number; avg_response_minutes: number | null }
-interface StageHistoryRow { id: string; lead_id: string; de_stage_id: string | null; para_stage_id: string; criado_em: string }
 
 interface Props {
   currentUser:   Profile
-  leads:         LeadRow[]
+  filtros:       FiltrosDashboard
+  /** Início do período (null = tudo), o mesmo usado no servidor */
+  desdeISO:      string | null
+  funis:         { id: string; nome: string }[]
+  negocios:      PainelNegocios
+  contatos:      Contatos
   quotes:        QuoteRow[]
-  stages:        StageRow[]
   tasks:         TaskRow[]
   conversations: ConvRow[]
   messages:      MsgRow[]
@@ -34,25 +36,15 @@ interface Props {
   agentStats:    AgentStatRow[]
   todayISO:      string
   salesGoals:    SalesGoal[]
-  stageHistory:  StageHistoryRow[]
-  perdidos:      PerdidoRow[]
 }
 
-type Period = '7d' | '30d' | '90d' | 'all'
-const PERIOD_LABELS: Record<Period, string> = { '7d': '7d', '30d': '30d', '90d': '90d', all: 'Tudo' }
+const PERIOD_LABELS: Record<Periodo, string> = { '7d': '7d', '30d': '30d', '90d': '90d', all: 'Tudo' }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 const fmtBRL2 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const USD_BRL = 5.90
-
-function cutoff(period: Period): Date | null {
-  if (period === 'all') return null
-  const d = new Date()
-  d.setDate(d.getDate() - parseInt(period))
-  return d
-}
 
 function inPeriod(iso: string | null, cut: Date | null) {
   if (!iso) return false
@@ -107,11 +99,185 @@ function Bar({ value, max, color, h }: { value: number; max: number; color: stri
   )
 }
 
+// ─── Negócios (status do lead) ───────────────────────────────────────────────
+
+const VERDE_ESCURO = '#25402C'
+const VERDE = '#3E9849'
+const BEGE = '#FBFAF4'
+const BORDA = '#EBE7DA'
+const SUAVE = '#9AA79C'
+const ERRO = '#C4534A'
+
+const selectStyle = { fontSize: 10, fontWeight: 600, padding: '4px 6px', borderRadius: 6, border: `1px solid ${BORDA}`, background: '#fff', color: '#555', maxWidth: 170 } as const
+const th = { textAlign: 'right', padding: '7px 8px', fontWeight: 700, color: SUAVE, fontSize: 9, textTransform: 'uppercase' } as const
+const td = { padding: '6px 8px', textAlign: 'right', fontSize: 11, color: '#444' } as const
+
+function pct(v: number | null): string {
+  return v === null ? '—' : `${Math.round(v * 100)}%`
+}
+
+function corTaxa(v: number | null): string {
+  if (v === null) return SUAVE
+  return v >= 0.5 ? VERDE : v >= 0.25 ? '#b5720e' : ERRO
+}
+
+function fmtDuracao(h: number | null): string {
+  if (h === null) return '—'
+  if (h < 1) return `${Math.round(h * 60)}min`
+  if (h < 24) return `${h.toFixed(1)}h`
+  const d = h / 24
+  return `${d.toFixed(1)} ${d < 2 ? 'dia' : 'dias'}`
+}
+
+function ListaContagem({ titulo, itens, cor, vazio, legenda }: { titulo: string; itens: { rotulo: string; total: number }[]; cor: string; vazio: string; legenda: string }) {
+  return (
+    <div style={card}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }} title={legenda}>{titulo}</p>
+      {itens.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>{vazio}</p> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {itens.slice(0, 10).map(o => (
+            <div key={o.rotulo} className="flex items-center gap-2">
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 130, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.rotulo}>{o.rotulo}</span>
+              <Bar value={o.total} max={itens[0].total} color={cor} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 24, textAlign: 'right', flexShrink: 0 }}>{o.total}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ fontSize: 9, color: SUAVE, margin: '8px 0 0' }}>{legenda}</p>
+    </div>
+  )
+}
+
+function SecaoNegocios({ negocios, profiles, filtrado }: { negocios: PainelNegocios; profiles: ProfileRow[]; filtrado: boolean }) {
+  const { indicadores: ind, valor } = negocios
+  const historicoDesde = new Date(negocios.historicoDesde).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const nomeResp = (id: string | null) => {
+    if (!id) return 'Sem responsável'
+    const p = profiles.find(pr => pr.id === id)
+    return p ? displayName(p) : 'Desconhecido'
+  }
+
+  return (
+    <Section title="Negócios" right={filtrado ? <span style={{ fontSize: 9, fontWeight: 700, color: VERDE }}>filtrado por funil/responsável</span> : undefined}>
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+        <Stat label="Novos" value={ind.novos} tooltip="Leads criados no período (leads.created_at)." />
+        <Stat label="Ganhos" value={ind.ganhos} color={VERDE} tooltip="Leads com status Ganho e data de ganho (ganho_em) no período. Clientes antigos sem data só entram em “Tudo”. Ganho reaberto deixa de contar." />
+        <Stat label="Perdidos" value={ind.perdidos} color={ERRO} tooltip="Leads com status Perdido e data de perda (perdido_em) no período." />
+        <Stat label="Abertos agora" value={ind.abertos} tooltip="Leads com status Aberto hoje, independente do período." />
+        <Stat label="Taxa de ganho" value={pct(ind.taxaGanho)} color={corTaxa(ind.taxaGanho)} sub={`${ind.ganhos}/${ind.ganhos + ind.perdidos} fechados`} tooltip="Ganhos ÷ (ganhos + perdidos) no período. Abertos não entram." />
+        <Stat label="Ciclo até ganho" value={ind.cicloMedioDias === null ? '—' : `${Math.round(ind.cicloMedioDias)}d`} sub={`média de ${ind.cicloBase} ganho${ind.cicloBase !== 1 ? 's' : ''}`} tooltip="Média de (ganho_em − created_at) dos ganhos do período que têm data de ganho." />
+        <Stat label="Valor ganho" value={valor.comOrcamento > 0 ? fmtBRL.format(valor.total) : '—'} color={VERDE_ESCURO}
+          sub={`${valor.comOrcamento} de ${valor.comOrcamento + valor.semOrcamento} com orçamento`}
+          tooltip="Soma do orçamento aceito mais recente vinculado a cada lead ganho no período. Ganhos sem orçamento aceito ficam fora da soma." />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+        <ListaContagem titulo="Perdas por motivo" itens={negocios.perdasPorMotivo} cor={ERRO} vazio="Nenhuma perda no período"
+          legenda="Perdidos no período pelo motivo de perda do funil. Perda só com texto livre (antiga ou por automação) conta como “Outro”." />
+        <ListaContagem titulo="Perdas por etapa" itens={negocios.perdasPorEtapa} cor="#C05B3A" vazio="Nenhuma perda no período"
+          legenda={`Etapa em que o lead estava ao ser perdido; se foi movido para a etapa “Perdido”, a etapa de onde saiu (histórico desde ${historicoDesde}).`} />
+      </div>
+
+      <div style={{ ...card, marginTop: 12, padding: 0, overflowX: 'auto' }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: 0, padding: '10px 12px 0', textTransform: 'uppercase' }}>Funil por etapa</p>
+        {negocios.funis.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem funis</p> : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${BORDA}` }}>
+                <th style={{ ...th, textAlign: 'left', padding: '7px 12px' }}>Etapa</th>
+                <th style={th} title="Leads abertos que estão na etapa agora">Abertos agora</th>
+                <th style={th} title="Leads que entraram na etapa no período (reabertura não conta)">Entraram</th>
+                <th style={th} title="Dos que entraram, quantos foram depois para uma etapa posterior do funil ou ganharam">Avançaram</th>
+                <th style={{ ...th, width: 140 }} title="Avançaram ÷ entraram">Passagem</th>
+                <th style={{ ...th, padding: '7px 12px' }} title="Tempo médio entre entrar e sair da etapa, para saídas no período">Tempo médio</th>
+              </tr>
+            </thead>
+            {negocios.funis.map(f => (
+              <tbody key={f.id}>
+                <tr style={{ background: BEGE }}>
+                  <td colSpan={6} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, color: VERDE_ESCURO }}>{f.nome}</td>
+                </tr>
+                {f.etapas.map(e => (
+                  <tr key={e.id} style={{ borderBottom: `1px solid ${BORDA}` }}>
+                    <td style={{ padding: '6px 12px', color: '#333', fontWeight: 600 }}>
+                      <span className="flex items-center gap-1.5">
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: e.cor || '#bbb', flexShrink: 0 }} />
+                        {e.nome}
+                        {e.resultado && <span style={{ fontSize: 8, fontWeight: 700, color: e.resultado === 'ganho' ? VERDE : ERRO, textTransform: 'uppercase' }}>{e.resultado}</span>}
+                      </span>
+                    </td>
+                    <td style={{ ...td, fontWeight: 700 }}>{e.resultado ? '—' : e.abertos}</td>
+                    <td style={td}>{e.resultado ? '—' : e.entraram}</td>
+                    <td style={td}>{e.resultado ? '—' : e.avancaram}</td>
+                    <td style={td}>
+                      {e.resultado || e.taxaPassagem === null ? <span style={{ color: SUAVE }}>—</span> : (
+                        <span className="flex items-center gap-2 justify-end">
+                          <Bar value={e.taxaPassagem} max={1} color={corTaxa(e.taxaPassagem)} h={5} />
+                          <span style={{ fontWeight: 700, color: corTaxa(e.taxaPassagem), width: 32 }}>{pct(e.taxaPassagem)}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ ...td, padding: '6px 12px' }} title={e.saidas > 0 ? `${e.saidas} saída${e.saidas !== 1 ? 's' : ''} no período` : undefined}>{e.resultado ? '—' : fmtDuracao(e.tempoMedioHoras)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+          </table>
+        )}
+        <p style={{ fontSize: 9, color: SUAVE, margin: 0, padding: '8px 12px 10px' }}>
+          Passagem: dos leads que entraram na etapa no período, quantos chegaram a uma etapa posterior do mesmo funil (não “Perdido”) ou ganharam. Reabertura não conta como entrada; pular etapa conta como avanço da etapa de origem. Lead criado conta como entrada na etapa inicial. O histórico de etapas existe desde {historicoDesde}; o funil é o atual do lead.
+        </p>
+      </div>
+
+      <div style={{ ...card, marginTop: 12, padding: 0, overflowX: 'auto' }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: 0, padding: '10px 12px 0', textTransform: 'uppercase' }}>Ranking por responsável</p>
+        {negocios.ranking.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Nenhum negócio fechado no período</p> : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${BORDA}` }}>
+                <th style={{ ...th, textAlign: 'left', padding: '7px 12px' }}>Responsável</th>
+                <th style={th}>Ganhos</th>
+                <th style={th}>Perdidos</th>
+                <th style={{ ...th, padding: '7px 12px' }}>Taxa de ganho</th>
+              </tr>
+            </thead>
+            <tbody>
+              {negocios.ranking.map(r => (
+                <tr key={r.responsavel_id ?? 'sem'} style={{ borderBottom: `1px solid ${BORDA}` }}>
+                  <td style={{ padding: '6px 12px', fontWeight: 600, color: '#333' }}>
+                    <div className="flex items-center gap-2">
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: r.responsavel_id ? avatarColor(r.responsavel_id) : SUAVE, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>{initials(nomeResp(r.responsavel_id))}</div>
+                      <span>{nomeResp(r.responsavel_id)}</span>
+                    </div>
+                  </td>
+                  <td style={{ ...td, fontWeight: 700, color: VERDE }}>{r.ganhos}</td>
+                  <td style={{ ...td, color: ERRO }}>{r.perdidos}</td>
+                  <td style={{ ...td, padding: '6px 12px', fontWeight: 700, color: corTaxa(r.taxa) }}>{pct(r.taxa)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p style={{ fontSize: 9, color: SUAVE, margin: 0, padding: '8px 12px 10px' }}>
+          Ganhos e perdidos no período pelo responsável atual do lead; taxa = ganhos ÷ (ganhos + perdidos).
+        </p>
+      </div>
+    </Section>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals, stageHistory, perdidos }: Props) {
-  const [period, setPeriod] = useState<Period>('30d')
-  const cut = useMemo(() => cutoff(period), [period])
+export default function DashboardClient({ currentUser, filtros, desdeISO, funis, negocios, contatos, quotes, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals }: Props) {
+  const router = useRouter()
+  const [navegando, startNavegacao] = useTransition()
+  const period = filtros.periodo
+  const cut = useMemo(() => (desdeISO ? new Date(desdeISO) : null), [desdeISO])
+
+  function mudarFiltros(mudanca: Partial<FiltrosDashboard>) {
+    startNavegacao(() => router.push(`/dashboard${queryDosFiltros({ ...filtros, ...mudanca })}`, { scroll: false }))
+  }
 
   const [salesGoals, setSalesGoals] = useState<SalesGoal[]>(initialGoals)
   const [showMetaModal, setShowMetaModal] = useState(false)
@@ -154,7 +320,6 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
       return q
     })
   }, [quotes, cut])
-  const filteredLeads  = useMemo(() => leads.filter(l => inPeriod(l.created_at, cut)), [leads, cut])
 
   // ── KPIs comerciais
   const kpis = useMemo(() => {
@@ -188,8 +353,8 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     }
     const principalMotivo = Object.entries(motivosMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
-    return { leadsAtivos: leads.length, novosLeads: filteredLeads.length, aceitos: aceitos.length, expirados: expirados.length, totalAceito, totalRecusado, totalExpirado, totalAndamento, ticketMedio: ticketMed, taxaConv, enviados: enviados.length, cicloMedio, principalMotivo }
-  }, [filteredQuotes, filteredLeads, leads])
+    return { leadsAtivos: contatos.ativos, novosLeads: contatos.novos, aceitos: aceitos.length, expirados: expirados.length, totalAceito, totalRecusado, totalExpirado, totalAndamento, ticketMedio: ticketMed, taxaConv, enviados: enviados.length, cicloMedio, principalMotivo }
+  }, [filteredQuotes, contatos])
 
   // ── Motivos recusa
   const motivosRecusa = useMemo(() => {
@@ -202,18 +367,6 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     }
     return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
   }, [filteredQuotes])
-
-  // ── Motivos perda leads (perdidos no período; perdido_em é NULL só em dados antigos)
-  const motivosPerda = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const p of perdidos) {
-      if (!inPeriod(p.perdido_em ?? p.created_at, cut)) continue
-      const m = motivoParaAgrupar(p.motivo_nome, p.motivo_perda)
-      if (!m) continue
-      map[m] = (map[m] ?? 0) + 1
-    }
-    return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
-  }, [perdidos, cut])
 
   // ── Conversão por atendente
   const convPorAtendente = useMemo(() => {
@@ -309,12 +462,7 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     return { pending: pending.length, overdue: pending.filter(t => t.data_limite && t.data_limite < now).length }
   }, [tasks])
 
-  // ── Leads por origem
-  const leadsByOrigem = useMemo(() => {
-    const c: Record<string, number> = {}
-    for (const l of filteredLeads) { const k = l.origem?.trim() || 'Não informada'; c[k] = (c[k] ?? 0) + 1 }
-    return Object.entries(c).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
-  }, [filteredLeads])
+  const leadsByOrigem = contatos.porOrigem.map(o => ({ label: o.rotulo, count: o.total }))
 
   // ── Quote funnel
   const quoteFunnel = useMemo(() => {
@@ -327,53 +475,6 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
       { label: 'Recusados', count: a.filter(q => q.status === 'recusado').length, color: '#C05B3A' },
     ]
   }, [filteredQuotes])
-
-  // ── Funnel data
-  const funnelData = useMemo(() => {
-    const byF: Record<string, { nome: string; stages: { id: string; nome: string; cor: string; count: number }[] }> = {}
-    for (const s of stages) {
-      const fId = s.funnel_id; if (!byF[fId]) byF[fId] = { nome: s.funnel?.nome ?? 'Funil', stages: [] }
-      byF[fId].stages.push({ id: s.id, nome: s.nome, cor: s.cor, count: leads.filter(l => l.stage_id === s.id).length })
-    }
-    return Object.values(byF)
-  }, [stages, leads])
-
-  // ── Tempo médio por etapa
-  const avgTimePerStage = useMemo(() => {
-    const stageMap = new Map(stages.map(s => [s.id, s]))
-    const byLead = new Map<string, StageHistoryRow[]>()
-    for (const h of stageHistory) {
-      const arr = byLead.get(h.lead_id) ?? []
-      arr.push(h)
-      byLead.set(h.lead_id, arr)
-    }
-
-    const durations: Record<string, number[]> = {}
-    for (const [, entries] of byLead) {
-      const sorted = entries.sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime())
-      for (let i = 0; i < sorted.length; i++) {
-        const stageId = sorted[i].de_stage_id
-        if (!stageId) continue
-        const enteredAt = i > 0 ? new Date(sorted[i - 1].criado_em).getTime() : null
-        if (enteredAt === null) continue
-        const leftAt = new Date(sorted[i].criado_em).getTime()
-        const hours = (leftAt - enteredAt) / (1000 * 60 * 60)
-        if (hours >= 0) {
-          if (!durations[stageId]) durations[stageId] = []
-          durations[stageId].push(hours)
-        }
-      }
-    }
-
-    const result: { id: string; nome: string; cor: string; avgHours: number; count: number; funnelName: string }[] = []
-    for (const s of stages) {
-      const arr = durations[s.id]
-      if (!arr || arr.length === 0) continue
-      const avg = arr.reduce((a, b) => a + b, 0) / arr.length
-      result.push({ id: s.id, nome: s.nome, cor: s.cor, avgHours: avg, count: arr.length, funnelName: s.funnel?.nome ?? 'Funil' })
-    }
-    return result
-  }, [stageHistory, stages])
 
   // ── Status dist
   const statusDist = useMemo(() => {
@@ -402,17 +503,33 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
           <h1 style={{ fontSize: 15, fontWeight: 800, color: '#25402C', margin: 0 }}>Dashboard</h1>
           <p style={{ fontSize: 10, fontWeight: 600, color: '#999', margin: 0 }}>Visão geral · {currentUser.full_name?.split(' ')[0]}</p>
         </div>
-        <div className="flex items-center gap-0.5" style={{ background: '#f0ede4', borderRadius: 6, padding: 2 }}>
-          {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
-            <button key={p} onClick={() => setPeriod(p)} style={{
-              fontSize: 10, fontWeight: period === p ? 700 : 600, padding: '4px 10px', borderRadius: 5,
-              background: period === p ? '#25402C' : 'transparent', color: period === p ? '#fff' : '#888', border: 'none', cursor: 'pointer',
-            }}>{PERIOD_LABELS[p]}</button>
-          ))}
+        <div className="flex items-center flex-wrap justify-end gap-2" style={{ opacity: navegando ? 0.6 : 1 }}>
+          <select aria-label="Funil" value={filtros.funilId ?? ''} onChange={e => mudarFiltros({ funilId: e.target.value || null })} style={selectStyle}>
+            <option value="">Todos os funis</option>
+            {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+          <select aria-label="Responsável" value={filtros.responsavelId ?? ''} onChange={e => mudarFiltros({ responsavelId: e.target.value || null })} style={selectStyle}>
+            <option value="">Todos os responsáveis</option>
+            {[...profiles].sort((a, b) => displayName(a).localeCompare(displayName(b))).map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
+          </select>
+          <div className="flex items-center gap-0.5" style={{ background: '#f0ede4', borderRadius: 6, padding: 2 }}>
+            {PERIODOS.map(p => (
+              <button key={p} onClick={() => mudarFiltros({ periodo: p })} style={{
+                fontSize: 10, fontWeight: period === p ? 700 : 600, padding: '4px 10px', borderRadius: 5,
+                background: period === p ? '#25402C' : 'transparent', color: period === p ? '#fff' : '#888', border: 'none', cursor: 'pointer',
+              }}>{PERIOD_LABELS[p]}</button>
+            ))}
+          </div>
         </div>
       </header>
 
       <main className="flex-1 overflow-auto" style={{ background: '#f7f5ef', padding: '12px 16px 24px' }}>
+
+        <SecaoNegocios
+          negocios={negocios}
+          profiles={profiles}
+          filtrado={filtros.funilId !== null || filtros.responsavelId !== null}
+        />
 
         {/* ── COMERCIAL ── */}
         <Section title="Comercial">
@@ -502,8 +619,8 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
           </div>
         </Section>
 
-        {/* ── MOTIVOS DE PERDA ── */}
-        <Section title="Motivos de Perda">
+        {/* ── RECUSA DE ORÇAMENTOS ── */}
+        <Section title="Recusa de orçamentos">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div style={card}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Orçamentos recusados</p>
@@ -513,20 +630,6 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
                     <div key={o.label} className="flex items-center gap-2">
                       <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.label}>{o.label}</span>
                       <Bar value={o.count} max={motivosRecusa[0].count} color="#C05B3A" />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 20, textAlign: 'right', flexShrink: 0 }}>{o.count}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div style={card}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Leads perdidos</p>
-              {motivosPerda.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {motivosPerda.map(o => (
-                    <div key={o.label} className="flex items-center gap-2">
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#555', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.label}>{o.label}</span>
-                      <Bar value={o.count} max={motivosPerda[0].count} color="#DC2626" />
                       <span style={{ fontSize: 10, fontWeight: 700, color: '#444', width: 20, textAlign: 'right', flexShrink: 0 }}>{o.count}</span>
                     </div>
                   ))}
@@ -790,77 +893,6 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
               </table>
             )}
             <p style={{ fontSize: 9, color: '#bbb', margin: '6px 0 0', textAlign: 'right' }}>Câmbio: R$ {USD_BRL.toFixed(2)}/USD · {waBilling.totalMsgs} mensagens</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3" style={{ marginTop: 12 }}>
-            {/* Contatos por funil */}
-            <div style={card}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Contatos por funil</p>
-              {funnelData.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem funis</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {funnelData.map(f => {
-                    const total = f.stages.reduce((s, x) => s + x.count, 0)
-                    const max = Math.max(...f.stages.map(s => s.count), 1)
-                    return (
-                      <div key={f.nome}>
-                        <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#555' }}>{f.nome}</span>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: '#999' }}>{total}</span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                          {f.stages.map(s => (
-                            <div key={s.id} className="flex items-center gap-1.5">
-                              <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
-                              <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
-                              <Bar value={s.count} max={max} color={s.cor || '#bbb'} h={5} />
-                              <span style={{ fontSize: 9, fontWeight: 700, color: '#555', width: 16, textAlign: 'right', flexShrink: 0 }}>{s.count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Tempo médio por etapa */}
-            <div style={card}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Tempo médio por etapa</p>
-              {avgTimePerStage.length === 0 ? <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 12 }}>Sem dados de movimentação</p> : (() => {
-                const maxH = Math.max(...avgTimePerStage.map(s => s.avgHours), 1)
-                const fmtDuration = (h: number) => {
-                  if (h < 1) return `${Math.round(h * 60)}min`
-                  if (h < 24) return `${h.toFixed(1)}h`
-                  const d = h / 24
-                  return d < 2 ? `${d.toFixed(1)} dia` : `${d.toFixed(1)} dias`
-                }
-                const grouped = avgTimePerStage.reduce<Record<string, typeof avgTimePerStage>>((acc, s) => {
-                  if (!acc[s.funnelName]) acc[s.funnelName] = []
-                  acc[s.funnelName].push(s)
-                  return acc
-                }, {})
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(grouped).map(([fName, items]) => (
-                      <div key={fName}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#555', marginBottom: 4, display: 'block' }}>{fName}</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                          {items.map(s => (
-                            <div key={s.id} className="flex items-center gap-1.5">
-                              <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.cor || '#bbb', flexShrink: 0 }} />
-                              <span style={{ fontSize: 9, color: '#888', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nome}</span>
-                              <Bar value={s.avgHours} max={maxH} color={s.cor || '#bbb'} h={5} />
-                              <span style={{ fontSize: 9, fontWeight: 700, color: '#555', minWidth: 40, textAlign: 'right', flexShrink: 0 }}>{fmtDuration(s.avgHours)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })()}
-            </div>
           </div>
         </Section>
 
