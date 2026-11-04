@@ -30,6 +30,8 @@ import { avisoTelefone, normalizarTelefone, telefoneParaGravar, variantesTelefon
 import { isViolacaoUnica } from '@/lib/supabase/erros'
 import { isPerfilGestor } from '@/lib/auth/access'
 import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
+import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
+import { camposDoFunil } from '@/lib/campos'
 
 interface Props {
   lead: LeadKanban | null
@@ -43,8 +45,9 @@ interface Props {
   onLeadPatched?: (patch: Partial<LeadKanban>) => void
 }
 
-type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos'
-const TABS: Tab[] = ['Atendimento', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos', 'Anexos']
+type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos' | 'Informações'
+// Informações só no celular: no desktop os campos ficam no painel esquerdo
+const TABS: Tab[] = ['Atendimento', 'Informações', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos', 'Anexos']
 const DISABLED_TABS = new Set<Tab>([])
 
 interface WaConversation {
@@ -156,6 +159,8 @@ function LeadDrawer({
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('Atendimento')
   const anexos = useLeadAnexos(lead.id)
+  const camposLead = useCamposLead(lead.id, lead.unit_id)
+  const temCampos = camposDoFunil(camposLead.definicoes, lead.funnel_id).length > 0
 
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
   const [waConversation, setWaConversation] = useState<WaConversation | null>(null)
@@ -1181,6 +1186,12 @@ function LeadDrawer({
                     )}
                   </InfoRow>
                 </WarmCard>
+
+                {temCampos && (
+                  <WarmCard title="Informações">
+                    <CamposLead leadId={lead.id} funnelId={lead.funnel_id} estado={camposLead} />
+                  </WarmCard>
+                )}
               </>
             )}
 
@@ -1389,6 +1400,7 @@ function LeadDrawer({
                 return (
                   <button
                     key={t}
+                    className={t === 'Informações' ? 'sm:hidden!' : undefined}
                     onClick={handleTabClick}
                     disabled={disabled}
                     title={disabled ? 'Em breve' : undefined}
@@ -1863,6 +1875,12 @@ function LeadDrawer({
                 </div>
               )
             })()}
+
+            {tab === 'Informações' && (
+              <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
+                <CamposLead leadId={lead.id} funnelId={lead.funnel_id} estado={camposLead} />
+              </div>
+            )}
 
             {tab === 'Anexos' && (
               <LeadAnexos
