@@ -10,6 +10,8 @@ import { STATUS_LEAD_LABELS, type Lead, type Unit } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
 import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { urlExportacao } from '@/lib/exportacao'
+import Link from 'next/link'
 
 interface Profile { id: string; full_name: string }
 
@@ -284,18 +286,39 @@ export default function ClientesClient({
             <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#25402C', lineHeight: 1.3 }}>Clientes</h1>
             <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: '2px' }}>{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 text-white transition-colors"
-            style={{ background: '#3E9849', fontSize: '13.5px', fontWeight: 800, padding: '10px 20px', borderRadius: '999px', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Novo cliente
-          </button>
+          <div className="flex items-center gap-2">
+            {isGestor && (
+              <>
+                <Link
+                  href="/clientes/importar"
+                  style={{ fontSize: '13px', fontWeight: 700, padding: '9px 16px', borderRadius: '999px', border: '1px solid #E9E5D8', color: '#25402C', background: '#fff' }}
+                  title="Importar contatos de uma planilha CSV"
+                >
+                  Importar
+                </Link>
+                <a
+                  href={urlExportacao({ clientes: true, status: 'nao_perdido' })}
+                  download
+                  style={{ fontSize: '13px', fontWeight: 700, padding: '9px 16px', borderRadius: '999px', border: '1px solid #E9E5D8', color: '#25402C', background: '#fff' }}
+                  title="Baixar os clientes em CSV (a busca não entra)"
+                >
+                  Exportar
+                </a>
+              </>
+            )}
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 text-white transition-colors"
+              style={{ background: '#3E9849', fontSize: '13.5px', fontWeight: 800, padding: '10px 20px', borderRadius: '999px', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Novo cliente
+            </button>
+          </div>
         </div>
 
         <div className="relative mt-3">

@@ -14,6 +14,9 @@ import PerdidosPanel from '@/components/leads/PerdidosPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
+import Link from 'next/link'
+import { isPerfilGestor } from '@/lib/auth/access'
+import { urlExportacao } from '@/lib/exportacao'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -486,6 +489,32 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             </svg>
             <span className="hidden sm:inline">Perdidos</span>
           </button>
+
+          {isPerfilGestor(currentUser.perfil) && (
+            <>
+              <a
+                href={urlExportacao({
+                  funnel_id: selectedFunnelId, stage_ids: filters.stage_ids, responsavel_ids: filters.responsavel_ids,
+                  tag_ids: filters.tag_ids, cidade: filters.cidade, status: 'nao_perdido',
+                })}
+                download
+                className="flex items-center gap-1.5"
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
+                title="Baixar em CSV os contatos deste funil com os filtros aplicados (a busca por texto não entra)"
+              >
+                <span className="hidden sm:inline">Exportar</span>
+                <span className="sm:hidden">CSV</span>
+              </a>
+              <Link
+                href="/clientes/importar"
+                className="hidden sm:flex items-center gap-1.5"
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
+                title="Importar contatos de uma planilha CSV"
+              >
+                Importar
+              </Link>
+            </>
+          )}
 
           <button
             onClick={() => setNewConvOpen(true)}
