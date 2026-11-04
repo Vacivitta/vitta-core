@@ -83,6 +83,12 @@ INSERT INTO public.wa_conversation_tags (conversation_id, tag_id) VALUES
   ('00000000-0000-4000-8100-000000000404', '00000000-0000-4000-8100-000000000311'),
   ('00000000-0000-4000-8100-000000000411', '00000000-0000-4000-8100-000000000311');
 
+-- Reaplicar a 127 recria mesclar_leads com o corpo dela; guarda a versão vigente
+-- (a da última migração que recria a função) para restaurar depois e testar a
+-- mesclagem que vale no banco.
+CREATE TEMP TABLE mesclar_vigente AS
+  SELECT pg_get_functiondef('public.mesclar_leads(uuid,uuid,uuid)'::regprocedure) AS def;
+
 DROP TABLE public.lead_tags;
 \i /migracoes/127_lead_tags.sql
 
@@ -100,6 +106,8 @@ SELECT pg_temp.esperar('reaplicar a 127 não devolve tag removida do lead',
     WHERE lead_id = '00000000-0000-4000-8100-000000000101' AND tag_id = '00000000-0000-4000-8100-000000000302'), '0');
 
 DELETE FROM public.wa_conversation_tags WHERE conversation_id = '00000000-0000-4000-8100-000000000404';
+
+DO $$ BEGIN EXECUTE (SELECT def FROM mesclar_vigente); END $$;
 
 -- ── RLS de lead_tags e de wa_conversation_tags ───────────────────────────────
 CREATE TEMP TABLE casos (ordem serial, caso text, papel text, usuario uuid, comando text, esperado text);
@@ -176,7 +184,10 @@ BEGIN
   END IF;
 END $$;
 
--- ── mesclar_leads move as tags sem duplicar ──────────────────────────────────
+-- ── mesclar_leads move as tags sem duplicar (e mantém o status da 126) ───────
+-- 127 recria a função inteira: se partisse da 121, o status do removido se perderia
+UPDATE public.leads SET status = 'perdido', motivo_perda = 'sumiu' WHERE id = '00000000-0000-4000-8100-000000000102';
+UPDATE public.leads SET status = 'ganho' WHERE id = '00000000-0000-4000-8100-000000000103';
 INSERT INTO public.lead_tags (lead_id, tag_id) VALUES
   ('00000000-0000-4000-8100-000000000102', '00000000-0000-4000-8100-000000000301'),
   ('00000000-0000-4000-8100-000000000102', '00000000-0000-4000-8100-000000000302'),
@@ -190,6 +201,11 @@ SELECT public.mesclar_leads('00000000-0000-4000-8100-000000000102', '00000000-00
 SELECT pg_temp.esperar('tags do lead mantido depois da mesclagem',
   (SELECT string_agg(right(tag_id::text, 3), ' ' ORDER BY tag_id) FROM public.lead_tags
     WHERE lead_id = '00000000-0000-4000-8100-000000000102'), '301 302 303');
+SELECT pg_temp.esperar('mesclagem com tags consolida o status (perdido + ganho = ganho)',
+  (SELECT concat_ws(' | ', status, 'cliente=' || is_converted, 'motivo=' || coalesce(motivo_perda, '-'),
+                    'ganho_em=' || (ganho_em IS NOT NULL))
+     FROM public.leads WHERE id = '00000000-0000-4000-8100-000000000102'),
+  'ganho | cliente=true | motivo=- | ganho_em=true');
 
 -- ── Transferência tira as tags da unidade de origem ──────────────────────────
 UPDATE public.leads SET unit_id = '00000000-0000-4000-8100-0000000000b0',

@@ -23,11 +23,16 @@
 --   4. Cópia única das tags das conversas para o lead vinculado (sem apagar as da
 --      conversa). Só roda na aplicação que cria a tabela: reaplicar não devolve ao
 --      lead uma tag que alguém tirou depois. Pula pares de unidades diferentes.
---   5. mesclar_leads: corpo da 121 mais o tratamento de lead_tags (move as tags do
+--   5. mesclar_leads: corpo da 126 (que consolida o status: ganho > aberto >
+--      perdido, datas e motivo) mais o tratamento de lead_tags (move as tags do
 --      removido para o mantido sem duplicar) e a entrada na lista da trava de FKs.
+--      Por isso exige a 126: aplicada antes dela, a 126 recriaria a função sem
+--      lead_tags (e a trava de FKs recusaria toda mesclagem).
 --
 -- Reaplicar a 092 recria a policy antiga de wa_conversation_tags: se isso
--- acontecer, reaplique esta depois.
+-- acontecer, reaplique esta depois. Reaplicar a 121 ou a 126 recria mesclar_leads
+-- sem lead_tags: reaplique depois a última migração que recria a função (esta,
+-- ou uma posterior que parta do corpo desta).
 --
 -- Aplicar em produção é [H]: o Infra aplica, com aprovação e backup do dia, como
 -- supabase_admin (dono de mesclar_leads), com --single-transaction; depois
@@ -35,7 +40,7 @@
 -- Idempotente. Conferir depois: has_function_privilege('authenticated',
 -- 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE') = false.
 -- Reversão (só com aprovação): DROP TABLE public.lead_tags; recriar a policy de
--- wa_conversation_tags da 092 e mesclar_leads da 121.
+-- wa_conversation_tags da 092 e mesclar_leads da 126.
 
 SET LOCAL lock_timeout = '5s';
 
@@ -49,6 +54,11 @@ BEGIN
   END IF;
   IF to_regprocedure('public.mesclar_leads(uuid,uuid,uuid)') IS NULL THEN
     RAISE EXCEPTION '127: depende da 121 (mesclar_leads)';
+  END IF;
+  IF to_regclass('public.motivos_perda') IS NULL
+     OR NOT EXISTS (SELECT 1 FROM pg_attribute
+                     WHERE attrelid = 'public.leads'::regclass AND attname = 'status' AND NOT attisdropped) THEN
+    RAISE EXCEPTION '127: depende da 126 (leads.status, motivos_perda): mesclar_leads parte do corpo dela';
   END IF;
   IF to_regclass('public.wa_conversation_tags') IS NULL THEN
     RAISE EXCEPTION '127: depende da 058 (wa_tags, wa_conversation_tags)';
@@ -210,6 +220,8 @@ DECLARE
   lr public.leads%ROWTYPE;
   nr public.lead_negotiation%ROWTYPE;
   sem_tratamento text;
+  status_final text;
+  motivo_de_lr boolean;
 BEGIN
   -- Depois de um restore o EXECUTE volta para authenticated (ver CLAUDE.md); a
   -- função não pode depender só do GRANT, porque apaga lead de qualquer unidade.
@@ -284,6 +296,17 @@ BEGIN
     END IF;
   END IF;
 
+  -- Negócio: ganho em qualquer um vale; senão, aberto em qualquer um vale
+  status_final := CASE
+    WHEN 'ganho'  IN (lm.status, lr.status) THEN 'ganho'
+    WHEN 'aberto' IN (lm.status, lr.status) THEN 'aberto'
+    ELSE 'perdido'
+  END;
+  -- Os dois perdidos: fica o motivo da perda mais recente
+  motivo_de_lr := lr.status = 'perdido'
+    AND (lm.status <> 'perdido'
+         OR (lr.perdido_em IS NOT NULL AND (lm.perdido_em IS NULL OR lr.perdido_em > lm.perdido_em)));
+
   -- Apaga antes de completar `manter`: com o índice único da 122, copiar o
   -- telefone de `remover` para `manter` com os dois ainda vivos daria 23505
   DELETE FROM public.leads WHERE id = remover;
@@ -298,6 +321,13 @@ BEGIN
          origem          = coalesce(lm.origem, lr.origem),
          campanha_id     = coalesce(lm.campanha_id, lr.campanha_id),
          is_converted    = lm.is_converted OR lr.is_converted,
+         status          = status_final,
+         ganho_em        = greatest(lm.ganho_em, lr.ganho_em),
+         perdido_em      = greatest(lm.perdido_em, lr.perdido_em),
+         motivo_perda_id = CASE WHEN status_final <> 'perdido' THEN NULL
+                                WHEN motivo_de_lr THEN lr.motivo_perda_id ELSE lm.motivo_perda_id END,
+         motivo_perda    = CASE WHEN status_final <> 'perdido' THEN NULL
+                                WHEN motivo_de_lr THEN lr.motivo_perda ELSE lm.motivo_perda END,
          wa_optin_at     = least(lm.wa_optin_at, lr.wa_optin_at),
          -- opt-out é obrigação legal: basta um dos dois ter pedido
          wa_optout_at    = coalesce(lm.wa_optout_at, lr.wa_optout_at),
