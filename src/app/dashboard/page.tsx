@@ -42,12 +42,13 @@ export default async function DashboardPage() {
     { data: agentStatsRaw },
     { data: salesGoalsRaw },
     { data: stageHistoryRaw },
+    { data: perdidosRaw },
   ] = await Promise.all([
     // Consultas que passam de 1000 linhas por unidade usam fetchAll (o Supabase corta em 1000)
     fetchAll((from, to) => supabase
       .from('leads')
-      .select('id, stage_id, created_at, origem, motivo_perda')
-      .eq('arquivado', false)
+      .select('id, stage_id, created_at, origem')
+      .neq('status', 'perdido')
       .eq('unit_id', unitId)
       .order('id')
       .range(from, to)),
@@ -114,6 +115,13 @@ export default async function DashboardPage() {
       .order('criado_em')
       .order('id')
       .range(from, to)),
+    fetchAll((from, to) => supabase
+      .from('leads')
+      .select('id, created_at, perdido_em, motivo_perda, motivo:motivos_perda(nome)')
+      .eq('status', 'perdido')
+      .eq('unit_id', unitId)
+      .order('id')
+      .range(from, to)),
   ])
 
   return (
@@ -141,6 +149,16 @@ export default async function DashboardPage() {
         para_stage_id: h.para_stage_id as string,
         criado_em: h.criado_em as string,
       }))}
+      perdidos={(perdidosRaw ?? []).map(p => {
+        const motivo = Array.isArray(p.motivo) ? (p.motivo[0] ?? null) : p.motivo
+        return {
+          id: p.id as string,
+          created_at: p.created_at as string,
+          perdido_em: p.perdido_em as string | null,
+          motivo_perda: p.motivo_perda as string | null,
+          motivo_nome: (motivo?.nome ?? null) as string | null,
+        }
+      })}
     />
   )
 }

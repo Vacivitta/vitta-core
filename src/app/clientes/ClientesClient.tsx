@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import Drawer from '@/components/ui/Drawer'
 import { ptBR } from 'date-fns/locale'
 import { useProfile } from '@/hooks/useProfile'
-import type { Lead, Unit } from '@/types/database'
+import { STATUS_LEAD_LABELS, type Lead, type Unit } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
 import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
@@ -14,7 +14,7 @@ import { isViolacaoUnica } from '@/lib/supabase/erros'
 interface Profile { id: string; full_name: string }
 
 export type LeadDuplicado = Pick<Lead,
-  'id' | 'nome' | 'sobrenome' | 'telefone' | 'telefone_norm' | 'unit_id' | 'created_at' | 'arquivado' | 'is_converted'>
+  'id' | 'nome' | 'sobrenome' | 'telefone' | 'telefone_norm' | 'unit_id' | 'created_at' | 'status' | 'is_converted'>
 
 interface Props {
   initialClients:  Lead[]
@@ -62,10 +62,12 @@ export default function ClientesClient({
         table:  'leads',
         filter: 'is_converted=eq.true',
       }, payload => {
-        if (payload.eventType === 'INSERT') {
-          setClients(prev => [payload.new as Lead, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setClients(prev => prev.map(c => c.id === (payload.new as Lead).id ? payload.new as Lead : c))
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          // A lista mostra clientes com negócio não perdido (mesma regra do page.tsx)
+          const lead = payload.new as Lead
+          setClients(prev => lead.status === 'perdido'
+            ? prev.filter(c => c.id !== lead.id)
+            : prev.some(c => c.id === lead.id) ? prev.map(c => c.id === lead.id ? lead : c) : [lead, ...prev])
         } else if (payload.eventType === 'DELETE') {
           setClients(prev => prev.filter(c => c.id !== (payload.old as Lead).id))
         }
@@ -181,11 +183,13 @@ export default function ClientesClient({
             funnel_id:    defaultFunnelId,
             stage_id:     defaultStageId,
             is_converted: true,
+            // Cliente cadastrado direto já fechou negócio
+            status:       'ganho',
           })
           .select('*')
           .single()
         if (err) throw err
-        setClients(prev => [data as Lead, ...prev])
+        setClients(prev => prev.some(c => c.id === (data as Lead).id) ? prev : [data as Lead, ...prev])
       } else if (selected) {
         const { data, error: err } = await supabase
           .from('leads')
@@ -199,7 +203,7 @@ export default function ClientesClient({
       setModal(null)
     } catch (err) {
       setError(isViolacaoUnica(err)
-        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado ou ainda não ser cliente).'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar em Perdidos ou ainda não ser cliente).'
         : 'Erro ao salvar. Tente novamente.')
     } finally {
       setSaving(false)
@@ -530,7 +534,7 @@ export default function ClientesClient({
                       {mesclagem.manter === l.id && <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#35853F', marginLeft: 6 }}>FICA</span>}
                     </p>
                     <p style={{ fontSize: '11.5px', color: '#9AA79C', marginTop: 2 }}>
-                      {[l.telefone, `cadastro ${fmt(l.created_at)}`, l.is_converted ? 'cliente' : 'lead', l.arquivado ? 'arquivado' : null].filter(Boolean).join(' · ')}
+                      {[l.telefone, `cadastro ${fmt(l.created_at)}`, l.is_converted ? 'cliente' : 'lead', l.status === 'aberto' ? null : STATUS_LEAD_LABELS[l.status].toLowerCase()].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </label>

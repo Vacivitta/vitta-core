@@ -56,7 +56,7 @@ export default async function OrcamentosPage({
     supabase.from('products').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),
     supabase.from('quote_templates').select('*').eq('ativo', true).eq('unit_id', unitId).order('nome'),
     fetchAll((from, to) => supabase.from('leads').select('id,nome,sobrenome,telefone')
-      .eq('arquivado', false).eq('unit_id', unitId).order('nome').order('id').range(from, to)),
+      .neq('status', 'perdido').eq('unit_id', unitId).order('nome').order('id').range(from, to)),
     supabase.from('unit_payment_fees').select('*').eq('unit_id', unitId).single(),
   ])
 

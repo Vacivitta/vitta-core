@@ -177,7 +177,8 @@ async function processLeadStuckStage(admin: Admin, auto: TimedAutomation, acao: 
     .select('id, unit_id')
     .eq('unit_id', auto.unit_id)
     .eq('stage_id', auto.filter_stage_id)
-    .eq('arquivado', false)
+    // Automações por tempo só agem em negócio aberto (ganho e perdido estão fechados)
+    .eq('status', 'aberto')
     // stage_changed_at = entrada na etapa; updated_at muda com qualquer edição do lead
     .lt('stage_changed_at', cutoff)
     .limit(50)
@@ -203,7 +204,7 @@ async function processLeadNoTask(admin: Admin, auto: TimedAutomation, acao: Acao
     .from('leads')
     .select('id, unit_id')
     .eq('unit_id', auto.unit_id)
-    .eq('arquivado', false)
+    .eq('status', 'aberto')
     .limit(200)
 
   if (!leads || leads.length === 0) return 0
@@ -235,7 +236,7 @@ async function getFilteredLeadIds(admin: Admin, auto: TimedAutomation): Promise<
     .from('leads')
     .select('id')
     .eq('unit_id', auto.unit_id)
-    .eq('arquivado', false)
+    .eq('status', 'aberto')
 
   if (auto.filter_stage_id) query = query.eq('stage_id', auto.filter_stage_id)
   if (auto.filter_funnel_id) {
