@@ -17,15 +17,20 @@
 --   3. RLS: membros da unidade (user_units) e admin global leem. Ninguém do
 --      navegador grava nem apaga: as rotas api/leads/[id]/anexos fazem isso com o
 --      service_role, depois de conferir sessão, acesso e tipo do arquivo.
---   4. mesclar_leads (121) recriada com lead_anexos na lista: sem isso a trava
---      dela aborta toda mesclagem (FK nova para leads sem tratamento). Os anexos
---      passam para o lead mantido; o objeto no storage não muda de lugar.
+--   4. mesclar_leads recriada com o corpo da 127 (que é o da 126, com o status
+--      do negócio consolidado: ganho > aberto > perdido, datas e motivo, mais
+--      lead_tags) e lead_anexos na lista: sem isso a trava dela aborta toda
+--      mesclagem (FK nova para leads sem tratamento). Os anexos passam para o
+--      lead mantido; o objeto no storage não muda de lugar.
 --
--- Depende da 121 (mesclar_leads). Aplicar em produção é [H]: o Infra aplica, com
--- aprovação e backup do dia, como supabase_admin, com --single-transaction;
--- depois registra a versão '128' e roda notify pgrst, 'reload schema'. Sem
--- BEGIN/COMMIT. Idempotente. Depois de um restore, reaplicar (fecha de novo o
--- EXECUTE de mesclar_leads e das funções daqui). Reversão no fim (comentada).
+-- Depende da 126 (status) e da 127 (lead_tags): a função recriada aqui parte do
+-- corpo delas, e a última aplicada é a que vale. Aplicar em produção é [H]: o
+-- Infra aplica, com aprovação e backup do dia, como supabase_admin, com
+-- --single-transaction; depois registra a versão '128' e roda notify pgrst,
+-- 'reload schema'. Sem BEGIN/COMMIT. Idempotente. Depois de um restore,
+-- reaplicar por último (depois de 118, 121, 126 e 127: fecha de novo o EXECUTE
+-- de mesclar_leads e das funções daqui e deixa vigente a mesclar_leads completa).
+-- Reversão no fim (comentada).
 
 SET LOCAL lock_timeout = '5s';
 
@@ -39,6 +44,14 @@ BEGIN
   END IF;
   IF to_regprocedure('public.mesclar_leads(uuid,uuid,uuid)') IS NULL THEN
     RAISE EXCEPTION '128: depende da 121 (mesclar_leads)';
+  END IF;
+  IF to_regclass('public.motivos_perda') IS NULL
+     OR NOT EXISTS (SELECT 1 FROM pg_attribute
+                     WHERE attrelid = 'public.leads'::regclass AND attname = 'status' AND NOT attisdropped) THEN
+    RAISE EXCEPTION '128: depende da 126 (leads.status, motivos_perda): mesclar_leads parte do corpo dela';
+  END IF;
+  IF to_regclass('public.lead_tags') IS NULL THEN
+    RAISE EXCEPTION '128: depende da 127 (lead_tags): mesclar_leads parte do corpo dela';
   END IF;
   IF to_regclass('storage.buckets') IS NULL OR to_regclass('storage.objects') IS NULL THEN
     RAISE EXCEPTION '128: schema storage ausente';
@@ -138,7 +151,7 @@ CREATE POLICY "unit_members_lead_anexos_select" ON public.lead_anexos AS PERMISS
   );
 
 -- ── 4. mesclar_leads com lead_anexos ─────────────────────────────────────────
--- Corpo da 121, mais lead_anexos na lista da trava e no UPDATE.
+-- Corpo da 127 (= 126 + lead_tags), mais lead_anexos na lista da trava e no UPDATE.
 CREATE OR REPLACE FUNCTION public.mesclar_leads(manter uuid, remover uuid, por uuid DEFAULT NULL)
  RETURNS void
  LANGUAGE plpgsql
@@ -150,6 +163,8 @@ DECLARE
   lr public.leads%ROWTYPE;
   nr public.lead_negotiation%ROWTYPE;
   sem_tratamento text;
+  status_final text;
+  motivo_de_lr boolean;
 BEGIN
   -- Depois de um restore o EXECUTE volta para authenticated (ver CLAUDE.md); a
   -- função não pode depender só do GRANT, porque apaga lead de qualquer unidade.
@@ -187,7 +202,7 @@ BEGIN
        'public.notifications.lead_id', 'public.wa_conversations.lead_id',
        'public.wa_campaign_recipients.lead_id', 'public.wa_timed_automation_log.lead_id',
        'public.quotes.lead_id', 'public.lead_negotiation.lead_id', 'public.automation_runs.lead_id',
-       'public.lead_anexos.lead_id']);
+       'public.lead_tags.lead_id', 'public.lead_anexos.lead_id']);
   IF sem_tratamento IS NOT NULL THEN
     RAISE EXCEPTION 'mesclar_leads: chave estrangeira para leads sem tratamento: %', sem_tratamento;
   END IF;
@@ -205,6 +220,12 @@ BEGIN
   UPDATE public.automation_runs          SET lead_id = manter WHERE lead_id = remover;
   UPDATE public.lead_anexos              SET lead_id = manter WHERE lead_id = remover;
 
+  -- Os dois podem ter a mesma tag (chave primária lead_id, tag_id)
+  INSERT INTO public.lead_tags (lead_id, tag_id, unit_id, criado_em, criado_por)
+  SELECT manter, tag_id, unit_id, criado_em, criado_por FROM public.lead_tags WHERE lead_id = remover
+  ON CONFLICT (lead_id, tag_id) DO NOTHING;
+  DELETE FROM public.lead_tags WHERE lead_id = remover;
+
   SELECT * INTO nr FROM public.lead_negotiation WHERE lead_id = remover;
   IF FOUND THEN
     IF EXISTS (SELECT 1 FROM public.lead_negotiation WHERE lead_id = manter) THEN
@@ -218,6 +239,17 @@ BEGIN
       UPDATE public.lead_negotiation SET lead_id = manter WHERE lead_id = remover;
     END IF;
   END IF;
+
+  -- Negócio: ganho em qualquer um vale; senão, aberto em qualquer um vale
+  status_final := CASE
+    WHEN 'ganho'  IN (lm.status, lr.status) THEN 'ganho'
+    WHEN 'aberto' IN (lm.status, lr.status) THEN 'aberto'
+    ELSE 'perdido'
+  END;
+  -- Os dois perdidos: fica o motivo da perda mais recente
+  motivo_de_lr := lr.status = 'perdido'
+    AND (lm.status <> 'perdido'
+         OR (lr.perdido_em IS NOT NULL AND (lm.perdido_em IS NULL OR lr.perdido_em > lm.perdido_em)));
 
   -- Apaga antes de completar `manter`: com o índice único da 122, copiar o
   -- telefone de `remover` para `manter` com os dois ainda vivos daria 23505
@@ -233,6 +265,13 @@ BEGIN
          origem          = coalesce(lm.origem, lr.origem),
          campanha_id     = coalesce(lm.campanha_id, lr.campanha_id),
          is_converted    = lm.is_converted OR lr.is_converted,
+         status          = status_final,
+         ganho_em        = greatest(lm.ganho_em, lr.ganho_em),
+         perdido_em      = greatest(lm.perdido_em, lr.perdido_em),
+         motivo_perda_id = CASE WHEN status_final <> 'perdido' THEN NULL
+                                WHEN motivo_de_lr THEN lr.motivo_perda_id ELSE lm.motivo_perda_id END,
+         motivo_perda    = CASE WHEN status_final <> 'perdido' THEN NULL
+                                WHEN motivo_de_lr THEN lr.motivo_perda ELSE lm.motivo_perda END,
          wa_optin_at     = least(lm.wa_optin_at, lr.wa_optin_at),
          -- opt-out é obrigação legal: basta um dos dois ter pedido
          wa_optout_at    = coalesce(lm.wa_optout_at, lr.wa_optout_at),
@@ -297,7 +336,7 @@ END $$;
 -- ── Reversão (só com aprovação; como supabase_admin, --single-transaction) ────
 -- Apaga o registro dos anexos; os objetos do bucket ficam e precisam ser
 -- removidos pela API do storage antes de apagar o bucket. mesclar_leads volta
--- reaplicando a 121 (só depois do DROP TABLE, senão a trava dela aborta).
+-- reaplicando a 127 (só depois do DROP TABLE, senão a trava dela aborta).
 -- DROP TRIGGER IF EXISTS trg_lead_anexos_segue_unidade ON public.leads;
 -- DROP TABLE IF EXISTS public.lead_anexos;
 -- DROP FUNCTION IF EXISTS public.fn_lead_anexos_segue_unidade();

@@ -158,8 +158,40 @@ BEGIN
   END IF;
 END $$;
 
--- Mesclar: os anexos do lead removido passam para o mantido, com o mesmo caminho
+-- Mesclar: os anexos do lead removido passam para o mantido, com o mesmo caminho.
+-- 126, 127 e 128 recriam mesclar_leads inteira e a última aplicada é a que vale:
+-- a mesma mesclagem tem de consolidar o status (126), mover as tags (127) e os
+-- anexos (128). Se a 128 partisse de um corpo antigo, uma dessas partes sumiria.
+INSERT INTO public.wa_tags (id, unit_id, name) VALUES
+  ('00000000-0000-4000-8128-000000000301', '00000000-0000-4000-8128-0000000000a0', 'VIP'),
+  ('00000000-0000-4000-8128-000000000302', '00000000-0000-4000-8128-0000000000a0', 'Gestante');
+INSERT INTO public.lead_tags (lead_id, tag_id) VALUES
+  ('00000000-0000-4000-8128-000000000101', '00000000-0000-4000-8128-000000000301'),
+  ('00000000-0000-4000-8128-000000000103', '00000000-0000-4000-8128-000000000301'),
+  ('00000000-0000-4000-8128-000000000103', '00000000-0000-4000-8128-000000000302');
+UPDATE public.leads SET status = 'ganho' WHERE id = '00000000-0000-4000-8128-000000000103';
+
 SELECT public.mesclar_leads('00000000-0000-4000-8128-000000000101', '00000000-0000-4000-8128-000000000103');
+
+DO $$
+DECLARE
+  l public.leads%ROWTYPE;
+  tags text;
+BEGIN
+  SELECT * INTO l FROM public.leads WHERE id = '00000000-0000-4000-8128-000000000101';
+  IF l.status IS DISTINCT FROM 'ganho' OR l.ganho_em IS NULL OR NOT l.is_converted THEN
+    RAISE EXCEPTION 'mesclar_leads deveria consolidar o status (aberto + ganho = ganho, com ganho_em): obtido %, ganho_em %, cliente %',
+      l.status, l.ganho_em, l.is_converted;
+  END IF;
+  SELECT string_agg(right(tag_id::text, 3), ' ' ORDER BY tag_id) INTO tags
+    FROM public.lead_tags WHERE lead_id = '00000000-0000-4000-8128-000000000101';
+  IF tags IS DISTINCT FROM '301 302' THEN
+    RAISE EXCEPTION 'mesclar_leads deveria mover as tags sem duplicar (esperado 301 302, obtido %)', tags;
+  END IF;
+  IF (SELECT count(*) FROM public.lead_anexos WHERE lead_id = '00000000-0000-4000-8128-000000000101') <> 3 THEN
+    RAISE EXCEPTION 'mesclar_leads deveria mover os anexos na mesma mesclagem';
+  END IF;
+END $$;
 
 DO $$
 BEGIN

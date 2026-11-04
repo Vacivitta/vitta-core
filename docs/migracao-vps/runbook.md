@@ -190,13 +190,16 @@ assinada de 5 minutos pela rota `GET /api/leads/[id]/anexos/[anexoId]`, depois d
    `SELECT policyname, qual, with_check FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects';`
    não pode ter policy sem filtro de `bucket_id` (policies se somam e alcançariam o bucket novo). A guarda da 128
    aborta nos dois casos.
-2. Aplicar `128_lead_anexos.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão `128` e rodar
+2. Aplicar `128_lead_anexos.sql` como `supabase_admin`, com `--single-transaction`, **depois da 126 e da 127** (a guarda
+   recusa rodar sem elas); registrar a versão `128` e rodar
    `notify pgrst, 'reload schema'`. Conferir: `SELECT public, file_size_limit FROM storage.buckets WHERE id = 'lead-anexos';`
    → `f`, `20971520`; `SELECT has_function_privilege('authenticated', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE');` → `false`.
-   Depois de um restore, reaplicar a 128 também (idempotente; fecha de novo o EXECUTE de `mesclar_leads`).
+   Depois de um restore, reaplicar 118, 121, 126, 127 e por último a 128 (idempotentes; fecham de novo o EXECUTE e
+   deixam vigente a `mesclar_leads` completa).
 3. Deploy do app. A ordem importa pouco: sem a 128 a aba Anexos mostra erro ao carregar; sem o deploy ninguém usa o bucket.
-   Se a 126/127 (que também recriam `mesclar_leads`) forem aplicadas depois, a versão delas precisa conter
-   `lead_anexos` na lista da trava e no `UPDATE`; senão toda mesclagem aborta com "chave estrangeira para leads sem tratamento".
+   A 126, a 127 e a 128 recriam `mesclar_leads` inteira, cada uma partindo do corpo da anterior; a última aplicada é a
+   que vale. Reaplicar a 126 ou a 127 depois da 128 traz de volta uma versão sem `lead_anexos` (toda mesclagem aborta
+   com "chave estrangeira para leads sem tratamento"): nesse caso, reaplicar a 128 em seguida.
 
 O que muda na operação:
 - **Backup:** o `backup.sh` não está no repositório; pela etapa 4.1 ele copia "pg_dump + Storage". O storage do
