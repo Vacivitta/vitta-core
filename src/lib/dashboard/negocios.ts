@@ -333,6 +333,21 @@ export function rankingResponsaveis(leads: LeadNegocio[], janela: Janela): Linha
   return linhas.sort((a, b) => b.ganhos - a.ganhos || (b.taxa ?? 0) - (a.taxa ?? 0) || a.perdidos - b.perdidos)
 }
 
+export interface Contatos { ativos: number; novos: number; porOrigem: Contagem[] }
+
+/** Cards antigos de contatos: não perdidos, novos no período e origem dos novos. */
+export function contatosNoPeriodo(
+  leads: { status: StatusNegocio; created_at: string; origem: string | null }[], janela: Janela,
+): Contatos {
+  const ativos = leads.filter(l => l.status !== 'perdido')
+  const novos = ativos.filter(l => naJanela(l.created_at, janela))
+  return {
+    ativos:    ativos.length,
+    novos:     novos.length,
+    porOrigem: contar(novos.map(l => l.origem?.trim() || 'Não informada')).slice(0, 8),
+  }
+}
+
 export interface EtapaPainel {
   id:              string
   nome:            string

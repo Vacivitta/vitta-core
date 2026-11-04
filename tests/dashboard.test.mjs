@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  avancou, cicloDias, etapaDaPerda, indicadores, montarPainelNegocios, movimentosPorLead, passagemPorEtapa,
+  avancou, cicloDias, contatosNoPeriodo, etapaDaPerda, indicadores, montarPainelNegocios, movimentosPorLead, passagemPorEtapa,
   perdasPorEtapa, perdasPorMotivo, rankingResponsaveis, taxa, tempoPorEtapa, valorGanho,
 } from '../src/lib/dashboard/negocios.ts'
 import { janelaDoPeriodo, lerFiltros, queryDosFiltros } from '../src/lib/dashboard/filtros.ts'
@@ -224,4 +224,14 @@ test('filtros da URL: valores inválidos caem no padrão', () => {
   assert.equal(queryDosFiltros({ periodo: 'all', funilId: 'f1', responsavelId: 'u1' }), '?periodo=all&funil=f1&responsavel=u1')
   assert.deepEqual(janelaDoPeriodo('7d', AGORA), { desde: new Date('2026-10-28T12:00:00Z'), ate: AGORA })
   assert.deepEqual(janelaDoPeriodo('all', AGORA), { desde: null, ate: AGORA })
+})
+
+test('contatos: perdidos fora; origem dos novos do período', () => {
+  const r = contatosNoPeriodo([
+    lead({ id: 'a', origem: 'Instagram' }),
+    lead({ id: 'b', origem: ' ' }),
+    lead({ id: 'c', origem: 'Instagram', created_at: '2026-01-01T00:00:00Z' }),
+    lead({ id: 'd', origem: 'Site', status: 'perdido' }),
+  ], MES)
+  assert.deepEqual(r, { ativos: 3, novos: 2, porOrigem: [{ rotulo: 'Instagram', total: 1 }, { rotulo: 'Não informada', total: 1 }] })
 })
