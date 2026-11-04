@@ -65,8 +65,8 @@ INSERT INTO public.funnel_stages (id, funnel_id, nome, unit_id) VALUES
 
 CREATE FUNCTION pg_temp.lead(id uuid, unidade char, nome text, telefone text, criado timestamptz DEFAULT now(),
                              arquivado boolean DEFAULT false) RETURNS void LANGUAGE sql AS $$
-  INSERT INTO public.leads (id, nome, telefone, created_at, arquivado, motivo_perda, funnel_id, stage_id, unit_id)
-  SELECT id, nome, telefone, criado, arquivado, CASE WHEN arquivado THEN 'teste' END,
+  INSERT INTO public.leads (id, nome, telefone, created_at, status, motivo_perda, funnel_id, stage_id, unit_id)
+  SELECT id, nome, telefone, criado, CASE WHEN arquivado THEN 'perdido' ELSE 'aberto' END, CASE WHEN arquivado THEN 'teste' END,
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000d0'::uuid ELSE '00000000-0000-4000-8050-0000000000e0'::uuid END,
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000d1'::uuid ELSE '00000000-0000-4000-8050-0000000000e1'::uuid END,
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000a0'::uuid ELSE '00000000-0000-4000-8050-0000000000b0'::uuid END

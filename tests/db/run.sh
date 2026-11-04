@@ -71,6 +71,13 @@ psql_como supabase_admin --single-transaction -f /testes/prelude.sql >"$saida" 2
 echo "ok  prelúdio"
 
 for m in "${migracoes[@]}"; do
+  # Dados no formato antigo para a migração que os converte (ex.: dados_antes_126.sql)
+  nome="${m##*/}"
+  dados="tests/db/dados_antes_${nome%%_*}.sql"
+  if [[ -f "$dados" ]]; then
+    psql_como supabase_admin --single-transaction -f "/testes/${dados##*/}" >"$saida" 2>&1 ||
+      { cat "$saida"; falhar "${dados##*/}"; }
+  fi
   papel="$(papel_da_migracao "$m")"
   aplicar "$papel" "$m" --single-transaction || { cat "$saida"; falhar "migração ${m##*/} (como $papel)"; }
 done
@@ -116,10 +123,10 @@ for m in "${migracoes[@]}"; do
   checagens=$((checagens + 1))
 done
 
-for v in 091 113 115 116 117 118 119 120 121 122 123 124 125; do
+for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125; do
+for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 
