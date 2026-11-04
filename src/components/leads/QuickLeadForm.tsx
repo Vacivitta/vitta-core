@@ -6,6 +6,7 @@ import { ORIGEM_OPTIONS } from '@/types/database'
 import { createLead } from '@/lib/leads'
 import { telefoneParaGravar } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { faltandoDoErro } from '@/lib/obrigatorios'
 
 interface Props {
   defaultStage: FunnelStage
@@ -79,9 +80,13 @@ export default function QuickLeadForm({
       })
       onCreated(lead, openFull)
     } catch (err) {
+      // Etapa com campos obrigatórios (migração 130): a mensagem do banco lista o que falta
+      const obrigatorios = faltandoDoErro(err)
       setError(isViolacaoUnica(err)
         ? 'Já existe um contato com este telefone nesta unidade (pode estar em Perdidos).'
-        : 'Erro ao salvar. Tente novamente.')
+        : obrigatorios
+          ? `${(err as { message: string }).message}. Ou crie numa etapa anterior e mova depois, preenchendo o que faltar.`
+          : 'Erro ao salvar. Tente novamente.')
       setSaving(false)
     }
   }

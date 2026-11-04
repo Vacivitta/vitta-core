@@ -31,7 +31,9 @@ import { isViolacaoUnica } from '@/lib/supabase/erros'
 import { isPerfilGestor } from '@/lib/auth/access'
 import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
 import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
+import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
 import { camposDoFunil } from '@/lib/campos'
+import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
 
 interface Props {
   lead: LeadKanban | null
@@ -80,6 +82,18 @@ type TimelineItem =
   | { kind: 'task';  id: string; ts: string; task: LeadTask }
   | { kind: 'resp';  id: string; ts: string; history: LeadResponsibleHistory }
   | { kind: 'stage'; id: string; ts: string; stageHistory: LeadStageHistoryWithDetails }
+
+const COLUNAS_DO_FORM = ['email', 'telefone', 'sobrenome', 'profissao', 'cidade', 'estado', 'origem', 'responsavel_id'] as const
+
+/** Formulário da ficha com os campos fixos preenchidos no modal de campos exigidos. */
+function formComFixos<F extends Record<(typeof COLUNAS_DO_FORM)[number], string>>(form: F, fixos: ValoresFixos): F {
+  const novo = { ...form }
+  for (const k of COLUNAS_DO_FORM) {
+    const v = fixos[k]
+    if (v !== undefined) novo[k] = (v ?? '') as F[typeof k]
+  }
+  return novo
+}
 
 // Wrapper — never violates hook rules
 export default function LeadModal(props: Props) {
@@ -723,33 +737,63 @@ function LeadDrawer({
     setDeletingTaskId(null)
   }
 
+  // ── Campos exigidos pela etapa (migração 130) ──────────────────────────────
+  const [obrigatorios, setObrigatorios] = useState<{
+    etapaId:  string
+    funnelId: string
+    faltando: string[]
+    tentarDeNovo: (valores: Preenchido) => Promise<void>
+  } | null>(null)
+
+  /** Abre o modal se o erro for de campos exigidos; devolve false para outros erros. */
+  function pedirObrigatorios(err: unknown, funnelId: string, tentarDeNovo: (valores: Preenchido) => Promise<void>): boolean {
+    const f = faltandoDoErro(err)
+    if (!f) return false
+    setObrigatorios({
+      ...f, funnelId,
+      tentarDeNovo: async valores => {
+        setObrigatorios(null)
+        camposLead.setValores(valores.campos)
+        onLeadPatched?.(valores.fixos)
+        await tentarDeNovo(valores)
+      },
+    })
+    return true
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
-  async function handleSave() {
-    if (!form.nome.trim() || phoneWarning) return
+  async function handleSave(formAtual = form) {
+    if (!formAtual.nome.trim() || phoneWarning) return
     setSaving(true)
     try {
       const previousStageId = lead.stage_id
       try {
         await updateLead(lead.id, {
-          ...form,
-          telefone: telefoneParaGravar(form.telefone),
-          responsavel_id: form.responsavel_id || null,
+          ...formAtual,
+          telefone: telefoneParaGravar(formAtual.telefone),
+          responsavel_id: formAtual.responsavel_id || null,
         })
       } catch (err) {
         if (isViolacaoUnica(err)) {
           alert('Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.')
           return
         }
+        // O formulário grava tudo junto: o que foi preenchido no modal entra nele antes de tentar de novo
+        if (pedirObrigatorios(err, formAtual.funnel_id, async valores => {
+          const novo = formComFixos(formAtual, valores.fixos)
+          setForm(novo)
+          await handleSave(novo)
+        })) return
         throw err
       }
 
       // Registrar mudança de stage via SECURITY DEFINER (bypassa RLS)
-      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: form.stage_id })
-      if (previousStageId && form.stage_id && previousStageId !== form.stage_id) {
+      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: formAtual.stage_id })
+      if (previousStageId && formAtual.stage_id && previousStageId !== formAtual.stage_id) {
         const { error: rpcErr } = await supabase.rpc('record_stage_history', {
           p_lead_id:    lead.id,
           p_de_stage:   previousStageId,
-          p_para_stage: form.stage_id,
+          p_para_stage: formAtual.stage_id,
           p_movido_por: currentUser.id,
         })
         if (rpcErr) console.error('[modal handleSave] record_stage_history falhou:', rpcErr)
@@ -798,6 +842,16 @@ function LeadDrawer({
       onSaved()
       handleClose()
     } catch (err) {
+      // Reabrir volta para a primeira etapa sem resultado, que também pode exigir campos
+      if (pedirObrigatorios(err, lead.funnel_id, async () => {
+        try {
+          await reabrir(lead.id)
+          onSaved()
+          handleClose()
+        } catch (e) {
+          setStatusError((e as { message?: string })?.message ?? 'Erro ao reabrir. Tente novamente.')
+        }
+      })) return
       setStatusError(err instanceof Error ? err.message : 'Erro ao reabrir. Tente novamente.')
     } finally {
       setStatusSaving(false)
@@ -1040,7 +1094,7 @@ function LeadDrawer({
             ) : (
               <>
                 <button
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving || !form.nome.trim()}
                   style={{ flex: 1, padding: 10, fontSize: 13, fontWeight: 800, color: '#fff', background: '#3E9849', border: 'none', borderRadius: 11, cursor: saving ? 'wait' : 'pointer', opacity: saving || !form.nome.trim() ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
                 >
@@ -2336,6 +2390,19 @@ function LeadDrawer({
       {/* Click-away handler for mention picker */}
       {showMentionPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMentionPicker(false)} />
+      )}
+
+      {obrigatorios && (
+        <PreencherObrigatorios
+          leadId={lead.id}
+          unitId={lead.unit_id}
+          funnelId={obrigatorios.funnelId}
+          etapaNome={allFunnels.flatMap(f => f.stages).find(s => s.id === obrigatorios.etapaId)?.nome ?? 'a etapa'}
+          faltando={obrigatorios.faltando}
+          profiles={profiles}
+          onCancelar={() => setObrigatorios(null)}
+          onPreenchido={obrigatorios.tentarDeNovo}
+        />
       )}
     </>
   )
