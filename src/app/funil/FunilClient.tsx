@@ -283,7 +283,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   useEffect(() => {
     void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id).order('name')
       .then(({ data }) => { if (data) setUnitTags(data) })
-  }, [supabase])
+  }, [supabase, currentUser.unit_id])
 
   // Carrega nomes dos contatos vinculados (dependentes/pacientes) para busca
   useEffect(() => {

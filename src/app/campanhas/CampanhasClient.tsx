@@ -317,6 +317,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   // CRM source
   const [filterStage, setFilterStage] = useState('')
   const [filterFunnel, setFilterFunnel] = useState('')
+  const [filterTag, setFilterTag] = useState('')
+  const [unitTags, setUnitTags] = useState<Array<{ id: string; name: string }>>([])
   const [audienceRaw, setAudienceRaw] = useState<LeadAudience[]>([])
   const [loadingAudience, setLoadingAudience] = useState(false)
   const [includeNoOptin, setIncludeNoOptin] = useState(false)
@@ -382,8 +384,12 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   async function loadAudience() {
     if (!currentUser.unit_id) return
     setLoadingAudience(true)
-    let q = supabase.from('leads').select('id,nome,sobrenome,telefone,wa_optin_at,wa_optout_at')
-      .neq('status', 'perdido').eq('unit_id', currentUser.unit_id)
+    const colunas = 'id, nome, sobrenome, telefone, wa_optin_at, wa_optout_at'
+    // !inner: só os leads com a tag (lead_tags, migração 127)
+    let q = filterTag
+      ? supabase.from('leads').select(`${colunas}, lead_tags!inner(tag_id)`).eq('lead_tags.tag_id', filterTag)
+      : supabase.from('leads').select(colunas)
+    q = q.neq('status', 'perdido').eq('unit_id', currentUser.unit_id)
     if (filterStage)  q = q.eq('stage_id', filterStage)
     if (filterFunnel) q = q.eq('funnel_id', filterFunnel)
     const { data } = await q.limit(500)
@@ -391,7 +397,13 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     setLoadingAudience(false)
   }
 
-  useEffect(() => { if (step === 1) void loadAudience() }, [filterStage, filterFunnel]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (step === 1) void loadAudience() }, [filterStage, filterFunnel, filterTag]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!currentUser.unit_id) return
+    void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).order('name')
+      .then(({ data }) => setUnitTags(data ?? []))
+  }, [currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Verifica CSW (janela 24h) para templates Utility ao chegar no step 3
   useEffect(() => {
@@ -564,7 +576,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
 
               {/* ── CRM filters ── */}
               {audienceSource === 'crm' && (<>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
                   <div>
                     <Label>Filtrar por funil</Label>
                     <select value={filterFunnel} onChange={e => { setFilterFunnel(e.target.value); setFilterStage('') }} style={selectSt}>
@@ -581,6 +593,15 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                       ))}
                     </select>
                   </div>
+                  {unitTags.length > 0 && (
+                    <div>
+                      <Label>Filtrar por tag</Label>
+                      <select value={filterTag} onChange={e => setFilterTag(e.target.value)} style={selectSt}>
+                        <option value="">Todas as tags</option>
+                        {unitTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
