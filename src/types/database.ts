@@ -136,6 +136,49 @@ export interface MotivoPerda {
   created_at: string
 }
 
+// ---- Campos personalizados (migração 129) ------------------------------------
+
+export type TipoCampo =
+  | 'texto' | 'numero' | 'data' | 'selecao' | 'multipla' | 'sim_nao' | 'telefone' | 'email' | 'moeda'
+
+/** Valor gravado em leads.campos para cada tipo (data em ISO aaaa-mm-dd, moeda em reais). */
+export interface ValorPorTipo {
+  texto:    string
+  numero:   number
+  data:     string
+  selecao:  string
+  multipla: string[]
+  sim_nao:  boolean
+  telefone: string
+  email:    string
+  moeda:    number
+}
+
+export type ValorCampo = ValorPorTipo[TipoCampo]
+
+/** Valor junto com o tipo, para tratar cada caso sem cast. */
+export type ValorTipado = { [T in TipoCampo]: { tipo: T; valor: ValorPorTipo[T] } }[TipoCampo]
+
+/** leads.campos: chave do campo → valor (chave ausente = sem valor). */
+export type CamposDoLead = Record<string, ValorCampo>
+
+interface CampoLeadBase {
+  id:        string
+  unit_id:   string
+  /** null: vale para todos os funis da unidade */
+  funnel_id: string | null
+  /** Gerada do rótulo na criação e imutável */
+  chave:     string
+  rotulo:    string
+  ordem:     number
+  ativo:     boolean
+  criado_em: string
+}
+
+export type CampoLead =
+  | (CampoLeadBase & { tipo: 'selecao' | 'multipla'; opcoes: string[] })
+  | (CampoLeadBase & { tipo: Exclude<TipoCampo, 'selecao' | 'multipla'>; opcoes: null })
+
 // ---- Leads -----------------------------------------------------------------
 
 /**
@@ -184,12 +227,14 @@ export interface Lead {
   wa_optin_at:     string | null
   wa_optout_at:    string | null
   campanha_id:     string | null
+  /** Campos personalizados; a ficha lê da tabela (as views não trazem) */
+  campos:          CamposDoLead
   stage_changed_at: string
   created_at:      string
   updated_at:      string
 }
 
-export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
+export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos'> {
   responsavel_nome:   string | null
   responsavel_avatar: string | null
   stage_nome:         string | null
