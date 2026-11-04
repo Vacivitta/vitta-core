@@ -122,6 +122,12 @@ const IcoFilas = () => (
     <path d="M22 11H16M19 8v6"/>
   </svg>
 )
+const IcoCampos = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="16" rx="2"/>
+    <path d="M7 9h4M7 13h10M7 17h6"/>
+  </svg>
+)
 const IcoTags = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
@@ -180,6 +186,7 @@ const CONFIG_SECTIONS: ConfigSection[] = [
     items: [
       { href: '/configuracoes/funis',        label: 'Funis',            icon: <IcoFunis />,      gestorOnly: true  },
       { href: '/configuracoes/filas',        label: 'Filas',            icon: <IcoFilas />,      gestorOnly: true  },
+      { href: '/configuracoes/campos',       label: 'Campos do lead',   icon: <IcoCampos />,     gestorOnly: true  },
       { href: '/configuracoes/tags',         label: 'Tags',             icon: <IcoTags />,       gestorOnly: false },
       { href: '/configuracoes/automacoes',   label: 'Automações',       icon: <IcoAutomacoes />, gestorOnly: true  },
       { href: '/configuracoes/chat-interno', label: 'Chat Interno',     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h6"/></svg>, gestorOnly: true },
