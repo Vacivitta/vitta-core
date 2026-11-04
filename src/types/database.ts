@@ -256,6 +256,19 @@ export interface LeadTask {
   responsavel?:          Profile
 }
 
+/** Arquivo anexado à ficha do lead (migração 128). Sem `caminho`: o navegador abre pela rota, nunca pelo bucket. */
+export interface LeadAnexo {
+  id:          string
+  lead_id:     string
+  unit_id:     string
+  nome:        string
+  mime:        'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic' | 'image/heif'
+  tamanho:     number
+  enviado_por: string | null
+  criado_em:   string
+  autor?:      { full_name: string } | null
+}
+
 export interface LeadNegotiation {
   id:              string
   lead_id:         string
