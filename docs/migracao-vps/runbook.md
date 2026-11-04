@@ -240,3 +240,19 @@ por trigger: chave de campo ativo da unidade e do funil do lead, valor do tipo c
    campos do lead removido: nesse caso, reaplicar a 129 em seguida.
 
 Reversão: ver o cabeçalho da `129_campos_personalizados.sql` (perde os valores gravados).
+
+## Campos obrigatórios por etapa: migração 130 ([H])
+Cria `funnel_stages.campos_obrigatorios` (o gestor escolhe, por etapa, campos fixos `lead:*` e campos personalizados
+exigidos para entrar) e o trigger `fn_lead_obrigatorios`, que barra só quem grava como `authenticated` (pessoa no app)
+com o SQLSTATE `VC001`. Automações, webhook, importação pelo servidor e transferência (service_role) movem sem exigir.
+
+1. Aplicar `130_obrigatorios_etapa.sql` como `supabase_admin`, com `--single-transaction`, **depois da 129** (a guarda
+   recusa rodar sem ela) e **antes do deploy** (a tela de funis lê a coluna nova); registrar a versão `130` e rodar
+   `notify pgrst, 'reload schema'`. O `ADD COLUMN` com default constante não reescreve `funnel_stages`. Conferir:
+   `SELECT count(*) FROM funnel_stages WHERE campos_obrigatorios <> '{}';` → `0` (ninguém exige nada até o gestor configurar);
+   `SELECT has_function_privilege('authenticated', 'public.fn_lead_obrigatorios()', 'EXECUTE');` → `false`.
+2. Deploy do app.
+3. A 130 não recria `mesclar_leads` (a mesclagem não muda etapa). Depois de um restore, reaplicá-la depois da 129 só
+   fecha de novo o EXECUTE das funções dela (idempotente).
+
+Reversão: ver o cabeçalho da `130_obrigatorios_etapa.sql` (perde a configuração das etapas).
