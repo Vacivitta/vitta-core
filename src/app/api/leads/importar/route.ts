@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
-import { isViolacaoUnica } from '@/lib/supabase/erros'
 import { camposDoFunil } from '@/lib/campos'
 import { lerCsv } from '@/lib/csv'
 import {
-  MAX_LINHAS_IMPORTACAO, lerPedidoImportacao, prepararImportacao, separarExistentes, validarMapeamento,
-  type LinhaPronta, type PedidoImportacao, type RelatorioImportacao,
+  MAX_LINHAS_IMPORTACAO, classificarErroDeLinha, lerPedidoImportacao, prepararImportacao, separarExistentes,
+  validarMapeamento, type LinhaPronta, type PedidoImportacao, type RelatorioImportacao,
 } from '@/lib/importacao'
 import { telefonesExistentes } from '@/lib/importacao-banco'
 import { resumoErro } from '@/lib/log-seguro'
@@ -16,7 +15,8 @@ import type { CampoLead } from '@/types/database'
 // POST /api/leads/importar — cria leads a partir de um CSV (só gestor/admin).
 // Tudo é validado de novo aqui com as mesmas regras da pré-visualização.
 // Grava com o client do usuário: o RLS de leads e lead_tags e os triggers de
-// status (126) e de campos (129) continuam valendo.
+// status (126), de campos (129) e de campos obrigatórios da etapa (130)
+// continuam valendo; as exigências da etapa são conferidas antes, por linha.
 
 export const maxDuration = 120
 
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
 
   const prep = prepararImportacao(csv.registros, pedido.mapeamento, {
     campos: destino.campos, tags: destino.tags, origemPadrao: pedido.origem_padrao,
+    funnelId: pedido.funnel_id, exigidos: destino.exigidos, responsavelId: pedido.responsavel_id,
   })
   const busca = await telefonesExistentes(supabase, unitId, prep.linhas.map(l => l.telefoneNorm))
   if (busca.erro) {
@@ -121,13 +122,13 @@ export async function POST(req: NextRequest) {
 }
 
 type Destino =
-  | { campos: CampoLead[]; tags: { id: string; name: string }[] }
+  | { campos: CampoLead[]; tags: { id: string; name: string }[]; exigidos: string[] }
   | { erro: string; status: number }
 
 async function conferirDestino(supabase: SupabaseClient, unitId: string, pedido: PedidoImportacao): Promise<Destino> {
   const [{ data: funil }, { data: etapa }, { data: campos, error: camposErr }, { data: tags, error: tagsErr }] = await Promise.all([
     supabase.from('funnels').select('id').eq('id', pedido.funnel_id).eq('unit_id', unitId).eq('ativo', true).maybeSingle(),
-    supabase.from('funnel_stages').select('id, resultado').eq('id', pedido.stage_id).eq('funnel_id', pedido.funnel_id).maybeSingle(),
+    supabase.from('funnel_stages').select('id, resultado, campos_obrigatorios').eq('id', pedido.stage_id).eq('funnel_id', pedido.funnel_id).maybeSingle(),
     supabase.from('campos_lead').select('*').eq('unit_id', unitId),
     supabase.from('wa_tags').select('id, name').eq('unit_id', unitId),
   ])
@@ -146,7 +147,11 @@ async function conferirDestino(supabase: SupabaseClient, unitId: string, pedido:
     if (!perfil && !vinculo) return { erro: 'Responsável não é desta unidade', status: 400 }
   }
 
-  return { campos: camposDoFunil((campos ?? []) as CampoLead[], pedido.funnel_id), tags: tags ?? [] }
+  return {
+    campos:   camposDoFunil((campos ?? []) as CampoLead[], pedido.funnel_id),
+    tags:     tags ?? [],
+    exigidos: (etapa.campos_obrigatorios ?? []) as string[],
+  }
 }
 
 interface ResultadoLote {
@@ -163,6 +168,8 @@ interface ResultadoLote {
  * uq_leads_unit_telefone_norm: por isso reenviar o mesmo arquivo não duplica.
  * (O índice é parcial, WHERE telefone_norm IS NOT NULL; ON CONFLICT pelo
  * PostgREST não consegue inferir índice parcial, daí o 23505 por linha.)
+ * Campo exigido pela etapa (VC001, 130) já foi barrado em prepararImportacao;
+ * se ainda vier (etapa mudada no meio da importação), a linha é inválida.
  */
 async function inserirLote(
   supabase: SupabaseClient,
@@ -186,21 +193,21 @@ async function inserirLote(
     const { data: lead, error: err } = await supabase.from('leads').insert(linha(l)).select('id').single()
     if (!err && lead) {
       resultado.gravados.push({ id: lead.id as string, linha: l })
-    } else if (isViolacaoUnica(err)) {
-      resultado.existentes.push({ linha: l.linha, telefone: l.dados.telefone })
-    } else if (erroDeDado(err)) {
-      resultado.invalidas.push({ linha: l.linha, motivo: err?.message ?? 'Recusado pelo banco' })
-    } else {
-      resultado.falhaGeral = resumoErro(err)
-      return resultado
+      continue
+    }
+    switch (classificarErroDeLinha(err)) {
+      case 'existe':
+        resultado.existentes.push({ linha: l.linha, telefone: l.dados.telefone })
+        break
+      case 'invalida':
+        resultado.invalidas.push({ linha: l.linha, motivo: err?.message ?? 'Recusado pelo banco' })
+        break
+      case 'fatal':
+        resultado.falhaGeral = resumoErro(err)
+        return resultado
     }
   }
   return resultado
-}
-
-/** Classes 22 (dado inválido) e 23 (restrição): o problema é a linha, não o banco. */
-function erroDeDado(err: { code?: string } | null): boolean {
-  return !!err?.code && (err.code.startsWith('22') || err.code.startsWith('23'))
 }
 
 async function aplicarTags(supabase: SupabaseClient, gravados: { id: string; linha: LinhaPronta }[]): Promise<string | null> {

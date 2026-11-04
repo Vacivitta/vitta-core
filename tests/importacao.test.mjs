@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { lerCsv } from '../src/lib/csv.ts'
 import {
-  lerDataBR, lerPedidoImportacao, prepararImportacao, separarExistentes, sugerirMapeamento, validarMapeamento,
+  classificarErroDeLinha, lerDataBR, lerPedidoImportacao, prepararImportacao, separarExistentes, sugerirMapeamento, validarMapeamento,
   valorDaPlanilha,
 } from '../src/lib/importacao.ts'
 
@@ -20,7 +20,7 @@ const CAMPOS = [
   campo('data_evento', 'data', { rotulo: 'Data do evento' }),
 ]
 const TAGS = [{ id: 't1', name: 'Evento 2026' }, { id: 't2', name: 'VIP' }]
-const CTX = { campos: CAMPOS, tags: TAGS, origemPadrao: 'Evento' }
+const CTX = { campos: CAMPOS, tags: TAGS, origemPadrao: 'Evento', funnelId: 'f1', exigidos: [], responsavelId: null }
 
 test('sugere o mapeamento pelo cabeçalho, com acentos e sinônimos, sem repetir destino', () => {
   const m = sugerirMapeamento(
@@ -137,4 +137,48 @@ test('pedido de importação valida o formato do corpo', () => {
   assert.equal(lerPedidoImportacao({ ...ok, stage_id: 'x' }).ok, false)
   assert.equal(lerPedidoImportacao({ ...ok, clientes: 'sim' }).ok, false)
   assert.equal(lerPedidoImportacao({ ...ok, texto: 'x'.repeat(5 * 1024 * 1024 + 1) }).ok, false)
+})
+
+test('etapa com campos obrigatórios (130): linha sem eles é inválida antes de ir ao banco', () => {
+  const ctx = { ...CTX, exigidos: ['lead:email', 'valor_estimado', 'lead:responsavel_id'] }
+  const registros = lerCsv([
+    'nome;telefone;email;valor;tags;origem',
+    'Ana;31996674494;ana@ex.com;1500;;',
+    'Bia;31955554444;;1500;;',
+    'Caio;31944443333;caio@ex.com;  ;;',
+  ].join('\n')).registros
+
+  const sem = prepararImportacao(registros, MAPA, ctx)
+  assert.deepEqual(sem.linhas, [])
+  assert.deepEqual(sem.invalidas.map(i => [i.linha, i.motivo]), [
+    [2, 'Faltando para entrar na etapa: Responsável'],
+    [3, 'Faltando para entrar na etapa: E-mail, Responsável'],
+    [4, 'Faltando para entrar na etapa: Valor estimado, Responsável'],
+  ])
+
+  const com = prepararImportacao(registros, MAPA, { ...ctx, responsavelId: 'u1' })
+  assert.deepEqual(com.linhas.map(l => l.linha), [2])
+  assert.deepEqual(com.invalidas.map(i => [i.linha, i.motivo]), [
+    [3, 'Faltando para entrar na etapa: E-mail'],
+    [4, 'Faltando para entrar na etapa: Valor estimado'],
+  ])
+})
+
+test('obrigatórios: origem padrão conta, CPF nunca vem da planilha e campo de outro funil não conta', () => {
+  const registros = lerCsv('nome;telefone;email;valor;tags;origem\nAna;31996674494;;;;\n').registros
+  const com = exigidos => prepararImportacao(registros, MAPA, { ...CTX, exigidos })
+  assert.equal(com(['lead:origem']).linhas.length, 1, 'a origem padrão preenche a exigência')
+  assert.deepEqual(com(['lead:cpf']).invalidas.map(i => i.motivo), ['Faltando para entrar na etapa: CPF'])
+  const outroFunil = [...CAMPOS, campo('so_f2', 'texto', { funnel_id: 'f2' })]
+  assert.equal(prepararImportacao(registros, MAPA, { ...CTX, campos: outroFunil, exigidos: ['so_f2'] }).linhas.length, 1)
+})
+
+test('erro do banco na linha: 23505 já existe, 22/23/VC001 inválida, o resto interrompe', () => {
+  assert.equal(classificarErroDeLinha({ code: '23505' }), 'existe')
+  assert.equal(classificarErroDeLinha({ code: '23514' }), 'invalida')
+  assert.equal(classificarErroDeLinha({ code: '22P02' }), 'invalida')
+  assert.equal(classificarErroDeLinha({ code: 'VC001' }), 'invalida')
+  assert.equal(classificarErroDeLinha({ code: '42501' }), 'fatal')
+  assert.equal(classificarErroDeLinha({ code: '57014' }), 'fatal')
+  assert.equal(classificarErroDeLinha(null), 'fatal')
 })

@@ -1,6 +1,7 @@
 -- Comportamento do banco de que POST /api/leads/importar depende (sem migração
--- própria): telefone repetido na unidade (122), status no INSERT (126) e tags
--- no lead (127), gravando como gestor logado (o client do usuário).
+-- própria): telefone repetido na unidade (122), status no INSERT (126), tags
+-- no lead (127) e campos exigidos pela etapa (130), gravando como gestor logado
+-- (o client do usuário).
 
 CREATE FUNCTION pg_temp.esperar(caso text, obtido text, esperado text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -156,3 +157,57 @@ SELECT pg_temp.esperar('reaplicar as mesmas tags não duplica nem falha',
 SELECT pg_temp.esperar('criado_por é o gestor (JWT), não escolhido pelo app',
   (SELECT criado_por::text FROM public.lead_tags WHERE lead_id = '00000000-0000-4000-8135-000000000201'),
   '00000000-0000-4000-8135-000000000001');
+
+-- ── Etapa com campos obrigatórios (130) ──────────────────────────────────────
+-- A rota grava como authenticated, que o trigger da 130 confere: a linha sem o
+-- campo dá VC001 (prepararImportacao barra antes; classificarErroDeLinha trata
+-- como inválida se ainda vier) e não pode derrubar o lote inteiro.
+INSERT INTO public.funnel_stages (id, funnel_id, nome, ordem, resultado, unit_id, campos_obrigatorios) VALUES
+  ('00000000-0000-4000-8135-0000000000d3', '00000000-0000-4000-8135-0000000000d0', 'Qualificado', 2, NULL,
+   '00000000-0000-4000-8135-0000000000a0', '{lead:email}');
+
+-- Mensagem e HINT do erro, que a rota grava como motivo da linha
+CREATE FUNCTION pg_temp.erro_de(papel text, usuario uuid, comando text) RETURNS text
+LANGUAGE plpgsql AS $$
+DECLARE
+  estado text; mensagem text; dica text;
+BEGIN
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', usuario, 'role', papel)::text, true);
+  EXECUTE format('SET LOCAL ROLE %I', papel);
+  BEGIN
+    EXECUTE comando;
+    estado := 'sem erro';
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS estado = RETURNED_SQLSTATE, mensagem = MESSAGE_TEXT, dica = PG_EXCEPTION_HINT;
+  END;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', '', true);
+  RETURN concat_ws(' | ', estado, mensagem, dica);
+END $$;
+
+SELECT pg_temp.esperar('INSERT authenticated sem o campo exigido pela etapa dá VC001 com o HINT que o app lê',
+  pg_temp.erro_de('authenticated', '00000000-0000-4000-8135-000000000001', $c$
+    INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id) VALUES
+      ('Sem e-mail', '(31) 97777-1111', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d3', '00000000-0000-4000-8135-0000000000a0')
+  $c$),
+  'VC001 | Para entrar na etapa "Qualificado", preencha: E-mail | '
+  || '{"etapa_id": "00000000-0000-4000-8135-0000000000d3", "faltando": ["lead:email"]}');
+SELECT pg_temp.esperar('e-mail só com espaços também falta',
+  pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
+    INSERT INTO public.leads (nome, telefone, email, funnel_id, stage_id, unit_id) VALUES
+      ('E-mail vazio', '(31) 97777-1111', '   ', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d3', '00000000-0000-4000-8135-0000000000a0')
+  $c$), 'erro VC001');
+SELECT pg_temp.esperar('lote com uma linha sem o campo é recusado inteiro (a rota refaz linha a linha)',
+  pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
+    INSERT INTO public.leads (nome, telefone, email, funnel_id, stage_id, unit_id) VALUES
+      ('Com e-mail', '(31) 97777-2222', 'com@teste.invalid', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d3', '00000000-0000-4000-8135-0000000000a0'),
+      ('Sem e-mail', '(31) 97777-1111', NULL, '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d3', '00000000-0000-4000-8135-0000000000a0')
+  $c$), 'erro VC001');
+SELECT pg_temp.esperar('com o campo exigido, a linha entra',
+  pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
+    INSERT INTO public.leads (nome, telefone, email, funnel_id, stage_id, unit_id) VALUES
+      ('Com e-mail', '(31) 97777-2222', 'com@teste.invalid', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d3', '00000000-0000-4000-8135-0000000000a0')
+  $c$), '1');
+SELECT pg_temp.esperar('só a linha com o campo ficou gravada na etapa',
+  (SELECT string_agg(nome, ',' ORDER BY nome) FROM public.leads WHERE stage_id = '00000000-0000-4000-8135-0000000000d3'),
+  'Com e-mail');

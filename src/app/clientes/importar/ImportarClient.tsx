@@ -10,13 +10,14 @@ import {
   separarExistentes, sugerirMapeamento, validarMapeamento, type Destino, type RelatorioImportacao,
 } from '@/lib/importacao'
 import { telefonesExistentes } from '@/lib/importacao-banco'
+import { campoFixo, rotuloObrigatorio } from '@/lib/obrigatorios'
 import { ORIGEM_OPTIONS, type CampoLead } from '@/types/database'
 
 export interface FunilImportacao {
   id:     string
   nome:   string
-  /** Só etapas sem resultado (ganho/perdido) */
-  etapas: { id: string; nome: string }[]
+  /** Só etapas sem resultado (ganho/perdido); exigidos = campos_obrigatorios (130) */
+  etapas: { id: string; nome: string; exigidos: string[] }[]
 }
 
 interface Props {
@@ -55,11 +56,20 @@ export default function ImportarClient({ unitId, funis, responsaveis, campos, ta
   const funil = funis.find(f => f.id === funnelId)
   const camposFunil = useMemo(() => camposDoFunil(campos, funnelId || null), [campos, funnelId])
   const erroMapa = arquivo ? validarMapeamento(mapeamento, camposFunil) : null
+  const etapa = funil?.etapas.find(s => s.id === stageId)
+  // Só o que o trigger da 130 confere: fixos e campos ativos deste funil
+  const exigidos = useMemo(() => {
+    const doDestino = funis.find(f => f.id === funnelId)?.etapas.find(s => s.id === stageId)?.exigidos ?? []
+    return doDestino.filter(c => campoFixo(c) || camposFunil.some(d => d.chave === c))
+  }, [funis, funnelId, stageId, camposFunil])
 
   const prep = useMemo(() => arquivo
-    ? prepararImportacao(arquivo.registros, mapeamento, { campos: camposFunil, tags, origemPadrao: origemPadrao || null })
+    ? prepararImportacao(arquivo.registros, mapeamento, {
+        campos: camposFunil, tags, origemPadrao: origemPadrao || null,
+        funnelId, exigidos, responsavelId: responsavelId || null,
+      })
     : null,
-  [arquivo, mapeamento, camposFunil, tags, origemPadrao])
+  [arquivo, mapeamento, camposFunil, tags, origemPadrao, funnelId, exigidos, responsavelId])
 
   const chaveTelefones = useMemo(() => (prep ? prep.linhas.map(l => l.telefoneNorm).join(',') : ''), [prep])
   useEffect(() => {
@@ -122,7 +132,7 @@ export default function ImportarClient({ unitId, funis, responsaveis, campos, ta
 
   async function importar() {
     if (!arquivo || !separacao) return
-    const destino = `${funil?.nome ?? ''} › ${funil?.etapas.find(s => s.id === stageId)?.nome ?? ''}`
+    const destino = `${funil?.nome ?? ''} › ${etapa?.nome ?? ''}`
     if (!window.confirm(`Importar ${separacao.novas.length} contato(s) para ${destino}?`)) return
     setEnviando(true)
     setErroEnvio('')
@@ -251,6 +261,13 @@ export default function ImportarClient({ unitId, funis, responsaveis, campos, ta
                         cliente, sem data de ganho, para não contar como ganhos deste período nem entrar nas automações por tempo.
                       </span>
                     </label>
+                    {exigidos.length > 0 && (
+                      <Alerta tipo="aviso">
+                        Para entrar na etapa {etapa?.nome}, cada contato precisa ter:{' '}
+                        <strong>{exigidos.map(c => rotuloObrigatorio(c, camposFunil)).join(', ')}</strong>.
+                        Mapeie essas colunas abaixo (ou escolha o responsável/origem aqui); linhas sem elas não serão importadas.
+                      </Alerta>
+                    )}
                     {funis.length === 0 && <Alerta tipo="erro">Nenhum funil ativo nesta unidade.</Alerta>}
                     {funil && funil.etapas.length === 0 && <Alerta tipo="erro">Este funil não tem etapa sem resultado (Ganho/Perdido) para receber os contatos.</Alerta>}
                   </Cartao>
@@ -274,7 +291,7 @@ export default function ImportarClient({ unitId, funis, responsaveis, campos, ta
                             <optgroup label="Contato">
                               {COLUNAS_LEAD.map(c => (
                                 <option key={c} value={c} disabled={usados.has(c) && mapeamento[col] !== c}>
-                                  {ROTULOS_COLUNA[c]}{c === 'nome' || c === 'telefone' ? ' *' : ''}
+                                  {ROTULOS_COLUNA[c]}{c === 'nome' || c === 'telefone' || exigidos.includes(`lead:${c}`) ? ' *' : ''}
                                 </option>
                               ))}
                               <option value="tags" disabled={usados.has('tags') && mapeamento[col] !== 'tags'}>Tags (separadas por vírgula)</option>
@@ -283,7 +300,7 @@ export default function ImportarClient({ unitId, funis, responsaveis, campos, ta
                               <optgroup label="Campos personalizados">
                                 {camposFunil.map(c => {
                                   const d: Destino = `campo:${c.chave}`
-                                  return <option key={c.id} value={d} disabled={usados.has(d) && mapeamento[col] !== d}>{c.rotulo}</option>
+                                  return <option key={c.id} value={d} disabled={usados.has(d) && mapeamento[col] !== d}>{c.rotulo}{exigidos.includes(c.chave) ? ' *' : ''}</option>
                                 })}
                               </optgroup>
                             )}

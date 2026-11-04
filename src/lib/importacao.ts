@@ -1,6 +1,8 @@
 import type { CampoLead, CamposDoLead, ValorCampo } from '@/types/database'
 import { chaveDoRotulo, valorDaEntrada, valorValido, type EntradaCampo, type ResultadoEntrada } from './campos.ts'
 import { desfazerCelulaSegura, registroVazio } from './csv.ts'
+import { ERRO_OBRIGATORIOS, faltandoNoLead, rotuloObrigatorio } from './obrigatorios.ts'
+import { VIOLACAO_UNICA } from './supabase/erros.ts'
 import { formatarTelefone, normalizarTelefone } from './telefone.ts'
 
 // Regras da importação de leads por planilha. A tela usa para a
@@ -206,6 +208,12 @@ export interface ContextoImportacao {
   tags:         readonly { id: string; name: string }[]
   /** Origem gravada quando a linha não tem uma */
   origemPadrao: string | null
+  /** Funil de destino */
+  funnelId:      string
+  /** Campos que a etapa de destino exige para entrar (funnel_stages.campos_obrigatorios, migração 130) */
+  exigidos:      readonly string[]
+  /** Responsável gravado em todas as linhas (conta para a exigência 'lead:responsavel_id') */
+  responsavelId: string | null
 }
 
 const TAMANHO_MAXIMO_TEXTO = 2000
@@ -273,6 +281,25 @@ export function prepararImportacao(
 
     const longa = (Object.keys(base) as ColunaLead[]).find(k => Array.from(base[k] ?? '').length > TAMANHO_MAXIMO_TEXTO)
     if (longa) erros.push(`${ROTULOS_COLUNA[longa]} com mais de ${TAMANHO_MAXIMO_TEXTO} caracteres`)
+
+    // Mesma regra do trigger da 130: sem isto o INSERT como authenticated dá VC001
+    const faltando = faltandoNoLead(ctx.exigidos, {
+      funnel_id:       ctx.funnelId,
+      campos,
+      email,
+      telefone:        base.telefone ?? null,
+      sobrenome:       base.sobrenome ?? null,
+      cpf:             null,
+      data_nascimento: nascimento,
+      profissao:       base.profissao ?? null,
+      cidade:          base.cidade ?? null,
+      estado:          base.estado ?? null,
+      origem:          base.origem ?? ctx.origemPadrao,
+      responsavel_id:  ctx.responsavelId,
+    }, ctx.campos)
+    if (faltando.length > 0) {
+      erros.push(`Faltando para entrar na etapa: ${faltando.map(c => rotuloObrigatorio(c, ctx.campos)).join(', ')}`)
+    }
 
     if (erros.length > 0 || !telefoneNorm) {
       resultado.invalidas.push({ linha, motivo: erros.join('; ') })
@@ -367,6 +394,19 @@ export function lerPedidoImportacao(body: unknown): { ok: true; pedido: PedidoIm
       clientes:       b.clientes,
     },
   }
+}
+
+/**
+ * O que fazer com a linha que o banco recusou ao inserir uma a uma:
+ * 23505 (telefone já na unidade) → "já existe"; classes 22 (dado inválido),
+ * 23 (restrição) e VC001 (campo exigido pela etapa, 130) → linha inválida;
+ * qualquer outro erro é do banco e interrompe a importação.
+ */
+export function classificarErroDeLinha(err: { code?: string } | null): 'existe' | 'invalida' | 'fatal' {
+  const code = err?.code ?? ''
+  if (code === VIOLACAO_UNICA) return 'existe'
+  if (code === ERRO_OBRIGATORIOS || code.startsWith('22') || code.startsWith('23')) return 'invalida'
+  return 'fatal'
 }
 
 /** Resposta de POST /api/leads/importar. */
