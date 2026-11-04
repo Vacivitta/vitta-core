@@ -3,7 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { cookies } from 'next/headers'
 import FunilClient from './FunilClient'
-import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil } from '@/lib/funil/resumo-conversas'
+import {
+  montarResumoConversas, montarTagsDosLeads, SELECT_CONVERSAS_FUNIL, SELECT_TAGS_DOS_LEADS,
+  type ConversaFunil, type TagDoLeadFunil,
+} from '@/lib/funil/resumo-conversas'
 import { KANBAN_SORT_OPTIONS, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
 import type { Profile, FunnelWithStages } from '@/types/database'
 
@@ -26,6 +29,7 @@ export default async function FunilPage() {
     { data: userUnits },
     { data: automacoes },
     { data: conversas },
+    { data: tagsDosLeads },
     cookieStore,
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
@@ -38,6 +42,8 @@ export default async function FunilPage() {
       .eq('unit_id', unitId).eq('action', 'move_stage').eq('ativo', true),
     fetchAll((from, to) => supabase.from('wa_conversations').select(SELECT_CONVERSAS_FUNIL)
       .eq('unit_id', unitId).not('lead_id', 'is', null).order('id').range(from, to)),
+    fetchAll((from, to) => supabase.from('lead_tags').select(SELECT_TAGS_DOS_LEADS)
+      .eq('unit_id', unitId).order('lead_id').order('tag_id').range(from, to)),
     cookies(),
   ])
 
@@ -76,6 +82,7 @@ export default async function FunilPage() {
       currentUser={profileData as Profile}
       etapasAtendimento={etapasAtendimento}
       resumoInicial={resumoInicial}
+      tagsDosLeadsIniciais={montarTagsDosLeads((tagsDosLeads ?? []) as TagDoLeadFunil[])}
       ordenacaoInicial={ordenacaoInicial}
       // Instante desta requisição: servidor e navegador partem do mesmo "agora"
       // eslint-disable-next-line react-hooks/purity -- server component roda uma vez por requisição

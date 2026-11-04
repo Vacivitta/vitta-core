@@ -4,7 +4,10 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
-import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil, type ResumoConversas } from '@/lib/funil/resumo-conversas'
+import {
+  montarResumoConversas, montarTagsDosLeads, unirEtiquetas, SELECT_CONVERSAS_FUNIL, SELECT_TAGS_DOS_LEADS,
+  type ConversaFunil, type EtiquetaCard, type ResumoConversas, type TagDoLeadFunil,
+} from '@/lib/funil/resumo-conversas'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import PerdidosPanel from '@/components/leads/PerdidosPanel'
@@ -23,6 +26,8 @@ interface Props {
   etapasAtendimento: string[]
   /** Dados das conversas por lead já calculados no servidor (1ª tela sem "pulo") */
   resumoInicial: ResumoConversas
+  /** Tags aplicadas no próprio lead (lead_tags), por lead */
+  tagsDosLeadsIniciais: Record<string, EtiquetaCard[]>
   /** Ordenação salva no cookie; null = ainda não salva (lê a preferência antiga do localStorage) */
   ordenacaoInicial: KanbanSortMode | null
 }
@@ -129,7 +134,7 @@ function salvarOrdenacao(mode: string) {
   try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, ordenacaoInicial }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial }: Props) {
   const supabase = createClient()
 
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
@@ -152,7 +157,9 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>(resumoInicial.lastDirByLead)
   const [sortMode, setSortMode]                 = useState<KanbanSortMode>(ordenacaoInicial ?? DEFAULT_KANBAN_SORT)
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>(resumoInicial.convIdByLead)
-  const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>(resumoInicial.tagsByLead)
+  const [tagsConversasByLead, setTagsConversasByLead] = useState<Record<string, EtiquetaCard[]>>(resumoInicial.tagsByLead)
+  const [tagsDosLeads, setTagsDosLeads]         = useState<Record<string, EtiquetaCard[]>>(tagsDosLeadsIniciais)
+  const tagsByLead = useMemo(() => unirEtiquetas(tagsDosLeads, tagsConversasByLead), [tagsDosLeads, tagsConversasByLead])
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
   const [msgMatchLeadIds, setMsgMatchLeadIds] = useState<Set<string> | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -216,7 +223,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         setLastMsgByLead(r.lastMsgByLead)
         setLastDirByLead(r.lastDirByLead)
         setConvIdByLead(r.convIdByLead)
-        setTagsByLead(r.tagsByLead)
+        setTagsConversasByLead(r.tagsByLead)
       })
 
     function handleConvChange(payload: { new: Record<string, unknown> }) {
@@ -272,9 +279,9 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     }
   }, [supabase])
 
-  // Carrega tags disponíveis da unidade
+  // Carrega tags disponíveis da unidade ativa (sem o filtro, o admin global via as de todas)
   useEffect(() => {
-    void supabase.from('wa_tags').select('id,name,color').order('name')
+    void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id).order('name')
       .then(({ data }) => { if (data) setUnitTags(data) })
   }, [supabase])
 
@@ -321,7 +328,20 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
   const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
 
+  // Tags do lead mudam na ficha; sem Realtime em lead_tags, recarrega junto com os leads
+  async function carregarTagsDosLeads() {
+    const { data, error } = await fetchAll((from, to) => supabase
+      .from('lead_tags')
+      .select(SELECT_TAGS_DOS_LEADS)
+      .eq('unit_id', currentUser.unit_id)
+      .order('lead_id')
+      .order('tag_id')
+      .range(from, to))
+    if (!error) setTagsDosLeads(montarTagsDosLeads(data as TagDoLeadFunil[]))
+  }
+
   async function reloadLeads() {
+    void carregarTagsDosLeads()
     const { data, error } = await fetchAll((from, to) => supabase
       .from('leads_kanban')
       .select('*')
@@ -601,7 +621,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           allFunnels={funnels}
           profiles={profiles}
           currentUser={currentUser}
-          onClose={() => setModalLead(undefined)}
+          onClose={() => { setModalLead(undefined); void carregarTagsDosLeads() }}
           onSaved={reloadLeads}
         />
       )}
