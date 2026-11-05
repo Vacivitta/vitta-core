@@ -390,7 +390,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     let q = filterTag
       ? supabase.from('leads').select(`${colunas}, lead_tags!inner(tag_id)`).eq('lead_tags.tag_id', filterTag)
       : supabase.from('leads').select(colunas)
-    q = q.neq('status', 'perdido').eq('unit_id', currentUser.unit_id)
+    // Arquivados (spam, engano, fornecedor...; migração 132) não recebem campanha
+    q = q.neq('status', 'perdido').eq('arquivado', false).eq('unit_id', currentUser.unit_id)
     if (filterStage)  q = q.eq('stage_id', filterStage)
     if (filterFunnel) q = q.eq('funnel_id', filterFunnel)
     const { data } = await q.limit(500)

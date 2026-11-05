@@ -25,6 +25,7 @@ export default async function ClientesPage() {
       .select('*')
       .eq('is_converted', true)
       .neq('status', 'perdido')
+      .eq('arquivado', false)
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false }),
     supabase.from('profiles').select('id, full_name').eq('unit_id', unitId).order('full_name'),

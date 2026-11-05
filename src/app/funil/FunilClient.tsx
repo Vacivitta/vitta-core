@@ -10,7 +10,7 @@ import {
 } from '@/lib/funil/resumo-conversas'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
-import PerdidosPanel from '@/components/leads/PerdidosPanel'
+import ArquivadosPanel from '@/components/leads/ArquivadosPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
@@ -33,6 +33,8 @@ interface Props {
   tagsDosLeadsIniciais: Record<string, EtiquetaCard[]>
   /** Ordenação salva no cookie; null = ainda não salva (lê a preferência antiga do localStorage) */
   ordenacaoInicial: KanbanSortMode | null
+  /** Leads arquivados da unidade (contador do botão Arquivados) */
+  totalArquivadosInicial: number
 }
 
 function MultiCheckFilter({ label, selected, options, onChange }: {
@@ -137,14 +139,15 @@ function salvarOrdenacao(mode: string) {
   try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial, totalArquivadosInicial }: Props) {
   const supabase = createClient()
 
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funnels[0]?.id ?? '')
   const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
-  const [showPerdidos, setShowPerdidos]   = useState(false)
+  const [showArquivados, setShowArquivados] = useState(false)
+  const [totalArquivados, setTotalArquivados] = useState(totalArquivadosInicial)
   const [newConvOpen, setNewConvOpen]     = useState(false)
   const [filters, setFilters]             = useState<Filters>({
     search:          '',
@@ -344,8 +347,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     if (!error) setTagsDosLeads(montarTagsDosLeads(data as TagDoLeadFunil[]))
   }
 
+  async function contarArquivados() {
+    const { count, error } = await supabase.from('leads').select('id', { count: 'exact', head: true })
+      .eq('unit_id', currentUser.unit_id).eq('arquivado', true)
+    if (!error && count !== null) setTotalArquivados(count)
+  }
+
   async function reloadLeads() {
     void carregarTagsDosLeads()
+    void contarArquivados()
     const { data, error } = await fetchAll((from, to) => supabase
       .from('leads_kanban')
       .select('*')
@@ -480,15 +490,20 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           </button>
 
           <button
-            onClick={() => setShowPerdidos(true)}
+            onClick={() => setShowArquivados(true)}
             className="flex items-center gap-1.5"
             style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', cursor: 'pointer', fontWeight: 700 }}
-            title="Ver negócios perdidos"
+            title="Ver contatos arquivados (fora do funil)"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
-            <span className="hidden sm:inline">Perdidos</span>
+            <span className="hidden sm:inline">Arquivados</span>
+            {totalArquivados > 0 && (
+              <span style={{ background: '#E5E7EB', color: '#71856F', fontSize: 10, fontWeight: 800, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {totalArquivados}
+              </span>
+            )}
           </button>
 
           {isPerfilGestor(currentUser.perfil) && (
@@ -611,12 +626,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         />
       </main>
 
-      {showPerdidos && (
-        <PerdidosPanel
+      {showArquivados && (
+        <ArquivadosPanel
           funnels={funnels}
           selectedFunnelId={selectedFunnelId}
-          onOpenLead={lead => { setShowPerdidos(false); setModalLead(lead) }}
-          onClose={() => setShowPerdidos(false)}
+          unitId={currentUser.unit_id}
+          podeDesarquivar={currentUser.perfil !== 'atendente'}
+          onOpenLead={lead => { setShowArquivados(false); setModalLead(lead) }}
+          onChanged={() => void reloadLeads()}
+          onClose={() => setShowArquivados(false)}
         />
       )}
 

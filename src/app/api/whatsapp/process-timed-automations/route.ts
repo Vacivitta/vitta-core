@@ -143,7 +143,7 @@ async function processNoPatientReply(admin: Admin, auto: TimedAutomation, acao: 
   const { data: convs } = await query.returns<Conversa[]>()
   if (!convs || convs.length === 0) return 0
 
-  return executeForConversations(admin, auto, acao, convs)
+  return executeForConversations(admin, auto, acao, await semLeadArquivado(admin, convs))
 }
 
 async function processNoAgentReply(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
@@ -166,7 +166,7 @@ async function processNoAgentReply(admin: Admin, auto: TimedAutomation, acao: Ac
   const { data: convs } = await query.returns<Conversa[]>()
   if (!convs || convs.length === 0) return 0
 
-  return executeForConversations(admin, auto, acao, convs)
+  return executeForConversations(admin, auto, acao, await semLeadArquivado(admin, convs))
 }
 
 async function processLeadStuckStage(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
@@ -178,7 +178,9 @@ async function processLeadStuckStage(admin: Admin, auto: TimedAutomation, acao: 
     .eq('unit_id', auto.unit_id)
     .eq('stage_id', auto.filter_stage_id)
     // Automações por tempo só agem em negócio aberto (ganho e perdido estão fechados)
+    // e fora do arquivo (arquivado = spam, engano...; migração 132)
     .eq('status', 'aberto')
+    .eq('arquivado', false)
     // stage_changed_at = entrada na etapa; updated_at muda com qualquer edição do lead
     .lt('stage_changed_at', cutoff)
     .limit(50)
@@ -205,6 +207,7 @@ async function processLeadNoTask(admin: Admin, auto: TimedAutomation, acao: Acao
     .select('id, unit_id')
     .eq('unit_id', auto.unit_id)
     .eq('status', 'aberto')
+    .eq('arquivado', false)
     .limit(200)
 
   if (!leads || leads.length === 0) return 0
@@ -231,12 +234,26 @@ async function processLeadNoTask(admin: Admin, auto: TimedAutomation, acao: Acao
   return executeForLeads(admin, auto, acao, leadsWithout)
 }
 
+/** Tira as conversas de leads arquivados (spam, engano...; migração 132). Em erro, não age em nenhuma. */
+async function semLeadArquivado(admin: Admin, convs: Conversa[]): Promise<Conversa[]> {
+  const leadIds = [...new Set(convs.map(c => c.lead_id).filter((id): id is string => !!id))]
+  if (leadIds.length === 0) return convs
+  const { data, error } = await admin.from('leads').select('id').in('id', leadIds).eq('arquivado', true)
+  if (error) {
+    console.error('[timed-auto] erro ao conferir leads arquivados:', error.message)
+    return []
+  }
+  const arquivados = new Set((data ?? []).map(l => l.id as string))
+  return convs.filter(c => !c.lead_id || !arquivados.has(c.lead_id))
+}
+
 async function getFilteredLeadIds(admin: Admin, auto: TimedAutomation): Promise<string[]> {
   let query = admin
     .from('leads')
     .select('id')
     .eq('unit_id', auto.unit_id)
     .eq('status', 'aberto')
+    .eq('arquivado', false)
 
   if (auto.filter_stage_id) query = query.eq('stage_id', auto.filter_stage_id)
   if (auto.filter_funnel_id) {

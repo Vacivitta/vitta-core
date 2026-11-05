@@ -13,7 +13,7 @@ import {
 import { resumoErro } from '@/lib/log-seguro'
 import type { CampoLead } from '@/types/database'
 
-// GET /api/leads/exportar?funnel_id=&stage_ids=&responsavel_ids=&tag_ids=&cidade=&status=&clientes=1
+// GET /api/leads/exportar?funnel_id=&stage_ids=&responsavel_ids=&tag_ids=&cidade=&status=&clientes=1&arquivados=1
 // CSV dos leads da unidade ativa (só gestor/admin: é extração em massa de dado
 // pessoal). Lê com o client do usuário (RLS) e pagina de 1000 em 1000, sem o
 // corte silencioso do PostgREST. Tags = do lead + das conversas dele, como o
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       if (filtros.status === 'nao_perdido') q = q.neq('status', 'perdido')
       else if (filtros.status !== 'todos') q = q.eq('status', filtros.status)
       if (filtros.clientes) q = q.eq('is_converted', true)
+      if (!filtros.arquivados) q = q.eq('arquivado', false)
       return q.order('created_at', { ascending: false }).order('id').range(from, to).returns<LeadExportado[]>()
     }),
     supabase.from('funnels').select('id, nome').eq('unit_id', unitId),

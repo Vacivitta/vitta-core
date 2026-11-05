@@ -35,7 +35,7 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.lead(int) TO PUBLIC;
 
 CREATE FUNCTION pg_temp.estado(n int) RETURNS text LANGUAGE sql AS $$
-  SELECT concat_ws(' | ', l.status, 'arquivado=' || l.arquivado, 'cliente=' || l.is_converted,
+  SELECT concat_ws(' | ', l.status, 'cliente=' || l.is_converted,
                    'motivo=' || coalesce(m.nome, '-'), 'texto=' || coalesce(l.motivo_perda, '-'),
                    'ganho_em=' || (l.ganho_em IS NOT NULL), 'perdido_em=' || (l.perdido_em IS NOT NULL))
     FROM public.leads l LEFT JOIN public.motivos_perda m ON m.id = l.motivo_perda_id
@@ -48,7 +48,7 @@ $$;
 
 -- ── Migração de dados: leads do dados_antes_126.sql, migrados pela 126 ──────
 CREATE FUNCTION pg_temp.migrado(n int) RETURNS text LANGUAGE sql AS $$
-  SELECT concat_ws(' | ', l.status, 'arquivado=' || l.arquivado, 'cliente=' || l.is_converted,
+  SELECT concat_ws(' | ', l.status, 'cliente=' || l.is_converted,
                    'motivo=' || coalesce(m.nome, '-'), 'texto=' || coalesce(l.motivo_perda, '-'),
                    'ganho_em=' || coalesce(to_char(l.ganho_em AT TIME ZONE 'UTC', 'YYYY-MM-DD'), '-'),
                    'perdido_em=' || coalesce(to_char(l.perdido_em AT TIME ZONE 'UTC', 'YYYY-MM-DD'), '-'))
@@ -70,27 +70,27 @@ SELECT pg_temp.esperar('motivos padrão do funil comercial',
   'Sem capital, Cidade indisponível, Sem perfil, Desistiu, Sem resposta, Outro');
 
 SELECT pg_temp.esperar('arquivado com motivo da lista', pg_temp.migrado(101),
-  'perdido | arquivado=true | cliente=false | motivo=Sem orçamento | texto=- | ganho_em=- | perdido_em=2026-01-10');
+  'perdido | cliente=false | motivo=Sem orçamento | texto=- | ganho_em=- | perdido_em=2026-01-10');
 SELECT pg_temp.esperar('arquivado com "Outro: x"', pg_temp.migrado(102),
-  'perdido | arquivado=true | cliente=false | motivo=Outro | texto=spam do fornecedor | ganho_em=- | perdido_em=2026-01-10');
+  'perdido | cliente=false | motivo=Outro | texto=spam do fornecedor | ganho_em=- | perdido_em=2026-01-10');
 SELECT pg_temp.esperar('arquivado com texto fora da lista', pg_temp.migrado(103),
-  'perdido | arquivado=true | cliente=false | motivo=Outro | texto=Orçamento recusado: caro | ganho_em=- | perdido_em=2026-01-10');
+  'perdido | cliente=false | motivo=Outro | texto=Orçamento recusado: caro | ganho_em=- | perdido_em=2026-01-10');
 SELECT pg_temp.esperar('arquivado e cliente (motivo com caixa/espaço diferentes)', pg_temp.migrado(104),
-  'perdido | arquivado=true | cliente=true | motivo=Sem interesse | texto=- | ganho_em=- | perdido_em=2026-01-10');
+  'perdido | cliente=true | motivo=Sem interesse | texto=- | ganho_em=- | perdido_em=2026-01-10');
 SELECT pg_temp.esperar('ativo na etapa Perdido', pg_temp.migrado(105),
-  'perdido | arquivado=true | cliente=false | motivo=Outro | texto=Estava na etapa perdido | ganho_em=- | perdido_em=2026-02-20');
+  'perdido | cliente=false | motivo=Outro | texto=Estava na etapa perdido | ganho_em=- | perdido_em=2026-02-20');
 SELECT pg_temp.esperar('cliente ativo vira ganho sem data', pg_temp.migrado(106),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=- | perdido_em=-');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=- | perdido_em=-');
 SELECT pg_temp.esperar('Finalizados sem conversão fica aberto', pg_temp.migrado(107),
-  'aberto | arquivado=false | cliente=false | motivo=- | texto=- | ganho_em=- | perdido_em=-');
+  'aberto | cliente=false | motivo=- | texto=- | ganho_em=- | perdido_em=-');
 SELECT pg_temp.esperar('ativo em Contrato assinado', pg_temp.migrado(108),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=2026-02-20 | perdido_em=-');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=2026-02-20 | perdido_em=-');
 SELECT pg_temp.esperar('arquivado no funil comercial', pg_temp.migrado(109),
-  'perdido | arquivado=true | cliente=false | motivo=Sem capital | texto=- | ganho_em=- | perdido_em=2026-01-10');
+  'perdido | cliente=false | motivo=Sem capital | texto=- | ganho_em=- | perdido_em=2026-01-10');
 SELECT pg_temp.esperar('cliente na etapa Perdido: a etapa manda', pg_temp.migrado(110),
-  'perdido | arquivado=true | cliente=true | motivo=Outro | texto=Estava na etapa perdido | ganho_em=- | perdido_em=2026-02-20');
+  'perdido | cliente=true | motivo=Outro | texto=Estava na etapa perdido | ganho_em=- | perdido_em=2026-02-20');
 SELECT pg_temp.esperar('lead comum fica aberto', pg_temp.migrado(111),
-  'aberto | arquivado=false | cliente=false | motivo=- | texto=- | ganho_em=- | perdido_em=-');
+  'aberto | cliente=false | motivo=- | texto=- | ganho_em=- | perdido_em=-');
 
 -- ── Cenário ──────────────────────────────────────────────────────────────────
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8090-0000000000f0', 'Rede Status');
@@ -135,34 +135,34 @@ SELECT pg_temp.esperar('atendente move para a etapa Perdido',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$UPDATE public.leads SET stage_id = '00000000-0000-4000-8090-0000000000d3' WHERE id = pg_temp.lead(1)$c$), '1');
 SELECT pg_temp.esperar('lead perde pela etapa, com motivo automático', pg_temp.estado(1),
-  'perdido | arquivado=true | cliente=false | motivo=- | texto=Movido para a etapa Perdido | ganho_em=false | perdido_em=true');
+  'perdido | cliente=false | motivo=- | texto=Movido para a etapa Perdido | ganho_em=false | perdido_em=true');
 SELECT pg_temp.esperar('atendente tira da etapa Perdido',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$UPDATE public.leads SET stage_id = '00000000-0000-4000-8090-0000000000d1' WHERE id = pg_temp.lead(1)$c$), '1');
 SELECT pg_temp.esperar('sair da etapa com resultado reabre e limpa o motivo', pg_temp.estado(1),
-  'aberto | arquivado=false | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
+  'aberto | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
 
 SELECT pg_temp.esperar('service_role (automação) move para a etapa de ganho',
   pg_temp.como('service_role', NULL,
     $c$UPDATE public.leads SET stage_id = '00000000-0000-4000-8090-0000000000d4' WHERE id = pg_temp.lead(2)$c$), '1');
 SELECT pg_temp.esperar('lead ganha pela etapa e vira cliente', pg_temp.estado(2),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 SELECT pg_temp.esperar('service_role move de volta para Novo',
   pg_temp.como('service_role', NULL,
     $c$UPDATE public.leads SET stage_id = '00000000-0000-4000-8090-0000000000d1' WHERE id = pg_temp.lead(2)$c$), '1');
 SELECT pg_temp.esperar('reaberto continua cliente', pg_temp.estado(2),
-  'aberto | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
+  'aberto | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 
 SELECT pg_temp.esperar('service_role move para Perdido',
   pg_temp.como('service_role', NULL,
     $c$UPDATE public.leads SET stage_id = '00000000-0000-4000-8090-0000000000d3' WHERE id = pg_temp.lead(3)$c$), '1');
 SELECT pg_temp.esperar('service_role também perde pela etapa', pg_temp.estado(3),
-  'perdido | arquivado=true | cliente=false | motivo=- | texto=Movido para a etapa Perdido | ganho_em=false | perdido_em=true');
+  'perdido | cliente=false | motivo=- | texto=Movido para a etapa Perdido | ganho_em=false | perdido_em=true');
 SELECT pg_temp.esperar('reabrir: status e etapa no mesmo comando',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$UPDATE public.leads SET status = 'aberto', stage_id = '00000000-0000-4000-8090-0000000000d1' WHERE id = pg_temp.lead(3)$c$), '1');
 SELECT pg_temp.esperar('reaberto', pg_temp.estado(3),
-  'aberto | arquivado=false | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
+  'aberto | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
 
 SELECT pg_temp.esperar('status explícito vence a etapa de destino',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
@@ -174,7 +174,7 @@ SELECT pg_temp.esperar('atendente marca ganho',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$UPDATE public.leads SET status = 'ganho' WHERE id = pg_temp.lead(5)$c$), '1');
 SELECT pg_temp.esperar('ganho preenche ganho_em e is_converted', pg_temp.estado(5),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 SELECT pg_temp.esperar('ganho movido entre etapas sem resultado',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$UPDATE public.leads SET stage_id = '00000000-0000-4000-8090-0000000000d2' WHERE id = pg_temp.lead(5)$c$), '1');
@@ -188,12 +188,12 @@ SELECT pg_temp.esperar('perdido com motivo da lista',
     format($c$UPDATE public.leads SET status = 'perdido', motivo_perda_id = %L WHERE id = pg_temp.lead(6)$c$,
            pg_temp.motivo('00000000-0000-4000-8090-0000000000d0', 'Sem interesse'))), '1');
 SELECT pg_temp.esperar('perdido preenche perdido_em', pg_temp.estado(6),
-  'perdido | arquivado=true | cliente=false | motivo=Sem interesse | texto=- | ganho_em=false | perdido_em=true');
+  'perdido | cliente=false | motivo=Sem interesse | texto=- | ganho_em=false | perdido_em=true');
 SELECT pg_temp.esperar('reabrir limpa o motivo',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$UPDATE public.leads SET status = 'aberto' WHERE id = pg_temp.lead(6)$c$), '1');
 SELECT pg_temp.esperar('reaberto sem motivo', pg_temp.estado(6),
-  'aberto | arquivado=false | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
+  'aberto | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
 
 SELECT pg_temp.esperar('perdido só com texto também vale',
   pg_temp.como('service_role', NULL,
@@ -206,7 +206,7 @@ SELECT pg_temp.esperar('INSERT perdido sem motivo viola o CHECK',
 SELECT pg_temp.esperar('status fora da lista',
   pg_temp.como('service_role', NULL,
     $c$UPDATE public.leads SET status = 'arquivado' WHERE id = pg_temp.lead(8)$c$), 'erro 23514');
-SELECT pg_temp.esperar('arquivado é gerado: não aceita escrita',
+SELECT pg_temp.esperar('arquivado é gerado (status na 126, arquivado_em desde a 132): não aceita escrita',
   pg_temp.como('service_role', NULL,
     $c$UPDATE public.leads SET arquivado = true WHERE id = pg_temp.lead(8)$c$), 'erro 428C9');
 
@@ -220,14 +220,14 @@ SELECT pg_temp.esperar('INSERT direto na etapa de ganho',
        '00000000-0000-4000-8090-0000000000d0', '00000000-0000-4000-8090-0000000000d4',
        '00000000-0000-4000-8090-0000000000a0')$c$), '1');
 SELECT pg_temp.esperar('INSERT na etapa de ganho', pg_temp.estado(40),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 SELECT pg_temp.esperar('cliente cadastrado como ganho (tela Clientes)',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$INSERT INTO public.leads (id, nome, funnel_id, stage_id, unit_id, status) VALUES (pg_temp.lead(41), 'Cliente',
        '00000000-0000-4000-8090-0000000000d0', '00000000-0000-4000-8090-0000000000d1',
        '00000000-0000-4000-8090-0000000000a0', 'ganho')$c$), '1');
 SELECT pg_temp.esperar('cliente cadastrado', pg_temp.estado(41),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 
 -- ── RLS de motivos_perda ─────────────────────────────────────────────────────
 SELECT pg_temp.esperar('atendente lê os motivos da unidade',
@@ -273,7 +273,7 @@ SELECT pg_temp.esperar('gestor apaga motivo em uso',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000002',
     $c$DELETE FROM public.motivos_perda WHERE funnel_id = '00000000-0000-4000-8090-0000000000d0' AND nome = 'Sem contato'$c$), '1');
 SELECT pg_temp.esperar('o nome do motivo apagado vai para o texto', pg_temp.estado(10),
-  'perdido | arquivado=true | cliente=false | motivo=- | texto=Sem contato: ligou 3x | ganho_em=false | perdido_em=true');
+  'perdido | cliente=false | motivo=- | texto=Sem contato: ligou 3x | ganho_em=false | perdido_em=true');
 
 -- ── funnels e funnel_stages: escrita só gestor ───────────────────────────────
 SELECT pg_temp.esperar('atendente lê as etapas',
@@ -313,19 +313,19 @@ UPDATE public.leads SET status = 'perdido', motivo_perda = 'a', perdido_em = '20
 UPDATE public.leads SET status = 'ganho' WHERE id = pg_temp.lead(12);
 SELECT public.mesclar_leads(pg_temp.lead(11), pg_temp.lead(12));
 SELECT pg_temp.esperar('perdido + ganho = ganho', pg_temp.estado(11),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=true');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=true');
 
 UPDATE public.leads SET status = 'perdido', motivo_perda = 'b' WHERE id = pg_temp.lead(14);
 SELECT public.mesclar_leads(pg_temp.lead(13), pg_temp.lead(14));
 SELECT pg_temp.esperar('aberto + perdido = aberto', pg_temp.estado(13),
-  'aberto | arquivado=false | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
+  'aberto | cliente=false | motivo=- | texto=- | ganho_em=false | perdido_em=true');
 
 UPDATE public.leads SET status = 'perdido', motivo_perda = 'antiga', perdido_em = '2026-01-01 00:00+00' WHERE id = pg_temp.lead(15);
 UPDATE public.leads SET status = 'perdido', perdido_em = '2026-03-01 00:00+00',
        motivo_perda_id = pg_temp.motivo('00000000-0000-4000-8090-0000000000d0', 'Timing ruim') WHERE id = pg_temp.lead(16);
 SELECT public.mesclar_leads(pg_temp.lead(15), pg_temp.lead(16));
 SELECT pg_temp.esperar('perdido + perdido = motivo da perda mais recente', pg_temp.estado(15),
-  'perdido | arquivado=true | cliente=false | motivo=Timing ruim | texto=- | ganho_em=false | perdido_em=true');
+  'perdido | cliente=false | motivo=Timing ruim | texto=- | ganho_em=false | perdido_em=true');
 SELECT pg_temp.esperar('perdido_em mais recente',
   (SELECT perdido_em::date::text FROM public.leads WHERE id = pg_temp.lead(15)), '2026-03-01');
 
@@ -335,26 +335,28 @@ INSERT INTO public.quote_automations (unit_id, quote_status, action, stage_id) V
   ('00000000-0000-4000-8090-0000000000a0', 'aceito', 'move_stage', '00000000-0000-4000-8090-0000000000d4');
 SELECT public.execute_quote_automation('00000000-0000-4000-8090-0000000000a0', pg_temp.lead(17), 'recusado', 'caro');
 SELECT pg_temp.esperar('automação de orçamento recusado perde o lead', pg_temp.estado(17),
-  'perdido | arquivado=true | cliente=false | motivo=- | texto=Orçamento recusado: caro | ganho_em=false | perdido_em=true');
+  'perdido | cliente=false | motivo=- | texto=Orçamento recusado: caro | ganho_em=false | perdido_em=true');
 SELECT public.execute_quote_automation('00000000-0000-4000-8090-0000000000a0', pg_temp.lead(18), 'aceito');
 SELECT pg_temp.esperar('automação que move para a etapa de ganho', pg_temp.estado(18),
-  'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
+  'ganho | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 
 -- ── Views ────────────────────────────────────────────────────────────────────
--- Desde a 131 o kanban mostra os perdidos que estão na etapa de perda (ex.: o 17,
--- levado para lá pela automação de orçamento); fora dela, não
-SELECT pg_temp.esperar('kanban tem abertos e ganhos, e perdidos só na etapa de perda',
-  (SELECT string_agg(DISTINCT status, ',' ORDER BY status) || ' | perdidos fora da etapa de perda: '
-          || count(*) FILTER (WHERE status = 'perdido' AND stage_resultado IS DISTINCT FROM 'perdido')
-     FROM public.leads_kanban
+-- Desde a 132 o kanban esconde só os arquivados: perdidos aparecem (na etapa de
+-- perda, como o 17, levado para lá pela automação de orçamento) e o painel
+-- leads_arquivados lista os arquivados (150_arquivar.test.sql)
+SELECT pg_temp.esperar('kanban tem abertos, ganhos e perdidos',
+  (SELECT string_agg(DISTINCT status, ',' ORDER BY status) FROM public.leads_kanban
     WHERE funnel_id = '00000000-0000-4000-8090-0000000000d0'),
-  'aberto,ganho,perdido | perdidos fora da etapa de perda: 0');
-SELECT pg_temp.esperar('perdidos com o nome do motivo',
+  'aberto,ganho,perdido');
+SELECT pg_temp.esperar('perdido não arquivado não está no painel',
+  (SELECT count(*)::text FROM public.leads_arquivados WHERE id = pg_temp.lead(15)), '0');
+UPDATE public.leads SET arquivado_em = now(), arquivado_motivo = 'Duplicado' WHERE id = pg_temp.lead(15);
+SELECT pg_temp.esperar('perdido arquivado no painel, com o nome do motivo da perda',
   (SELECT motivo_perda_nome FROM public.leads_arquivados WHERE id = pg_temp.lead(15)), 'Timing ruim');
-SELECT pg_temp.esperar('atendente lê os perdidos da unidade',
+SELECT pg_temp.esperar('atendente lê os arquivados da unidade',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000001',
     $c$SELECT * FROM public.leads_arquivados WHERE id = pg_temp.lead(15)$c$), '1');
-SELECT pg_temp.esperar('gestor de outra unidade não lê os perdidos',
+SELECT pg_temp.esperar('gestor de outra unidade não lê os arquivados',
   pg_temp.como('authenticated', '00000000-0000-4000-8090-000000000003',
     $c$SELECT * FROM public.leads_arquivados WHERE id = pg_temp.lead(15)$c$), '0');
 SELECT pg_temp.esperar('anon não lê as views',

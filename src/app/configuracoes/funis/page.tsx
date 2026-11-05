@@ -25,7 +25,7 @@ export default async function ConfigFunisPage() {
     // Paginado: o Supabase corta em 1000 linhas e a contagem por etapa ficava menor
     fetchAll((from, to) => supabase
       .from('leads')
-      .select('stage_id, status')
+      .select('stage_id, status, arquivado')
       .eq('unit_id', unitId)
       .order('id')
       .range(from, to)),
@@ -33,14 +33,15 @@ export default async function ConfigFunisPage() {
     supabase.from('campos_lead').select('*').eq('unit_id', unitId),
   ])
 
-  // Exibição: leads não perdidos por etapa. Proteção da exclusão: todos, inclusive
-  // os perdidos da etapa de perda (a FK leads.stage_id é ON DELETE SET NULL).
+  // Exibição: leads não perdidos e não arquivados por etapa. Proteção da exclusão:
+  // todos, inclusive arquivados e perdidos da etapa de perda (a FK leads.stage_id
+  // é ON DELETE SET NULL).
   const countsByStage: Record<string, number> = {}
   const totalByStage: Record<string, number> = {}
   for (const row of leadCounts ?? []) {
     if (!row.stage_id) continue
     totalByStage[row.stage_id] = (totalByStage[row.stage_id] ?? 0) + 1
-    if (row.status !== 'perdido') countsByStage[row.stage_id] = (countsByStage[row.stage_id] ?? 0) + 1
+    if (row.status !== 'perdido' && !row.arquivado) countsByStage[row.stage_id] = (countsByStage[row.stage_id] ?? 0) + 1
   }
 
   const funnelsWithStages: FunnelWithStages[] = (funnels ?? []).map(f => ({

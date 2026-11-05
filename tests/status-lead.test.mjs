@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  etapaAoPerder, etapaAoReabrir, gravacaoPerda, motivoParaAgrupar, reaberturaPorMensagem, rotuloMotivoPerda,
+  etapaAoPerder, etapaAoReabrir, gravacaoPerda, motivoArquivamento, motivoParaAgrupar, reaberturaPorMensagem,
+  rotuloMotivoPerda,
 } from '../src/lib/status-lead.ts'
 
 test('perda exige motivo, e "Outro" exige detalhe', () => {
@@ -49,21 +50,44 @@ test('marcar perdido leva para a etapa de perda do funil', () => {
   assert.equal(etapaAoPerder(null, etapas), 'perdido-a')
   // Já numa etapa de perda (mesmo não a primeira): fica onde está
   assert.equal(etapaAoPerder({ id: 'perdido-b', resultado: 'perdido' }, etapas), null)
-  // Funil sem etapa de perda: o lead fica só no painel Perdidos
+  // Funil sem etapa de perda: o lead fica na coluna onde está, com o selo Perdido
   assert.equal(etapaAoPerder({ id: 'novo', resultado: null }, etapas.filter(s => s.resultado !== 'perdido')), null)
 })
 
 test('mensagem recebida reabre ganho e perdido na etapa padrão', () => {
   const destino = { funnel_id: 'f1', stage_id: 's1' }
-  assert.equal(reaberturaPorMensagem({ status: 'aberto', stage_id: 's9' }, destino), null)
+  assert.equal(reaberturaPorMensagem({ status: 'aberto', stage_id: 's9', arquivado: false }, destino), null)
   for (const status of ['ganho', 'perdido']) {
-    assert.deepEqual(reaberturaPorMensagem({ status, stage_id: 's9' }, destino), {
+    assert.deepEqual(reaberturaPorMensagem({ status, stage_id: 's9', arquivado: false }, destino), {
       valores: { status: 'aberto', funnel_id: 'f1', stage_id: 's1' },
       historico: { de: 's9', para: 's1' },
     })
   }
-  assert.deepEqual(reaberturaPorMensagem({ status: 'perdido', stage_id: 's1' }, destino),
+  assert.deepEqual(reaberturaPorMensagem({ status: 'perdido', stage_id: 's1', arquivado: false }, destino),
     { valores: { status: 'aberto', funnel_id: 'f1', stage_id: 's1' }, historico: null })
-  assert.deepEqual(reaberturaPorMensagem({ status: 'ganho', stage_id: 's9' }, null),
+  assert.deepEqual(reaberturaPorMensagem({ status: 'ganho', stage_id: 's9', arquivado: false }, null),
     { valores: { status: 'aberto' }, historico: null })
+})
+
+test('mensagem recebida desarquiva (aberto, ganho ou perdido) e leva para a etapa padrão', () => {
+  const destino = { funnel_id: 'f1', stage_id: 's1' }
+  for (const status of ['aberto', 'ganho', 'perdido']) {
+    assert.deepEqual(reaberturaPorMensagem({ status, stage_id: 's9', arquivado: true }, destino), {
+      valores: { status: 'aberto', arquivado_em: null, funnel_id: 'f1', stage_id: 's1' },
+      historico: { de: 's9', para: 's1' },
+    })
+  }
+  assert.deepEqual(reaberturaPorMensagem({ status: 'aberto', stage_id: 's1', arquivado: true }, destino),
+    { valores: { status: 'aberto', arquivado_em: null, funnel_id: 'f1', stage_id: 's1' }, historico: null })
+  assert.deepEqual(reaberturaPorMensagem({ status: 'aberto', stage_id: 's9', arquivado: true }, null),
+    { valores: { status: 'aberto', arquivado_em: null }, historico: null })
+})
+
+test('arquivar exige motivo da lista, e "Outro" exige descrição', () => {
+  assert.deepEqual(motivoArquivamento(null, 'x'), { ok: false, erro: 'Escolha um motivo' })
+  assert.deepEqual(motivoArquivamento('Outro', '   '), { ok: false, erro: 'Descreva o motivo' })
+  assert.deepEqual(motivoArquivamento('Outro', '  irmão do  dono '), { ok: true, texto: 'Outro: irmão do dono' })
+  assert.deepEqual(motivoArquivamento('Spam', ''), { ok: true, texto: 'Spam' })
+  assert.deepEqual(motivoArquivamento('Duplicado', 'do João'), { ok: true, texto: 'Duplicado: do João' })
+  assert.equal(motivoArquivamento('Spam', 'x'.repeat(301)).ok, false)
 })

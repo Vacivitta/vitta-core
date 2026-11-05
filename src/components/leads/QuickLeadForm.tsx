@@ -83,7 +83,7 @@ export default function QuickLeadForm({
       // Etapa com campos obrigatórios (migração 130): a mensagem do banco lista o que falta
       const obrigatorios = faltandoDoErro(err)
       setError(isViolacaoUnica(err)
-        ? 'Já existe um contato com este telefone nesta unidade (pode estar em Perdidos).'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado: veja o painel Arquivados).'
         : obrigatorios
           ? `${(err as { message: string }).message}. Ou crie numa etapa anterior e mova depois, preenchendo o que faltar.`
           : 'Erro ao salvar. Tente novamente.')

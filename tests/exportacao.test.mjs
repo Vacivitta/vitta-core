@@ -16,9 +16,13 @@ test('filtros vão e voltam pela URL; valor inválido é recusado', () => {
   const f = lerFiltrosExportacao(new URL(url, 'http://x').searchParams)
   assert.deepEqual(f, {
     funnel_id: ID(1), stage_ids: [ID(2), ID(3)], responsavel_ids: [], tag_ids: [ID(4)], cidade: 'Itu',
-    status: 'nao_perdido', clientes: false,
+    status: 'nao_perdido', clientes: false, arquivados: false,
   })
   assert.equal(urlExportacao({ status: 'todos', clientes: true }), '/api/leads/exportar?clientes=1')
+  // Arquivados ficam fora por padrão; arquivados=1 inclui
+  assert.equal(urlExportacao({ arquivados: true }), '/api/leads/exportar?arquivados=1')
+  assert.equal(lerFiltrosExportacao(new URLSearchParams('arquivados=1')).arquivados, true)
+  assert.equal(lerFiltrosExportacao(new URLSearchParams('')).arquivados, false)
   assert.equal(lerFiltrosExportacao(new URLSearchParams('stage_ids=1,2')), null)
   assert.equal(lerFiltrosExportacao(new URLSearchParams('status=arquivado')), null)
   assert.equal(lerFiltrosExportacao(new URLSearchParams('funnel_id=x')), null)
@@ -47,8 +51,9 @@ test('linha exportada: nomes, status, motivo, cliente, tags, campos e proteção
     id: 'l1', nome: '=Ana', sobrenome: 'Silva', telefone: '+12125551234', email: 'ana@x.com', origem: 'Evento',
     cidade: 'Itu', funnel_id: 'f', stage_id: 's', status: 'perdido', motivo_perda_id: 'm', motivo_perda: 'mudou de cidade',
     is_converted: true, responsavel_id: 'r', campos: { valor: 1234.5, evento: '2026-03-05' }, created_at: '2026-01-10T15:00:00Z',
+    arquivado: false, arquivado_motivo: null,
   }
-  assert.deepEqual(cabecalhoExportacao(campos).slice(-3), ['Valor', 'Evento', 'Criado em'])
+  assert.deepEqual(cabecalhoExportacao(campos).slice(-4), ['Valor', 'Evento', 'Criado em', 'Arquivado'])
   const linha = linhaExportacao(lead, ctx)
   assert.deepEqual(linha.slice(0, 12), [
     '=Ana Silva', '+12125551234', 'ana@x.com', 'Evento', 'Itu', 'Vendas', 'Perdido', 'Perdido', 'Outro: mudou de cidade',
@@ -57,6 +62,9 @@ test('linha exportada: nomes, status, motivo, cliente, tags, campos e proteção
   assert.equal(linha[12].replace(/\s/g, ' '), 'R$ 1.234,50')
   assert.equal(linha[13], '05/03/2026')
   assert.equal(linha[14], '10/01/2026')
+  assert.equal(linha[15], '')
+  assert.equal(linhaExportacao({ ...lead, arquivado: true, arquivado_motivo: 'Spam' }, ctx)[15], 'Spam')
+  assert.equal(linhaExportacao({ ...lead, arquivado: true, arquivado_motivo: null }, ctx)[15], 'Sim')
 
   const csv = gerarCsv([cabecalhoExportacao(campos), linha])
   const [, lida] = lerCsv(csv).registros

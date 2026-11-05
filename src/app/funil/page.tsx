@@ -30,6 +30,7 @@ export default async function FunilPage() {
     { data: automacoes },
     { data: conversas },
     { data: tagsDosLeads },
+    { count: totalArquivados },
     cookieStore,
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
@@ -44,6 +45,8 @@ export default async function FunilPage() {
       .eq('unit_id', unitId).not('lead_id', 'is', null).order('id').range(from, to)),
     fetchAll((from, to) => supabase.from('lead_tags').select(SELECT_TAGS_DOS_LEADS)
       .eq('unit_id', unitId).order('lead_id').order('tag_id').range(from, to)),
+    // Contador do botão Arquivados (o painel carrega a lista quando abre)
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('unit_id', unitId).eq('arquivado', true),
     cookies(),
   ])
 
@@ -84,6 +87,7 @@ export default async function FunilPage() {
       resumoInicial={resumoInicial}
       tagsDosLeadsIniciais={montarTagsDosLeads((tagsDosLeads ?? []) as TagDoLeadFunil[])}
       ordenacaoInicial={ordenacaoInicial}
+      totalArquivadosInicial={totalArquivados ?? 0}
       // Instante desta requisição: servidor e navegador partem do mesmo "agora"
       // eslint-disable-next-line react-hooks/purity -- server component roda uma vez por requisição
       agoraServidor={Date.now()}

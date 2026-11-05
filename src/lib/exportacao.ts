@@ -15,6 +15,8 @@ export interface FiltrosExportacao {
   status:          FiltroStatus
   /** Só quem já é cliente (is_converted), como a tela Clientes */
   clientes:        boolean
+  /** Inclui os arquivados (migração 132); padrão: fora, como no funil */
+  arquivados:      boolean
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -44,6 +46,7 @@ export function lerFiltrosExportacao(params: URLSearchParams): FiltrosExportacao
     cidade:          cidade || null,
     status,
     clientes:        params.get('clientes') === '1',
+    arquivados:      params.get('arquivados') === '1',
   }
 }
 
@@ -57,13 +60,14 @@ export function urlExportacao(f: Partial<FiltrosExportacao>): string {
   if (f.cidade?.trim()) p.set('cidade', f.cidade.trim())
   if (f.status && f.status !== 'todos') p.set('status', f.status)
   if (f.clientes) p.set('clientes', '1')
+  if (f.arquivados) p.set('arquivados', '1')
   const qs = p.toString()
   return '/api/leads/exportar' + (qs ? '?' + qs : '')
 }
 
 export const SELECT_EXPORTACAO =
   'id, nome, sobrenome, telefone, email, origem, cidade, funnel_id, stage_id, status, motivo_perda_id, motivo_perda,'
-  + ' is_converted, responsavel_id, campos, created_at'
+  + ' is_converted, responsavel_id, campos, created_at, arquivado, arquivado_motivo'
 
 export interface LeadExportado {
   id:              string
@@ -82,6 +86,8 @@ export interface LeadExportado {
   responsavel_id:  string | null
   campos:          CamposDoLead | null
   created_at:      string
+  arquivado:       boolean
+  arquivado_motivo: string | null
 }
 
 export interface ContextoExportacao {
@@ -98,7 +104,7 @@ const STATUS_TEXTO: Record<StatusLead, string> = { aberto: 'Aberto', ganho: 'Gan
 export function cabecalhoExportacao(campos: readonly CampoLead[]): string[] {
   return [
     'Nome', 'Telefone', 'E-mail', 'Origem', 'Cidade', 'Funil', 'Etapa', 'Status', 'Motivo de perda', 'Cliente',
-    'Responsável', 'Tags', ...campos.map(c => c.rotulo), 'Criado em',
+    'Responsável', 'Tags', ...campos.map(c => c.rotulo), 'Criado em', 'Arquivado',
   ]
 }
 
@@ -135,5 +141,6 @@ export function linhaExportacao(lead: LeadExportado, ctx: ContextoExportacao): s
     (ctx.tagsPorLead.get(lead.id) ?? []).join(', '),
     ...ctx.campos.map(c => formatarValor(c, lead.campos?.[c.chave])),
     dataBR(lead.created_at),
+    lead.arquivado ? (lead.arquivado_motivo?.trim() || 'Sim') : '',
   ]
 }

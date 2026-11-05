@@ -275,6 +275,33 @@ perda no mesmo update do status e grava o histórico com `movido_via = 'perdido'
    e grava o histórico (`movido_via = 'perdido'`). Conferir: `SELECT has_function_privilege('authenticated',
    'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE');` → `false`. Não recria `mesclar_leads`. Depois
    de um restore, reaplicá-la **depois da 126** (a 126 recria `leads_kanban` escondendo todos os perdidos e a
-   automação sem mover a etapa); a 118 reaplicada depois dela passa.
+   automação sem mover a etapa) e antes da 132; a 118 reaplicada depois dela passa.
 
 Reversão: ver o cabeçalho da `131_perdido_na_etapa.sql`.
+
+## Arquivar separado de Perdido: migração 132 ([H])
+Arquivar volta a ser uma ação própria: tira o lead do quadro (spam, engano, fornecedor, funcionário, duplicado...) com
+motivo, sem mudar o negócio. `leads.arquivado` continua coluna gerada, agora por `arquivado_em IS NOT NULL`
+(arquivar = gravar `arquivado_em` + `arquivado_motivo`); `leads_kanban` esconde só os arquivados e `leads_arquivados`
+lista só eles (painel Arquivados do funil). Os antigos arquivados (perdidos antes da 126 que a 131 levou para a etapa de
+perda, ou que continuam fora de uma etapa de perda) voltam a ser arquivados, com o motivo da perda; status, motivo e
+etapa não mudam.
+
+1. Aplicar `132_arquivar.sql` como `supabase_admin`, com `--single-transaction`, **depois da 131** (a guarda recusa
+   rodar sem ela); registrar a versão `132` e rodar `notify pgrst, 'reload schema'`. O NOTICE diz quantos voltaram a
+   ser arquivados (esperado: 34 levados pela 131, mais os antigos arquivados de funis sem etapa de perda, se houver).
+   Reescreve `leads` (DROP/ADD COLUMN STORED, como a 126), rápido. Conferir:
+   `SELECT has_table_privilege('anon', 'public.leads_arquivados', 'SELECT');` → `false`;
+   `SELECT has_function_privilege('authenticated', 'public.fn_lead_arquivado()', 'EXECUTE');` → `false`.
+2. Ordem com o deploy: **132 primeiro, deploy logo depois**. O app novo grava/lê `arquivado_em` e `arquivado_motivo`
+   (sem a 132: arquivar dá erro, a exportação falha e `.eq('arquivado', false)` ainda tira todos os perdidos do
+   dashboard). O app de hoje não grava `arquivado` nem as colunas novas e continua funcionando com a 132; até o deploy,
+   o painel "Perdidos" dele mostra os arquivados e mensagem recebida reabre o negócio mas não desarquiva.
+3. Não recria `mesclar_leads` nem `execute_quote_automation` (o ramo `archive` da automação de orçamento continua
+   PERDENDO o lead). Na mesclagem o lead mantido conserva o próprio arquivamento. Depois de um restore, reaplicá-la por
+   último, **depois da 126 e da 131** (as duas recriam `leads_kanban`; a 126 também `leads_arquivados`): ordem completa
+   no CLAUDE.md. A 131 reaplicada depois da 132 aborta (a view tem mais colunas): reaplicar a 132 de novo. A 126
+   reaplicada depois da 132 não mexe nos arquivamentos (`arquivado` continua gerada, a parte de dados dela é pulada).
+   Reaplicar a 132 não rearquiva quem foi desarquivado.
+
+Reversão: ver o cabeçalho da `132_arquivar.sql` (perde os arquivamentos).

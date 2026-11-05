@@ -769,7 +769,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     linkTimerRef.current = setTimeout(async () => {
       setLinkSearching(true)
       const digits = q.replace(/\D/g, '')
-      const base = supabase.from('leads').select('*').neq('status', 'perdido').eq('unit_id', currentUser.unit_id).limit(6).order('nome')
+      const base = supabase.from('leads').select('*').neq('status', 'perdido').eq('arquivado', false).eq('unit_id', currentUser.unit_id).limit(6).order('nome')
       const norm = normalizarTelefone(q)
       const { data } = norm ? await base.eq('telefone_norm', norm)
         : digits.length >= 6 ? await base.ilike('telefone_norm', `%${digits}%`)
