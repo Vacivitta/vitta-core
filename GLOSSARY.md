@@ -95,12 +95,16 @@ A troca de mensagens de uma conexão com um contato ou com um grupo.
 _Avoid_: Chat, atendimento, ticket
 
 **Portal do cliente**:
-Página que o contato (paciente ou licenciado) abre por link com código, sem senha, para ver seus orçamentos, tickets e, no futuro, a carteira de vacinação.
+Espaço que a família (ou o licenciado) abre por link com código, sem senha, para acompanhar agendamentos, orçamentos, tickets e as doses registradas.
 _Avoid_: Área do cliente, app do paciente
 
 **Dose aplicada**:
-Registro de que uma vacina foi aplicada num contato (data, dose); vem do sistema clínico, que é quem envia a aplicação ao governo.
-_Avoid_: Aplicação, vacinação, atendimento
+Registro manual, no VittaDesk, de que uma vacina foi aplicada num contato (data, dose), para acompanhamento e próxima dose; o registro oficial continua no sistema do governo.
+_Avoid_: Aplicação, vacinação, atendimento, carteira oficial
+
+**Conexão pessoal**:
+Conexão por QR Code de um número de uma pessoa; as conversas são vistas só pela dona do número e pela marca.
+_Avoid_: WhatsApp particular, número privado
 
 **Grupo**:
 Conversa com vários participantes, só disponível em conexões por QR Code.
