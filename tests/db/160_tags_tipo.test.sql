@@ -125,7 +125,7 @@ INSERT INTO casos (caso, papel, usuario, comando, esperado) VALUES
    $c$INSERT INTO public.wa_tags (unit_id, name, tipo) VALUES
       ('00000000-0000-4000-8133-0000000000a0', 'Intrusa', 'lead')$c$, 'erro 42501'),
   ('anon não lê o catálogo', 'anon', NULL,
-   $c$SELECT * FROM public.wa_tags$c$, '0');
+   $c$SELECT * FROM public.wa_tags$c$, 'erro 42501');
 
 DO $$
 DECLARE
