@@ -305,3 +305,23 @@ etapa não mudam.
    Reaplicar a 132 não rearquiva quem foi desarquivado.
 
 Reversão: ver o cabeçalho da `132_arquivar.sql` (perde os arquivamentos).
+
+## Tags de cliente e de conversa: migração 133 ([H])
+Cada tag passa a ter um tipo (`wa_tags.tipo`): **cliente** (`lead`, aplicada na ficha) ou **conversa** (aplicada no
+Atendimento). A ficha só oferece tags de cliente, a conversa só as de conversa, e o banco recusa (23514) aplicar tag do
+tipo errado ou trocar o tipo de uma tag já aplicada. Tags existentes viram de conversa; a usada em lead e em conversa
+ganha uma cópia de cliente (mesmo nome e cor) com as aplicações dos leads; a usada só em leads vira de cliente.
+
+1. Aplicar `133_tags_por_tipo.sql` como `supabase_admin`, com `--single-transaction`, **depois da 132** (a guarda
+   recusa rodar sem ela); registrar a versão `133` e rodar `notify pgrst, 'reload schema'`. O NOTICE diz quantas
+   tags ficaram de conversa, quantas cópias de cliente foram criadas, quantas aplicações em leads foram repontadas e
+   quantas tags passaram a ser de cliente (em 04/11: 17 tags e 39 aplicações em leads, todas da 127; as 39 em conversas
+   não mudam). Conferir: `SELECT has_function_privilege('authenticated', 'public.tag_aplicada_tipo()', 'EXECUTE');` e o
+   mesmo para `public.wa_tags_troca_tipo()` → `false`.
+2. Ordem com o deploy: **133 primeiro, deploy logo depois**. O app novo lê e grava `wa_tags.tipo` (sem a 133 as telas
+   de tag dão erro). O app de hoje continua criando tags (o padrão da coluna é `conversa`), mas até o deploy mostra as
+   duas listas juntas (as cópias de cliente aparecem como nomes repetidos) e aplicar tag do tipo errado dá erro.
+3. Depois de um restore, reaplicar a 133 **antes da 118** (a guarda da 118 recusa as funções de trigger dela abertas
+   para `authenticated`). Reaplicar não refaz as cópias. Reaplicar a 127 ou a 092 não mexe nos triggers da 133.
+
+Reversão: ver o cabeçalho da `133_tags_por_tipo.sql`.
