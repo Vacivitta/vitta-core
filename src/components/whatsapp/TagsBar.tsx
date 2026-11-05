@@ -20,7 +20,9 @@ async function mensagemDeErro(res: Response): Promise<string> {
 const estiloBarra: CSSProperties = { padding: '6px 14px', borderBottom: '1px solid #E9E5D8', background: '#fff', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
 
 export default function TagsBar({ alvo, tags, unitTags, onTagAdded, onTagRemoved, style }: {
-  alvo: AlvoTags; tags: ConvTag[]; unitTags: ConvTag[]
+  alvo: AlvoTags; tags: ConvTag[]
+  /** Catálogo só do tipo do alvo (tags de cliente para o lead, de conversa para a conversa); o banco recusa o outro tipo. */
+  unitTags: ConvTag[]
   onTagAdded: (tag: ConvTag) => void; onTagRemoved: (tagId: string) => void
   /** Substitui o estilo do contêiner (o padrão é a faixa do cabeçalho do chat). */
   style?: CSSProperties

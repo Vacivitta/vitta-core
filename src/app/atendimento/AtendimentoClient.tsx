@@ -365,7 +365,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     void fetch('/api/whatsapp/template-folders').then(r => r.json()).then((data: WaTemplateFolder[]) => { if (Array.isArray(data)) setTmplFolders(data) })
     void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
-    void fetch('/api/whatsapp/tags').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
+    void fetch('/api/whatsapp/tags?tipo=conversa').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
     void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
       if (!data) return
       const map: Record<string, string> = {}

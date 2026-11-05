@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
-import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
+import type { WaTemplate, WaQuickReply, InputMode, ConvTag, TagCatalogo } from '@/components/whatsapp/wa-types'
 import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
 import TagsBar from '@/components/whatsapp/TagsBar'
 import type {
@@ -33,6 +33,7 @@ import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
 import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
 import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
 import { camposDoFunil } from '@/lib/campos'
+import { tagsDoTipo } from '@/lib/tags'
 import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
 
 interface Props {
@@ -194,8 +195,10 @@ function LeadDrawer({
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
   const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
-  const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
+  const [waUnitTags,     setWaUnitTags]     = useState<TagCatalogo[]>([])
   const [leadTags,       setLeadTags]       = useState<ConvTag[]>([])
+  const tagsDeCliente  = useMemo(() => tagsDoTipo(waUnitTags, 'lead'), [waUnitTags])
+  const tagsDeConversa = useMemo(() => tagsDoTipo(waUnitTags, 'conversa'), [waUnitTags])
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
@@ -563,8 +566,8 @@ function LeadDrawer({
         .flatMap(r => r.tag ? [r.tag] : [])))
     const unidade = lead.unit_id ?? currentUser.unit_id
     if (unidade) {
-      void supabase.from('wa_tags').select('id,name,color').eq('unit_id', unidade).order('name')
-        .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
+      void supabase.from('wa_tags').select('id,name,color,tipo').eq('unit_id', unidade).order('name')
+        .then(({ data }) => setWaUnitTags((data ?? []) as TagCatalogo[]))
     }
   }, [lead.id, lead.unit_id, currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1107,7 +1110,7 @@ function LeadDrawer({
             <TagsBar
               alvo={{ tipo: 'lead', id: lead.id }}
               tags={leadTags}
-              unitTags={waUnitTags}
+              unitTags={tagsDeCliente}
               onTagAdded={tag => setLeadTags(prev => [...prev, tag])}
               onTagRemoved={tagId => setLeadTags(prev => prev.filter(t => t.id !== tagId))}
               style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
@@ -2160,7 +2163,7 @@ function LeadDrawer({
                     <TagsBar
                       alvo={{ tipo: 'conversa', id: waConversation.id }}
                       tags={waConvTags}
-                      unitTags={waUnitTags}
+                      unitTags={tagsDeConversa}
                       onTagAdded={tag => setWaConvTags(prev => [...prev, tag])}
                       onTagRemoved={tagId => setWaConvTags(prev => prev.filter(t => t.id !== tagId))}
                     />
