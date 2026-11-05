@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { Fragment, useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
@@ -17,6 +17,7 @@ import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import Link from 'next/link'
 import { isPerfilGestor } from '@/lib/auth/access'
 import { urlExportacao } from '@/lib/exportacao'
+import { agruparPorTipo } from '@/lib/tags'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -40,7 +41,8 @@ interface Props {
 function MultiCheckFilter({ label, selected, options, onChange }: {
   label: string
   selected: string[]
-  options: { id: string; label: string; color?: string }[]
+  /** grupo: título exibido antes da primeira opção de cada grupo (opções já em ordem de grupo) */
+  options: { id: string; label: string; color?: string; grupo?: string }[]
   onChange: (ids: string[]) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -89,11 +91,17 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
           borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           minWidth: 190, maxHeight: 260, overflowY: 'auto', padding: '6px 0',
         }}>
-          {options.map(opt => {
+          {options.map((opt, i) => {
             const checked = selected.includes(opt.id)
+            const abreGrupo = opt.grupo && opt.grupo !== options[i - 1]?.grupo
             return (
+              <Fragment key={opt.id}>
+              {abreGrupo && (
+                <div style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 800, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {opt.grupo}
+                </div>
+              )}
               <label
-                key={opt.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
                   cursor: 'pointer', fontSize: 12, color: '#25402C',
@@ -117,6 +125,7 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
                 <input type="checkbox" checked={checked} onChange={() => toggle(opt.id)} style={{ display: 'none' }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
               </label>
+              </Fragment>
             )
           })}
         </div>
@@ -157,7 +166,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     tag_ids:         [],
   })
   const [showFilters, setShowFilters]     = useState(false)
-  const [unitTags, setUnitTags]           = useState<Array<{ id: string; name: string; color: string }>>([])
+  const [unitTags, setUnitTags]           = useState<EtiquetaCard[]>([])
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>(resumoInicial.unreadByLead)
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>(resumoInicial.lastMsgByLead)
   const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>(resumoInicial.lastDirByLead)
@@ -287,8 +296,8 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
   // Sem o filtro de unidade, o admin global via as tags de todas
   useEffect(() => {
-    void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id).order('name')
-      .then(({ data }) => { if (data) setUnitTags(data) })
+    void supabase.from('wa_tags').select('id,name,color,tipo').eq('unit_id', currentUser.unit_id).order('name')
+      .then(({ data }) => { if (data) setUnitTags(data as EtiquetaCard[]) })
   }, [supabase, currentUser.unit_id])
 
   // Carrega nomes dos contatos vinculados (dependentes/pacientes) para busca
@@ -587,7 +596,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             <MultiCheckFilter
               label="Tag"
               selected={filters.tag_ids}
-              options={unitTags.map(t => ({ id: t.id, label: t.name, color: t.color }))}
+              options={agruparPorTipo(unitTags).flatMap(g => g.tags.map(t => ({ id: t.id, label: t.name, color: t.color, grupo: g.rotulo })))}
               onChange={ids => setFilters(f => ({ ...f, tag_ids: ids }))}
             />
           )}
