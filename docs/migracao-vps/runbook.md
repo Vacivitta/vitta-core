@@ -299,7 +299,7 @@ etapa não mudam.
    o painel "Perdidos" dele mostra os arquivados e mensagem recebida reabre o negócio mas não desarquiva.
 3. Não recria `mesclar_leads` nem `execute_quote_automation` (o ramo `archive` da automação de orçamento continua
    PERDENDO o lead). Na mesclagem o lead mantido conserva o próprio arquivamento. Depois de um restore, reaplicá-la por
-   último, **depois da 126 e da 131** (as duas recriam `leads_kanban`; a 126 também `leads_arquivados`): ordem completa
+   último (só a 134 vem depois), **depois da 126 e da 131** (as duas recriam `leads_kanban`; a 126 também `leads_arquivados`): ordem completa
    no CLAUDE.md. A 131 reaplicada depois da 132 aborta (a view tem mais colunas): reaplicar a 132 de novo. A 126
    reaplicada depois da 132 não mexe nos arquivamentos (`arquivado` continua gerada, a parte de dados dela é pulada).
    Reaplicar a 132 não rearquiva quem foi desarquivado.
@@ -325,3 +325,17 @@ ganha uma cópia de cliente (mesmo nome e cor) com as aplicações dos leads; a 
    para `authenticated`). Reaplicar não refaz as cópias. Reaplicar a 127 ou a 092 não mexe nos triggers da 133.
 
 Reversão: ver o cabeçalho da `133_tags_por_tipo.sql`.
+
+## Campos personalizados no kanban: migração 134 ([H])
+`leads_kanban` passa a trazer `leads.campos` (última coluna), para o filtro do funil por campo personalizado (seleção,
+múltipla e sim/não). Só a definição da view muda (a da 132 + `l.campos`); não mexe em dados.
+
+1. Aplicar `134_kanban_campos.sql` como `supabase_admin`, com `--single-transaction`, **depois da 132** (a guarda
+   recusa rodar sem `arquivado_em` na view); registrar a versão `134` e rodar `notify pgrst, 'reload schema'`.
+   Conferir: `SELECT has_table_privilege('anon', 'public.leads_kanban', 'SELECT');` → `false`.
+2. Ordem com o deploy: tanto faz, o melhor é **134 primeiro**. O app lê `leads_kanban` com `select('*')`: sem a 134 o
+   filtro por campo aparece, mas não encontra nenhum lead; o app de hoje ignora a coluna nova.
+3. Depois de um restore, reaplicá-la por último, **depois da 132** (a 132 faz DROP + CREATE da view e tira `campos`):
+   ordem completa no CLAUDE.md. A 132 reaplicada depois da 134 passa, mas tira a coluna: reaplicar a 134 em seguida.
+
+Reversão: ver o cabeçalho da `134_kanban_campos.sql`.
