@@ -111,7 +111,7 @@ export async function createStage(
 
 export async function updateStage(
   id: string,
-  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal' | 'resultado'>>,
+  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal' | 'resultado' | 'campos_obrigatorios'>>,
 ): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from('funnel_stages').update(updates).eq('id', id)
@@ -194,7 +194,6 @@ export async function getLeadCountsByFunnel(
   return counts
 }
 
-// ---- Motivos de perda -------------------------------------------------------
 // Sem exclusão pela tela: desativar tira o motivo da lista sem mexer nos leads que o usam.
 
 export async function createMotivoPerda(funnel_id: string, nome: string, ordem: number): Promise<MotivoPerda> {

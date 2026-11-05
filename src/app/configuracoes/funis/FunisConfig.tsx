@@ -8,7 +8,8 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { FunnelStage, FunnelWithStages, MotivoPerda, ResultadoEtapa } from '@/types/database'
+import type { CampoLead, FunnelStage, FunnelWithStages, MotivoPerda, ResultadoEtapa } from '@/types/database'
+import { alternarObrigatorio, opcoesObrigatorios, rotuloObrigatorio, type OpcaoObrigatorio } from '@/lib/obrigatorios'
 import {
   listFunnels, createFunnel, updateFunnel, deactivateFunnel, deleteFunnel,
   createStage, updateStage, deleteStage, reorderStages,
@@ -25,11 +26,13 @@ const PRESET_COLORS = [
 interface Props {
   initialFunnels:    FunnelWithStages[]
   initialLeadCounts: Record<string, number>
+  /** Campos personalizados da unidade, inclusive desativados */
+  camposLead:        CampoLead[]
 }
 
 type ConfirmFunnelAction = { id: string; type: 'deactivate' | 'delete' }
 
-export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props) {
+export default function FunisConfig({ initialFunnels, initialLeadCounts, camposLead }: Props) {
   const [funnels,    setFunnels]    = useState<FunnelWithStages[]>(initialFunnels)
   const [selectedId, setSelectedId] = useState<string>(initialFunnels[0]?.id ?? '')
   const [leadCounts, setLeadCounts] = useState(initialLeadCounts)
@@ -160,10 +163,28 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
   }
 
   async function handleResultadoChange(stage: FunnelStage, resultado: ResultadoEtapa | null) {
-    await updateStage(stage.id, { resultado })
+    // Etapa de perda não exige campos (o banco recusa): as exigências saem junto
+    const campos_obrigatorios = resultado === 'perdido' ? [] : stage.campos_obrigatorios
+    if (resultado === 'perdido' && stage.campos_obrigatorios.length > 0
+        && !confirm(`Etapa de perda não exige campos. Tirar as exigências de "${stage.nome}"?`)) return
+    await updateStage(stage.id, { resultado, campos_obrigatorios })
     setFunnels(prev => prev.map(f =>
       f.id === stage.funnel_id
-        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, resultado } : s) }
+        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, resultado, campos_obrigatorios } : s) }
+        : f
+    ))
+  }
+
+  async function handleObrigatoriosChange(stage: FunnelStage, campos_obrigatorios: string[]) {
+    try {
+      await updateStage(stage.id, { campos_obrigatorios })
+    } catch (e: unknown) {
+      alert((e as { message?: string })?.message ?? 'Não foi possível salvar.')
+      return
+    }
+    setFunnels(prev => prev.map(f =>
+      f.id === stage.funnel_id
+        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, campos_obrigatorios } : s) }
         : f
     ))
   }
@@ -429,6 +450,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           onAlertHoursChange={h => void handleAlertDaysChange(stage, h)}
                           onSlaMensalToggle={() => void handleSlaMensalToggle(stage)}
                           onResultadoChange={r => void handleResultadoChange(stage, r)}
+                          opcoesObrigatorios={opcoesObrigatorios(camposLead, stage.funnel_id, stage.campos_obrigatorios)}
+                          rotuloObrigatorio={chave => rotuloObrigatorio(chave, camposLead)}
+                          onObrigatoriosChange={lista => void handleObrigatoriosChange(stage, lista)}
                           onDeleteRequest={() => { setConfirmDeleteStageId(stage.id); setDeleteError(null) }}
                           confirmDelete={confirmDeleteStageId === stage.id}
                           onDeleteConfirm={() => void handleDeleteStage(stage)}
@@ -503,6 +527,9 @@ interface StageRowProps {
   onAlertHoursChange: (h: number | null) => void
   onSlaMensalToggle:  () => void
   onResultadoChange:  (r: ResultadoEtapa | null) => void
+  opcoesObrigatorios: { fixos: OpcaoObrigatorio[]; personalizados: OpcaoObrigatorio[] }
+  rotuloObrigatorio:  (chave: string) => string
+  onObrigatoriosChange: (lista: string[]) => void
   onDeleteRequest:    () => void
   confirmDelete:      boolean
   onDeleteConfirm:    () => void
@@ -518,12 +545,16 @@ function SortableStageRow({
   onAlertHoursChange,
   onSlaMensalToggle,
   onResultadoChange,
+  opcoesObrigatorios, rotuloObrigatorio, onObrigatoriosChange,
   onDeleteRequest, confirmDelete, onDeleteConfirm, onDeleteCancel,
   deleteError,
   busy,
 }: StageRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
   const [alertInput, setAlertInput] = useState(stage.alerta_horas?.toString() ?? '')
+  const [mostrarExigencias, setMostrarExigencias] = useState(false)
+  const exigidos = stage.campos_obrigatorios
+  const ehPerda = stage.resultado === 'perdido'
 
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
@@ -620,7 +651,23 @@ function SortableStageRow({
           Mensal
         </button>
 
-        {/* Resultado da etapa */}
+        <button
+          type="button"
+          onClick={() => setMostrarExigencias(v => !v)}
+          disabled={ehPerda}
+          aria-expanded={mostrarExigencias && !ehPerda}
+          title={ehPerda ? 'Etapa de perda não exige campos' : 'Campos que o lead precisa ter para entrar nesta etapa'}
+          style={{
+            flexShrink: 0, fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 8,
+            cursor: ehPerda ? 'not-allowed' : 'pointer', opacity: ehPerda ? 0.5 : 1,
+            background: exigidos.length ? '#EEF2FF' : '#F9FAFB',
+            border: `1px solid ${exigidos.length ? '#C7D2FE' : '#EBE7DA'}`,
+            color: exigidos.length ? '#4F46E5' : '#9CA3AF',
+          }}
+        >
+          Exigir{exigidos.length ? ` · ${exigidos.length}` : ''}
+        </button>
+
         <select
           value={stage.resultado ?? ''}
           onChange={e => onResultadoChange(e.target.value === 'ganho' || e.target.value === 'perdido' ? e.target.value : null)}
@@ -658,6 +705,39 @@ function SortableStageRow({
         )}
       </div>
 
+      {mostrarExigencias && !ehPerda && (
+        <div style={{ margin: '4px 0 0', padding: '10px 14px', background: '#fff', border: '1px solid #F1EFE5', borderRadius: 10, fontSize: 12 }}>
+          <p style={{ fontWeight: 700, color: '#25402C', margin: '0 0 2px' }}>Exigir para entrar em &ldquo;{stage.nome}&rdquo;</p>
+          <p style={{ color: '#9AA79C', margin: '0 0 8px', lineHeight: 1.4 }}>
+            Quem mover um lead para cá precisa preencher estes campos. Automações e o WhatsApp movem sem exigir.
+          </p>
+          {exigidos.length > 0 && (
+            <p style={{ color: '#4F46E5', margin: '0 0 8px', lineHeight: 1.4 }}>
+              {exigidos.map(rotuloObrigatorio).join(', ')}
+            </p>
+          )}
+          {([['Campos do lead', opcoesObrigatorios.fixos], ['Campos personalizados', opcoesObrigatorios.personalizados]] as const)
+            .map(([titulo, opcoes]) => (
+              <fieldset key={titulo} style={{ border: 'none', padding: 0, margin: '0 0 8px' }}>
+                <legend style={{ fontSize: 11, fontWeight: 700, color: '#71856F', marginBottom: 4 }}>{titulo}</legend>
+                {opcoes.length === 0 ? (
+                  <p style={{ color: '#9AA79C', margin: 0 }}>Nenhum campo personalizado para este funil.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                    {opcoes.map(o => (
+                      <label key={o.chave} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#25402C', cursor: busy ? 'default' : 'pointer' }}>
+                        <input type="checkbox" checked={exigidos.includes(o.chave)} disabled={busy}
+                          onChange={() => onObrigatoriosChange(alternarObrigatorio(exigidos, o.chave))} />
+                        {o.rotulo}{o.desativado && <span style={{ color: '#9AA79C' }}> (desativado)</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </fieldset>
+            ))}
+        </div>
+      )}
+
       {/* Delete confirm */}
       {confirmDelete && (
         <div style={{ margin: '4px 0 0', padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 12 }}>
@@ -690,8 +770,6 @@ function SortableStageRow({
     </div>
   )
 }
-
-// ── Motivos de perda do funil ─────────────────────────────────────────────────
 
 function MotivosPerdaSection({ funnelId }: { funnelId: string }) {
   const [motivos,    setMotivos]    = useState<MotivoPerda[] | null>(null)

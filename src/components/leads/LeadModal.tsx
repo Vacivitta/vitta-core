@@ -9,7 +9,7 @@ import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
 import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
-import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import TagsBar from '@/components/whatsapp/TagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
@@ -28,6 +28,12 @@ import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
 import { avisoTelefone, normalizarTelefone, telefoneParaGravar, variantesTelefone } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { isPerfilGestor } from '@/lib/auth/access'
+import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
+import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
+import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
+import { camposDoFunil } from '@/lib/campos'
+import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
 
 interface Props {
   lead: LeadKanban | null
@@ -41,8 +47,9 @@ interface Props {
   onLeadPatched?: (patch: Partial<LeadKanban>) => void
 }
 
-type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
-const TABS: Tab[] = ['Atendimento', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos']
+type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos' | 'Informações'
+// Informações só no celular: no desktop os campos ficam no painel esquerdo
+const TABS: Tab[] = ['Atendimento', 'Informações', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos', 'Anexos']
 const DISABLED_TABS = new Set<Tab>([])
 
 interface WaConversation {
@@ -75,6 +82,17 @@ type TimelineItem =
   | { kind: 'task';  id: string; ts: string; task: LeadTask }
   | { kind: 'resp';  id: string; ts: string; history: LeadResponsibleHistory }
   | { kind: 'stage'; id: string; ts: string; stageHistory: LeadStageHistoryWithDetails }
+
+const COLUNAS_DO_FORM = ['email', 'telefone', 'sobrenome', 'profissao', 'cidade', 'estado', 'origem', 'responsavel_id'] as const
+
+function formComFixos<F extends Record<(typeof COLUNAS_DO_FORM)[number], string>>(form: F, fixos: ValoresFixos): F {
+  const novo = { ...form }
+  for (const k of COLUNAS_DO_FORM) {
+    const v = fixos[k]
+    if (v !== undefined) novo[k] = (v ?? '') as F[typeof k]
+  }
+  return novo
+}
 
 // Wrapper — never violates hook rules
 export default function LeadModal(props: Props) {
@@ -153,6 +171,9 @@ function LeadDrawer({
 
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('Atendimento')
+  const anexos = useLeadAnexos(lead.id)
+  const camposLead = useCamposLead(lead.id, lead.unit_id)
+  const temCampos = camposDoFunil(camposLead.definicoes, lead.funnel_id).length > 0
 
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
   const [waConversation, setWaConversation] = useState<WaConversation | null>(null)
@@ -174,6 +195,7 @@ function LeadDrawer({
   const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
   const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
+  const [leadTags,       setLeadTags]       = useState<ConvTag[]>([])
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
@@ -229,8 +251,6 @@ function LeadDrawer({
         void supabase.from('wa_conversation_tags').select('tag:wa_tags(id,name,color)').eq('conversation_id', conv.id)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then(({ data }) => setWaConvTags((data ?? []).map((r: any) => r.tag).filter(Boolean)))
-        void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id)
-          .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
 
         // Zera unread_count via API (admin client garante que o update sempre persiste)
         if (conv.unread_count > 0) {
@@ -538,6 +558,17 @@ function LeadDrawer({
   const [novoOrcamento, setNovoOrcamento] = useState(false)
 
   useEffect(() => {
+    void supabase.from('lead_tags').select('tag:wa_tags(id,name,color)').eq('lead_id', lead.id)
+      .then(({ data }) => setLeadTags(((data ?? []) as unknown as Array<{ tag: ConvTag | null }>)
+        .flatMap(r => r.tag ? [r.tag] : [])))
+    const unidade = lead.unit_id ?? currentUser.unit_id
+    if (unidade) {
+      void supabase.from('wa_tags').select('id,name,color').eq('unit_id', unidade).order('name')
+        .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
+    }
+  }, [lead.id, lead.unit_id, currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     const id = lead.id
     supabase.from('lead_contacts').select('*').eq('lead_id', id).order('created_at')
       .then(({ data }) => { if (data) setContacts(data as LeadContact[]) })
@@ -704,33 +735,62 @@ function LeadDrawer({
     setDeletingTaskId(null)
   }
 
+  const [obrigatorios, setObrigatorios] = useState<{
+    etapaId:  string
+    funnelId: string
+    faltando: string[]
+    tentarDeNovo: (valores: Preenchido) => Promise<void>
+  } | null>(null)
+
+  /** Abre o modal se o erro for de campos exigidos; devolve false para outros erros. */
+  function pedirObrigatorios(err: unknown, funnelId: string, tentarDeNovo: (valores: Preenchido) => Promise<void>): boolean {
+    const f = faltandoDoErro(err)
+    if (!f) return false
+    setObrigatorios({
+      ...f, funnelId,
+      tentarDeNovo: async valores => {
+        setObrigatorios(null)
+        camposLead.setValores(valores.campos)
+        onLeadPatched?.(valores.fixos)
+        await tentarDeNovo(valores)
+      },
+    })
+    return true
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
-  async function handleSave() {
-    if (!form.nome.trim() || phoneWarning) return
+  async function handleSave(formAtual = form) {
+    if (!formAtual.nome.trim() || phoneWarning) return
     setSaving(true)
     try {
       const previousStageId = lead.stage_id
       try {
         await updateLead(lead.id, {
-          ...form,
-          telefone: telefoneParaGravar(form.telefone),
-          responsavel_id: form.responsavel_id || null,
+          ...formAtual,
+          telefone: telefoneParaGravar(formAtual.telefone),
+          responsavel_id: formAtual.responsavel_id || null,
         })
       } catch (err) {
         if (isViolacaoUnica(err)) {
           alert('Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.')
           return
         }
+        // O formulário grava tudo junto: o que foi preenchido no modal entra nele antes de tentar de novo
+        if (pedirObrigatorios(err, formAtual.funnel_id, async valores => {
+          const novo = formComFixos(formAtual, valores.fixos)
+          setForm(novo)
+          await handleSave(novo)
+        })) return
         throw err
       }
 
       // Registrar mudança de stage via SECURITY DEFINER (bypassa RLS)
-      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: form.stage_id })
-      if (previousStageId && form.stage_id && previousStageId !== form.stage_id) {
+      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: formAtual.stage_id })
+      if (previousStageId && formAtual.stage_id && previousStageId !== formAtual.stage_id) {
         const { error: rpcErr } = await supabase.rpc('record_stage_history', {
           p_lead_id:    lead.id,
           p_de_stage:   previousStageId,
-          p_para_stage: form.stage_id,
+          p_para_stage: formAtual.stage_id,
           p_movido_por: currentUser.id,
         })
         if (rpcErr) console.error('[modal handleSave] record_stage_history falhou:', rpcErr)
@@ -749,7 +809,6 @@ function LeadDrawer({
     } finally { setSaving(false) }
   }
 
-  // ── Status do negócio (ganho / reabrir) ────────────────────────────────────
   const [isConverted,  setIsConverted]  = useState<boolean>(lead.is_converted)
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusError,  setStatusError]  = useState('')
@@ -779,6 +838,16 @@ function LeadDrawer({
       onSaved()
       handleClose()
     } catch (err) {
+      // Reabrir volta para a primeira etapa sem resultado, que também pode exigir campos
+      if (pedirObrigatorios(err, lead.funnel_id, async () => {
+        try {
+          await reabrir(lead.id)
+          onSaved()
+          handleClose()
+        } catch (e) {
+          setStatusError((e as { message?: string })?.message ?? 'Erro ao reabrir. Tente novamente.')
+        }
+      })) return
       setStatusError(err instanceof Error ? err.message : 'Erro ao reabrir. Tente novamente.')
     } finally {
       setStatusSaving(false)
@@ -843,7 +912,6 @@ function LeadDrawer({
     }
   }
 
-  // ── Perda ──────────────────────────────────────────────────────────────────
   // Mesma regra do antigo Arquivar: atendente não marca perdido pela ficha
   const podeMarcarPerdido = !isAtendente
   const [perdaModal,    setPerdaModal]    = useState(false)
@@ -972,6 +1040,14 @@ function LeadDrawer({
               {form.origem ? ` pelo ${form.origem}` : ''}
               {contacts.length === 0 ? ' · ainda sem paciente vinculado' : ` · ${contacts.length} paciente${contacts.length > 1 ? 's' : ''}`}
             </p>
+            <TagsBar
+              alvo={{ tipo: 'lead', id: lead.id }}
+              tags={leadTags}
+              unitTags={waUnitTags}
+              onTagAdded={tag => setLeadTags(prev => [...prev, tag])}
+              onTagRemoved={tagId => setLeadTags(prev => prev.filter(t => t.id !== tagId))}
+              style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+            />
           </div>
 
           {/* Actions row */}
@@ -1013,7 +1089,7 @@ function LeadDrawer({
             ) : (
               <>
                 <button
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving || !form.nome.trim()}
                   style={{ flex: 1, padding: 10, fontSize: 13, fontWeight: 800, color: '#fff', background: '#3E9849', border: 'none', borderRadius: 11, cursor: saving ? 'wait' : 'pointer', opacity: saving || !form.nome.trim() ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
                 >
@@ -1159,6 +1235,12 @@ function LeadDrawer({
                     )}
                   </InfoRow>
                 </WarmCard>
+
+                {temCampos && (
+                  <WarmCard title="Informações">
+                    <CamposLead leadId={lead.id} funnelId={lead.funnel_id} estado={camposLead} />
+                  </WarmCard>
+                )}
               </>
             )}
 
@@ -1269,7 +1351,6 @@ function LeadDrawer({
             </div>
           </div>
 
-          {/* ── Pinned footer: status do negócio ── */}
           <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {statusAtual === 'aberto' ? (
               <button
@@ -1367,6 +1448,7 @@ function LeadDrawer({
                 return (
                   <button
                     key={t}
+                    className={t === 'Informações' ? 'sm:hidden!' : undefined}
                     onClick={handleTabClick}
                     disabled={disabled}
                     title={disabled ? 'Em breve' : undefined}
@@ -1386,6 +1468,9 @@ function LeadDrawer({
                     )}
                     {t === 'Anotações' && notes.length > 0 && (
                       <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{notes.length}</span>
+                    )}
+                    {t === 'Anexos' && anexos.anexos.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{anexos.anexos.length}</span>
                     )}
                   </button>
                 )
@@ -1839,6 +1924,21 @@ function LeadDrawer({
               )
             })()}
 
+            {tab === 'Informações' && (
+              <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
+                <CamposLead leadId={lead.id} funnelId={lead.funnel_id} estado={camposLead} />
+              </div>
+            )}
+
+            {tab === 'Anexos' && (
+              <LeadAnexos
+                leadId={lead.id}
+                estado={anexos}
+                currentUserId={currentUser.id}
+                isGestor={isPerfilGestor(currentUser.perfil)}
+              />
+            )}
+
             {/* ═══ ATENDIMENTO ═══ */}
             {tab === 'Atendimento' && (() => {
               // Sem telefone cadastrado
@@ -1971,9 +2071,9 @@ function LeadDrawer({
                   )}
                   {/* Tags */}
                   {waConversation && (
-                    <ConvTagsBar
-                      convId={waConversation.id}
-                      convTags={waConvTags}
+                    <TagsBar
+                      alvo={{ tipo: 'conversa', id: waConversation.id }}
+                      tags={waConvTags}
                       unitTags={waUnitTags}
                       onTagAdded={tag => setWaConvTags(prev => [...prev, tag])}
                       onTagRemoved={tagId => setWaConvTags(prev => prev.filter(t => t.id !== tagId))}
@@ -2173,7 +2273,6 @@ function LeadDrawer({
         </div>
       </div>
 
-      {/* ── Modal de perda ── */}
       {perdaModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
           <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
@@ -2284,6 +2383,19 @@ function LeadDrawer({
       {/* Click-away handler for mention picker */}
       {showMentionPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMentionPicker(false)} />
+      )}
+
+      {obrigatorios && (
+        <PreencherObrigatorios
+          leadId={lead.id}
+          unitId={lead.unit_id}
+          funnelId={obrigatorios.funnelId}
+          etapaNome={allFunnels.flatMap(f => f.stages).find(s => s.id === obrigatorios.etapaId)?.nome ?? 'a etapa'}
+          faltando={obrigatorios.faltando}
+          profiles={profiles}
+          onCancelar={() => setObrigatorios(null)}
+          onPreenchido={obrigatorios.tentarDeNovo}
+        />
       )}
     </>
   )

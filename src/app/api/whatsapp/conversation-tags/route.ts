@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'conversation_id e tag_id são obrigatórios' }, { status: 400 })
   }
 
-  // A policy de wa_conversation_tags só valida a tag; a conversa também precisa ser da unidade
   if (!await getAccessibleConversation(supabase, body.conversation_id)) {
     return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
@@ -37,6 +36,10 @@ export async function DELETE(req: NextRequest) {
   const tagId          = req.nextUrl.searchParams.get('tag_id')
   if (!conversationId || !tagId) {
     return NextResponse.json({ error: 'conversation_id e tag_id são obrigatórios' }, { status: 400 })
+  }
+
+  if (!await getAccessibleConversation(supabase, conversationId)) {
+    return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
 
   const { error } = await supabase

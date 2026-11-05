@@ -19,6 +19,16 @@ import KanbanColumn from './KanbanColumn'
 import LeadCard from './LeadCard'
 import { useNow } from './useNow'
 import { sortKanbanLeads, DEFAULT_KANBAN_SORT, type KanbanSortMode, type KanbanSortContext } from './sort'
+import { faltandoDoErro } from '@/lib/obrigatorios'
+import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
+
+/** Movimento barrado por campos obrigatórios da etapa (migração 130); lead com a etapa de origem. */
+interface MovimentoPendente {
+  lead:     LeadKanban
+  destino:  string
+  ordem:    number
+  faltando: string[]
+}
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -53,6 +63,7 @@ function groupByStage(
 export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, tagsByLead = {}, onMarkUnread, sortMode = DEFAULT_KANBAN_SORT, agoraServidor, etapasAtendimento = [] }: Props) {
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [pendente, setPendente] = useState<MovimentoPendente | null>(null)
   const now = useNow(60_000, agoraServidor)
   // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
   // independente de quantas re-renders o handleDragOver disparar.
@@ -98,41 +109,72 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leads, stageIds])
 
+  function voltarParaOrigem(leadId: string, origem: string) {
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage_id: origem } : l))
+  }
+
+  function tratarErroAoMover(err: unknown, mov: Omit<MovimentoPendente, 'faltando'>) {
+    const f = faltandoDoErro(err)
+    if (f) { setPendente({ ...mov, faltando: f.faltando }); return }
+    console.error('[kanban] erro ao mover lead:', err)
+    alert('Não foi possível mover o lead. Tente de novo.')
+  }
+
   const handleDragEnd = useCallback(async ({ active, over }: DragEndEvent) => {
     setActiveId(null)
     const originStage = dragOriginStageRef.current
     dragOriginStageRef.current = null
-    if (!over) return
 
     const lead = leads.find(l => l.id === active.id)
     if (!lead) return
+    // Solto fora de uma coluna: o handleDragOver já pode ter trocado a coluna na tela
+    if (!over) {
+      if (originStage) voltarParaOrigem(lead.id, originStage)
+      return
+    }
 
     const targetStageId = resolveStageId(over.id as string) ?? lead.stage_id
     // Mesma ordem exibida na coluna, para os índices do arraste baterem com a tela
     const columnLeads   = sortKanbanLeads(leads.filter(l => l.stage_id === targetStageId), sortMode, sortCtx)
 
-    let newLeads = [...leads]
-
-    try {
-      if (originStage && originStage !== targetStageId) {
-        newLeads = newLeads.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l)
-        await moveLeadStage(lead.id, targetStageId, columnLeads.length, originStage, 'kanban')
-      } else if (over.id !== active.id && sortMode === 'manual') {
-        // Reordenar dentro da coluna só faz sentido na ordem manual; nas demais
-        // a posição é definida pelo critério escolhido.
-        const oldIndex  = columnLeads.findIndex(l => l.id === active.id)
-        const newIndex  = columnLeads.findIndex(l => l.id === over.id)
-        const reordered = arrayMove(columnLeads, oldIndex, newIndex).map((l, i) => ({ ...l, ordem: i }))
-        newLeads = newLeads.map(l => reordered.find(r => r.id === l.id) ?? l)
-        await reorderLeads(reordered.map(l => ({ id: l.id, ordem: l.ordem })))
+    if (originStage && originStage !== targetStageId) {
+      const ordem = columnLeads.length
+      try {
+        await moveLeadStage(lead.id, targetStageId, ordem, originStage, 'kanban')
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l))
+      } catch (err) {
+        voltarParaOrigem(lead.id, originStage)
+        tratarErroAoMover(err, { lead: { ...lead, stage_id: originStage }, destino: targetStageId, ordem })
       }
-    } catch (err) {
-      console.error('[kanban] erro ao mover lead:', err)
+      return
     }
 
-    setLeads(newLeads)
+    // Reordenar dentro da coluna só faz sentido na ordem manual; nas demais
+    // a posição é definida pelo critério escolhido.
+    if (over.id === active.id || sortMode !== 'manual') return
+    const oldIndex  = columnLeads.findIndex(l => l.id === active.id)
+    const newIndex  = columnLeads.findIndex(l => l.id === over.id)
+    const reordered = arrayMove(columnLeads, oldIndex, newIndex).map((l, i) => ({ ...l, ordem: i }))
+    try {
+      await reorderLeads(reordered.map(l => ({ id: l.id, ordem: l.ordem })))
+      setLeads(prev => prev.map(l => reordered.find(r => r.id === l.id) ?? l))
+    } catch (err) {
+      console.error('[kanban] erro ao reordenar leads:', err)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leads, stageIds, sortMode, unreadByLead, lastMsgByLead, lastDirByLead])
+
+  async function moverDepoisDePreencher(p: MovimentoPendente, valores: Preenchido) {
+    setLeads(prev => prev.map(l => l.id === p.lead.id ? { ...l, ...valores.fixos } : l))
+    try {
+      await moveLeadStage(p.lead.id, p.destino, p.ordem, p.lead.stage_id, 'kanban')
+      setLeads(prev => prev.map(l => l.id === p.lead.id ? { ...l, stage_id: p.destino } : l))
+      setPendente(null)
+    } catch (err) {
+      setPendente(null)
+      tratarErroAoMover(err, p)
+    }
+  }
 
   return (
     <DndContext
@@ -168,6 +210,19 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
           </div>
         )}
       </DragOverlay>
+
+      {pendente && (
+        <PreencherObrigatorios
+          key={pendente.lead.id + pendente.destino}
+          leadId={pendente.lead.id}
+          unitId={pendente.lead.unit_id}
+          funnelId={pendente.lead.funnel_id}
+          etapaNome={stages.find(s => s.id === pendente.destino)?.nome ?? 'a etapa'}
+          faltando={pendente.faltando}
+          onCancelar={() => setPendente(null)}
+          onPreenchido={valores => moverDepoisDePreencher(pendente, valores)}
+        />
+      )}
     </DndContext>
   )
 }

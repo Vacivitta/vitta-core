@@ -118,6 +118,8 @@ export interface FunnelStage {
   alerta_horas: number | null
   sla_mensal:   boolean
   resultado:    ResultadoEtapa | null
+  /** O que o lead precisa ter para entrar (migração 130): chaves de campos_lead e fixos 'lead:<coluna>' */
+  campos_obrigatorios: string[]
   unit_id:      string | null
   created_at:   string
 }
@@ -135,6 +137,47 @@ export interface MotivoPerda {
   ativo:      boolean
   created_at: string
 }
+
+export type TipoCampo =
+  | 'texto' | 'numero' | 'data' | 'selecao' | 'multipla' | 'sim_nao' | 'telefone' | 'email' | 'moeda'
+
+/** Valor gravado em leads.campos para cada tipo (data em ISO aaaa-mm-dd, moeda em reais). */
+export interface ValorPorTipo {
+  texto:    string
+  numero:   number
+  data:     string
+  selecao:  string
+  multipla: string[]
+  sim_nao:  boolean
+  telefone: string
+  email:    string
+  moeda:    number
+}
+
+export type ValorCampo = ValorPorTipo[TipoCampo]
+
+/** Valor junto com o tipo, para tratar cada caso sem cast. */
+export type ValorTipado = { [T in TipoCampo]: { tipo: T; valor: ValorPorTipo[T] } }[TipoCampo]
+
+/** leads.campos: chave do campo → valor (chave ausente = sem valor). */
+export type CamposDoLead = Record<string, ValorCampo>
+
+interface CampoLeadBase {
+  id:        string
+  unit_id:   string
+  /** null: vale para todos os funis da unidade */
+  funnel_id: string | null
+  /** Gerada do rótulo na criação e imutável */
+  chave:     string
+  rotulo:    string
+  ordem:     number
+  ativo:     boolean
+  criado_em: string
+}
+
+export type CampoLead =
+  | (CampoLeadBase & { tipo: 'selecao' | 'multipla'; opcoes: string[] })
+  | (CampoLeadBase & { tipo: Exclude<TipoCampo, 'selecao' | 'multipla'>; opcoes: null })
 
 // ---- Leads -----------------------------------------------------------------
 
@@ -184,12 +227,14 @@ export interface Lead {
   wa_optin_at:     string | null
   wa_optout_at:    string | null
   campanha_id:     string | null
+  /** Campos personalizados; a ficha lê da tabela (as views não trazem) */
+  campos:          CamposDoLead
   stage_changed_at: string
   created_at:      string
   updated_at:      string
 }
 
-export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
+export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos'> {
   responsavel_nome:   string | null
   responsavel_avatar: string | null
   stage_nome:         string | null
@@ -254,6 +299,19 @@ export interface LeadTask {
   created_at:            string
   updated_at:            string
   responsavel?:          Profile
+}
+
+/** Arquivo anexado à ficha do lead (migração 128). Sem `caminho`: o navegador abre pela rota, nunca pelo bucket. */
+export interface LeadAnexo {
+  id:          string
+  lead_id:     string
+  unit_id:     string
+  nome:        string
+  mime:        'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic' | 'image/heif'
+  tamanho:     number
+  enviado_por: string | null
+  criado_em:   string
+  autor?:      { full_name: string } | null
 }
 
 export interface LeadNegotiation {
@@ -549,14 +607,21 @@ export interface AutomationRunComLead extends AutomationRun {
   lead_nome: string | null
 }
 
-// ---- Tags de conversas WhatsApp --------------------------------------------
-
 export interface WaTag {
   id:         string
   unit_id:    string
   name:       string
   color:      string
   created_at: string
+}
+
+/** Tag do catálogo `wa_tags` aplicada no lead (migração 127). */
+export interface LeadTag {
+  lead_id:    string
+  tag_id:     string
+  unit_id:    string
+  criado_em:  string
+  criado_por: string | null
 }
 
 // ---- Notificações ----------------------------------------------------------

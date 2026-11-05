@@ -61,7 +61,7 @@ export default function TagsConfigClient({ initialTags }: { initialTags: WaTag[]
   }
 
   async function handleDelete(id: string, tagName: string) {
-    if (!window.confirm(`Excluir a tag "${tagName}"? Ela será removida de todas as conversas.`)) return
+    if (!window.confirm(`Excluir a tag "${tagName}"? Ela será removida de todos os clientes e conversas.`)) return
     const res = await fetch(`/api/whatsapp/tags?id=${id}`, { method: 'DELETE' })
     if (!res.ok) { setError('Erro ao excluir'); return }
     setTags(prev => prev.filter(t => t.id !== id))
@@ -70,10 +70,10 @@ export default function TagsConfigClient({ initialTags }: { initialTags: WaTag[]
   return (
     <div style={{ padding: '32px 40px', maxWidth: 600 }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: '#25402C', margin: '0 0 4px', letterSpacing: '-0.01em' }}>
-        Tags de Conversa
+        Tags
       </h1>
       <p style={{ fontSize: 14, color: '#9AA79C', marginBottom: 28 }}>
-        Classifique conversas do WhatsApp com tags coloridas e filtre por elas no atendimento.
+        Marque clientes (na ficha) e conversas do WhatsApp com tags coloridas e filtre por elas no funil, nas campanhas e no atendimento.
       </p>
 
       {/* Create form */}

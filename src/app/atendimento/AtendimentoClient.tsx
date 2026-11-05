@@ -12,7 +12,7 @@ import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
-import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import TagsBar from '@/components/whatsapp/TagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
@@ -444,7 +444,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       supabase.from('lead_notes').select('conteudo').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
       supabase.from('lead_tasks').select('*').eq('lead_id', leadId).eq('concluida', false).order('data_limite', { nullsFirst: false }),
       supabase.from('quotes').select('id,status,total_calculado,criado_em,quote_items(quantidade,nome_snapshot)').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
-      supabase.from('lead_stage_history').select('created_at').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
+      supabase.from('lead_stage_history').select('criado_em').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
       supabase.from('lead_contacts').select('*').eq('lead_id', leadId).order('created_at'),
     ])
     if (lead) setLeadDetail({
@@ -456,7 +456,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         items_summary: ((quotes[0] as any).quote_items ?? []).map((i: any) => `${i.quantidade}× ${i.nome_snapshot}`).join(', ') || null,
       } as LastQuote : null,
-      stageEntryAt: stageHistory?.[0]?.created_at ?? null,
+      stageEntryAt: stageHistory?.[0]?.criado_em ?? null,
       contacts:     (contacts ?? []) as LeadContact[],
     })
     setLoadingLead(false)
@@ -854,9 +854,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
                 onStatusChange={updateStatus} onAssignAgent={assignAgent} onAssignQueue={assignQueue}
                 contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)} />
-              <ConvTagsBar
-                convId={selectedConv.id}
-                convTags={convTags}
+              <TagsBar
+                alvo={{ tipo: 'conversa', id: selectedConv.id }}
+                tags={convTags}
                 unitTags={unitTags}
                 onTagAdded={tag => {
                   setConvTags(prev => [...prev, tag])
@@ -1106,10 +1106,6 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
     </div>
   )
 }
-
-// ── ConvTagsBar ───────────────────────────────────────────────────────────────
-
-// ConvTagsBar extracted to @/components/whatsapp/ConvTagsBar
 
 // ── ConvList ──────────────────────────────────────────────────────────────────
 

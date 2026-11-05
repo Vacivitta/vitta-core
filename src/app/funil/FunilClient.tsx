@@ -4,13 +4,19 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
-import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil, type ResumoConversas } from '@/lib/funil/resumo-conversas'
+import {
+  montarResumoConversas, montarTagsDosLeads, unirEtiquetas, SELECT_CONVERSAS_FUNIL, SELECT_TAGS_DOS_LEADS,
+  type ConversaFunil, type EtiquetaCard, type ResumoConversas, type TagDoLeadFunil,
+} from '@/lib/funil/resumo-conversas'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import PerdidosPanel from '@/components/leads/PerdidosPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
+import Link from 'next/link'
+import { isPerfilGestor } from '@/lib/auth/access'
+import { urlExportacao } from '@/lib/exportacao'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -23,6 +29,8 @@ interface Props {
   etapasAtendimento: string[]
   /** Dados das conversas por lead já calculados no servidor (1ª tela sem "pulo") */
   resumoInicial: ResumoConversas
+  /** Tags aplicadas no próprio lead (lead_tags), por lead */
+  tagsDosLeadsIniciais: Record<string, EtiquetaCard[]>
   /** Ordenação salva no cookie; null = ainda não salva (lê a preferência antiga do localStorage) */
   ordenacaoInicial: KanbanSortMode | null
 }
@@ -129,7 +137,7 @@ function salvarOrdenacao(mode: string) {
   try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, ordenacaoInicial }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial }: Props) {
   const supabase = createClient()
 
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
@@ -152,7 +160,9 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>(resumoInicial.lastDirByLead)
   const [sortMode, setSortMode]                 = useState<KanbanSortMode>(ordenacaoInicial ?? DEFAULT_KANBAN_SORT)
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>(resumoInicial.convIdByLead)
-  const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>(resumoInicial.tagsByLead)
+  const [tagsConversasByLead, setTagsConversasByLead] = useState<Record<string, EtiquetaCard[]>>(resumoInicial.tagsByLead)
+  const [tagsDosLeads, setTagsDosLeads]         = useState<Record<string, EtiquetaCard[]>>(tagsDosLeadsIniciais)
+  const tagsByLead = useMemo(() => unirEtiquetas(tagsDosLeads, tagsConversasByLead), [tagsDosLeads, tagsConversasByLead])
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
   const [msgMatchLeadIds, setMsgMatchLeadIds] = useState<Set<string> | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -216,7 +226,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         setLastMsgByLead(r.lastMsgByLead)
         setLastDirByLead(r.lastDirByLead)
         setConvIdByLead(r.convIdByLead)
-        setTagsByLead(r.tagsByLead)
+        setTagsConversasByLead(r.tagsByLead)
       })
 
     function handleConvChange(payload: { new: Record<string, unknown> }) {
@@ -272,11 +282,11 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     }
   }, [supabase])
 
-  // Carrega tags disponíveis da unidade
+  // Sem o filtro de unidade, o admin global via as tags de todas
   useEffect(() => {
-    void supabase.from('wa_tags').select('id,name,color').order('name')
+    void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id).order('name')
       .then(({ data }) => { if (data) setUnitTags(data) })
-  }, [supabase])
+  }, [supabase, currentUser.unit_id])
 
   // Carrega nomes dos contatos vinculados (dependentes/pacientes) para busca
   useEffect(() => {
@@ -321,7 +331,20 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
   const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
 
+  // Tags do lead mudam na ficha; sem Realtime em lead_tags, recarrega junto com os leads
+  async function carregarTagsDosLeads() {
+    const { data, error } = await fetchAll((from, to) => supabase
+      .from('lead_tags')
+      .select(SELECT_TAGS_DOS_LEADS)
+      .eq('unit_id', currentUser.unit_id)
+      .order('lead_id')
+      .order('tag_id')
+      .range(from, to))
+    if (!error) setTagsDosLeads(montarTagsDosLeads(data as TagDoLeadFunil[]))
+  }
+
   async function reloadLeads() {
+    void carregarTagsDosLeads()
     const { data, error } = await fetchAll((from, to) => supabase
       .from('leads_kanban')
       .select('*')
@@ -467,6 +490,32 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             <span className="hidden sm:inline">Perdidos</span>
           </button>
 
+          {isPerfilGestor(currentUser.perfil) && (
+            <>
+              <a
+                href={urlExportacao({
+                  funnel_id: selectedFunnelId, stage_ids: filters.stage_ids, responsavel_ids: filters.responsavel_ids,
+                  tag_ids: filters.tag_ids, cidade: filters.cidade, status: 'nao_perdido',
+                })}
+                download
+                className="flex items-center gap-1.5"
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
+                title="Baixar em CSV os contatos deste funil com os filtros aplicados (a busca por texto não entra)"
+              >
+                <span className="hidden sm:inline">Exportar</span>
+                <span className="sm:hidden">CSV</span>
+              </a>
+              <Link
+                href="/clientes/importar"
+                className="hidden sm:flex items-center gap-1.5"
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
+                title="Importar contatos de uma planilha CSV"
+              >
+                Importar
+              </Link>
+            </>
+          )}
+
           <button
             onClick={() => setNewConvOpen(true)}
             className="flex items-center gap-1.5 text-white"
@@ -561,7 +610,6 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         />
       </main>
 
-      {/* Painel de perdidos */}
       {showPerdidos && (
         <PerdidosPanel
           funnels={funnels}
@@ -601,7 +649,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           allFunnels={funnels}
           profiles={profiles}
           currentUser={currentUser}
-          onClose={() => setModalLead(undefined)}
+          onClose={() => { setModalLead(undefined); void carregarTagsDosLeads() }}
           onSaved={reloadLeads}
         />
       )}

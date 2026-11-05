@@ -41,7 +41,8 @@ export async function getLeadsKanban(filters?: {
 
 export async function createLead(
   lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'status' | 'ganho_em' | 'perdido_em'
-    | 'motivo_perda_id' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'telefone_norm'>
+    | 'motivo_perda_id' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'telefone_norm' | 'campos'>
+    & Partial<Pick<Lead, 'campos'>>
 ): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -69,7 +70,6 @@ export async function updateLead(
   return data
 }
 
-// ---- Status do negócio -------------------------------------------------------
 // O trigger fn_lead_status (migração 126) preenche ganho_em/perdido_em, marca
 // is_converted no ganho e limpa o motivo ao sair de perdido.
 

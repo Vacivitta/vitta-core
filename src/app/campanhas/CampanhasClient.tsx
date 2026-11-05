@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Profile }  from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from './page'
 import { formatarTelefone, normalizarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
+import { decodificarArquivo, ehPlanilhaExcel, lerCsv, registroVazio } from '@/lib/csv'
 import {
   descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar, type ResultadoLote,
 } from '@/lib/whatsapp/campanha-regras'
@@ -317,6 +318,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   // CRM source
   const [filterStage, setFilterStage] = useState('')
   const [filterFunnel, setFilterFunnel] = useState('')
+  const [filterTag, setFilterTag] = useState('')
+  const [unitTags, setUnitTags] = useState<Array<{ id: string; name: string }>>([])
   const [audienceRaw, setAudienceRaw] = useState<LeadAudience[]>([])
   const [loadingAudience, setLoadingAudience] = useState(false)
   const [includeNoOptin, setIncludeNoOptin] = useState(false)
@@ -382,8 +385,12 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   async function loadAudience() {
     if (!currentUser.unit_id) return
     setLoadingAudience(true)
-    let q = supabase.from('leads').select('id,nome,sobrenome,telefone,wa_optin_at,wa_optout_at')
-      .neq('status', 'perdido').eq('unit_id', currentUser.unit_id)
+    const colunas = 'id, nome, sobrenome, telefone, wa_optin_at, wa_optout_at'
+    // !inner: só os leads com a tag (lead_tags, migração 127)
+    let q = filterTag
+      ? supabase.from('leads').select(`${colunas}, lead_tags!inner(tag_id)`).eq('lead_tags.tag_id', filterTag)
+      : supabase.from('leads').select(colunas)
+    q = q.neq('status', 'perdido').eq('unit_id', currentUser.unit_id)
     if (filterStage)  q = q.eq('stage_id', filterStage)
     if (filterFunnel) q = q.eq('funnel_id', filterFunnel)
     const { data } = await q.limit(500)
@@ -391,7 +398,13 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     setLoadingAudience(false)
   }
 
-  useEffect(() => { if (step === 1) void loadAudience() }, [filterStage, filterFunnel]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (step === 1) void loadAudience() }, [filterStage, filterFunnel, filterTag]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!currentUser.unit_id) return
+    void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).order('name')
+      .then(({ data }) => setUnitTags(data ?? []))
+  }, [currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Verifica CSW (janela 24h) para templates Utility ao chegar no step 3
   useEffect(() => {
@@ -564,7 +577,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
 
               {/* ── CRM filters ── */}
               {audienceSource === 'crm' && (<>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
                   <div>
                     <Label>Filtrar por funil</Label>
                     <select value={filterFunnel} onChange={e => { setFilterFunnel(e.target.value); setFilterStage('') }} style={selectSt}>
@@ -581,6 +594,15 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                       ))}
                     </select>
                   </div>
+                  {unitTags.length > 0 && (
+                    <div>
+                      <Label>Filtrar por tag</Label>
+                      <select value={filterTag} onChange={e => setFilterTag(e.target.value)} style={selectSt}>
+                        <option value="">Todas as tags</option>
+                        {unitTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
@@ -821,27 +843,22 @@ const selectSt: React.CSSProperties = {
   borderRadius: 10, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#25402C', cursor: 'pointer',
 }
 
-// ── XLS Importer ─────────────────────────────────────────────────────────────
-// Parser de CSV/XLS puro no browser — sem dependências externas.
-// Aceita .csv, .xls, .xlsx (lidos como texto; xlsx binário mostra aviso).
-// Formato esperado: coluna "nome" e coluna "telefone" (qualquer ordem, header na 1ª linha).
-// Também aceita arquivo sem header se tiver exatamente 2 colunas (nome, telefone).
+// Formato esperado: coluna "nome" e coluna "telefone" (qualquer ordem, cabeçalho na 1ª linha).
+// Sem cabeçalho reconhecível, usa as duas primeiras colunas (nome, telefone).
 
 function parseRows(text: string): XlsContact[] {
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-  if (lines.length < 2) return []
+  const { registros, separador } = lerCsv(text)
+  const linhas = registros.filter(r => !registroVazio(r)).map(r => r.map(c => c.trim()))
+  if (linhas.length < 2) return []
 
-  // Detecta separador: ; ou ,
-  const sep = lines[0].includes(';') ? ';' : ','
-
-  const headers = lines[0].split(sep).map(h => h.replace(/^["']|["']$/g, '').toLowerCase().trim())
+  const headers = linhas[0].map(h => h.toLowerCase())
   const nomeIdx = headers.findIndex(h => h.includes('nome') || h.includes('name'))
   const telIdx  = headers.findIndex(h => h.includes('tel') || h.includes('fone') || h.includes('celular') || h.includes('whatsapp') || h.includes('phone') || h.includes('número') || h.includes('numero'))
 
   const results: XlsContact[] = []
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(sep).map(c => c.replace(/^["']|["']$/g, '').trim())
+  for (let i = 1; i < linhas.length; i++) {
+    const cols = linhas[i]
     if (cols.length < 2) continue
 
     let nome: string
@@ -859,7 +876,7 @@ function parseRows(text: string): XlsContact[] {
     const telefone = normalizarTelefone(rawPhone)
     if (!telefone) continue
 
-    results.push({ nome: nome || 'Contato', telefone, raw: lines[i] })
+    results.push({ nome: nome || 'Contato', telefone, raw: cols.join(separador) })
   }
 
   return results
@@ -870,46 +887,39 @@ function XlsImporter({ contacts, parsing, error, onParse, onParsing }: {
   onParse: (contacts: XlsContact[], error: string) => void
   onParsing: (v: boolean) => void
 }) {
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    // Limpa o input para permitir re-upload do mesmo arquivo
+    e.target.value = ''
     if (!file) return
     onParsing(true)
     onParse([], '')
 
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    if (ext === 'xlsx' || ext === 'xls') {
-      // xlsx binário: lê como ArrayBuffer e converte para CSV simplificado
-      // Para suporte completo a xlsx precisaria de biblioteca — avisa o usuário
-      onParsing(false)
-      onParse([], 'Para arquivos .xlsx, salve como CSV (UTF-8) no Excel e importe novamente. Arquivo → Salvar como → CSV UTF-8.')
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      try {
-        const rows = parseRows(text)
-        if (rows.length === 0) {
-          onParse([], 'Nenhum contato encontrado. Certifique-se de que o arquivo tem colunas "nome" e "telefone".')
-        } else {
-          onParse(rows, '')
-        }
-      } catch {
-        onParse([], 'Erro ao processar o arquivo.')
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      if (ehPlanilhaExcel(bytes)) {
+        onParse([], 'Para arquivos .xlsx, salve como CSV (UTF-8) no Excel e importe novamente. Arquivo → Salvar como → CSV UTF-8.')
+        return
       }
+      // O "CSV" comum do Excel BR é Windows-1252: lido como UTF-8, os acentos dos nomes viravam "�"
+      const rows = parseRows(decodificarArquivo(bytes).texto)
+      if (rows.length === 0) {
+        onParse([], 'Nenhum contato encontrado. Certifique-se de que o arquivo tem colunas "nome" e "telefone".')
+      } else {
+        onParse(rows, '')
+      }
+    } catch {
+      onParse([], 'Erro ao processar o arquivo.')
+    } finally {
       onParsing(false)
     }
-    reader.readAsText(file, 'UTF-8')
-    // Limpa o input para permitir re-upload do mesmo arquivo
-    e.target.value = ''
   }
 
   return (
     <div>
       {/* Drop zone */}
       <label style={{ display: 'block', border: '2px dashed #EBE7DA', borderRadius: 12, padding: '20px 16px', textAlign: 'center', cursor: 'pointer', background: '#FBFAF4', marginBottom: 12 }}>
-        <input type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: 'none' }} />
+        <input type="file" accept=".csv,.txt" onChange={e => void handleFile(e)} style={{ display: 'none' }} />
         <svg width="28" height="28" fill="none" stroke="#C8D6E0" strokeWidth="1.5" viewBox="0 0 24 24" style={{ marginBottom: 6 }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
