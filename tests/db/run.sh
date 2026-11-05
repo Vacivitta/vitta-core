@@ -129,7 +129,7 @@ done
 # ordem documentada, cada uma como o Infra aplica, e confere que o banco volta
 # exatamente ao estado de antes: privilégios e definição de toda função e view
 # do public. Mudou a ordem aqui, mude no CLAUDE.md e no runbook (conferido abaixo).
-ordem_pos_restore=(113 115 121 123 124 126 127 128 129 130 131 132 133 134 135 118)
+ordem_pos_restore=(113 115 121 123 124 126 127 128 129 130 131 132 133 134 135 137 118)
 texto_ordem="$(printf '%s, ' "${ordem_pos_restore[@]}")"
 texto_ordem="${texto_ordem%, }"
 for doc in CLAUDE.md docs/migracao-vps/runbook.md; do
