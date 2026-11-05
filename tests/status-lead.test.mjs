@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  etapaAoReabrir, gravacaoPerda, motivoParaAgrupar, reaberturaPorMensagem, rotuloMotivoPerda,
+  etapaAoPerder, etapaAoReabrir, gravacaoPerda, motivoParaAgrupar, reaberturaPorMensagem, rotuloMotivoPerda,
 } from '../src/lib/status-lead.ts'
 
 test('perda exige motivo, e "Outro" exige detalhe', () => {
@@ -35,6 +35,22 @@ test('reabrir pela ficha sai da etapa com resultado', () => {
   assert.equal(etapaAoReabrir({ id: 'negociacao', resultado: null }, etapas), null)
   assert.equal(etapaAoReabrir(null, etapas), null)
   assert.equal(etapaAoReabrir({ id: 'perdido', resultado: 'perdido' }, [{ id: 'perdido', ordem: 0, resultado: 'perdido' }]), null)
+})
+
+test('marcar perdido leva para a etapa de perda do funil', () => {
+  const etapas = [
+    { id: 'novo', ordem: 0, resultado: null },
+    { id: 'perdido-b', ordem: 4, resultado: 'perdido' },
+    { id: 'perdido-a', ordem: 3, resultado: 'perdido' },
+    { id: 'fechado', ordem: 2, resultado: 'ganho' },
+  ]
+  assert.equal(etapaAoPerder({ id: 'novo', resultado: null }, etapas), 'perdido-a')
+  assert.equal(etapaAoPerder({ id: 'fechado', resultado: 'ganho' }, etapas), 'perdido-a')
+  assert.equal(etapaAoPerder(null, etapas), 'perdido-a')
+  // Já numa etapa de perda (mesmo não a primeira): fica onde está
+  assert.equal(etapaAoPerder({ id: 'perdido-b', resultado: 'perdido' }, etapas), null)
+  // Funil sem etapa de perda: o lead fica só no painel Perdidos
+  assert.equal(etapaAoPerder({ id: 'novo', resultado: null }, etapas.filter(s => s.resultado !== 'perdido')), null)
 })
 
 test('mensagem recebida reabre ganho e perdido na etapa padrão', () => {

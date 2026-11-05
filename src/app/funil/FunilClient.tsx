@@ -329,7 +329,8 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
   const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
 
-  const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
+  // Os perdidos da coluna de perda (migração 131) não estão em acompanhamento
+  const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId && l.status !== 'perdido').length
 
   // Tags do lead mudam na ficha; sem Realtime em lead_tags, recarrega junto com os leads
   async function carregarTagsDosLeads() {

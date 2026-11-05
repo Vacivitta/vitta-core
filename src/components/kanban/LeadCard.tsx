@@ -83,7 +83,8 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     const changed = partesBR(new Date(lead.stage_changed_at))
     return changed.ano * 12 + changed.mes < today.ano * 12 + today.mes
   })())
-  const isSlaOverdue = isHoursSlaOverdue || isMonthlySlaOverdue
+  // Negócio perdido (coluna de perda, migração 131) não está sendo trabalhado: sem alerta de etapa
+  const isSlaOverdue = lead.status !== 'perdido' && (isHoursSlaOverdue || isMonthlySlaOverdue)
 
   const taskOverdue = lead.proxima_tarefa_data
     ? new Date(lead.proxima_tarefa_data).getTime() < now

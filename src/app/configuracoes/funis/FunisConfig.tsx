@@ -25,14 +25,17 @@ const PRESET_COLORS = [
 
 interface Props {
   initialFunnels:    FunnelWithStages[]
+  /** Leads não perdidos por etapa (número exibido) */
   initialLeadCounts: Record<string, number>
+  /** Todos os leads por etapa, inclusive perdidos: só eles bloqueiam a exclusão */
+  totalPorEtapa:     Record<string, number>
   /** Campos personalizados da unidade, inclusive desativados */
   camposLead:        CampoLead[]
 }
 
 type ConfirmFunnelAction = { id: string; type: 'deactivate' | 'delete' }
 
-export default function FunisConfig({ initialFunnels, initialLeadCounts, camposLead }: Props) {
+export default function FunisConfig({ initialFunnels, initialLeadCounts, totalPorEtapa, camposLead }: Props) {
   const [funnels,    setFunnels]    = useState<FunnelWithStages[]>(initialFunnels)
   const [selectedId, setSelectedId] = useState<string>(initialFunnels[0]?.id ?? '')
   const [leadCounts, setLeadCounts] = useState(initialLeadCounts)
@@ -58,9 +61,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, camposL
 
   const selectedFunnel = funnels.find(f => f.id === selectedId)
 
-  // Count leads across all stages of a funnel
+  // Leads (inclusive perdidos) em todas as etapas do funil: bloqueiam a exclusão
   const funnelLeadCount = (f: FunnelWithStages) =>
-    f.stages.reduce((s, st) => s + (leadCounts[st.id] ?? 0), 0)
+    f.stages.reduce((s, st) => s + (totalPorEtapa[st.id] ?? 0), 0)
 
   async function reload() {
     const fresh = await listFunnels()
@@ -117,7 +120,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, camposL
     try {
       const result = await deleteFunnel(id)
       if (!result.ok) {
-        setDeleteError(`Este funil tem ${result.leadCount} lead${result.leadCount !== 1 ? 's' : ''} ativos. Mova os leads ou marque-os como perdidos antes de excluir.`)
+        setDeleteError(`Este funil tem ${result.leadCount} lead${result.leadCount !== 1 ? 's' : ''} (inclusive perdidos). Mova os leads para outro funil antes de excluir.`)
         return
       }
       await reload()
@@ -370,7 +373,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, camposL
                           <p style={{ fontWeight: 700, color: '#DC2626', margin: '0 0 2px' }}>Excluir "{funnel.nome}" permanentemente?</p>
                           <p style={{ color: '#EF4444', margin: '0 0 8px', lineHeight: 1.4 }}>
                             {totalLeads > 0
-                              ? `Este funil tem ${totalLeads} lead${totalLeads !== 1 ? 's' : ''} ativos — mova-os antes de excluir.`
+                              ? `Este funil tem ${totalLeads} lead${totalLeads !== 1 ? 's' : ''} (inclusive perdidos) — mova-os antes de excluir.`
                               : 'Todas as etapas serão removidas. Não pode ser desfeito.'}
                           </p>
                         </>
@@ -438,6 +441,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, camposL
                           key={stage.id}
                           stage={stage}
                           leadCount={leadCount}
+                          bloqueiaExclusao={(totalPorEtapa[stage.id] ?? 0) > 0}
                           isEditingName={editingStageId === stage.id}
                           editNameValue={editStageName}
                           onEditNameChange={setEditStageName}
@@ -515,6 +519,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, camposL
 interface StageRowProps {
   stage:              FunnelStage
   leadCount:          number
+  /** Etapa com algum lead, inclusive perdido: não pode ser excluída */
+  bloqueiaExclusao:   boolean
   isEditingName:      boolean
   editNameValue:      string
   onEditNameChange:   (v: string) => void
@@ -539,7 +545,7 @@ interface StageRowProps {
 }
 
 function SortableStageRow({
-  stage, leadCount,
+  stage, leadCount, bloqueiaExclusao,
   isEditingName, editNameValue, onEditNameChange, onEditNameStart, onEditNameSave, onEditNameCancel,
   showColorPicker, onColorPickerToggle, onColorChange,
   onAlertHoursChange,
@@ -686,8 +692,8 @@ function SortableStageRow({
         </select>
 
         {/* Delete */}
-        {leadCount > 0 ? (
-          <span title="Mova os leads antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0, cursor: 'not-allowed' }}>
+        {bloqueiaExclusao ? (
+          <span title="Mova os leads (inclusive os perdidos) antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0, cursor: 'not-allowed' }}>
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
