@@ -389,6 +389,7 @@ aviso da unidade continua para quem está nela e para o admin da marca. A leitur
 3. Não cria função: fora da ordem pós-restore.
 
 Reversão: ver o cabeçalho da `136_notificacoes_por_pessoa.sql`.
+
 ## Envio sem duplicata: migração 137 ([H])
 `process-scheduled` e `process-timed-automations` passam a reservar o que vão enviar antes de chamar a Meta:
 - `reservar_mensagens_agendadas(limite)`: reserva agendadas vencidas com `FOR UPDATE SKIP LOCKED`
