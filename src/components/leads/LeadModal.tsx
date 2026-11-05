@@ -47,6 +47,8 @@ interface Props {
   onClose: () => void
   onSaved: () => void
   onLeadPatched?: (patch: Partial<LeadKanban>) => void
+  /** Aba aberta ao montar (ex.: link de notificação de menção abre Anotações) */
+  abaInicial?: string
 }
 
 type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos' | 'Informações'
@@ -103,7 +105,7 @@ export default function LeadModal(props: Props) {
 }
 
 function LeadDrawer({
-  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched,
+  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched, abaInicial,
 }: Props & { lead: LeadKanban }) {
   const [statusAtual, setStatusAtual] = useState<StatusLead>(lead.status)
   const isPerdido  = statusAtual === 'perdido'
@@ -172,7 +174,7 @@ function LeadDrawer({
   }
 
   // ── Tab ────────────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>('Atendimento')
+  const [tab, setTab] = useState<Tab>(TABS.find(t => t === abaInicial) ?? 'Atendimento')
   const anexos = useLeadAnexos(lead.id)
   const camposLead = useCamposLead(lead.id, lead.unit_id)
   const temCampos = camposDoFunil(camposLead.definicoes, lead.funnel_id).length > 0

@@ -36,6 +36,8 @@ interface Props {
   ordenacaoInicial: KanbanSortMode | null
   /** Leads arquivados da unidade (contador do botão Arquivados) */
   totalArquivadosInicial: number
+  /** Lead do link /funil?lead=<id> (notificações), já conferido no servidor */
+  leadDoLink: { lead: LeadKanban; aba: string | null } | null
 }
 
 function MultiCheckFilter({ label, selected, options, onChange }: {
@@ -148,12 +150,35 @@ function salvarOrdenacao(mode: string) {
   try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial, totalArquivadosInicial }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial, totalArquivadosInicial, leadDoLink }: Props) {
   const supabase = createClient()
 
+  // Lead de outro funil: troca o funil exibido (funil inativo fica no atual, a ficha abre igual)
+  const funilDoLink = (link: Props['leadDoLink']) =>
+    funnels.some(f => f.id === link?.lead.funnel_id) ? link!.lead.funnel_id : null
+
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
-  const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funnels[0]?.id ?? '')
-  const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funilDoLink(leadDoLink) ?? funnels[0]?.id ?? '')
+  const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(leadDoLink?.lead)
+  const [abaDoLink, setAbaDoLink]         = useState<string | null>(leadDoLink?.aba ?? null)
+
+  // Notificação clicada com o funil já aberto: o servidor manda outro leadDoLink
+  // para o mesmo componente (ajuste de estado na renderização, sem efeito)
+  const [linkVisto, setLinkVisto] = useState(leadDoLink)
+  if (leadDoLink !== linkVisto) {
+    setLinkVisto(leadDoLink)
+    if (leadDoLink) {
+      const f = funilDoLink(leadDoLink)
+      if (f) setSelectedFunnelId(f)
+      setAbaDoLink(leadDoLink.aba)
+      setModalLead(leadDoLink.lead)
+    }
+  }
+
+  // Tira ?lead= da barra: recarregar a página não reabre a ficha
+  useEffect(() => {
+    if (leadDoLink && window.location.search) window.history.replaceState(null, '', window.location.pathname)
+  }, [leadDoLink])
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
   const [showArquivados, setShowArquivados] = useState(false)
   const [totalArquivados, setTotalArquivados] = useState(totalArquivadosInicial)
@@ -671,13 +696,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       {/* Lead modal (existing leads) */}
       {modalLead !== undefined && (
         <LeadModal
+          key={modalLead?.id ?? 'novo'}
           lead={modalLead}
+          abaInicial={abaDoLink ?? undefined}
           defaultStageId={selectedFunnel.stages[0]?.id}
           funnel={selectedFunnel}
           allFunnels={funnels}
           profiles={profiles}
           currentUser={currentUser}
-          onClose={() => { setModalLead(undefined); void carregarTagsDosLeads() }}
+          onClose={() => { setModalLead(undefined); setAbaDoLink(null); void carregarTagsDosLeads() }}
           onSaved={reloadLeads}
         />
       )}
