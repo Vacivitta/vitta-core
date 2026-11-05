@@ -252,6 +252,12 @@ export interface Lead {
   updated_at:      string
 }
 
+/** Colunas geradas pelo banco (121 e 132): gravar nelas dá erro 428C9 */
+export type ColunaGeradaLead = 'telefone_norm' | 'arquivado'
+
+/** O que se pode gravar em leads (insert/update): sem as geradas nem as que o banco preenche */
+export type LeadGravavel = Omit<Lead, ColunaGeradaLead | 'id' | 'created_at' | 'updated_at'>
+
 export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos'> {
   responsavel_nome:   string | null
   responsavel_avatar: string | null
@@ -601,7 +607,8 @@ export interface LeadStageHistory {
   id:            string
   lead_id:       string
   de_stage_id:   string | null
-  para_stage_id: string
+  /** Null quando a etapa de destino foi excluída (migração 135); gravar exige destino */
+  para_stage_id: string | null
   movido_por:    string | null
   criado_em:     string
 }

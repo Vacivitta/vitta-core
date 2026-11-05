@@ -10,7 +10,7 @@ import {
 } from '@/lib/importacao'
 import { telefonesExistentes } from '@/lib/importacao-banco'
 import { resumoErro } from '@/lib/log-seguro'
-import type { CampoLead, TipoTag } from '@/types/database'
+import type { CampoLead, LeadGravavel, TipoTag } from '@/types/database'
 
 // POST /api/leads/importar — cria leads a partir de um CSV (só gestor/admin).
 // Tudo é validado de novo aqui com as mesmas regras da pré-visualização.
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     avisos: [],
   }
 
-  const base = {
+  const base: Partial<LeadGravavel> = {
     unit_id:        unitId,
     funnel_id:      pedido.funnel_id,
     stage_id:       pedido.stage_id,
@@ -174,10 +174,10 @@ interface ResultadoLote {
 async function inserirLote(
   supabase: SupabaseClient,
   lote: LinhaPronta[],
-  base: Record<string, unknown>,
+  base: Partial<LeadGravavel>,
 ): Promise<ResultadoLote> {
   const resultado: ResultadoLote = { gravados: [], existentes: [], invalidas: [], falhaGeral: null }
-  const linha = (l: LinhaPronta) => ({ ...base, ...l.dados, campos: l.campos })
+  const linha = (l: LinhaPronta): Partial<LeadGravavel> => ({ ...base, ...l.dados, campos: l.campos })
 
   const { data, error } = await supabase.from('leads').insert(lote.map(linha)).select('id, telefone_norm')
   if (!error) {

@@ -1,6 +1,6 @@
 import { createClient } from './supabase/client'
 import { etapaAoGanhar, etapaAoPerder, etapaAoReabrir } from './status-lead'
-import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
+import type { Lead, LeadGravavel, LeadKanban, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
 
 // ---- Funis ----------------------------------------------------------------
 
@@ -40,10 +40,10 @@ export async function getLeadsKanban(filters?: {
 }
 
 export async function createLead(
-  lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
+  lead: Omit<LeadGravavel, 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
     | 'status' | 'ganho_em' | 'perdido_em'
-    | 'motivo_perda_id' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'telefone_norm' | 'campos'>
-    & Partial<Pick<Lead, 'campos'>>
+    | 'motivo_perda_id' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'campos'>
+    & Partial<Pick<LeadGravavel, 'campos'>>
 ): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -59,7 +59,7 @@ export async function createLead(
 // arquivamento, só por arquivar/desarquivar
 export async function updateLead(
   id: string,
-  updates: Partial<Omit<Lead, 'telefone_norm' | 'arquivado' | 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
+  updates: Partial<Omit<LeadGravavel, 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
     | 'status' | 'ganho_em' | 'perdido_em' | 'motivo_perda_id'>>,
 ): Promise<Lead> {
   const supabase = createClient()

@@ -176,7 +176,7 @@ export default async function DashboardPage({ searchParams }: {
     movimentos: (stageHistoryRaw ?? []).map(h => ({
       lead_id:       h.lead_id as string,
       de_stage_id:   h.de_stage_id as string | null,
-      para_stage_id: h.para_stage_id as string,
+      para_stage_id: h.para_stage_id as string | null,
       criado_em:     h.criado_em as string,
       movido_via:    h.movido_via as string | null,
     })),

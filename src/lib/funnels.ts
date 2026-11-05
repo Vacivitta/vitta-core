@@ -48,9 +48,10 @@ export async function deactivateFunnel(id: string): Promise<void> {
   await updateFunnel(id, { ativo: false })
 }
 
-// Exclui permanentemente — só permite se o funil não tem nenhum lead, nem perdido:
-// as FKs de leads (funnel_id, stage_id) são ON DELETE SET NULL e o histórico de
-// etapas (para_stage_id) é apagado em cascata.
+// Exclui permanentemente — só se o funil não tem nenhum lead, nem perdido ou
+// arquivado. O banco também recusa (FKs de leads ON DELETE RESTRICT, migração 135);
+// contar antes dá a mensagem certa na tela. As etapas vão em cascata e os campos
+// personalizados do funil ficam na unidade, desativados.
 export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount: number }> {
   const supabase = createClient()
 
@@ -117,7 +118,8 @@ export async function updateStage(
 }
 
 // Só exclui etapa sem nenhum lead, inclusive perdido (a coluna de perda guarda os
-// perdidos; leads.stage_id é ON DELETE SET NULL e o histórico seria apagado)
+// perdidos). O banco também recusa (leads.stage_id ON DELETE RESTRICT, migração
+// 135); o histórico de quem passou pela etapa fica, sem o destino.
 export async function deleteStage(id: string): Promise<void> {
   const supabase = createClient()
 
