@@ -47,7 +47,7 @@ interface Props {
   estado: EstadoCampos
 }
 
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   width: '100%', borderRadius: 9, border: '1px solid #EBE7DA', padding: '5px 8px', fontSize: 12,
   outline: 'none', background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C',
 }
@@ -91,55 +91,6 @@ export default function CamposLead({ leadId, funnelId, estado }: Props) {
     if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); void salvar(c) }
   }
 
-  function editor(c: CampoLead) {
-    const texto = typeof entrada === 'string' ? entrada : ''
-    switch (c.tipo) {
-      case 'selecao':
-        return (
-          <select style={inputStyle} value={texto} autoFocus onChange={e => setEntrada(e.target.value)}>
-            <option value="">—</option>
-            {c.opcoes.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        )
-      case 'multipla': {
-        const marcadas = Array.isArray(entrada) ? entrada : []
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {c.opcoes.map(o => (
-              <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}>
-                <input type="checkbox" checked={marcadas.includes(o)}
-                  onChange={e => setEntrada(e.target.checked ? [...marcadas, o] : marcadas.filter(x => x !== o))} />
-                {o}
-              </label>
-            ))}
-          </div>
-        )
-      }
-      case 'sim_nao':
-        return (
-          <select style={inputStyle} autoFocus value={entrada === true ? 'sim' : entrada === false ? 'nao' : ''}
-            onChange={e => setEntrada(e.target.value === 'sim' ? true : e.target.value === 'nao' ? false : '')}>
-            <option value="">—</option>
-            <option value="sim">Sim</option>
-            <option value="nao">Não</option>
-          </select>
-        )
-      case 'data':
-        return <input type="date" style={inputStyle} autoFocus value={texto} onChange={e => setEntrada(e.target.value)} />
-      case 'numero':
-      case 'moeda':
-        return <input type="text" inputMode="decimal" style={inputStyle} autoFocus value={texto}
-          placeholder={c.tipo === 'moeda' ? '0,00' : ''} onChange={e => setEntrada(e.target.value)} />
-      case 'telefone':
-        return <input type="tel" style={inputStyle} autoFocus value={texto} onChange={e => setEntrada(e.target.value)} />
-      case 'email':
-        return <input type="email" style={inputStyle} autoFocus value={texto} onChange={e => setEntrada(e.target.value)} />
-      case 'texto':
-        return <textarea style={{ ...inputStyle, minHeight: 56, resize: 'vertical' }} autoFocus value={texto}
-          onChange={e => setEntrada(e.target.value)} />
-    }
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       {campos.map(c => {
@@ -148,7 +99,7 @@ export default function CamposLead({ leadId, funnelId, estado }: Props) {
           return (
             <div key={c.id} onKeyDown={e => teclas(e, c)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#71856F' }}>{c.rotulo}</span>
-              {editor(c)}
+              <EditorCampo campo={c} entrada={entrada} onChange={setEntrada} />
               {erro && <span role="alert" style={{ fontSize: 11.5, color: '#C4534A' }}>{erro}</span>}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={() => salvar(c)} disabled={salvando}
@@ -175,4 +126,59 @@ export default function CamposLead({ leadId, funnelId, estado }: Props) {
       })}
     </div>
   )
+}
+
+/** Editor do valor conforme o tipo do campo (também no modal de campos exigidos pela etapa). */
+export function EditorCampo({ campo, entrada, onChange, autoFocus = true }: {
+  campo:      CampoLead
+  entrada:    EntradaCampo
+  onChange:   (entrada: EntradaCampo) => void
+  autoFocus?: boolean
+}) {
+  const texto = typeof entrada === 'string' ? entrada : ''
+  switch (campo.tipo) {
+    case 'selecao':
+      return (
+        <select style={inputStyle} value={texto} autoFocus={autoFocus} onChange={e => onChange(e.target.value)}>
+          <option value="">—</option>
+          {campo.opcoes.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )
+    case 'multipla': {
+      const marcadas = Array.isArray(entrada) ? entrada : []
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {campo.opcoes.map(o => (
+            <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}>
+              <input type="checkbox" checked={marcadas.includes(o)}
+                onChange={e => onChange(e.target.checked ? [...marcadas, o] : marcadas.filter(x => x !== o))} />
+              {o}
+            </label>
+          ))}
+        </div>
+      )
+    }
+    case 'sim_nao':
+      return (
+        <select style={inputStyle} autoFocus={autoFocus} value={entrada === true ? 'sim' : entrada === false ? 'nao' : ''}
+          onChange={e => onChange(e.target.value === 'sim' ? true : e.target.value === 'nao' ? false : '')}>
+          <option value="">—</option>
+          <option value="sim">Sim</option>
+          <option value="nao">Não</option>
+        </select>
+      )
+    case 'data':
+      return <input type="date" style={inputStyle} autoFocus={autoFocus} value={texto} onChange={e => onChange(e.target.value)} />
+    case 'numero':
+    case 'moeda':
+      return <input type="text" inputMode="decimal" style={inputStyle} autoFocus={autoFocus} value={texto}
+        placeholder={campo.tipo === 'moeda' ? '0,00' : ''} onChange={e => onChange(e.target.value)} />
+    case 'telefone':
+      return <input type="tel" style={inputStyle} autoFocus={autoFocus} value={texto} onChange={e => onChange(e.target.value)} />
+    case 'email':
+      return <input type="email" style={inputStyle} autoFocus={autoFocus} value={texto} onChange={e => onChange(e.target.value)} />
+    case 'texto':
+      return <textarea style={{ ...inputStyle, minHeight: 56, resize: 'vertical' }} autoFocus={autoFocus} value={texto}
+        onChange={e => onChange(e.target.value)} />
+  }
 }

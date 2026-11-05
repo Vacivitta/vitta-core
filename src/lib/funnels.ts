@@ -111,7 +111,7 @@ export async function createStage(
 
 export async function updateStage(
   id: string,
-  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal' | 'resultado'>>,
+  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal' | 'resultado' | 'campos_obrigatorios'>>,
 ): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from('funnel_stages').update(updates).eq('id', id)

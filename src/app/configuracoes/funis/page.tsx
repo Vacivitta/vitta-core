@@ -2,7 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import FunisConfig from './FunisConfig'
-import type { FunnelWithStages } from '@/types/database'
+import type { CampoLead, FunnelWithStages } from '@/types/database'
 
 export const metadata = { title: 'Configurar Funis — VittaDesk' }
 
@@ -19,7 +19,7 @@ export default async function ConfigFunisPage() {
 
   const unitId = profileData.unit_id
 
-  const [{ data: funnels }, { data: stages }, { data: leadCounts }] = await Promise.all([
+  const [{ data: funnels }, { data: stages }, { data: leadCounts }, { data: campos }] = await Promise.all([
     supabase.from('funnels').select('*').eq('unit_id', unitId).order('ordem'),
     supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
     // Paginado: o Supabase corta em 1000 linhas e a contagem por etapa ficava menor
@@ -30,6 +30,8 @@ export default async function ConfigFunisPage() {
       .eq('unit_id', unitId)
       .order('id')
       .range(from, to)),
+    // Inclui os desativados: uma etapa pode ainda exigir um deles e o gestor precisa poder tirar
+    supabase.from('campos_lead').select('*').eq('unit_id', unitId),
   ])
 
   const countsByStage: Record<string, number> = {}
@@ -42,5 +44,11 @@ export default async function ConfigFunisPage() {
     stages: (stages ?? []).filter(s => s.funnel_id === f.id),
   }))
 
-  return <FunisConfig initialFunnels={funnelsWithStages} initialLeadCounts={countsByStage} />
+  return (
+    <FunisConfig
+      initialFunnels={funnelsWithStages}
+      initialLeadCounts={countsByStage}
+      camposLead={(campos ?? []) as CampoLead[]}
+    />
+  )
 }

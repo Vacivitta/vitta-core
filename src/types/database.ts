@@ -118,6 +118,8 @@ export interface FunnelStage {
   alerta_horas: number | null
   sla_mensal:   boolean
   resultado:    ResultadoEtapa | null
+  /** O que o lead precisa ter para entrar (migração 130): chaves de campos_lead e fixos 'lead:<coluna>' */
+  campos_obrigatorios: string[]
   unit_id:      string | null
   created_at:   string
 }
