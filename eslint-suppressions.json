@@ -8,12 +8,6 @@
     }
   },
   "src/app/campanhas/CampanhasClient.tsx": {
-    "react-hooks/immutability": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
     "react/no-unescaped-entities": {
       "count": 4
     }

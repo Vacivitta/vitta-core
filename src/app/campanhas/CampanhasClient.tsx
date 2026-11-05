@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile }  from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from './page'
@@ -59,6 +59,8 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
 }
 
 const USD_BRL = 5.90
+
+const SEM_LEADS: LeadAudience[] = []
 
 function fmtBrl(usd: number) {
   return (usd * USD_BRL).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -321,8 +323,11 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   const [filterFunnel, setFilterFunnel] = useState('')
   const [filterTag, setFilterTag] = useState('')
   const [unitTags, setUnitTags] = useState<Array<{ id: string; name: string }>>([])
-  const [audienceRaw, setAudienceRaw] = useState<LeadAudience[]>([])
-  const [loadingAudience, setLoadingAudience] = useState(false)
+  // Última audiência buscada e os filtros com que foi buscada
+  const [audiencia, setAudiencia] = useState<{ chave: string; leads: LeadAudience[] } | null>(null)
+  const chaveAudiencia = [filterTag, filterStage, filterFunnel].join('|')
+  const audienceRaw = audiencia?.leads ?? SEM_LEADS
+  const loadingAudience = audiencia?.chave !== chaveAudiencia
   const [includeNoOptin, setIncludeNoOptin] = useState(false)
 
   // XLS source
@@ -383,9 +388,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   const limiteValido = Number.isInteger(dailyLimit) && dailyLimit >= 1
   const diasDeEnvio = limiteValido ? Math.ceil(activeAudienceCount / dailyLimit) : 0
 
-  async function loadAudience() {
-    if (!currentUser.unit_id) return
-    setLoadingAudience(true)
+  const buscarAudiencia = useCallback(async (): Promise<LeadAudience[]> => {
+    if (!currentUser.unit_id) return []
     const colunas = 'id, nome, sobrenome, telefone, wa_optin_at, wa_optout_at'
     // !inner: só os leads com a tag (lead_tags, migração 127)
     let q = filterTag
@@ -396,29 +400,28 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     if (filterStage)  q = q.eq('stage_id', filterStage)
     if (filterFunnel) q = q.eq('funnel_id', filterFunnel)
     const { data } = await q.limit(500)
-    setAudienceRaw((data ?? []) as LeadAudience[])
-    setLoadingAudience(false)
-  }
+    return (data ?? []) as LeadAudience[]
+  }, [supabase, currentUser.unit_id, filterTag, filterStage, filterFunnel])
 
-  useEffect(() => { if (step === 1) void loadAudience() }, [filterStage, filterFunnel, filterTag]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Os filtros só existem no passo 1: busca ao abrir e a cada filtro; resposta
+  // de um filtro anterior que chegue depois é descartada
+  useEffect(() => {
+    let atual = true
+    void buscarAudiencia().then(leads => { if (atual) setAudiencia({ chave: chaveAudiencia, leads }) })
+    return () => { atual = false }
+  }, [buscarAudiencia, chaveAudiencia])
 
   useEffect(() => {
     if (!currentUser.unit_id) return
     void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).eq('tipo', 'lead').order('name')
       .then(({ data }) => setUnitTags(data ?? []))
-  }, [currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Verifica CSW (janela 24h) para templates Utility ao chegar no step 3
-  useEffect(() => {
-    if (step !== 3 || isMarketing || audience.length === 0) return
-    void checkCsw()
-  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, currentUser.unit_id])
 
   // wa_phone é o wa_id da Meta (celular às vezes sem o 9): compara pelas variantes
-  async function checkCsw() {
-    if (!currentUser.unit_id) return
+  const buscarCsw = useCallback(async (): Promise<Record<string, boolean> | null> => {
+    if (!currentUser.unit_id) return null
     const variantes = [...new Set(audience.flatMap(l => variantesTelefone(l.norm)))]
-    if (variantes.length === 0) return
+    if (variantes.length === 0) return null
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const map: Record<string, boolean> = {}
     for (let i = 0; i < variantes.length; i += 200) {
@@ -433,8 +436,16 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
         if (norm) map[norm] = true
       }
     }
-    setCswMap(map)
-  }
+    return map
+  }, [supabase, currentUser.unit_id, audience])
+
+  // Verifica CSW (janela 24h) para templates Utility ao chegar no step 3
+  useEffect(() => {
+    if (step !== 3 || isMarketing || audience.length === 0) return
+    let atual = true
+    void buscarCsw().then(map => { if (atual && map) setCswMap(map) })
+    return () => { atual = false }
+  }, [step, isMarketing, audience.length, buscarCsw])
 
   async function handleCreate() {
     if (!nome.trim())              { setError('Informe o nome da campanha.'); return }
