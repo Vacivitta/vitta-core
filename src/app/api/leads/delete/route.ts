@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
+import { removerArquivosDoLead } from '@/lib/anexos-storage'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -25,6 +26,12 @@ export async function POST(req: NextRequest) {
   const { count } = await admin.from('quotes').select('id', { count: 'exact', head: true }).eq('lead_id', id)
   if (count && count > 0) {
     return NextResponse.json({ error: `Este cliente possui ${count} orçamento(s) vinculado(s). Remova os orçamentos antes de excluir.` }, { status: 409 })
+  }
+
+  // Antes do lead: o CASCADE apaga as linhas de lead_anexos e, sem elas, os
+  // arquivos (dado de saúde) ficariam no bucket sem registro
+  if (!(await removerArquivosDoLead(admin, id, lead.unit_id))) {
+    return NextResponse.json({ error: 'Não foi possível apagar os anexos do cliente. Tente de novo.' }, { status: 500 })
   }
 
   const { error } = await admin.from('leads').delete().eq('id', id)

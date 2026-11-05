@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessUnit } from '@/lib/auth/access'
+import { moverArquivosDoLead } from '@/lib/anexos-storage'
 
 interface TransferPayload {
   leadId:      string
@@ -131,6 +132,13 @@ export async function POST(req: NextRequest) {
     admin.from('lead_tasks').update({ unit_id: targetUnitId, responsavel_id: null }).eq('lead_id', leadId),
     admin.from('lead_responsible_history').update({ unit_id: targetUnitId }).eq('lead_id', leadId),
   ])
+
+  // lead_anexos.unit_id já acompanhou o lead (trigger da 128). Falha aqui não
+  // desfaz a transferência: o caminho antigo continua válido
+  const anexosNaoMovidos = await moverArquivosDoLead(admin, leadId, targetUnitId)
+  if (anexosNaoMovidos !== 0) {
+    console.error('[leads/transfer] anexos fora do prefixo da unidade nova:', anexosNaoMovidos)
+  }
 
   // Desvincula conversas WhatsApp da unidade origem
   await admin

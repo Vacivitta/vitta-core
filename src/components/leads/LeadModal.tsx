@@ -28,6 +28,8 @@ import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
 import { avisoTelefone, normalizarTelefone, telefoneParaGravar, variantesTelefone } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { isPerfilGestor } from '@/lib/auth/access'
+import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
 
 interface Props {
   lead: LeadKanban | null
@@ -41,8 +43,8 @@ interface Props {
   onLeadPatched?: (patch: Partial<LeadKanban>) => void
 }
 
-type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
-const TABS: Tab[] = ['Atendimento', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos']
+type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos'
+const TABS: Tab[] = ['Atendimento', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos', 'Anexos']
 const DISABLED_TABS = new Set<Tab>([])
 
 interface WaConversation {
@@ -153,6 +155,7 @@ function LeadDrawer({
 
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('Atendimento')
+  const anexos = useLeadAnexos(lead.id)
 
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
   const [waConversation, setWaConversation] = useState<WaConversation | null>(null)
@@ -1406,6 +1409,9 @@ function LeadDrawer({
                     {t === 'Anotações' && notes.length > 0 && (
                       <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{notes.length}</span>
                     )}
+                    {t === 'Anexos' && anexos.anexos.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{anexos.anexos.length}</span>
+                    )}
                   </button>
                 )
               })}
@@ -1857,6 +1863,15 @@ function LeadDrawer({
                 </div>
               )
             })()}
+
+            {tab === 'Anexos' && (
+              <LeadAnexos
+                leadId={lead.id}
+                estado={anexos}
+                currentUserId={currentUser.id}
+                isGestor={isPerfilGestor(currentUser.perfil)}
+              />
+            )}
 
             {/* ═══ ATENDIMENTO ═══ */}
             {tab === 'Atendimento' && (() => {

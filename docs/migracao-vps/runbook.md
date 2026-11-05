@@ -180,3 +180,47 @@ do primeiro lote. Ordem:
    e `SELECT status_code, created FROM net._http_response ORDER BY created DESC LIMIT 5;` (200; 401 = segredo errado).
 
 Reversão: `SELECT cron.unschedule('process-wa-campaigns');` (as campanhas em `enviando` param onde estão).
+
+## Anexos do lead: migração 128 e bucket privado `lead-anexos` ([H])
+Primeiro bucket privado do projeto: guarda carteira de vacinação, pedido médico, contrato e proposta (dado de saúde,
+LGPD). Não tem policy em `storage.objects`: só o servidor (service_role) lê e grava, e o navegador recebe uma URL
+assinada de 5 minutos pela rota `GET /api/leads/[id]/anexos/[anexoId]`, depois de a rota conferir o acesso ao lead.
+
+1. Antes (só leitura): `\d storage.buckets` precisa ter `public`, `file_size_limit` e `allowed_mime_types`; e
+   `SELECT policyname, qual, with_check FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects';`
+   não pode ter policy sem filtro de `bucket_id` (policies se somam e alcançariam o bucket novo). A guarda da 128
+   aborta nos dois casos.
+2. Aplicar `128_lead_anexos.sql` como `supabase_admin`, com `--single-transaction`, **depois da 126 e da 127** (a guarda
+   recusa rodar sem elas); registrar a versão `128` e rodar
+   `notify pgrst, 'reload schema'`. Conferir: `SELECT public, file_size_limit FROM storage.buckets WHERE id = 'lead-anexos';`
+   → `f`, `20971520`; `SELECT has_function_privilege('authenticated', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE');` → `false`.
+   Depois de um restore, reaplicar 118, 121, 126, 127 e por último a 128 (idempotentes; fecham de novo o EXECUTE e
+   deixam vigente a `mesclar_leads` completa).
+3. Deploy do app. A ordem importa pouco: sem a 128 a aba Anexos mostra erro ao carregar; sem o deploy ninguém usa o bucket.
+   A 126, a 127 e a 128 recriam `mesclar_leads` inteira, cada uma partindo do corpo da anterior; a última aplicada é a
+   que vale. Reaplicar a 126 ou a 127 depois da 128 traz de volta uma versão sem `lead_anexos` (toda mesclagem aborta
+   com "chave estrangeira para leads sem tratamento"): nesse caso, reaplicar a 128 em seguida.
+
+O que muda na operação:
+- **Backup:** o `backup.sh` não está no repositório; pela etapa 4.1 ele copia "pg_dump + Storage". O storage do
+  Supabase da VPS grava os objetos de todos os buckets no mesmo volume do MinIO, com o id do bucket no caminho, então
+  copiar o volume inteiro inclui o bucket novo sem mudar o script (privado ou público não muda nada para o backup).
+  Não deu para confirmar pela leitura do script: o Infra confere uma vez, depois do primeiro anexo, que o arquivo do
+  dia tem `lead-anexos`
+  (a cópia de dados de saúde para o R2 fica sob as mesmas chaves e retenção dos demais dados). Num restore, a tabela
+  `lead_anexos` (pg_dump) e os objetos (volume) precisam vir do **mesmo** dia; um anexo sem objeto abre com
+  "Arquivo indisponível".
+- **Copiar storage entre ambientes** (`04-copiar-storage.mjs`): cria o bucket no destino com o `public` da origem, então o
+  bucket continua privado.
+- **Apagar lead:** a rota `api/leads/delete` apaga os arquivos antes do lead. Lead apagado por fora da rota (SQL,
+  Studio, PostgREST direto) deixa os arquivos no bucket: o `ON DELETE CASCADE` leva só as linhas. Para achar sobras
+  (só leitura): objetos de `lead-anexos` cujo `name` não está em `public.lead_anexos.caminho`.
+- **Transferir lead:** `lead_anexos.unit_id` acompanha o lead no mesmo `UPDATE` (trigger); a rota `api/leads/transfer`
+  move os arquivos para `<unidade nova>/<lead>/`. Se mover falhar, o anexo continua com o caminho antigo (válido) e o
+  log diz quantos ficaram. Depois de mesclar leads, os anexos do lead removido continuam no prefixo dele; `caminho` é
+  a fonte da verdade, não o prefixo.
+- **Tamanho do corpo:** `next.config.ts` sobe `experimental.proxyClientMaxBodySize` para 21 MB. Com o `src/proxy.ts`,
+  o Next entrega à rota só os primeiros 10 MB do corpo (padrão), sem erro. Se houver limite de corpo no proxy da VPS
+  (Traefik do Coolify não tem por padrão) ou no Kong/storage (`FILE_SIZE_LIMIT`, padrão 50 MB), ele precisa ser ≥ 21 MB.
+
+Reversão: ver o fim da `128_lead_anexos.sql` (os objetos do bucket precisam ser apagados pela API do storage antes).
