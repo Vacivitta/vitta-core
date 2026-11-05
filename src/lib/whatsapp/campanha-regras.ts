@@ -179,3 +179,75 @@ export function descreverStatus(
     }
   }
 }
+
+// ── Pedido de criação (POST /api/whatsapp/campaign-create) ───────────────────
+
+export interface DestinatarioNovo {
+  lead_id:   string | null
+  phone:     string
+  nome:      string
+  has_optin: boolean
+  in_csw:    boolean
+  cost_usd:  number
+}
+
+export interface PedidoCampanha {
+  nome:          string
+  template_id:   string
+  agendada_para: string | null
+  limite_diario: number
+  destinatarios: DestinatarioNovo[]
+}
+
+export const MAX_DESTINATARIOS_CAMPANHA = 20_000
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function ehObjeto(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+function lerDestinatario(v: unknown): DestinatarioNovo | null {
+  if (!ehObjeto(v)) return null
+  const { lead_id, phone, nome, has_optin, in_csw, cost_usd } = v
+  if (lead_id !== null && !(typeof lead_id === 'string' && UUID.test(lead_id))) return null
+  // Telefone já normalizado no navegador (normalizarTelefone): só dígitos
+  if (typeof phone !== 'string' || !/^\d{10,15}$/.test(phone)) return null
+  if (typeof nome !== 'string' || typeof has_optin !== 'boolean' || typeof in_csw !== 'boolean') return null
+  if (typeof cost_usd !== 'number' || !Number.isFinite(cost_usd) || cost_usd < 0 || cost_usd > 1) return null
+  return { lead_id, phone, nome, has_optin, in_csw, cost_usd }
+}
+
+/**
+ * Valida o corpo do pedido de criação de campanha. Template, unidade e leads são
+ * conferidos depois no banco (criar_campanha, migração 135).
+ */
+export function lerPedidoCampanha(body: unknown): { ok: true; pedido: PedidoCampanha } | { ok: false; erro: string } {
+  if (!ehObjeto(body)) return { ok: false, erro: 'Pedido inválido.' }
+  const { nome, template_id, agendada_para, limite_diario, destinatarios } = body
+  if (typeof nome !== 'string' || nome.trim() === '') return { ok: false, erro: 'Informe o nome da campanha.' }
+  if (typeof template_id !== 'string' || !UUID.test(template_id)) return { ok: false, erro: 'Selecione um template.' }
+  if (typeof limite_diario !== 'number' || !Number.isInteger(limite_diario) || limite_diario < 1) {
+    return { ok: false, erro: 'Informe um limite diário de pelo menos 1 envio.' }
+  }
+  let agendada: string | null = null
+  if (agendada_para !== null && agendada_para !== undefined) {
+    const d = typeof agendada_para === 'string' ? data(agendada_para) : null
+    if (!d) return { ok: false, erro: 'Data de agendamento inválida.' }
+    agendada = d.toISOString()
+  }
+  if (!Array.isArray(destinatarios) || destinatarios.length === 0) return { ok: false, erro: 'Nenhum destinatário válido.' }
+  if (destinatarios.length > MAX_DESTINATARIOS_CAMPANHA) {
+    return { ok: false, erro: `No máximo ${MAX_DESTINATARIOS_CAMPANHA} destinatários por campanha.` }
+  }
+  const lidos: DestinatarioNovo[] = []
+  for (const [i, v] of destinatarios.entries()) {
+    const d = lerDestinatario(v)
+    if (!d) return { ok: false, erro: `Destinatário ${i + 1} inválido.` }
+    lidos.push(d)
+  }
+  return {
+    ok: true,
+    pedido: { nome: nome.trim(), template_id, agendada_para: agendada, limite_diario, destinatarios: lidos },
+  }
+}

@@ -7,7 +7,8 @@ import type { CampaignRow, TemplateRow, FunnelStageRow } from './page'
 import { formatarTelefone, normalizarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import { decodificarArquivo, ehPlanilhaExcel, lerCsv, registroVazio } from '@/lib/csv'
 import {
-  descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar, type ResultadoLote,
+  descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar,
+  type DestinatarioNovo, type PedidoCampanha, type ResultadoLote,
 } from '@/lib/whatsapp/campanha-regras'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -446,58 +447,46 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
       setError('Escolha uma data de agendamento no futuro.'); return
     }
 
+    // Total e custo da campanha o banco soma dos destinatários
+    const destinatarios: DestinatarioNovo[] = audienceSource === 'xls'
+      ? xlsContacts.map(c => ({
+          lead_id:   null,
+          phone:     c.telefone,
+          nome:      c.nome,
+          has_optin: true,
+          in_csw:    false,
+          cost_usd:  isMarketing ? 0.0625 : 0.0068,
+        }))
+      : audience.map(l => ({
+          lead_id:   l.id,
+          phone:     l.norm,
+          nome:      [l.nome, l.sobrenome].filter(Boolean).join(' '),
+          has_optin: !!l.wa_optin_at,
+          in_csw:    !isMarketing && (cswMap[l.norm] ?? false),
+          cost_usd:  isMarketing ? 0.0625 : cswMap[l.norm] ? 0 : 0.0068,
+        }))
+    const pedido: PedidoCampanha = {
+      nome:          nome.trim(),
+      template_id:   selectedTemplate.id,
+      agendada_para: agendadaPara?.toISOString() ?? null,
+      limite_diario: dailyLimit,
+      destinatarios,
+    }
+
     setSaving(true); setError('')
     try {
-      const { data: campaign, error: err } = await supabase.from('wa_campaigns').insert({
-        unit_id:            currentUser.unit_id,
-        nome:               nome.trim(),
-        template_id:        selectedTemplate.id,
-        template_nome:      selectedTemplate.name,
-        template_category:  selectedTemplate.category === 'utility' ? 'utility' : 'marketing',
-        status:             agendadaPara ? 'agendada' : 'rascunho',
-        scheduled_at:       agendadaPara?.toISOString() ?? null,
-        daily_limit:        dailyLimit,
-        total_recipients:   activeAudienceCount,
-        estimated_cost_usd: costEstimate.totalUsd,
-        created_by:         currentUser.id,
-      }).select('*').single()
-
-      if (err || !campaign) throw err ?? new Error('Falha ao criar campanha')
-
-      // Monta destinatários conforme source
-      type RecipRow = {
-        campaign_id: string; lead_id: string | null; phone: string; nome: string
-        has_optin: boolean; in_csw: boolean; cost_usd: number
+      const res = await fetch('/api/whatsapp/campaign-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pedido),
+      })
+      const json = await res.json().catch(() => null) as { campanha?: CampaignRow; error?: string } | null
+      if (!res.ok || !json?.campanha) {
+        setError(json?.error ?? 'Erro ao criar campanha. Tente novamente.')
+        setSaving(false)
+        return
       }
-      const recipients: RecipRow[] = audienceSource === 'xls'
-        ? xlsContacts.map(c => ({
-            campaign_id: campaign.id,
-            lead_id:     null as string | null,
-            phone:       c.telefone,
-            nome:        c.nome,
-            has_optin:   true,
-            in_csw:      false,
-            cost_usd:    isMarketing ? 0.0625 : 0.0068,
-          }))
-        : audience.map(l => ({
-            campaign_id: campaign.id,
-            lead_id:     l.id as string | null,
-            phone:       l.norm,
-            nome:        [l.nome, l.sobrenome].filter(Boolean).join(' '),
-            has_optin:   !!l.wa_optin_at,
-            in_csw:      !isMarketing && (cswMap[l.norm] ?? false),
-            cost_usd:    isMarketing ? 0.0625 : cswMap[l.norm] ? 0 : 0.0068,
-          }))
-
-      for (let i = 0; i < recipients.length; i += 100) {
-        const { error: errRecip } = await supabase.from('wa_campaign_recipients').insert(recipients.slice(i, i + 100))
-        if (errRecip) {
-          await supabase.from('wa_campaigns').delete().eq('id', campaign.id)
-          throw errRecip
-        }
-      }
-
-      onCreated(campaign as CampaignRow)
+      onCreated(json.campanha)
     } catch {
       setError('Erro ao criar campanha. Tente novamente.')
       setSaving(false)
