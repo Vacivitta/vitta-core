@@ -820,13 +820,26 @@ function LeadDrawer({
     if (statusAtual === 'ganho' || statusSaving) return
     setStatusSaving(true)
     setStatusError('')
-    try {
-      await marcarGanho(lead.id)
+    async function ganhar() {
+      const destino = await marcarGanho(lead.id)
       setStatusAtual('ganho')
       setIsConverted(true)
+      // Senão um Salvar depois tiraria o lead da etapa de ganho (e reabriria o negócio)
+      if (destino) setForm(f => ({ ...f, stage_id: destino }))
       onSaved()
+    }
+    try {
+      await ganhar()
     } catch (err) {
-      setStatusError(err instanceof Error ? err.message : 'Erro ao marcar como ganho. Tente novamente.')
+      // A etapa de ganho pode exigir campos (130): preenche e tenta de novo
+      if (pedirObrigatorios(err, lead.funnel_id, async () => {
+        try {
+          await ganhar()
+        } catch (e) {
+          setStatusError((e as { message?: string })?.message ?? 'Erro ao marcar como ganho. Tente novamente.')
+        }
+      })) return
+      setStatusError((err as { message?: string })?.message ?? 'Erro ao marcar como ganho. Tente novamente.')
     } finally {
       setStatusSaving(false)
     }
