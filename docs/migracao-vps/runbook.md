@@ -347,6 +347,9 @@ Protege no banco o que o app já fazia e fecha duas brechas:
   (`lead_stage_history.para_stage_id` aceita NULL, `ON DELETE SET NULL`; gravar movimento continua exigindo destino).
   Funil vazio exclui como antes (etapas em cascata); os campos personalizados dele ficam na unidade, desativados, em
   vez de serem apagados.
+- Etapa ou funil usado como filtro de automação por tempo (`wa_timed_automations.filter_stage_id`/`filter_funnel_id`,
+  antes `SET NULL`) também não exclui (`ON DELETE RESTRICT`, 23503): com `SET NULL` a automação perdia o filtro e
+  passava a valer para todos os leads da unidade. O app novo diz qual automação usa; o de hoje mostra o erro do banco.
 - `criar_campanha` (SECURITY INVOKER, sob RLS) cria campanha e destinatários de uma vez; o app novo chama pela rota
   `/api/whatsapp/campaign-create`.
 - `sales_goals`: `UNIQUE NULLS NOT DISTINCT (unit_id, user_id, month)`; a meta do mês da unidade não duplica mais.

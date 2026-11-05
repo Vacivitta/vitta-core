@@ -141,6 +141,46 @@ SELECT pg_temp.esperar('motivo do funil excluído: nome copiado, lead continua p
      FROM public.leads WHERE id = pg_temp.id(103)),
   'perdido | sem id | Motivo do funil vazio');
 
+-- ── Funil/etapa usados como filtro de automação por tempo ───────────────────
+-- Funil 40 e etapa 41 vazios (sem leads). Com ON DELETE SET NULL o filtro sumia e
+-- a automação passava a valer para a unidade toda; agora a exclusão é recusada.
+INSERT INTO public.funnels (id, nome, unit_id) VALUES (pg_temp.id(40), 'Funil filtro', pg_temp.id(901));
+INSERT INTO public.funnel_stages (id, funnel_id, nome, ordem, unit_id) VALUES
+  (pg_temp.id(41), pg_temp.id(40), 'Parado', 0, pg_temp.id(901)),
+  (pg_temp.id(42), pg_temp.id(40), 'Livre', 1, pg_temp.id(901));
+INSERT INTO public.wa_timed_automations (id, unit_id, nome, condition, action, filter_funnel_id, filter_stage_id) VALUES
+  (pg_temp.id(43), pg_temp.id(901), 'Parado na etapa', 'lead_stuck_stage', 'send_template', NULL, pg_temp.id(41)),
+  (pg_temp.id(44), pg_temp.id(901), 'Sem resposta no funil', 'no_patient_reply', 'send_template', pg_temp.id(40), NULL);
+
+SELECT pg_temp.esperar('etapa vazia usada como filtro de automação não exclui',
+  pg_temp.como('authenticated', pg_temp.id(1), $c$DELETE FROM public.funnel_stages WHERE id = pg_temp.id(41)$c$),
+  'erro 23503');
+SELECT pg_temp.esperar('etapa vazia fora de filtro exclui',
+  pg_temp.como('authenticated', pg_temp.id(1), $c$DELETE FROM public.funnel_stages WHERE id = pg_temp.id(42)$c$), '1');
+SELECT pg_temp.esperar('funil vazio usado como filtro de automação não exclui',
+  pg_temp.como('authenticated', pg_temp.id(1), $c$DELETE FROM public.funnels WHERE id = pg_temp.id(40)$c$),
+  'erro 23503');
+SELECT pg_temp.esperar('filtros das automações intactos',
+  (SELECT string_agg(concat_ws(' ', nome, coalesce(filter_funnel_id::text, '-'), coalesce(filter_stage_id::text, '-')), '; ' ORDER BY nome)
+     FROM public.wa_timed_automations WHERE id IN (pg_temp.id(43), pg_temp.id(44))),
+  concat('Parado na etapa - ', pg_temp.id(41), '; Sem resposta no funil ', pg_temp.id(40), ' -'));
+
+-- Só com o filtro de etapa: a cascata do funil para as etapas esbarra nele
+DELETE FROM public.wa_timed_automations WHERE id = pg_temp.id(44);
+SELECT pg_temp.esperar('funil com etapa filtrada por automação não exclui',
+  pg_temp.como('authenticated', pg_temp.id(1), $c$DELETE FROM public.funnels WHERE id = pg_temp.id(40)$c$),
+  'erro 23503');
+-- Só com o filtro de funil
+INSERT INTO public.wa_timed_automations (id, unit_id, nome, condition, action, filter_funnel_id) VALUES
+  (pg_temp.id(44), pg_temp.id(901), 'Sem resposta no funil', 'no_patient_reply', 'send_template', pg_temp.id(40));
+DELETE FROM public.wa_timed_automations WHERE id = pg_temp.id(43);
+SELECT pg_temp.esperar('funil filtrado por automação não exclui',
+  pg_temp.como('authenticated', pg_temp.id(1), $c$DELETE FROM public.funnels WHERE id = pg_temp.id(40)$c$),
+  'erro 23503');
+DELETE FROM public.wa_timed_automations WHERE id = pg_temp.id(44);
+SELECT pg_temp.esperar('funil sem automação exclui',
+  pg_temp.como('authenticated', pg_temp.id(1), $c$DELETE FROM public.funnels WHERE id = pg_temp.id(40)$c$), '1');
+
 -- ── Criação de campanha ──────────────────────────────────────────────────────
 INSERT INTO public.wa_message_templates (id, unit_id, name, content, category) VALUES
   (pg_temp.id(301), pg_temp.id(901), 'promo_135', 'Olá {{1}}', 'marketing'),

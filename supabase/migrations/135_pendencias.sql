@@ -39,6 +39,16 @@
 --        Roda como quem exclui, sob o RLS de campos_lead (gestor da unidade ou
 --        admin global): para quem não pode alterar os campos, sobra campo
 --        apontando para o funil e o RESTRICT recusa a exclusão (23503).
+--      - wa_timed_automations.filter_funnel_id e filter_stage_id: ON DELETE
+--        RESTRICT (eram SET NULL, 070). Com SET NULL, excluir o funil ou a etapa
+--        (mesmo vazios) usados como filtro de uma automação por tempo tirava o
+--        filtro e a automação passava a valer para TODOS os leads/conversas da
+--        unidade. Agora a exclusão falha com 23503 (o app diz qual automação);
+--        excluir ou editar a automação antes. Os alvos de ação (action_stage_id
+--        da 070, wa_automations.stage_id da 032b, quote_automations.stage_id da
+--        019) ficam SET NULL: sem etapa, a automação não age (o cron e
+--        execute_quote_automation pulam; a de evento registra 'mal_configurada'),
+--        não amplia nada. Campanhas e metas não guardam funil nem etapa.
 --      - motivos_perda (ON DELETE CASCADE do funil) e leads.motivo_perda_id (SET
 --        NULL) ficam: com o funil vazio, só sobram motivos usados por leads que
 --        trocaram de funil, e o trigger trg_motivo_perda_apagado (126) copia o nome
@@ -68,13 +78,15 @@
 -- criar_campanha); não recria funções SECURITY DEFINER, a 118 reaplicada depois
 -- passa.
 --
--- Reversão (só com aprovação; a de 1 volta a apagar histórico ao excluir etapa):
+-- Reversão (só com aprovação; a de 1 volta a apagar histórico ao excluir etapa e a
+-- tirar o filtro das automações por tempo):
 --   DROP FUNCTION IF EXISTS public.criar_campanha(uuid, text, uuid, timestamptz, integer, jsonb);
 --   DROP TRIGGER IF EXISTS trg_funil_solta_campos ON public.funnels;
 --   DROP TRIGGER IF EXISTS trg_historico_destino_obrigatorio ON public.lead_stage_history;
 --   DROP FUNCTION IF EXISTS public.fn_funil_solta_campos(), public.fn_historico_destino_obrigatorio();
 --   recriar as FKs com o ON DELETE de antes (leads_stage_id_fkey e leads_funnel_id_fkey
---   SET NULL; campos_lead_funnel_id_fkey CASCADE; lead_stage_history_para_stage_id_fkey
+--   SET NULL; wa_timed_automations_filter_funnel_id_fkey e _filter_stage_id_fkey SET
+--   NULL; campos_lead_funnel_id_fkey CASCADE; lead_stage_history_para_stage_id_fkey
 --   CASCADE, depois DELETE das linhas com para_stage_id NULL e SET NOT NULL);
 --   sales_goals: DROP CONSTRAINT sales_goals_unit_id_user_id_month_key e
 --   ADD CONSTRAINT ... UNIQUE (unit_id, user_id, month).
@@ -114,7 +126,9 @@ BEGIN
       ('public.leads'::regclass, 'stage_id', 'public.funnel_stages'::regclass, 'leads_stage_id_fkey', 'r'),
       ('public.leads', 'funnel_id', 'public.funnels', 'leads_funnel_id_fkey', 'r'),
       ('public.lead_stage_history', 'para_stage_id', 'public.funnel_stages', 'lead_stage_history_para_stage_id_fkey', 'n'),
-      ('public.campos_lead', 'funnel_id', 'public.funnels', 'campos_lead_funnel_id_fkey', 'r')
+      ('public.campos_lead', 'funnel_id', 'public.funnels', 'campos_lead_funnel_id_fkey', 'r'),
+      ('public.wa_timed_automations', 'filter_funnel_id', 'public.funnels', 'wa_timed_automations_filter_funnel_id_fkey', 'r'),
+      ('public.wa_timed_automations', 'filter_stage_id', 'public.funnel_stages', 'wa_timed_automations_filter_stage_id_fkey', 'r')
     ) AS t(tabela, coluna, alvo, nome, acao)
   LOOP
     SELECT attnum INTO coluna_num FROM pg_attribute WHERE attrelid = fk.tabela AND attname = fk.coluna;
@@ -293,7 +307,9 @@ BEGIN
     FROM (VALUES ('public.leads'::regclass, 'leads_stage_id_fkey', 'r'),
                  ('public.leads', 'leads_funnel_id_fkey', 'r'),
                  ('public.lead_stage_history', 'lead_stage_history_para_stage_id_fkey', 'n'),
-                 ('public.campos_lead', 'campos_lead_funnel_id_fkey', 'r')) AS e(tabela, nome, acao)
+                 ('public.campos_lead', 'campos_lead_funnel_id_fkey', 'r'),
+                 ('public.wa_timed_automations', 'wa_timed_automations_filter_funnel_id_fkey', 'r'),
+                 ('public.wa_timed_automations', 'wa_timed_automations_filter_stage_id_fkey', 'r')) AS e(tabela, nome, acao)
     LEFT JOIN pg_constraint c ON c.conrelid = e.tabela AND c.conname = e.nome AND c.contype = 'f'
    WHERE c.oid IS NULL OR c.confdeltype <> e.acao;
   IF errado IS NOT NULL THEN
