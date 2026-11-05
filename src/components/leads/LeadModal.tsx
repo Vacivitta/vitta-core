@@ -566,7 +566,7 @@ function LeadDrawer({
       void supabase.from('wa_tags').select('id,name,color').eq('unit_id', unidade).order('name')
         .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
     }
-  }, [lead.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.unit_id, currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const id = lead.id
