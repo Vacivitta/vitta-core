@@ -57,6 +57,8 @@ export default async function DashboardPage({ searchParams }: {
     fetchAll((from, to) => supabase
       .from('leads')
       .select('id, funnel_id, stage_id, responsavel_id, status, created_at, ganho_em, perdido_em, origem, motivo_perda, motivo:motivos_perda(nome)')
+      // Arquivados (spam, engano, fornecedor...; migração 132) não são negócio: fora de todos os indicadores de leads
+      .eq('arquivado', false)
       .eq('unit_id', unitId)
       .order('id')
       .range(from, to)),

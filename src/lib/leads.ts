@@ -40,7 +40,8 @@ export async function getLeadsKanban(filters?: {
 }
 
 export async function createLead(
-  lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'status' | 'ganho_em' | 'perdido_em'
+  lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
+    | 'status' | 'ganho_em' | 'perdido_em'
     | 'motivo_perda_id' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'telefone_norm' | 'campos'>
     & Partial<Pick<Lead, 'campos'>>
 ): Promise<Lead> {
@@ -54,10 +55,12 @@ export async function createLead(
   return data
 }
 
-// Status e datas do negócio mudam só por marcarGanho/marcarPerdido/reabrir
+// Status e datas do negócio mudam só por marcarGanho/marcarPerdido/reabrir; o
+// arquivamento, só por arquivar/desarquivar
 export async function updateLead(
   id: string,
-  updates: Partial<Omit<Lead, 'telefone_norm' | 'arquivado' | 'status' | 'ganho_em' | 'perdido_em' | 'motivo_perda_id'>>,
+  updates: Partial<Omit<Lead, 'telefone_norm' | 'arquivado' | 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
+    | 'status' | 'ganho_em' | 'perdido_em' | 'motivo_perda_id'>>,
 ): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -201,11 +204,34 @@ export async function reorderLeads(updates: { id: string; ordem: number }[]): Pr
   )
 }
 
-// A view mantém o nome antigo (leads_arquivados); desde a 126 lista status = 'perdido'
-export async function getLeadsPerdidos(funnel_id?: string): Promise<LeadKanban[]> {
+// ---- Arquivamento (migração 132) -------------------------------------------
+// Arquivar tira o lead do quadro (leads_kanban) sem mudar o negócio: status,
+// motivo da perda e etapa ficam. O trigger fn_lead_arquivado grava a data e o
+// autor (o navegador não escolhe); desarquivar limpa motivo e autor.
+
+/**
+ * @param texto - Motivo já validado por motivoArquivamento (src/lib/status-lead.ts)
+ */
+export async function arquivar(id: string, texto: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('leads')
+    .update({ arquivado_em: new Date().toISOString(), arquivado_motivo: texto })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function desarquivar(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('leads').update({ arquivado_em: null }).eq('id', id)
+  if (error) throw error
+}
+
+/** Leads arquivados (painel Arquivados do funil), mais recentes primeiro. */
+export async function getLeadsArquivados(funnel_id?: string, unit_id?: string | null): Promise<LeadKanban[]> {
   const supabase = createClient()
   let query = supabase.from('leads_arquivados').select('*')
   if (funnel_id) query = query.eq('funnel_id', funnel_id)
+  if (unit_id) query = query.eq('unit_id', unit_id)
   const { data, error } = await query
   if (error) throw error
   return data as LeadKanban[]

@@ -65,9 +65,9 @@ export default function ClientesClient({
         filter: 'is_converted=eq.true',
       }, payload => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          // A lista mostra clientes com negócio não perdido (mesma regra do page.tsx)
+          // A lista mostra clientes com negócio não perdido e não arquivados (mesma regra do page.tsx)
           const lead = payload.new as Lead
-          setClients(prev => lead.status === 'perdido'
+          setClients(prev => lead.status === 'perdido' || lead.arquivado
             ? prev.filter(c => c.id !== lead.id)
             : prev.some(c => c.id === lead.id) ? prev.map(c => c.id === lead.id ? lead : c) : [lead, ...prev])
         } else if (payload.eventType === 'DELETE') {
@@ -205,7 +205,7 @@ export default function ClientesClient({
       setModal(null)
     } catch (err) {
       setError(isViolacaoUnica(err)
-        ? 'Já existe um contato com este telefone nesta unidade (pode estar em Perdidos ou ainda não ser cliente).'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar perdido, arquivado ou ainda não ser cliente).'
         : 'Erro ao salvar. Tente novamente.')
     } finally {
       setSaving(false)

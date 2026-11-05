@@ -13,15 +13,15 @@ import TagsBar from '@/components/whatsapp/TagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
-  QuoteStatus, LeadStageHistory, MotivoPerda, StatusLead,
+  QuoteStatus, LeadStageHistory, MotivoPerda, StatusLead, MotivoArquivamento,
 } from '@/types/database'
 import {
-  CONTACT_ROLE_LABELS, ORIGEM_OPTIONS, STATUS_LEAD_LABELS,
+  CONTACT_ROLE_LABELS, ORIGEM_OPTIONS, STATUS_LEAD_LABELS, MOTIVOS_ARQUIVAMENTO,
   QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, displayName,
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
-import { updateLead, marcarGanho, marcarPerdido, reabrir, getMotivosPerda } from '@/lib/leads'
-import { gravacaoPerda, rotuloMotivoPerda } from '@/lib/status-lead'
+import { updateLead, marcarGanho, marcarPerdido, reabrir, getMotivosPerda, arquivar, desarquivar } from '@/lib/leads'
+import { gravacaoPerda, motivoArquivamento, rotuloMotivoPerda } from '@/lib/status-lead'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
@@ -953,6 +953,59 @@ function LeadDrawer({
   }
   const motivoPerdaAtual = isPerdido ? rotuloMotivoPerda(lead.motivo_perda_nome ?? null, lead.motivo_perda) : null
 
+  // ── Arquivar (migração 132): tira do quadro sem mudar o negócio ───────────
+  // Mesma regra do botão Perdido: atendente não arquiva nem desarquiva pela ficha
+  const podeArquivar = podeMarcarPerdido
+  const [arquivado,     setArquivado]     = useState<boolean>(lead.arquivado)
+  const [arqMotivoAtual, setArqMotivoAtual] = useState<string | null>(lead.arquivado_motivo ?? null)
+  const [arqModal,      setArqModal]      = useState(false)
+  const [arqMotivo,     setArqMotivo]     = useState<MotivoArquivamento | null>(null)
+  const [arqDetalhe,    setArqDetalhe]    = useState('')
+  const [arqSaving,     setArqSaving]     = useState(false)
+  const [arqErro,       setArqErro]       = useState('')
+  const arqValidado = motivoArquivamento(arqMotivo, arqDetalhe)
+
+  function openArqModal() {
+    setArqModal(true)
+    setArqMotivo(null)
+    setArqDetalhe('')
+    setArqErro('')
+  }
+
+  async function handleArquivar() {
+    if (!arqValidado.ok || arqSaving) return
+    setArqSaving(true)
+    setArqErro('')
+    try {
+      await arquivar(lead.id, arqValidado.texto)
+      setArquivado(true)
+      setArqMotivoAtual(arqValidado.texto)
+      setArqModal(false)
+      onSaved()
+      handleClose()
+    } catch (err) {
+      setArqErro(err instanceof Error ? err.message : 'Erro ao arquivar.')
+    } finally {
+      setArqSaving(false)
+    }
+  }
+
+  async function handleDesarquivar() {
+    if (statusSaving) return
+    setStatusSaving(true)
+    setStatusError('')
+    try {
+      await desarquivar(lead.id)
+      setArquivado(false)
+      setArqMotivoAtual(null)
+      onSaved()
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Erro ao desarquivar. Tente novamente.')
+    } finally {
+      setStatusSaving(false)
+    }
+  }
+
   // ── Timeline ───────────────────────────────────────────────────────────────
   const timeline: TimelineItem[] = [
     ...notes.map(n  => ({ kind: 'note'  as const, id: n.id, ts: n.created_at,  note: n })),
@@ -1029,10 +1082,21 @@ function LeadDrawer({
                   Cliente
                 </span>
               )}
+              {arquivado && (
+                <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#EEF0F2', color: '#5B6470' }}>
+                  Arquivado
+                </span>
+              )}
             </div>
             {motivoPerdaAtual && (
               <p style={{ fontSize: 12, fontWeight: 600, color: '#C4534A', margin: '6px 0 0' }}>
                 Motivo da perda: {motivoPerdaAtual}
+              </p>
+            )}
+            {arquivado && (
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#5B6470', margin: '6px 0 0' }}>
+                Arquivado{lead.arquivado_em ? ` em ${format(new Date(lead.arquivado_em), 'd MMM yy', { locale: ptBR })}` : ''}
+                {arqMotivoAtual ? `: ${arqMotivoAtual}` : ''}. Fora do funil até desarquivar ou o contato mandar mensagem.
               </p>
             )}
             <p style={{ fontSize: 12, fontWeight: 600, color: '#9AA79C', margin: '6px 0 0' }}>
@@ -1083,6 +1147,23 @@ function LeadDrawer({
                       onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" d="M9 9l6 6m0-6l-6 6"/></svg>
+                    </button>
+                )}
+                {podeArquivar && (
+                    <button
+                      onClick={arquivado ? () => void handleDesarquivar() : openArqModal}
+                      disabled={statusSaving}
+                      title={arquivado ? 'Desarquivar: volta para o funil' : 'Arquivar: tira do funil (spam, engano, fornecedor...)'}
+                      aria-label={arquivado ? 'Desarquivar' : 'Arquivar'}
+                      style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: arquivado ? '#EEF0F2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: arquivado ? '#5B6470' : '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#5B6470'; e.currentTarget.style.borderColor = '#C9CED4'; e.currentTarget.style.background = '#EEF0F2' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = arquivado ? '#5B6470' : '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = arquivado ? '#EEF0F2' : 'transparent' }}
+                    >
+                      {arquivado ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-7 9v-5m0 0l-2 2m2-2l2 2" /></svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                      )}
                     </button>
                 )}
               </>
@@ -1420,6 +1501,11 @@ function LeadDrawer({
                   {statusAtual !== 'aberto' && (
                     <button onClick={handleReabrir} disabled={statusSaving} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
                       Reabrir
+                    </button>
+                  )}
+                  {podeArquivar && (
+                    <button onClick={arquivado ? () => void handleDesarquivar() : openArqModal} disabled={statusSaving} style={{ fontSize: 12, color: '#5B6470', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      {arquivado ? 'Desarquivar' : 'Arquivar'}
                     </button>
                   )}
                 </div>
@@ -2277,7 +2363,7 @@ function LeadDrawer({
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
           <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
             <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Marcar negócio como perdido</h3>
-            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato sai do funil e fica em Perdidos. Se mandar mensagem, o negócio reabre.</p>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato vai para a etapa de perda do funil. Se mandar mensagem, o negócio reabre. Spam, engano ou fornecedor? Use Arquivar.</p>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo da perda *</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {motivos === null && <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Carregando motivos...</p>}
@@ -2316,6 +2402,51 @@ function LeadDrawer({
                 style={{ flex: 1, padding: '8px', fontSize: 13, background: '#C05B3A', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!perdaValidada.ok || perdaSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
               >
                 {perdaSaving ? 'Salvando...' : 'Marcar perdido'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {arqModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
+          <div role="dialog" aria-labelledby="arquivar-titulo" style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
+            <h3 id="arquivar-titulo" style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Arquivar contato</h3>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>Sai do funil e fica no painel Arquivados. O negócio não muda. Se mandar mensagem, volta para o funil.</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo *</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              {MOTIVOS_ARQUIVAMENTO.map(m => (
+                <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${arqMotivo === m ? '#5B6470' : '#C9C3B2'}`, background: arqMotivo === m ? '#5B6470' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                    {arqMotivo === m && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                  </div>
+                  <input type="radio" name="motivo-arquivamento" value={m} checked={arqMotivo === m} onChange={() => setArqMotivo(m)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
+                  <span style={{ fontSize: 13, color: '#35543B' }}>{m}</span>
+                </label>
+              ))}
+            </div>
+            {arqMotivo && (
+              <textarea
+                autoFocus={arqMotivo === 'Outro'}
+                value={arqDetalhe}
+                onChange={e => setArqDetalhe(e.target.value)}
+                placeholder={arqMotivo === 'Outro' ? 'Descreva o motivo *' : 'Detalhe (opcional)'}
+                rows={2}
+                maxLength={300}
+                style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }}
+              />
+            )}
+            {arqErro && <p style={{ fontSize: 12, color: '#C4534A', margin: '0 0 8px' }}>{arqErro}</p>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setArqModal(false)} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={() => void handleArquivar()}
+                disabled={!arqValidado.ok || arqSaving}
+                title={arqValidado.ok ? undefined : arqValidado.erro}
+                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#5B6470', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!arqValidado.ok || arqSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
+              >
+                {arqSaving ? 'Salvando...' : 'Arquivar'}
               </button>
             </div>
           </div>

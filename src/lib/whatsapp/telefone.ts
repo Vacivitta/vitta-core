@@ -33,24 +33,24 @@ export async function buscarConversaPorTelefone(
 
 /**
  * Procura o lead da unidade pelo telefone na forma canônica (`leads.telefone_norm`).
- * Prefere o não perdido e, entre iguais, o mais recente.
+ * Prefere o não arquivado e, entre iguais, o mais recente.
  *
  * @param supabase - Cliente service-role
  * @param unitId - Unidade do lead
  * @param norm - Telefone na forma canônica (`normalizarTelefone`/`normalizarWaPhone`)
- * @returns `{ id, status, stage_id }` ou `null`
+ * @returns `{ id, status, stage_id, arquivado }` ou `null`
  */
 export async function buscarLeadPorTelefone(
   supabase: SupabaseClient,
   unitId: string,
   norm: string,
-): Promise<{ id: string; status: StatusLead; stage_id: string | null } | null> {
+): Promise<{ id: string; status: StatusLead; stage_id: string | null; arquivado: boolean } | null> {
   const { data } = await supabase
     .from('leads')
-    .select('id, status, stage_id')
+    .select('id, status, stage_id, arquivado')
     .eq('unit_id', unitId)
     .eq('telefone_norm', norm)
-    // arquivado é gerada (status = 'perdido'): false primeiro = não perdidos primeiro
+    // false primeiro = não arquivados primeiro (arquivado é gerada por arquivado_em, migração 132)
     .order('arquivado', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(1)

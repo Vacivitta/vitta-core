@@ -355,7 +355,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   } else {
     const { data: linkedLead } = await supabase
       .from('leads')
-      .select('id, status, stage_id')
+      .select('id, status, stage_id, arquivado')
       .eq('id', conv.lead_id)
       .single()
 
@@ -603,15 +603,16 @@ async function getDefaultStage(supabase: ReturnType<typeof adminClient>, unitId:
 }
 
 /**
- * Mensagem recebida de lead com negócio ganho ou perdido reabre o negócio na
- * etapa padrão da unidade (regra em reaberturaPorMensagem) e grava o histórico.
+ * Mensagem recebida de lead com negócio ganho ou perdido, ou arquivado, reabre
+ * (e desarquiva) na etapa padrão da unidade (regra em reaberturaPorMensagem) e
+ * grava o histórico.
  */
 async function reabrirPorMensagem(
   supabase: ReturnType<typeof adminClient>,
-  lead:     { id: string; status: StatusLead; stage_id: string | null },
+  lead:     { id: string; status: StatusLead; stage_id: string | null; arquivado: boolean },
   unitId:   string,
 ): Promise<void> {
-  if (lead.status === 'aberto') return
+  if (lead.status === 'aberto' && !lead.arquivado) return
   const reabertura = reaberturaPorMensagem(lead, await getDefaultStage(supabase, unitId))
   if (!reabertura) return
 
@@ -620,7 +621,7 @@ async function reabrirPorMensagem(
     console.error(`[WA webhook] erro ao reabrir lead ${lead.id}:`, resumoErro(error))
     return
   }
-  console.log(`[WA webhook] negócio ${lead.status} reaberto: ${lead.id}`)
+  console.log(`[WA webhook] lead reaberto (${lead.status}${lead.arquivado ? ', arquivado' : ''}): ${lead.id}`)
 
   if (!reabertura.historico) return
   const { error: histErr } = await supabase.from('lead_stage_history').insert({
@@ -891,6 +892,7 @@ async function fallbackAssignResponsavel(
         .select('id', { count: 'exact', head: true })
         .eq('responsavel_id', agentId)
         .neq('status', 'perdido')
+        .eq('arquivado', false)
       return { agentId, count: count ?? 0 }
     })
   )

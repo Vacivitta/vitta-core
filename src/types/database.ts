@@ -193,6 +193,20 @@ export const STATUS_LEAD_LABELS: Record<StatusLead, string> = {
   perdido: 'Perdido',
 }
 
+/**
+ * Motivos de arquivamento (lista fixa). Arquivar tira o lead do quadro sem mudar
+ * o negócio (migração 132); "Outro" exige descrição.
+ */
+export const MOTIVOS_ARQUIVAMENTO = [
+  'Spam',
+  'Contato errado ou engano',
+  'Fornecedor ou parceiro',
+  'Funcionário',
+  'Duplicado',
+  'Outro',
+] as const
+export type MotivoArquivamento = typeof MOTIVOS_ARQUIVAMENTO[number]
+
 export interface Lead {
   id:              string
   nome:            string
@@ -216,8 +230,12 @@ export interface Lead {
   motivo_perda_id: string | null
   /** Detalhe do motivo (o texto de "Outro") ou motivo antigo em texto livre */
   motivo_perda:    string | null
-  /** Coluna gerada (status = 'perdido'): só leitura */
+  /** Coluna gerada (arquivado_em IS NOT NULL, migração 132): só leitura. Independe do status */
   arquivado:       boolean
+  /** Quando foi arquivado; gravar null desarquiva (use arquivar/desarquivar em src/lib/leads.ts) */
+  arquivado_em:    string | null
+  arquivado_motivo: string | null
+  arquivado_por:   string | null
   ordem:           number
   unit_id:         string | null
   is_converted:    boolean
