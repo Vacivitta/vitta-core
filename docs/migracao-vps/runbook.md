@@ -339,3 +339,39 @@ múltipla e sim/não). Só a definição da view muda (a da 132 + `l.campos`); n
    ordem completa no CLAUDE.md. A 132 reaplicada depois da 134 passa, mas tira a coluna: reaplicar a 134 em seguida.
 
 Reversão: ver o cabeçalho da `134_kanban_campos.sql`.
+
+## Pendências das fases 1 e 2: migração 135 ([H])
+Protege no banco o que o app já fazia e fecha duas brechas:
+- Etapa ou funil com algum lead (aberto, perdido ou arquivado) não exclui mais (`leads.stage_id` e `leads.funnel_id`
+  `ON DELETE RESTRICT`, erro 23503). Excluir etapa vazia mantém o histórico de quem passou por ela
+  (`lead_stage_history.para_stage_id` aceita NULL, `ON DELETE SET NULL`; gravar movimento continua exigindo destino).
+  Funil vazio exclui como antes (etapas em cascata); os campos personalizados dele ficam na unidade, desativados, em
+  vez de serem apagados.
+- `criar_campanha` (SECURITY INVOKER, sob RLS) cria campanha e destinatários de uma vez; o app novo chama pela rota
+  `/api/whatsapp/campaign-create`.
+- `sales_goals`: `UNIQUE NULLS NOT DISTINCT (unit_id, user_id, month)`; a meta do mês da unidade não duplica mais.
+
+1. Aplicar `135_pendencias.sql` como `supabase_admin`, com `--single-transaction`, **depois da 132**; registrar a versão
+   `135` e rodar `notify pgrst, 'reload schema'`. Aborta se houver metas repetidas em `sales_goals` (a mensagem diz
+   quantos grupos; apagar as repetidas, com aprovação, e aplicar de novo). Conferir:
+   `SELECT has_function_privilege('anon', 'public.criar_campanha(uuid,text,uuid,timestamptz,integer,jsonb)', 'EXECUTE');`
+   → `false`.
+2. Ordem com o deploy: **135 primeiro, deploy depois**. O app novo cria campanha por `criar_campanha` (sem a 135, criar
+   campanha dá erro). O app de hoje funciona com a 135: não exclui etapa nem funil com leads e cria campanha pelas
+   tabelas.
+3. Não recria função SECURITY DEFINER: a 118 reaplicada depois passa. Depois de um restore, reaplicar a 135 (idempotente)
+   fecha de novo o EXECUTE de `anon` em `criar_campanha`.
+
+Reversão: ver o cabeçalho da `135_pendencias.sql` (volta a apagar histórico ao excluir etapa).
+
+## Erros do servidor no log do container
+`src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
+e-mail, token e UUID mascarados, e é ali que se investiga. O Next 16 continua imprimindo o erro cru no stdout do
+container (`docker logs`/Coolify), com a mensagem inteira, que pode trazer dados pessoais: quem imprime é o próprio Next
+(`RouteModule.onRequestError` faz `console.error(err)`, ou `logError` do servidor, logo antes de chamar o nosso
+`onRequestError`). Não há opção suportada para desligar isso no modo standalone que a imagem usa (`node server.js`):
+`logging` do `next.config` só vale para o modo dev, e a opção `quiet` (que esconde esses erros) é do servidor
+customizado (`next({ quiet: true })`), que a documentação do Next diz não funcionar junto com o standalone; trocar seria
+mudar a imagem e o deploy, fora do escopo. Também não trocamos o `console.error` global (não suportado, e esconderia os
+nossos logs). Por isso: o log do container é dado sensível (acesso só do Infra, retenção curta), e os logs que o próprio
+app escreve usam `resumoErro` (`src/lib/log-seguro.ts`), que não imprime o objeto do erro.
