@@ -666,8 +666,14 @@ export interface Notification {
   body:      string | null
   quote_id:  string | null
   lead_id:   string | null
-  lida:      boolean
   criado_em: string
+}
+
+/** Uma linha por pessoa que leu a notificação (migração 136). */
+export interface NotificationRead {
+  notification_id: string
+  user_id:         string
+  lida_em:         string
 }
 
 export type AppErrorOrigem = 'rota' | 'renderizacao' | 'acao' | 'cron' | 'webhook' | 'outro'
