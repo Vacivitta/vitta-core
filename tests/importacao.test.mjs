@@ -19,7 +19,10 @@ const CAMPOS = [
   campo('aceita_contato', 'sim_nao', { rotulo: 'Aceita contato' }),
   campo('data_evento', 'data', { rotulo: 'Data do evento' }),
 ]
-const TAGS = [{ id: 't1', name: 'Evento 2026' }, { id: 't2', name: 'VIP' }]
+const TAGS = [
+  { id: 't1', name: 'Evento 2026', tipo: 'lead' }, { id: 't2', name: 'VIP', tipo: 'lead' },
+  { id: 't3', name: 'Retorno', tipo: 'conversa' },
+]
 const CTX = { campos: CAMPOS, tags: TAGS, origemPadrao: 'Evento', funnelId: 'f1', exigidos: [], responsavelId: null }
 
 test('sugere o mapeamento pelo cabeçalho, com acentos e sinônimos, sem repetir destino', () => {
@@ -109,6 +112,12 @@ test('linhas inválidas trazem o motivo; campo personalizado inválido invalida 
   assert.deepEqual(gil.campos, { valor_estimado: 10.5 })
   assert.deepEqual(gil.tagIds.sort(), ['t1', 't2'])
   assert.deepEqual(r.tagsDesconhecidas, ['Inexistente'])
+})
+
+test('tags da planilha casam só com tags de cliente; a de conversa com o mesmo nome é desconhecida', () => {
+  const r = preparar('nome;telefone;email;valor;tags;origem\nIvo;31944443333;;;VIP, retorno;\n')
+  assert.deepEqual(r.linhas[0].tagIds, ['t2'])
+  assert.deepEqual(r.tagsDesconhecidas, ['retorno'])
 })
 
 test('origem padrão vale quando a linha não tem; apóstrofo anti-fórmula de export é desfeito', () => {

@@ -1,4 +1,4 @@
-import type { CampoLead, CamposDoLead, ValorCampo } from '@/types/database'
+import type { CampoLead, CamposDoLead, TipoTag, ValorCampo } from '@/types/database'
 import { chaveDoRotulo, valorDaEntrada, valorValido, type EntradaCampo, type ResultadoEntrada } from './campos.ts'
 import { desfazerCelulaSegura, registroVazio } from './csv.ts'
 import { ERRO_OBRIGATORIOS, faltandoNoLead, rotuloObrigatorio } from './obrigatorios.ts'
@@ -205,7 +205,8 @@ export interface Preparacao {
 export interface ContextoImportacao {
   /** Campos que valem para o funil de destino (camposDoFunil) */
   campos:       readonly CampoLead[]
-  tags:         readonly { id: string; name: string }[]
+  /** Catálogo da unidade; só as tags de cliente (tipo 'lead', migração 133) casam com a planilha */
+  tags:         readonly { id: string; name: string; tipo: TipoTag }[]
   /** Origem gravada quando a linha não tem uma */
   origemPadrao: string | null
   funnelId:      string
@@ -226,7 +227,7 @@ export function prepararImportacao(
   mapeamento: readonly Destino[],
   ctx: ContextoImportacao,
 ): Preparacao {
-  const tagPorNome = new Map(ctx.tags.map(t => [comparavel(t.name), t.id]))
+  const tagPorNome = new Map(ctx.tags.filter(t => t.tipo === 'lead').map(t => [comparavel(t.name), t.id]))
   const campoPorChave = new Map(ctx.campos.map(c => [c.chave, c]))
   const desconhecidas = new Map<string, string>()
   const primeiraPorTelefone = new Map<string, number>()

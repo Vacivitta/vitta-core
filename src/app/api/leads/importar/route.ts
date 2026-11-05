@@ -10,7 +10,7 @@ import {
 } from '@/lib/importacao'
 import { telefonesExistentes } from '@/lib/importacao-banco'
 import { resumoErro } from '@/lib/log-seguro'
-import type { CampoLead } from '@/types/database'
+import type { CampoLead, TipoTag } from '@/types/database'
 
 // POST /api/leads/importar — cria leads a partir de um CSV (só gestor/admin).
 // Tudo é validado de novo aqui com as mesmas regras da pré-visualização.
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 }
 
 type Destino =
-  | { campos: CampoLead[]; tags: { id: string; name: string }[]; exigidos: string[] }
+  | { campos: CampoLead[]; tags: { id: string; name: string; tipo: TipoTag }[]; exigidos: string[] }
   | { erro: string; status: number }
 
 async function conferirDestino(supabase: SupabaseClient, unitId: string, pedido: PedidoImportacao): Promise<Destino> {
@@ -130,7 +130,7 @@ async function conferirDestino(supabase: SupabaseClient, unitId: string, pedido:
     supabase.from('funnels').select('id').eq('id', pedido.funnel_id).eq('unit_id', unitId).eq('ativo', true).maybeSingle(),
     supabase.from('funnel_stages').select('id, resultado, campos_obrigatorios').eq('id', pedido.stage_id).eq('funnel_id', pedido.funnel_id).maybeSingle(),
     supabase.from('campos_lead').select('*').eq('unit_id', unitId),
-    supabase.from('wa_tags').select('id, name').eq('unit_id', unitId),
+    supabase.from('wa_tags').select('id, name, tipo').eq('unit_id', unitId).eq('tipo', 'lead'),
   ])
   if (!funil) return { erro: 'Funil não encontrado nesta unidade', status: 400 }
   if (!etapa) return { erro: 'Etapa não encontrada neste funil', status: 400 }
@@ -149,7 +149,7 @@ async function conferirDestino(supabase: SupabaseClient, unitId: string, pedido:
 
   return {
     campos:   camposDoFunil((campos ?? []) as CampoLead[], pedido.funnel_id),
-    tags:     tags ?? [],
+    tags:     (tags ?? []) as { id: string; name: string; tipo: TipoTag }[],
     exigidos: (etapa.campos_obrigatorios ?? []) as string[],
   }
 }

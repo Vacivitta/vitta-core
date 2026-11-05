@@ -34,7 +34,7 @@ test('data em dd/mm/aaaa no horário de Brasília', () => {
   assert.equal(dataBR('x'), '')
 })
 
-test('linha exportada: nomes, status, motivo, cliente, tags, campos e proteção contra fórmula', () => {
+test('linha exportada: nomes, status, motivo, cliente, tags do cliente e das conversas, campos e proteção contra fórmula', () => {
   const campos = [
     { id: 'c1', unit_id: 'u', funnel_id: null, chave: 'valor', rotulo: 'Valor', ordem: 0, ativo: true, criado_em: '', tipo: 'moeda', opcoes: null },
     { id: 'c2', unit_id: 'u', funnel_id: null, chave: 'evento', rotulo: 'Evento', ordem: 1, ativo: true, criado_em: '', tipo: 'data', opcoes: null },
@@ -45,7 +45,8 @@ test('linha exportada: nomes, status, motivo, cliente, tags, campos e proteção
     etapas: new Map([['s', 'Perdido']]),
     motivos: new Map([['m', 'Outro']]),
     responsaveis: new Map([['r', 'Maria']]),
-    tagsPorLead: new Map([['l1', ['VIP', 'Evento']]]),
+    tagsDoCliente: new Map([['l1', ['VIP', 'Evento']]]),
+    tagsDasConversas: new Map([['l1', ['Retorno']]]),
   }
   const lead = {
     id: 'l1', nome: '=Ana', sobrenome: 'Silva', telefone: '+12125551234', email: 'ana@x.com', origem: 'Evento',
@@ -54,17 +55,18 @@ test('linha exportada: nomes, status, motivo, cliente, tags, campos e proteção
     arquivado: false, arquivado_motivo: null,
   }
   assert.deepEqual(cabecalhoExportacao(campos).slice(-4), ['Valor', 'Evento', 'Criado em', 'Arquivado'])
+  assert.deepEqual(cabecalhoExportacao(campos).slice(10, 13), ['Responsável', 'Tags do cliente', 'Tags das conversas'])
   const linha = linhaExportacao(lead, ctx)
-  assert.deepEqual(linha.slice(0, 12), [
+  assert.deepEqual(linha.slice(0, 13), [
     '=Ana Silva', '+12125551234', 'ana@x.com', 'Evento', 'Itu', 'Vendas', 'Perdido', 'Perdido', 'Outro: mudou de cidade',
-    'Sim', 'Maria', 'VIP, Evento',
+    'Sim', 'Maria', 'VIP, Evento', 'Retorno',
   ])
-  assert.equal(linha[12].replace(/\s/g, ' '), 'R$ 1.234,50')
-  assert.equal(linha[13], '05/03/2026')
-  assert.equal(linha[14], '10/01/2026')
-  assert.equal(linha[15], '')
-  assert.equal(linhaExportacao({ ...lead, arquivado: true, arquivado_motivo: 'Spam' }, ctx)[15], 'Spam')
-  assert.equal(linhaExportacao({ ...lead, arquivado: true, arquivado_motivo: null }, ctx)[15], 'Sim')
+  assert.equal(linha[13].replace(/\s/g, ' '), 'R$ 1.234,50')
+  assert.equal(linha[14], '05/03/2026')
+  assert.equal(linha[15], '10/01/2026')
+  assert.equal(linha[16], '')
+  assert.equal(linhaExportacao({ ...lead, arquivado: true, arquivado_motivo: 'Spam' }, ctx)[16], 'Spam')
+  assert.equal(linhaExportacao({ ...lead, arquivado: true, arquivado_motivo: null }, ctx)[16], 'Sim')
 
   const csv = gerarCsv([cabecalhoExportacao(campos), linha])
   const [, lida] = lerCsv(csv).registros
@@ -74,5 +76,5 @@ test('linha exportada: nomes, status, motivo, cliente, tags, campos e proteção
   const aberto = linhaExportacao({ ...lead, status: 'aberto', is_converted: false, campos: null }, ctx)
   assert.equal(aberto[8], '')
   assert.equal(aberto[9], 'Não')
-  assert.equal(aberto[12], '')
+  assert.equal(aberto[13], '')
 })

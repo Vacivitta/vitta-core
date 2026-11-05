@@ -403,7 +403,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
 
   useEffect(() => {
     if (!currentUser.unit_id) return
-    void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).order('name')
+    void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).eq('tipo', 'lead').order('name')
       .then(({ data }) => setUnitTags(data ?? []))
   }, [currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -597,7 +597,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                   </div>
                   {unitTags.length > 0 && (
                     <div>
-                      <Label>Filtrar por tag</Label>
+                      <Label>Filtrar por tag do cliente</Label>
                       <select value={filterTag} onChange={e => setFilterTag(e.target.value)} style={selectSt}>
                         <option value="">Todas as tags</option>
                         {unitTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

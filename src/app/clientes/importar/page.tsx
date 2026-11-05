@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isPerfilGestor } from '@/lib/auth/access'
 import ImportarClient, { type FunilImportacao } from './ImportarClient'
-import type { CampoLead } from '@/types/database'
+import type { CampoLead, TipoTag } from '@/types/database'
 
 export const metadata = { title: 'Importar contatos — VittaDesk' }
 
@@ -25,7 +25,7 @@ export default async function ImportarPage() {
       supabase.from('profiles').select('id, full_name').eq('unit_id', unitId).order('full_name'),
       supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
       supabase.from('campos_lead').select('*').eq('unit_id', unitId).eq('ativo', true).order('ordem').order('rotulo'),
-      supabase.from('wa_tags').select('id, name').eq('unit_id', unitId).order('name'),
+      supabase.from('wa_tags').select('id, name, tipo').eq('unit_id', unitId).eq('tipo', 'lead').order('name'),
     ])
 
   let responsaveis = (perfis ?? []) as { id: string; full_name: string | null }[]
@@ -50,7 +50,7 @@ export default async function ImportarPage() {
       funis={funisComEtapas}
       responsaveis={responsaveis.map(p => ({ id: p.id, nome: p.full_name ?? 'Sem nome' }))}
       campos={(campos ?? []) as CampoLead[]}
-      tags={(tags ?? []) as { id: string; name: string }[]}
+      tags={(tags ?? []) as { id: string; name: string; tipo: TipoTag }[]}
     />
   )
 }
