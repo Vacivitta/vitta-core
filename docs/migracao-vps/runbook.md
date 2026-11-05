@@ -137,12 +137,12 @@ Resolvidas: `WHATSAPP_APP_ID`/`WHATSAPP_APP_SECRET` no Coolify (validados na Met
 - **Cada migração nova** (090 em diante): aplicar com `--single-transaction`, registrar a versão **como `supabase_admin`** (`INSERT ... (version, name) VALUES ('0NN', '<nome>') ON CONFLICT DO NOTHING`) e rodar `notify pgrst, 'reload schema'`. No Postgres 15.8 da produção, `postgres` não é superusuário e não grava no registro, de propósito (só lê, por ser membro de `pg_read_all_data`).
 - **Nunca usar a CLI do Supabase contra a produção** (`db push`, `migration repair`, `db reset`): ela tentaria aplicar 001–089.
 - **Papel:** migração com GRANT/REVOKE ou que substitui função `SECURITY DEFINER` roda como `supabase_admin`. Como `postgres`, o REVOKE não tem efeito e só gera aviso.
-- **Depois de qualquer restauração do backup (OBRIGATÓRIO): ordem pós-restore.** O restore recria as funções com o privilégio padrão (EXECUTE para `authenticated`; `anon` fechado pela 091) e sem os REVOKE das migrações; o teste de restauração de 29/10 mostrou isso nas 12 funções restritas da 118. Reaplicar, como `supabase_admin`, cada uma com `--single-transaction` (registrar versão não precisa: já estão no registro), **nesta ordem exata: 113, 115, 121, 123, 124, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 137, 118** — a mesma do CLAUDE.md, e o `tests/db/run.sh` simula o restore, aplica essa ordem e confere que privilégios e definições de toda função e view do `public` voltam ao estado de antes. Por quê:
+- **Depois de qualquer restauração do backup (OBRIGATÓRIO): ordem pós-restore.** O restore recria as funções com o privilégio padrão (EXECUTE para `authenticated`; `anon` fechado pela 091) e sem os REVOKE das migrações; o teste de restauração de 29/10 mostrou isso nas 12 funções restritas da 118. Reaplicar, como `supabase_admin`, cada uma com `--single-transaction` (registrar versão não precisa: já estão no registro), **nesta ordem exata: 113, 115, 121, 123, 124, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 137, 138, 118** — a mesma do CLAUDE.md, e o `tests/db/run.sh` simula o restore, aplica essa ordem e confere que privilégios e definições de toda função e view do `public` voltam ao estado de antes. Por quê:
   - **118 por último**: a guarda dela aborta se alguma `SECURITY DEFINER` estiver aberta para `authenticated` fora da lista dela, e depois do restore estão abertas as de 121–133 (`mesclar_leads`, `registrar_erro_app`, funções de `lead_tags`, `lead_anexos` e de tags por tipo). A 090 não serve mais (a guarda dela é anterior à `is_gestor()`).
   - **113 e 115** fecham de novo as funções de trigger `fn_guard_lead_unit_change` e `fn_guard_unit_tipo`; **123** e **124** fecham `reservar_destinatarios_campanha` e `registrar_erro_app`.
   - **121 → 126 → 127 → 128 → 129**: cada uma recria `mesclar_leads` inteira a partir da anterior; a 129 tem de ser a última delas (parar antes traz uma versão que perde o status, recusa toda mesclagem ou perde os campos do lead removido).
   - **126 → 131 → 132 → 134**: 126 recria `leads_kanban`/`leads_arquivados` e `execute_quote_automation` com as regras antigas; 131 traz de volta a versão da automação que leva o perdido à etapa de perda; 132 recria as duas views com a regra do arquivamento (a 131 depois dela aborta: reaplicar a 132 de novo); 134 acrescenta `campos` à `leads_kanban` e só roda sobre a forma da 132. A 126 reaplicada não mexe em arquivamentos (`arquivado` é gerada).
-  - **130** depois da 129 (depende dela), **133** depois da 132 e antes da 118, **135** depois da 132 (fecha as funções de trigger dela e o `anon` de `criar_campanha`), **137** em qualquer ponto antes da 118 (fecha o `authenticated` de `reservar_mensagens_agendadas` e `reservar_disparo_por_tempo`).
+  - **130** depois da 129 (depende dela), **133** depois da 132 e antes da 118, **135** depois da 132 (fecha as funções de trigger dela e o `anon` de `criar_campanha`), **137** em qualquer ponto antes da 118 (fecha o `authenticated` de `reservar_mensagens_agendadas` e `reservar_disparo_por_tempo`), **138** em qualquer ponto antes da 118 (fecha `fn_quote_expirado_automacao`).
   Conferir depois com `has_function_privilege`: `anon` = `false` em todas as funções `SECURITY DEFINER` e `authenticated` = `true` só em `is_global_admin`, `is_admin`, `is_gestor`, `get_agent_stats` e nas duas `record_stage_history`. Migração nova que crie função com REVOKE, recrie função ou view destas entra nesta ordem (e no `ordem_pos_restore` do `tests/db/run.sh`, que confere que este texto e o CLAUDE.md trazem a mesma sequência).
 
 ## Campanhas de WhatsApp: migração 123 e job `process-wa-campaigns` (passo manual, [H])
@@ -409,6 +409,21 @@ Reversão: ver o cabeçalho da `136_notificacoes_por_pessoa.sql`.
 3. Depois de um restore, reaplicar a 137 (idempotente, na ordem pós-restore) fecha de novo o EXECUTE das duas funções.
 
 Reversão: ver o cabeçalho da `137_reserva_envios.sql`.
+
+## Orçamento expirado dispara automação: migração 138 ([H])
+Trigger `trg_quote_expirado_automacao` em `quotes`: na passagem para `expirado` (cron `check-expiring`, página
+`/orcamento` ou qualquer outro caminho), se a unidade tem regra ativa de expirado em `quote_automations`, chama
+`execute_quote_automation` e grava a execução em `automation_runs` (gatilho `quote_expirado`). Falha da automação é
+registrada e não desfaz a expiração. Os orçamentos que já estão expirados não disparam.
+
+1. Aplicar `138_orcamento_expirado_automacao.sql` como `supabase_admin`, com `--single-transaction`; registrar a
+   versão `138` e rodar `notify pgrst, 'reload schema'`. Conferir:
+   `SELECT has_function_privilege('authenticated', 'public.fn_quote_expirado_automacao()', 'EXECUTE');` → `false`.
+2. Não depende de deploy: o app de hoje já dispara a regra ao expirar. O app desta versão só mostra as execuções de
+   orçamento com nome na tela de Automações.
+3. Depois de um restore, reaplicar a 138 (idempotente, na ordem pós-restore) fecha de novo o EXECUTE da função.
+
+Reversão: ver o cabeçalho da `138_orcamento_expirado_automacao.sql`.
 
 ## Erros do servidor no log do container
 `src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
