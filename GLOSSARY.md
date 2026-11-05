@@ -25,8 +25,16 @@ Unidade operada por um licenciado.
 _Avoid_: Franquia, unidade parceira
 
 **Modelo de unidade**:
-Pacote de configuração mantido pela marca (funis, campos, tags, tipos de serviço, horários, fluxos) copiado para uma unidade quando ela é criada.
+Pacote de configuração mantido pela marca (funis, campos, tags, tipos de serviço, horários, fluxos) copiado para uma unidade quando a marca a cria.
 _Avoid_: Template, preset
+
+**Clonar unidade**:
+Criar uma unidade copiando a configuração de outra unidade do mesmo licenciado; é como o licenciado cria unidades, além de começar do zero.
+_Avoid_: Duplicar, copiar modelo
+
+**Gestor do licenciado**:
+Papel de quem administra todas as unidades de um licenciado: cria unidades e usuários e configura, sem ver outros licenciados nem as unidades próprias.
+_Avoid_: Admin do franqueado, dono
 
 **Usuário**:
 Pessoa que entra no VittaDesk, vinculada a uma ou mais unidades com um papel em cada (atendente, gestor).
