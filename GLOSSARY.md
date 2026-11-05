@@ -94,6 +94,14 @@ _Avoid_: Canal, instância, número
 A troca de mensagens de uma conexão com um contato ou com um grupo.
 _Avoid_: Chat, atendimento, ticket
 
+**Portal do cliente**:
+Página que o contato (paciente ou licenciado) abre por link com código, sem senha, para ver seus orçamentos, tickets e, no futuro, a carteira de vacinação.
+_Avoid_: Área do cliente, app do paciente
+
+**Dose aplicada**:
+Registro de que uma vacina foi aplicada num contato (data, dose); vem do RNDS/SI-PNI quando possível, senão do sistema clínico ou de registro manual.
+_Avoid_: Aplicação, vacinação, atendimento
+
 **Grupo**:
 Conversa com vários participantes, só disponível em conexões por QR Code.
 _Avoid_: Comunidade, lista
