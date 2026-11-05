@@ -271,7 +271,10 @@ perda no mesmo update do status e grava o histórico com `movido_via = 'perdido'
    ainda marca perdido sem mudar a etapa, e esses leads somem do quadro até o deploy; reaplicar a 131 depois do deploy
    (idempotente) os leva para a etapa de perda. Com o deploy antes da 131, quem é marcado perdido já vai para a etapa de
    perda, mas só aparece no quadro depois da 131 (até lá, só no painel Perdidos, como hoje).
-3. A 131 não recria `mesclar_leads` nem funções `SECURITY DEFINER`. Depois de um restore, reaplicá-la **depois da 126**:
-   a 126 recria `leads_kanban` escondendo todos os perdidos.
+3. A 131 também recria `execute_quote_automation` (corpo da 126): o ramo `archive` move o lead para a etapa de perda
+   e grava o histórico (`movido_via = 'perdido'`). Conferir: `SELECT has_function_privilege('authenticated',
+   'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE');` → `false`. Não recria `mesclar_leads`. Depois
+   de um restore, reaplicá-la **depois da 126** (a 126 recria `leads_kanban` escondendo todos os perdidos e a
+   automação sem mover a etapa); a 118 reaplicada depois dela passa.
 
 Reversão: ver o cabeçalho da `131_perdido_na_etapa.sql`.

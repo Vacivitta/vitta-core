@@ -29,6 +29,11 @@
 --      barra (só 'authenticated'; etapa de perda não exige nada),
 --      trg_stage_changed_at (004) e o Realtime avisam os quadros abertos.
 --      NOTICE com quantos foram movidos.
+--   3. execute_quote_automation (corpo da 126): o ramo 'archive' também move o
+--      lead para a etapa de perda do funil, quando existe e ele não está numa,
+--      no mesmo update do status (o motivo da automação fica), e grava o
+--      histórico com movido_via 'perdido' e movido_por NULL (automação).
+--      Continua SECURITY DEFINER, search_path public, só service_role executa.
 --
 -- O app (marcarPerdido em src/lib/leads.ts) passa a gravar a etapa de perda no
 -- mesmo update do status e o histórico com movido_via 'perdido'.
@@ -37,14 +42,16 @@
 -- Aplicar em produção é [H]: o Infra aplica, com aprovação e backup do dia,
 -- como supabase_admin, com --single-transaction; depois registra a versão '131'
 -- e roda notify pgrst, 'reload schema'. Sem BEGIN/COMMIT. Idempotente. Pode ir
--- antes ou depois do deploy do app (ver runbook). Não recria mesclar_leads nem
--- funções SECURITY DEFINER. Depois de um restore, reaplicar DEPOIS da 126 (que
--- recria leads_kanban escondendo todos os perdidos): ver CLAUDE.md.
+-- antes ou depois do deploy do app (ver runbook). Não recria mesclar_leads.
+-- Depois de um restore, reaplicar DEPOIS da 126 (que recria leads_kanban
+-- escondendo todos os perdidos e execute_quote_automation sem mover a etapa):
+-- ver CLAUDE.md. A 118 reaplicada depois desta passa (só fecha o EXECUTE).
 --
--- Reversão (só com aprovação): recriar leads_kanban como na 126 (WHERE
--- l.status <> 'perdido'). Os leads movidos ficam na etapa de perda (continuam
--- perdidos); para devolvê-los, os registros com movido_via = 'perdido' gravados
--- por esta migração (movido_por NULL) têm a etapa de origem em de_stage_id.
+-- Reversão (só com aprovação): recriar leads_kanban e execute_quote_automation
+-- como na 126 (WHERE l.status <> 'perdido'; ramo 'archive' só com o status).
+-- Os leads movidos ficam na etapa de perda (continuam perdidos); para
+-- devolvê-los, os registros com movido_via = 'perdido' e movido_por NULL têm a
+-- etapa de origem em de_stage_id.
 
 SET LOCAL lock_timeout = '5s';
 
@@ -150,13 +157,92 @@ BEGIN
   RAISE NOTICE '131: % lead(s) perdido(s) movido(s) para a etapa de perda do funil (% sem etapa antes)', movidos, sem_etapa;
 END $$;
 
--- ── 3. Conferência ───────────────────────────────────────────────────────────
+-- ── 3. Automação de orçamento: 'archive' leva para a etapa de perda ──────────
+CREATE OR REPLACE FUNCTION public.execute_quote_automation(
+  p_unit_id      uuid,
+  p_lead_id      uuid,
+  p_quote_status text,
+  p_motivo       text DEFAULT NULL
+)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path = public
+AS $function$
+DECLARE
+  v_action        TEXT;
+  v_stage_id      UUID;
+  v_old_stage_id  UUID;
+  v_stage_perda   UUID;
+BEGIN
+  SELECT action, stage_id
+    INTO v_action, v_stage_id
+    FROM quote_automations
+   WHERE unit_id      = p_unit_id
+     AND quote_status = p_quote_status
+     AND ativo        = TRUE
+   LIMIT 1;
+
+  IF v_action IS NULL OR v_action = 'none' THEN
+    RETURN;
+  END IF;
+
+  IF v_action = 'move_stage' AND v_stage_id IS NOT NULL THEN
+    SELECT stage_id INTO v_old_stage_id FROM leads WHERE id = p_lead_id;
+    UPDATE leads SET stage_id = v_stage_id WHERE id = p_lead_id;
+
+    IF v_old_stage_id IS DISTINCT FROM v_stage_id THEN
+      INSERT INTO lead_stage_history (lead_id, de_stage_id, para_stage_id, movido_por)
+      VALUES (p_lead_id, v_old_stage_id, v_stage_id, NULL); -- NULL = automação
+    END IF;
+
+  ELSIF v_action = 'archive' THEN
+    -- Etapa de perda do funil (a de menor ordem), se o lead ainda não está numa
+    SELECT l.stage_id,
+           CASE WHEN atual.resultado = 'perdido' THEN NULL ELSE (
+             SELECT fs.id FROM funnel_stages fs
+              WHERE fs.funnel_id = l.funnel_id AND fs.resultado = 'perdido'
+              ORDER BY fs.ordem, fs.id
+              LIMIT 1) END
+      INTO v_old_stage_id, v_stage_perda
+      FROM leads l
+      LEFT JOIN funnel_stages atual ON atual.id = l.stage_id
+     WHERE l.id = p_lead_id;
+
+    -- Status e etapa no mesmo comando: fn_lead_status mantém o motivo abaixo
+    UPDATE leads
+       SET status          = 'perdido',
+           motivo_perda_id = NULL,
+           motivo_perda    = CASE
+             WHEN p_quote_status = 'recusado'
+             THEN CONCAT('Orçamento recusado: ', COALESCE(p_motivo, '—'))
+             ELSE 'Perdido por automação de orçamento'
+           END,
+           stage_id        = COALESCE(v_stage_perda, stage_id)
+     WHERE id = p_lead_id;
+
+    IF v_stage_perda IS NOT NULL THEN
+      INSERT INTO lead_stage_history (lead_id, de_stage_id, para_stage_id, movido_por, movido_via)
+      VALUES (p_lead_id, v_old_stage_id, v_stage_perda, NULL, 'perdido'); -- NULL = automação
+    END IF;
+  END IF;
+END;
+$function$;
+
+REVOKE EXECUTE ON FUNCTION public.execute_quote_automation(uuid, uuid, text, text) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.execute_quote_automation(uuid, uuid, text, text) TO service_role;
+
+-- ── 4. Conferência ───────────────────────────────────────────────────────────
 DO $$
 DECLARE
   fora integer;
 BEGIN
   IF has_table_privilege('anon', 'public.leads_kanban', 'SELECT') THEN
     RAISE EXCEPTION '131: anon lê leads_kanban';
+  END IF;
+  IF has_function_privilege('anon', 'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION '131: anon/authenticated executa execute_quote_automation';
   END IF;
   IF NOT coalesce((SELECT 'security_invoker=true' = ANY (reloptions) FROM pg_class
                     WHERE oid = 'public.leads_kanban'::regclass), false) THEN

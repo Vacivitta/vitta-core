@@ -123,6 +123,12 @@ for m in "${migracoes[@]}"; do
   checagens=$((checagens + 1))
 done
 
+# Ordem pós-restore do CLAUDE.md: a 118 reaplicada depois das que recriam funções
+# SECURITY DEFINER (a 131 recria execute_quote_automation) passa
+aplicar supabase_admin "$(arquivo_da_versao 118)" --single-transaction ||
+  { cat "$saida"; falhar "reaplicar a 118 depois da $(arquivo_da_versao 131) deveria passar"; }
+checagens=$((checagens + 1))
+
 for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done

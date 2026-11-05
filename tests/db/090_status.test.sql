@@ -341,9 +341,14 @@ SELECT pg_temp.esperar('automação que move para a etapa de ganho', pg_temp.est
   'ganho | arquivado=false | cliente=true | motivo=- | texto=- | ganho_em=true | perdido_em=false');
 
 -- ── Views ────────────────────────────────────────────────────────────────────
-SELECT pg_temp.esperar('kanban tem abertos e ganhos, não perdidos',
-  (SELECT string_agg(DISTINCT status, ',' ORDER BY status) FROM public.leads_kanban
-    WHERE funnel_id = '00000000-0000-4000-8090-0000000000d0'), 'aberto,ganho');
+-- Desde a 131 o kanban mostra os perdidos que estão na etapa de perda (ex.: o 17,
+-- levado para lá pela automação de orçamento); fora dela, não
+SELECT pg_temp.esperar('kanban tem abertos e ganhos, e perdidos só na etapa de perda',
+  (SELECT string_agg(DISTINCT status, ',' ORDER BY status) || ' | perdidos fora da etapa de perda: '
+          || count(*) FILTER (WHERE status = 'perdido' AND stage_resultado IS DISTINCT FROM 'perdido')
+     FROM public.leads_kanban
+    WHERE funnel_id = '00000000-0000-4000-8090-0000000000d0'),
+  'aberto,ganho,perdido | perdidos fora da etapa de perda: 0');
 SELECT pg_temp.esperar('perdidos com o nome do motivo',
   (SELECT motivo_perda_nome FROM public.leads_arquivados WHERE id = pg_temp.lead(15)), 'Timing ruim');
 SELECT pg_temp.esperar('atendente lê os perdidos da unidade',

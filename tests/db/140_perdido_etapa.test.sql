@@ -168,3 +168,44 @@ SELECT pg_temp.esperar('perdido pela etapa e continua no kanban',
   (SELECT concat_ws(' | ', l.status, l.motivo_perda) FROM public.leads l WHERE l.id = pg_temp.id(302))
     || ' | ' || pg_temp.no_kanban(302),
   'perdido | Movido para a etapa Perdido | true');
+
+-- ── Automação de orçamento (execute_quote_automation, ramo 'archive') ────────
+INSERT INTO public.quote_automations (unit_id, quote_status, action, stage_id) VALUES
+  ('00000000-0000-4000-8131-0000000000a0', 'recusado', 'archive', NULL);
+INSERT INTO public.leads (id, nome, funnel_id, stage_id, unit_id) VALUES
+  (pg_temp.id(303), 'Lead 131 303', '00000000-0000-4000-8131-0000000000d0', '00000000-0000-4000-8131-0000000000d2',
+   '00000000-0000-4000-8131-0000000000a0'),
+  (pg_temp.id(305), 'Lead 131 305', '00000000-0000-4000-8131-0000000000e0', '00000000-0000-4000-8131-0000000000e1',
+   '00000000-0000-4000-8131-0000000000a0');
+
+CREATE FUNCTION pg_temp.automacao(n int) RETURNS text LANGUAGE sql AS $$
+  SELECT concat_ws(' | ', fs.nome, l.status, coalesce(l.motivo_perda_id::text, '-'), l.motivo_perda,
+                   (l.perdido_em IS NOT NULL)::text, pg_temp.no_kanban(n),
+                   (SELECT coalesce(string_agg(concat_ws(' ', de.nome, '->', para.nome, h.movido_via,
+                                                         coalesce(h.movido_por::text, '-')), '; '), 'sem histórico')
+                      FROM public.lead_stage_history h
+                      LEFT JOIN public.funnel_stages de ON de.id = h.de_stage_id
+                      JOIN public.funnel_stages para ON para.id = h.para_stage_id
+                     WHERE h.lead_id = l.id))
+    FROM public.leads l JOIN public.funnel_stages fs ON fs.id = l.stage_id
+   WHERE l.id = pg_temp.id(n)
+$$;
+
+SELECT public.execute_quote_automation('00000000-0000-4000-8131-0000000000a0', pg_temp.id(303), 'recusado', 'caro');
+SELECT pg_temp.esperar('automação perde e leva para a etapa de perda, com histórico', pg_temp.automacao(303),
+  'Perdido | perdido | - | Orçamento recusado: caro | true | true | Negociação -> Perdido perdido -');
+
+-- Já na etapa de perda (perdido pelo arraste acima): não move nem grava histórico
+SELECT public.execute_quote_automation('00000000-0000-4000-8131-0000000000a0', pg_temp.id(302), 'recusado', NULL);
+SELECT pg_temp.esperar('automação com lead já na etapa de perda', pg_temp.automacao(302),
+  'Perdido | perdido | - | Orçamento recusado: — | true | true | sem histórico');
+
+-- Funil sem etapa de perda: só o status, como antes (fica só no painel Perdidos)
+SELECT public.execute_quote_automation('00000000-0000-4000-8131-0000000000a0', pg_temp.id(305), 'recusado', 'prazo');
+SELECT pg_temp.esperar('automação em funil sem etapa de perda', pg_temp.automacao(305),
+  'Novo | perdido | - | Orçamento recusado: prazo | true | false | sem histórico');
+
+SELECT pg_temp.esperar('authenticated não executa execute_quote_automation',
+  has_function_privilege('authenticated', 'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE')::text
+    || ' ' || has_function_privilege('anon', 'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE')::text,
+  'false false');
