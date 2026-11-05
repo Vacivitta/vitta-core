@@ -93,18 +93,24 @@ SELECT pg_temp.esperar('perdidos da 126 movidos para a etapa de perda',
   '101=perdido, 102=perdido, 103=perdido, 104=perdido, 105=perdido, 109=Novo, 110=perdido');
 
 -- ── View leads_kanban ────────────────────────────────────────────────────────
-SELECT pg_temp.esperar('kanban mostra perdidos na etapa de perda e abertos',
-  pg_temp.no_kanban(201) || pg_temp.no_kanban(202) || pg_temp.no_kanban(203) || pg_temp.no_kanban(204)
-    || pg_temp.no_kanban(206),
-  'truetruetruetruetrue');
-SELECT pg_temp.esperar('kanban esconde perdido fora da etapa de perda', pg_temp.no_kanban(205), 'false');
-SELECT pg_temp.esperar('painel Perdidos continua com todos os perdidos',
-  (SELECT count(*)::text FROM public.leads_arquivados WHERE id::text LIKE '00000000-0000-4000-8131-%'), '5');
+-- Desde a 132 os leads deste arquivo perdidos antes da 126 e levados pela 131 (201,
+-- 202, 203) ou fora de etapa de perda (205) voltam a ser arquivados: saem do quadro
+-- e o painel lista só eles (150_arquivar.test.sql)
+SELECT pg_temp.esperar('kanban mostra perdido na etapa de perda e aberto',
+  pg_temp.no_kanban(204) || pg_temp.no_kanban(206), 'truetrue');
+SELECT pg_temp.esperar('kanban esconde os antigos arquivados',
+  pg_temp.no_kanban(201) || pg_temp.no_kanban(202) || pg_temp.no_kanban(203) || pg_temp.no_kanban(205),
+  'falsefalsefalsefalse');
+SELECT pg_temp.esperar('painel Arquivados com os antigos arquivados',
+  (SELECT count(*)::text FROM public.leads_arquivados WHERE id::text LIKE '00000000-0000-4000-8131-%'), '4');
 SELECT pg_temp.esperar('perdido no kanban traz o resultado da etapa e o motivo',
-  (SELECT stage_resultado || ' ' || motivo_perda_nome FROM public.leads_kanban WHERE id = pg_temp.id(201)),
-  'perdido Timing ruim');
-SELECT pg_temp.esperar('nenhum perdido no kanban fora de etapa de perda',
-  (SELECT count(*)::text FROM public.leads_kanban WHERE status = 'perdido' AND stage_resultado IS DISTINCT FROM 'perdido'), '0');
+  (SELECT stage_resultado || ' ' || motivo_perda_nome FROM public.leads_kanban WHERE id = pg_temp.id(204)),
+  'perdido Outro');
+SELECT pg_temp.esperar('nenhum perdido no kanban fora da etapa de perda de um funil que tem uma',
+  (SELECT count(*)::text FROM public.leads_kanban k
+    WHERE k.status = 'perdido' AND k.stage_resultado IS DISTINCT FROM 'perdido'
+      AND EXISTS (SELECT 1 FROM public.funnel_stages fs WHERE fs.funnel_id = k.funnel_id AND fs.resultado = 'perdido')),
+  '0');
 SELECT pg_temp.esperar('leads_kanban com security_invoker',
   (SELECT ('security_invoker=true' = ANY (reloptions))::text FROM pg_class WHERE oid = 'public.leads_kanban'::regclass),
   'true');
@@ -200,10 +206,10 @@ SELECT public.execute_quote_automation('00000000-0000-4000-8131-0000000000a0', p
 SELECT pg_temp.esperar('automação com lead já na etapa de perda', pg_temp.automacao(302),
   'Perdido | perdido | - | Orçamento recusado: — | true | true | sem histórico');
 
--- Funil sem etapa de perda: só o status, como antes (fica só no painel Perdidos)
+-- Funil sem etapa de perda: só o status; desde a 132 fica no quadro, na coluna onde estava
 SELECT public.execute_quote_automation('00000000-0000-4000-8131-0000000000a0', pg_temp.id(305), 'recusado', 'prazo');
 SELECT pg_temp.esperar('automação em funil sem etapa de perda', pg_temp.automacao(305),
-  'Novo | perdido | - | Orçamento recusado: prazo | true | false | sem histórico');
+  'Novo | perdido | - | Orçamento recusado: prazo | true | true | sem histórico');
 
 SELECT pg_temp.esperar('authenticated não executa execute_quote_automation',
   has_function_privilege('authenticated', 'public.execute_quote_automation(uuid,uuid,text,text)', 'EXECUTE')::text
