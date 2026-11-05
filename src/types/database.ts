@@ -625,11 +625,15 @@ export interface AutomationRunComLead extends AutomationRun {
   lead_nome: string | null
 }
 
+/** Onde a tag é aplicada (wa_tags.tipo, migração 133): no cliente (lead_tags) ou na conversa. */
+export type TipoTag = 'lead' | 'conversa'
+
 export interface WaTag {
   id:         string
   unit_id:    string
   name:       string
   color:      string
+  tipo:       TipoTag
   created_at: string
 }
 
