@@ -162,9 +162,9 @@ END $$;
 -- 126, 127 e 128 recriam mesclar_leads inteira e a última aplicada é a que vale:
 -- a mesma mesclagem tem de consolidar o status (126), mover as tags (127) e os
 -- anexos (128). Se a 128 partisse de um corpo antigo, uma dessas partes sumiria.
-INSERT INTO public.wa_tags (id, unit_id, name) VALUES
-  ('00000000-0000-4000-8128-000000000301', '00000000-0000-4000-8128-0000000000a0', 'VIP'),
-  ('00000000-0000-4000-8128-000000000302', '00000000-0000-4000-8128-0000000000a0', 'Gestante');
+INSERT INTO public.wa_tags (id, unit_id, name, tipo) VALUES
+  ('00000000-0000-4000-8128-000000000301', '00000000-0000-4000-8128-0000000000a0', 'VIP', 'lead'),
+  ('00000000-0000-4000-8128-000000000302', '00000000-0000-4000-8128-0000000000a0', 'Gestante', 'lead');
 INSERT INTO public.lead_tags (lead_id, tag_id) VALUES
   ('00000000-0000-4000-8128-000000000101', '00000000-0000-4000-8128-000000000301'),
   ('00000000-0000-4000-8128-000000000103', '00000000-0000-4000-8128-000000000301'),

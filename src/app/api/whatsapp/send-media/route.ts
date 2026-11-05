@@ -5,6 +5,7 @@ import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
+import { MIDIA_ERRO_CORPO, corpoGrandeDemais, erroTamanhoMidia, tipoMidia } from '@/lib/whatsapp/midia'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -27,7 +28,18 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const form = await req.formData()
+    // Antes de ler o corpo: acima de 21 MB o proxy do Next entrega o corpo cortado,
+    // sem erro (proxyClientMaxBodySize, next.config.ts)
+    if (corpoGrandeDemais(req.headers.get('content-length'))) {
+      return NextResponse.json({ error: MIDIA_ERRO_CORPO }, { status: 413 })
+    }
+
+    let form: FormData
+    try {
+      form = await req.formData()
+    } catch {
+      return NextResponse.json({ error: 'Não foi possível ler o arquivo enviado' }, { status: 400 })
+    }
     const file            = form.get('file') as File | null
     const conversation_id = form.get('conversation_id') as string | null
     const caption         = (form.get('caption') as string | null)?.trim() || null
@@ -35,6 +47,9 @@ export async function POST(req: NextRequest) {
     if (!file || !conversation_id) {
       return NextResponse.json({ error: 'file e conversation_id obrigatórios' }, { status: 400 })
     }
+
+    const erroTamanho = erroTamanhoMidia(file.type, file.size)
+    if (erroTamanho) return NextResponse.json({ error: erroTamanho }, { status: 413 })
 
     // Autorização: a conversa precisa ser de uma unidade do usuário (RLS)
     if (!await getAccessibleConversation(supabase, conversation_id)) {
@@ -118,10 +133,7 @@ export async function POST(req: NextRequest) {
     const mediaId = uploadData.id
 
     // 2. Determina o tipo da mensagem
-    let msgType = 'document'
-    if (mime.startsWith('image/')) msgType = 'image'
-    else if (mime.startsWith('video/')) msgType = 'video'
-    else if (mime.startsWith('audio/')) msgType = 'audio'
+    const msgType = tipoMidia(mime)
 
     // 3. Envia a mensagem via API do Meta (com retry para erros transientes)
     const metaPayload: Record<string, unknown> = {

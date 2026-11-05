@@ -23,7 +23,13 @@ export async function POST(req: NextRequest) {
     .from('wa_conversation_tags')
     .upsert({ conversation_id: body.conversation_id, tag_id: body.tag_id }, { onConflict: 'conversation_id,tag_id' })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // 23514: tag de cliente (trigger da 133)
+    if (error.code === '23514') {
+      return NextResponse.json({ error: 'Esta tag é de cliente; na conversa só entram tags do tipo Conversa' }, { status: 400 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }
 

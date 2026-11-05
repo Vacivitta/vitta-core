@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile }  from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from './page'
 import { formatarTelefone, normalizarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import { decodificarArquivo, ehPlanilhaExcel, lerCsv, registroVazio } from '@/lib/csv'
 import {
-  descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar, type ResultadoLote,
+  descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar,
+  type DestinatarioNovo, type PedidoCampanha, type ResultadoLote,
 } from '@/lib/whatsapp/campanha-regras'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -58,6 +59,8 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
 }
 
 const USD_BRL = 5.90
+
+const SEM_LEADS: LeadAudience[] = []
 
 function fmtBrl(usd: number) {
   return (usd * USD_BRL).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -320,8 +323,11 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   const [filterFunnel, setFilterFunnel] = useState('')
   const [filterTag, setFilterTag] = useState('')
   const [unitTags, setUnitTags] = useState<Array<{ id: string; name: string }>>([])
-  const [audienceRaw, setAudienceRaw] = useState<LeadAudience[]>([])
-  const [loadingAudience, setLoadingAudience] = useState(false)
+  // Última audiência buscada e os filtros com que foi buscada
+  const [audiencia, setAudiencia] = useState<{ chave: string; leads: LeadAudience[] } | null>(null)
+  const chaveAudiencia = [filterTag, filterStage, filterFunnel].join('|')
+  const audienceRaw = audiencia?.leads ?? SEM_LEADS
+  const loadingAudience = audiencia?.chave !== chaveAudiencia
   const [includeNoOptin, setIncludeNoOptin] = useState(false)
 
   // XLS source
@@ -382,9 +388,8 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   const limiteValido = Number.isInteger(dailyLimit) && dailyLimit >= 1
   const diasDeEnvio = limiteValido ? Math.ceil(activeAudienceCount / dailyLimit) : 0
 
-  async function loadAudience() {
-    if (!currentUser.unit_id) return
-    setLoadingAudience(true)
+  const buscarAudiencia = useCallback(async (): Promise<LeadAudience[]> => {
+    if (!currentUser.unit_id) return []
     const colunas = 'id, nome, sobrenome, telefone, wa_optin_at, wa_optout_at'
     // !inner: só os leads com a tag (lead_tags, migração 127)
     let q = filterTag
@@ -395,29 +400,28 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     if (filterStage)  q = q.eq('stage_id', filterStage)
     if (filterFunnel) q = q.eq('funnel_id', filterFunnel)
     const { data } = await q.limit(500)
-    setAudienceRaw((data ?? []) as LeadAudience[])
-    setLoadingAudience(false)
-  }
+    return (data ?? []) as LeadAudience[]
+  }, [supabase, currentUser.unit_id, filterTag, filterStage, filterFunnel])
 
-  useEffect(() => { if (step === 1) void loadAudience() }, [filterStage, filterFunnel, filterTag]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Os filtros só existem no passo 1: busca ao abrir e a cada filtro; resposta
+  // de um filtro anterior que chegue depois é descartada
+  useEffect(() => {
+    let atual = true
+    void buscarAudiencia().then(leads => { if (atual) setAudiencia({ chave: chaveAudiencia, leads }) })
+    return () => { atual = false }
+  }, [buscarAudiencia, chaveAudiencia])
 
   useEffect(() => {
     if (!currentUser.unit_id) return
-    void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).order('name')
+    void supabase.from('wa_tags').select('id,name').eq('unit_id', currentUser.unit_id).eq('tipo', 'lead').order('name')
       .then(({ data }) => setUnitTags(data ?? []))
-  }, [currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Verifica CSW (janela 24h) para templates Utility ao chegar no step 3
-  useEffect(() => {
-    if (step !== 3 || isMarketing || audience.length === 0) return
-    void checkCsw()
-  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, currentUser.unit_id])
 
   // wa_phone é o wa_id da Meta (celular às vezes sem o 9): compara pelas variantes
-  async function checkCsw() {
-    if (!currentUser.unit_id) return
+  const buscarCsw = useCallback(async (): Promise<Record<string, boolean> | null> => {
+    if (!currentUser.unit_id) return null
     const variantes = [...new Set(audience.flatMap(l => variantesTelefone(l.norm)))]
-    if (variantes.length === 0) return
+    if (variantes.length === 0) return null
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const map: Record<string, boolean> = {}
     for (let i = 0; i < variantes.length; i += 200) {
@@ -432,8 +436,16 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
         if (norm) map[norm] = true
       }
     }
-    setCswMap(map)
-  }
+    return map
+  }, [supabase, currentUser.unit_id, audience])
+
+  // Verifica CSW (janela 24h) para templates Utility ao chegar no step 3
+  useEffect(() => {
+    if (step !== 3 || isMarketing || audience.length === 0) return
+    let atual = true
+    void buscarCsw().then(map => { if (atual && map) setCswMap(map) })
+    return () => { atual = false }
+  }, [step, isMarketing, audience.length, buscarCsw])
 
   async function handleCreate() {
     if (!nome.trim())              { setError('Informe o nome da campanha.'); return }
@@ -446,58 +458,46 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
       setError('Escolha uma data de agendamento no futuro.'); return
     }
 
+    // Total e custo da campanha o banco soma dos destinatários
+    const destinatarios: DestinatarioNovo[] = audienceSource === 'xls'
+      ? xlsContacts.map(c => ({
+          lead_id:   null,
+          phone:     c.telefone,
+          nome:      c.nome,
+          has_optin: true,
+          in_csw:    false,
+          cost_usd:  isMarketing ? 0.0625 : 0.0068,
+        }))
+      : audience.map(l => ({
+          lead_id:   l.id,
+          phone:     l.norm,
+          nome:      [l.nome, l.sobrenome].filter(Boolean).join(' '),
+          has_optin: !!l.wa_optin_at,
+          in_csw:    !isMarketing && (cswMap[l.norm] ?? false),
+          cost_usd:  isMarketing ? 0.0625 : cswMap[l.norm] ? 0 : 0.0068,
+        }))
+    const pedido: PedidoCampanha = {
+      nome:          nome.trim(),
+      template_id:   selectedTemplate.id,
+      agendada_para: agendadaPara?.toISOString() ?? null,
+      limite_diario: dailyLimit,
+      destinatarios,
+    }
+
     setSaving(true); setError('')
     try {
-      const { data: campaign, error: err } = await supabase.from('wa_campaigns').insert({
-        unit_id:            currentUser.unit_id,
-        nome:               nome.trim(),
-        template_id:        selectedTemplate.id,
-        template_nome:      selectedTemplate.name,
-        template_category:  selectedTemplate.category === 'utility' ? 'utility' : 'marketing',
-        status:             agendadaPara ? 'agendada' : 'rascunho',
-        scheduled_at:       agendadaPara?.toISOString() ?? null,
-        daily_limit:        dailyLimit,
-        total_recipients:   activeAudienceCount,
-        estimated_cost_usd: costEstimate.totalUsd,
-        created_by:         currentUser.id,
-      }).select('*').single()
-
-      if (err || !campaign) throw err ?? new Error('Falha ao criar campanha')
-
-      // Monta destinatários conforme source
-      type RecipRow = {
-        campaign_id: string; lead_id: string | null; phone: string; nome: string
-        has_optin: boolean; in_csw: boolean; cost_usd: number
+      const res = await fetch('/api/whatsapp/campaign-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pedido),
+      })
+      const json = await res.json().catch(() => null) as { campanha?: CampaignRow; error?: string } | null
+      if (!res.ok || !json?.campanha) {
+        setError(json?.error ?? 'Erro ao criar campanha. Tente novamente.')
+        setSaving(false)
+        return
       }
-      const recipients: RecipRow[] = audienceSource === 'xls'
-        ? xlsContacts.map(c => ({
-            campaign_id: campaign.id,
-            lead_id:     null as string | null,
-            phone:       c.telefone,
-            nome:        c.nome,
-            has_optin:   true,
-            in_csw:      false,
-            cost_usd:    isMarketing ? 0.0625 : 0.0068,
-          }))
-        : audience.map(l => ({
-            campaign_id: campaign.id,
-            lead_id:     l.id as string | null,
-            phone:       l.norm,
-            nome:        [l.nome, l.sobrenome].filter(Boolean).join(' '),
-            has_optin:   !!l.wa_optin_at,
-            in_csw:      !isMarketing && (cswMap[l.norm] ?? false),
-            cost_usd:    isMarketing ? 0.0625 : cswMap[l.norm] ? 0 : 0.0068,
-          }))
-
-      for (let i = 0; i < recipients.length; i += 100) {
-        const { error: errRecip } = await supabase.from('wa_campaign_recipients').insert(recipients.slice(i, i + 100))
-        if (errRecip) {
-          await supabase.from('wa_campaigns').delete().eq('id', campaign.id)
-          throw errRecip
-        }
-      }
-
-      onCreated(campaign as CampaignRow)
+      onCreated(json.campanha)
     } catch {
       setError('Erro ao criar campanha. Tente novamente.')
       setSaving(false)
@@ -597,7 +597,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
                   </div>
                   {unitTags.length > 0 && (
                     <div>
-                      <Label>Filtrar por tag</Label>
+                      <Label>Filtrar por tag do cliente</Label>
                       <select value={filterTag} onChange={e => setFilterTag(e.target.value)} style={selectSt}>
                         <option value="">Todas as tags</option>
                         {unitTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

@@ -1,5 +1,7 @@
-/** Etiqueta (tag do catálogo `wa_tags`) exibida no card do funil. */
-export interface EtiquetaCard { id: string; name: string; color: string }
+import type { TipoTag } from '@/types/database'
+
+/** Etiqueta (tag do catálogo `wa_tags`) exibida no card do funil; tipo diz se é do cliente ou da conversa (133). */
+export interface EtiquetaCard { id: string; name: string; color: string; tipo: TipoTag }
 
 /** Linha de `wa_conversations` usada pelo funil (com as etiquetas aninhadas). */
 export interface ConversaFunil {
@@ -25,11 +27,11 @@ export interface TagDoLeadFunil {
   tag?:    unknown
 }
 
-export const SELECT_TAGS_DOS_LEADS = 'lead_id, tag:wa_tags(id,name,color)'
+export const SELECT_TAGS_DOS_LEADS = 'lead_id, tag:wa_tags(id,name,color,tipo)'
 
 /** Colunas buscadas em `wa_conversations` para montar o resumo. */
 export const SELECT_CONVERSAS_FUNIL =
-  'id, lead_id, unread_count, last_message_at, last_message_direction, tags:wa_conversation_tags(tag:wa_tags(id,name,color))'
+  'id, lead_id, unread_count, last_message_at, last_message_direction, tags:wa_conversation_tags(tag:wa_tags(id,name,color,tipo))'
 
 /**
  * Agrupa as conversas por lead: não lidas (somadas), última mensagem e direção

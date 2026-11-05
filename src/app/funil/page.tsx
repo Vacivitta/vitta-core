@@ -8,10 +8,16 @@ import {
   type ConversaFunil, type TagDoLeadFunil,
 } from '@/lib/funil/resumo-conversas'
 import { KANBAN_SORT_OPTIONS, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
-import type { Profile, FunnelWithStages } from '@/types/database'
+import { linkDoLead } from '@/lib/funil/link-lead'
+import type { CampoLead, Profile, FunnelWithStages, LeadKanban } from '@/types/database'
 
-export default async function FunilPage() {
+export default async function FunilPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const supabase = await createClient()
+  const link = linkDoLead(await searchParams)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -31,6 +37,7 @@ export default async function FunilPage() {
     { data: conversas },
     { data: tagsDosLeads },
     { count: totalArquivados },
+    { data: camposLead },
     cookieStore,
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
@@ -47,6 +54,8 @@ export default async function FunilPage() {
       .eq('unit_id', unitId).order('lead_id').order('tag_id').range(from, to)),
     // Contador do botão Arquivados (o painel carrega a lista quando abre)
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('unit_id', unitId).eq('arquivado', true),
+    // Filtro do funil por campo personalizado
+    supabase.from('campos_lead').select('*').eq('unit_id', unitId).eq('ativo', true).order('ordem').order('rotulo'),
     cookies(),
   ])
 
@@ -72,6 +81,18 @@ export default async function FunilPage() {
     if (extra) allProfiles = [...allProfiles, ...extra]
   }
 
+  // Link /funil?lead=<id> (notificações): o lead está no quadro ou, se arquivado,
+  // em leads_arquivados. De outra unidade ou inexistente: abre o funil sem ficha.
+  let leadDoLink: LeadKanban | null = null
+  if (link) {
+    leadDoLink = (leadsData ?? []).find(l => l.id === link.leadId) as LeadKanban | undefined ?? null
+    if (!leadDoLink) {
+      const { data } = await supabase.from('leads_arquivados').select('*')
+        .eq('id', link.leadId).eq('unit_id', unitId).maybeSingle()
+      leadDoLink = (data as LeadKanban | null) ?? null
+    }
+  }
+
   const funnelsWithStages: FunnelWithStages[] = (funnelsData ?? []).map(f => ({
     ...f,
     stages: (stagesData ?? []).filter(s => s.funnel_id === f.id),
@@ -88,6 +109,8 @@ export default async function FunilPage() {
       tagsDosLeadsIniciais={montarTagsDosLeads((tagsDosLeads ?? []) as TagDoLeadFunil[])}
       ordenacaoInicial={ordenacaoInicial}
       totalArquivadosInicial={totalArquivados ?? 0}
+      camposLead={(camposLead ?? []) as CampoLead[]}
+      leadDoLink={leadDoLink ? { lead: leadDoLink, aba: link?.aba ?? null } : null}
       // Instante desta requisição: servidor e navegador partem do mesmo "agora"
       // eslint-disable-next-line react-hooks/purity -- server component roda uma vez por requisição
       agoraServidor={Date.now()}

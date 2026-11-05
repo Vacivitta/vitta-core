@@ -89,6 +89,9 @@ INSERT INTO public.wa_conversation_tags (conversation_id, tag_id) VALUES
 CREATE TEMP TABLE mesclar_vigente AS
   SELECT pg_get_functiondef('public.mesclar_leads(uuid,uuid,uuid)'::regprocedure) AS def;
 
+-- O DROP leva junto o trigger de tipo da 133 (trg_lead_tags_tipo): daqui em diante
+-- este arquivo testa a 127 como era, com tags sem tipo (padrão 'conversa') no lead e
+-- na conversa; o tipo é conferido em 160_tags_tipo.test.sql.
 DROP TABLE public.lead_tags;
 \i /migracoes/127_lead_tags.sql
 

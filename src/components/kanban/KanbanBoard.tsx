@@ -14,13 +14,14 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { LeadKanban, FunnelStage } from '@/types/database'
-import { moveLeadStage, reorderLeads } from '@/lib/leads'
+import { marcarPerdido, moveLeadStage, reorderLeads } from '@/lib/leads'
 import KanbanColumn from './KanbanColumn'
 import LeadCard from './LeadCard'
 import { useNow } from './useNow'
 import { sortKanbanLeads, DEFAULT_KANBAN_SORT, type KanbanSortMode, type KanbanSortContext } from './sort'
 import { faltandoDoErro } from '@/lib/obrigatorios'
 import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
+import MotivoPerdaModal from '@/components/leads/MotivoPerdaModal'
 
 /** Movimento barrado por campos obrigatórios da etapa (migração 130); lead com a etapa de origem. */
 interface MovimentoPendente {
@@ -28,6 +29,12 @@ interface MovimentoPendente {
   destino:  string
   ordem:    number
   faltando: string[]
+}
+
+/** Card solto numa etapa de perda, esperando o motivo; lead com a etapa de origem. */
+interface PerdaPendente {
+  lead:    LeadKanban
+  destino: string
 }
 
 interface Props {
@@ -64,16 +71,18 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
   const [leads, setLeads] = useState<LeadKanban[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [pendente, setPendente] = useState<MovimentoPendente | null>(null)
+  const [perdaPendente, setPerdaPendente] = useState<PerdaPendente | null>(null)
   const now = useNow(60_000, agoraServidor)
   // useRef evita o problema de stale closure — o valor é sempre atual no handleDragEnd
   // independente de quantas re-renders o handleDragOver disparar.
   const dragOriginStageRef = useRef<string | null>(null)
 
   // Sincroniza com os leads do funil (Realtime/filtros), exceto durante um arraste —
-  // senão o card voltaria para a coluna de origem no meio do movimento
+  // senão o card voltaria para a coluna de origem no meio do movimento (ou com o
+  // motivo da perda ainda aberto)
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (activeId === null) setLeads(initialLeads)
+    if (activeId === null && perdaPendente === null) setLeads(initialLeads)
   }, [initialLeads]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sensors = useSensors(
@@ -139,6 +148,11 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
 
     if (originStage && originStage !== targetStageId) {
       const ordem = columnLeads.length
+      // Perder pelo kanban pede o motivo, como na ficha; o card espera na coluna de perda
+      if (stages.find(s => s.id === targetStageId)?.resultado === 'perdido' && lead.status !== 'perdido') {
+        setPerdaPendente({ lead: { ...lead, stage_id: originStage }, destino: targetStageId })
+        return
+      }
       try {
         await moveLeadStage(lead.id, targetStageId, ordem, originStage, 'kanban')
         setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, stage_id: targetStageId } : l))
@@ -162,7 +176,18 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
       console.error('[kanban] erro ao reordenar leads:', err)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leads, stageIds, sortMode, unreadByLead, lastMsgByLead, lastDirByLead])
+  }, [leads, stages, stageIds, sortMode, unreadByLead, lastMsgByLead, lastDirByLead])
+
+  async function perderDepoisDoMotivo(p: PerdaPendente, motivoId: string, detalhe: string | null) {
+    await marcarPerdido(p.lead.id, motivoId, detalhe, p.destino)
+    setLeads(prev => prev.map(l => l.id === p.lead.id ? { ...l, stage_id: p.destino, status: 'perdido' } : l))
+    setPerdaPendente(null)
+  }
+
+  function cancelarPerda(p: PerdaPendente) {
+    voltarParaOrigem(p.lead.id, p.lead.stage_id)
+    setPerdaPendente(null)
+  }
 
   async function moverDepoisDePreencher(p: MovimentoPendente, valores: Preenchido) {
     setLeads(prev => prev.map(l => l.id === p.lead.id ? { ...l, ...valores.fixos } : l))
@@ -221,6 +246,16 @@ export default function KanbanBoard({ initialLeads, stages, onLeadClick, onAddLe
           faltando={pendente.faltando}
           onCancelar={() => setPendente(null)}
           onPreenchido={valores => moverDepoisDePreencher(pendente, valores)}
+        />
+      )}
+
+      {perdaPendente && (
+        <MotivoPerdaModal
+          key={perdaPendente.lead.id + perdaPendente.destino}
+          funnelId={perdaPendente.lead.funnel_id}
+          descricao={`${perdaPendente.lead.nome} vai para a etapa "${stages.find(s => s.id === perdaPendente.destino)?.nome ?? 'de perda'}". Se mandar mensagem, o negócio reabre.`}
+          onCancelar={() => cancelarPerda(perdaPendente)}
+          onConfirmar={(motivoId, detalhe) => perderDepoisDoMotivo(perdaPendente, motivoId, detalhe)}
         />
       )}
     </DndContext>

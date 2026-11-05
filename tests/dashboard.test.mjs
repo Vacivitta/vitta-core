@@ -181,6 +181,20 @@ test('tempo na etapa: da entrada até a saída no período; saída por reabertur
   assert.equal(t.get('perdido'), undefined)
 })
 
+test('etapa excluída no histórico (destino e origem null, migração 135): conta a saída, sem etapa fantasma', () => {
+  const l = lead({ id: 'a', stage_id: 'proposta', created_at: '2026-10-10T00:00:00Z' })
+  const movs = movimentosPorLead([
+    mv('a', 'novo', null, '2026-10-11T00:00:00Z'),
+    mv('a', null, 'proposta', '2026-10-12T00:00:00Z'),
+  ])
+  const t = tempoPorEtapa([l], movs, MES, HIST)
+  assert.deepEqual([...t.keys()], ['novo'])
+  assert.deepEqual(t.get('novo'), { mediaHoras: 24, saidas: 1 })
+  const p = passagemPorEtapa([l], movs, POR_ID, MES, HIST)
+  assert.deepEqual(p.get('novo'), { entraram: 1, avancaram: 1, taxa: 1 })
+  assert.deepEqual(p.get('proposta'), { entraram: 1, avancaram: 0, taxa: 0 })
+})
+
 test('ranking por responsável: ganhos, perdidos e taxa; sem responsável fica com id null', () => {
   const leads = [
     lead({ id: 'a', responsavel_id: 'ana', status: 'ganho', ganho_em: '2026-10-20T00:00:00Z' }),

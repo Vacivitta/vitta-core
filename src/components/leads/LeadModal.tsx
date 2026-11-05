@@ -7,21 +7,21 @@ import { ptBR } from 'date-fns/locale'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
-import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
+import type { WaTemplate, WaQuickReply, InputMode, ConvTag, TagCatalogo } from '@/components/whatsapp/wa-types'
 import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
 import TagsBar from '@/components/whatsapp/TagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
-  QuoteStatus, LeadStageHistory, MotivoPerda, StatusLead, MotivoArquivamento,
+  QuoteStatus, LeadStageHistory, StatusLead, MotivoArquivamento,
 } from '@/types/database'
 import {
   CONTACT_ROLE_LABELS, ORIGEM_OPTIONS, STATUS_LEAD_LABELS, MOTIVOS_ARQUIVAMENTO,
   QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, displayName,
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
-import { updateLead, marcarGanho, marcarPerdido, reabrir, getMotivosPerda, arquivar, desarquivar } from '@/lib/leads'
-import { gravacaoPerda, motivoArquivamento, rotuloMotivoPerda } from '@/lib/status-lead'
+import { updateLead, marcarGanho, marcarPerdido, reabrir, arquivar, desarquivar } from '@/lib/leads'
+import { motivoArquivamento, rotuloMotivoPerda } from '@/lib/status-lead'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
@@ -32,7 +32,9 @@ import { isPerfilGestor } from '@/lib/auth/access'
 import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
 import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
 import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
+import MotivoPerdaModal from '@/components/leads/MotivoPerdaModal'
 import { camposDoFunil } from '@/lib/campos'
+import { tagsDoTipo } from '@/lib/tags'
 import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
 
 interface Props {
@@ -45,6 +47,8 @@ interface Props {
   onClose: () => void
   onSaved: () => void
   onLeadPatched?: (patch: Partial<LeadKanban>) => void
+  /** Aba aberta ao montar (ex.: link de notificação de menção abre Anotações) */
+  abaInicial?: string
 }
 
 type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos' | 'Informações'
@@ -101,7 +105,7 @@ export default function LeadModal(props: Props) {
 }
 
 function LeadDrawer({
-  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched,
+  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched, abaInicial,
 }: Props & { lead: LeadKanban }) {
   const [statusAtual, setStatusAtual] = useState<StatusLead>(lead.status)
   const isPerdido  = statusAtual === 'perdido'
@@ -170,7 +174,7 @@ function LeadDrawer({
   }
 
   // ── Tab ────────────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>('Atendimento')
+  const [tab, setTab] = useState<Tab>(TABS.find(t => t === abaInicial) ?? 'Atendimento')
   const anexos = useLeadAnexos(lead.id)
   const camposLead = useCamposLead(lead.id, lead.unit_id)
   const temCampos = camposDoFunil(camposLead.definicoes, lead.funnel_id).length > 0
@@ -194,8 +198,10 @@ function LeadDrawer({
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
   const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
-  const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
+  const [waUnitTags,     setWaUnitTags]     = useState<TagCatalogo[]>([])
   const [leadTags,       setLeadTags]       = useState<ConvTag[]>([])
+  const tagsDeCliente  = useMemo(() => tagsDoTipo(waUnitTags, 'lead'), [waUnitTags])
+  const tagsDeConversa = useMemo(() => tagsDoTipo(waUnitTags, 'conversa'), [waUnitTags])
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
@@ -563,8 +569,8 @@ function LeadDrawer({
         .flatMap(r => r.tag ? [r.tag] : [])))
     const unidade = lead.unit_id ?? currentUser.unit_id
     if (unidade) {
-      void supabase.from('wa_tags').select('id,name,color').eq('unit_id', unidade).order('name')
-        .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
+      void supabase.from('wa_tags').select('id,name,color,tipo').eq('unit_id', unidade).order('name')
+        .then(({ data }) => setWaUnitTags((data ?? []) as TagCatalogo[]))
     }
   }, [lead.id, lead.unit_id, currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -817,13 +823,26 @@ function LeadDrawer({
     if (statusAtual === 'ganho' || statusSaving) return
     setStatusSaving(true)
     setStatusError('')
-    try {
-      await marcarGanho(lead.id)
+    async function ganhar() {
+      const destino = await marcarGanho(lead.id)
       setStatusAtual('ganho')
       setIsConverted(true)
+      // Senão um Salvar depois tiraria o lead da etapa de ganho (e reabriria o negócio)
+      if (destino) setForm(f => ({ ...f, stage_id: destino }))
       onSaved()
+    }
+    try {
+      await ganhar()
     } catch (err) {
-      setStatusError(err instanceof Error ? err.message : 'Erro ao marcar como ganho. Tente novamente.')
+      // A etapa de ganho pode exigir campos (130): preenche e tenta de novo
+      if (pedirObrigatorios(err, lead.funnel_id, async () => {
+        try {
+          await ganhar()
+        } catch (e) {
+          setStatusError((e as { message?: string })?.message ?? 'Erro ao marcar como ganho. Tente novamente.')
+        }
+      })) return
+      setStatusError((err as { message?: string })?.message ?? 'Erro ao marcar como ganho. Tente novamente.')
     } finally {
       setStatusSaving(false)
     }
@@ -915,41 +934,16 @@ function LeadDrawer({
   // Mesma regra do antigo Arquivar: atendente não marca perdido pela ficha
   const podeMarcarPerdido = !isAtendente
   const [perdaModal,    setPerdaModal]    = useState(false)
-  const [motivos,       setMotivos]       = useState<MotivoPerda[] | null>(null)
-  const [motivoId,      setMotivoId]      = useState('')
-  const [perdaDetalhe,  setPerdaDetalhe]  = useState('')
-  const [perdaSaving,   setPerdaSaving]   = useState(false)
-  const [perdaErro,     setPerdaErro]     = useState('')
-  const motivoEscolhido = motivos?.find(m => m.id === motivoId) ?? null
-  const perdaValidada   = gravacaoPerda(motivoEscolhido, perdaDetalhe)
 
-  async function openPerdaModal() {
+  function openPerdaModal() {
     setPerdaModal(true)
-    setMotivoId('')
-    setPerdaDetalhe('')
-    setPerdaErro('')
-    setMotivos(null)
-    try {
-      setMotivos(await getMotivosPerda(lead.funnel_id))
-    } catch {
-      setMotivos([])
-      setPerdaErro('Não foi possível carregar os motivos de perda.')
-    }
   }
 
-  async function handlePerdido() {
-    if (!perdaValidada.ok) return
-    setPerdaSaving(true)
-    setPerdaErro('')
-    try {
-      await marcarPerdido(lead.id, perdaValidada.valores.motivo_perda_id, perdaValidada.valores.motivo_perda)
-      onSaved()
-      handleClose()
-    } catch (err) {
-      setPerdaErro(err instanceof Error ? err.message : 'Erro ao marcar como perdido.')
-    } finally {
-      setPerdaSaving(false)
-    }
+  async function handlePerdido(motivoId: string, detalhe: string | null) {
+    await marcarPerdido(lead.id, motivoId, detalhe)
+    setPerdaModal(false)
+    onSaved()
+    handleClose()
   }
   const motivoPerdaAtual = isPerdido ? rotuloMotivoPerda(lead.motivo_perda_nome ?? null, lead.motivo_perda) : null
 
@@ -1107,7 +1101,7 @@ function LeadDrawer({
             <TagsBar
               alvo={{ tipo: 'lead', id: lead.id }}
               tags={leadTags}
-              unitTags={waUnitTags}
+              unitTags={tagsDeCliente}
               onTagAdded={tag => setLeadTags(prev => [...prev, tag])}
               onTagRemoved={tagId => setLeadTags(prev => prev.filter(t => t.id !== tagId))}
               style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
@@ -2160,7 +2154,7 @@ function LeadDrawer({
                     <TagsBar
                       alvo={{ tipo: 'conversa', id: waConversation.id }}
                       tags={waConvTags}
-                      unitTags={waUnitTags}
+                      unitTags={tagsDeConversa}
                       onTagAdded={tag => setWaConvTags(prev => [...prev, tag])}
                       onTagRemoved={tagId => setWaConvTags(prev => prev.filter(t => t.id !== tagId))}
                     />
@@ -2360,52 +2354,7 @@ function LeadDrawer({
       </div>
 
       {perdaModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
-          <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
-            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Marcar negócio como perdido</h3>
-            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato vai para a etapa de perda do funil. Se mandar mensagem, o negócio reabre. Spam, engano ou fornecedor? Use Arquivar.</p>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo da perda *</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              {motivos === null && <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Carregando motivos...</p>}
-              {motivos?.length === 0 && !perdaErro && (
-                <p style={{ fontSize: 12, color: '#C4534A', margin: 0 }}>Este funil não tem motivos de perda ativos. Peça a um gestor para configurar em Configurações › Funis.</p>
-              )}
-              {motivos?.map(m => (
-                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${motivoId === m.id ? '#C05B3A' : '#C9C3B2'}`, background: motivoId === m.id ? '#C05B3A' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                    {motivoId === m.id && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
-                  </div>
-                  <input type="radio" name="motivo-perda" value={m.id} checked={motivoId === m.id} onChange={() => setMotivoId(m.id)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
-                  <span style={{ fontSize: 13, color: '#35543B' }}>{m.nome}</span>
-                </label>
-              ))}
-            </div>
-            {motivoEscolhido && (
-              <textarea
-                autoFocus={motivoEscolhido.nome === 'Outro'}
-                value={perdaDetalhe}
-                onChange={e => setPerdaDetalhe(e.target.value)}
-                placeholder={motivoEscolhido.nome === 'Outro' ? 'Descreva o motivo *' : 'Detalhe (opcional)'}
-                rows={2}
-                style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }}
-              />
-            )}
-            {perdaErro && <p style={{ fontSize: 12, color: '#C4534A', margin: '0 0 8px' }}>{perdaErro}</p>}
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setPerdaModal(false)} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
-                Cancelar
-              </button>
-              <button
-                onClick={handlePerdido}
-                disabled={!perdaValidada.ok || perdaSaving}
-                title={perdaValidada.ok ? undefined : perdaValidada.erro}
-                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#C05B3A', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!perdaValidada.ok || perdaSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
-              >
-                {perdaSaving ? 'Salvando...' : 'Marcar perdido'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <MotivoPerdaModal funnelId={lead.funnel_id} onCancelar={() => setPerdaModal(false)} onConfirmar={handlePerdido} />
       )}
       {arqModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>

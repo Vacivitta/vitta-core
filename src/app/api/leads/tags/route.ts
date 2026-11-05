@@ -28,8 +28,13 @@ export async function POST(req: NextRequest) {
     .upsert({ lead_id: leadId, tag_id: tagId }, { onConflict: 'lead_id,tag_id', ignoreDuplicates: true })
 
   if (error) {
-    // 23514: tag de outra unidade (trigger da 127)
-    if (error.code === '23514') return NextResponse.json({ error: 'Tag de outra unidade' }, { status: 400 })
+    // 23514: tag de outra unidade (trigger da 127) ou de conversa (trigger da 133)
+    if (error.code === '23514') {
+      const msg = error.message.includes('outra unidade')
+        ? 'Tag de outra unidade'
+        : 'Esta tag é de conversa; no cliente só entram tags do tipo Cliente'
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   return NextResponse.json({ success: true })

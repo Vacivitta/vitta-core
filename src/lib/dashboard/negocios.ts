@@ -26,7 +26,8 @@ export interface LeadNegocio {
 export interface Movimento {
   lead_id:       string
   de_stage_id:   string | null
-  para_stage_id: string
+  /** Null quando a etapa de destino foi excluída (migração 135) */
+  para_stage_id: string | null
   criado_em:     string
   movido_via:    string | null
 }
@@ -211,7 +212,7 @@ export function perdasPorEtapa(
   }))
 }
 
-interface Entrada { etapa: string; em: number; via: string; movimento: Movimento | null }
+interface Entrada { etapa: string | null; em: number; via: string; movimento: Movimento | null }
 
 /**
  * Entradas do lead em etapas: os movimentos e, para leads criados depois do
@@ -261,12 +262,12 @@ export function passagemPorEtapa(
     const entradas = entradasDoLead(lead, movimentos.get(lead.id) ?? [], historicoDesde)
     const vistas = new Set<string>()
     entradas.forEach((e, i) => {
-      const etapa = etapas.get(e.etapa)
+      const etapa = e.etapa ? etapas.get(e.etapa) : undefined
       if (!etapa || etapa.resultado !== null || vistas.has(etapa.id)) return
       if (e.via === 'reabertura' || !instanteNaJanela(e.em, janela)) return
       vistas.add(etapa.id)
       const depois = entradas.slice(i + 1).some(p => {
-        const para = etapas.get(p.etapa)
+        const para = p.etapa ? etapas.get(p.etapa) : undefined
         return para !== undefined && avancou(etapa, para)
       })
       const ganhou = lead.status === 'ganho' && lead.ganho_em !== null && ms(lead.ganho_em) >= e.em
@@ -297,7 +298,7 @@ export function tempoPorEtapa(
     for (let i = 1; i < entradas.length; i++) {
       const saida = entradas[i].movimento
       const anterior = entradas[i - 1]
-      if (!saida || saida.de_stage_id !== anterior.etapa || saida.movido_via === 'reabertura') continue
+      if (!saida || anterior.etapa === null || saida.de_stage_id !== anterior.etapa || saida.movido_via === 'reabertura') continue
       if (!naJanela(saida.criado_em, janela)) continue
       const h = (entradas[i].em - anterior.em) / HORA_MS
       if (h < 0) continue

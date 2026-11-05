@@ -11,7 +11,7 @@ import {
 } from '@/lib/importacao'
 import { telefonesExistentes } from '@/lib/importacao-banco'
 import { campoFixo, rotuloObrigatorio } from '@/lib/obrigatorios'
-import { ORIGEM_OPTIONS, type CampoLead } from '@/types/database'
+import { ORIGEM_OPTIONS, type CampoLead, type TipoTag } from '@/types/database'
 
 export interface FunilImportacao {
   id:     string
@@ -25,7 +25,7 @@ interface Props {
   funis:        FunilImportacao[]
   responsaveis: { id: string; nome: string }[]
   campos:       CampoLead[]
-  tags:         { id: string; name: string }[]
+  tags:         { id: string; name: string; tipo: TipoTag }[]
 }
 
 interface Arquivo {
@@ -322,7 +322,7 @@ export default function ImportarClient({ unitId, funis, responsaveis, campos, ta
                       {buscaAtual?.erro && <Alerta tipo="erro">Não foi possível conferir os contatos que já existem. Recarregue a página.</Alerta>}
                       {prep.tagsDesconhecidas.length > 0 && (
                         <Alerta tipo="aviso">
-                          Tags que não existem nesta unidade e serão ignoradas: {prep.tagsDesconhecidas.join(', ')}. Para usá-las,
+                          Tags de cliente que não existem nesta unidade e serão ignoradas: {prep.tagsDesconhecidas.join(', ')}. Para usá-las,
                           crie em Configurações › Tags e escolha o arquivo de novo.
                         </Alerta>
                       )}
@@ -390,7 +390,7 @@ function Relatorio({ relatorio, erro, onBaixar, onRecomecar }: {
       {erro && <Alerta tipo="erro">{erro}</Alerta>}
       {relatorio.avisos.map(a => <Alerta key={a} tipo="aviso">{a}</Alerta>)}
       {relatorio.tagsDesconhecidas.length > 0 && (
-        <Alerta tipo="aviso">Tags ignoradas (não existem na unidade): {relatorio.tagsDesconhecidas.join(', ')}</Alerta>
+        <Alerta tipo="aviso">Tags ignoradas (não há tag de cliente com esse nome na unidade): {relatorio.tagsDesconhecidas.join(', ')}</Alerta>
       )}
       {problemas.length > 0 && <TabelaProblemas problemas={problemas.slice(0, MAX_PROBLEMAS_NA_TELA)} total={problemas.length} />}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14, flexWrap: 'wrap' }}>

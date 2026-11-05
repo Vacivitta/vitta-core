@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode } from './wa-types'
 import type { Profile } from '@/types/database'
 import { displayName } from '@/types/database'
+import { erroTamanhoMidia } from '@/lib/whatsapp/midia'
 
 const EmojiPicker = dynamic(() => import('@emoji-mart/react'), { ssr: false })
 
@@ -258,6 +259,13 @@ export default function ChatInput({
     const f = e.target.files?.[0]
     if (!f) return
     e.target.value = ''
+    // Mesmo limite da rota send-media: avisa ao anexar, antes de subir o arquivo
+    const erroTamanho = erroTamanhoMidia(f.type, f.size)
+    if (erroTamanho) {
+      setAttachOpen(false)
+      alert(erroTamanho)
+      return
+    }
     if (f.type.startsWith('audio/')) {
       onMediaUpload(f)
       return

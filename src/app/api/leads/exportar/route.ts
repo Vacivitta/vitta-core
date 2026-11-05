@@ -8,7 +8,7 @@ import {
 } from '@/lib/exportacao'
 import {
   SELECT_CONVERSAS_FUNIL, SELECT_TAGS_DOS_LEADS, montarResumoConversas, montarTagsDosLeads, unirEtiquetas,
-  type ConversaFunil, type TagDoLeadFunil,
+  type ConversaFunil, type EtiquetaCard, type TagDoLeadFunil,
 } from '@/lib/funil/resumo-conversas'
 import { resumoErro } from '@/lib/log-seguro'
 import type { CampoLead } from '@/types/database'
@@ -16,8 +16,12 @@ import type { CampoLead } from '@/types/database'
 // GET /api/leads/exportar?funnel_id=&stage_ids=&responsavel_ids=&tag_ids=&cidade=&status=&clientes=1&arquivados=1
 // CSV dos leads da unidade ativa (só gestor/admin: é extração em massa de dado
 // pessoal). Lê com o client do usuário (RLS) e pagina de 1000 em 1000, sem o
-// corte silencioso do PostgREST. Tags = do lead + das conversas dele, como o
-// filtro do funil.
+// corte silencioso do PostgREST. O filtro de tag vale para as do lead e as das
+// conversas dele, como no funil; no arquivo saem em colunas separadas.
+
+function nomesPorLead(mapa: Record<string, EtiquetaCard[]>): Map<string, string[]> {
+  return new Map(Object.entries(mapa).map(([id, ts]) => [id, ts.map(t => t.name)]))
+}
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -63,7 +67,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Não foi possível montar o arquivo' }, { status: 500 })
   }
 
-  const etiquetas = unirEtiquetas(montarTagsDosLeads(tagsDoLead.data), montarResumoConversas(conversas.data).tagsByLead)
+  const doCliente = montarTagsDosLeads(tagsDoLead.data)
+  const dasConversas = montarResumoConversas(conversas.data).tagsByLead
+  const etiquetas = unirEtiquetas(doCliente, dasConversas)
   let lista = leads.data
   if (filtros.tag_ids.length) {
     lista = lista.filter(l => (etiquetas[l.id] ?? []).some(t => filtros.tag_ids.includes(t.id)))
@@ -83,7 +89,8 @@ export async function GET(req: NextRequest) {
     etapas:       new Map((etapas.data ?? []).map(e => [e.id as string, e.nome as string])),
     motivos:      new Map((motivos.data ?? []).map(m => [m.id as string, m.nome as string])),
     responsaveis,
-    tagsPorLead:  new Map(Object.entries(etiquetas).map(([id, ts]) => [id, ts.map(t => t.name)])),
+    tagsDoCliente:    nomesPorLead(doCliente),
+    tagsDasConversas: nomesPorLead(dasConversas),
   }
   const csv = gerarCsv([cabecalhoExportacao(camposAtivos), ...lista.map(l => linhaExportacao(l, ctx))])
 

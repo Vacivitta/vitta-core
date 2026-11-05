@@ -78,9 +78,33 @@ export function etapaAoPerder(
   etapasDoFunil: { id: string; ordem: number; resultado: ResultadoEtapa | null }[],
 ): string | null {
   if (atual?.resultado === 'perdido') return null
+  return primeiraEtapaCom('perdido', etapasDoFunil)
+}
+
+/**
+ * Etapa para onde vai um lead marcado como ganho pela ficha: a etapa de ganho do
+ * funil (resultado 'ganho'; a de menor ordem, se houver mais de uma). Null se ele
+ * já está numa etapa de ganho ou se o funil não tem nenhuma (aí o lead fica na
+ * coluna onde está, com o selo Ganho).
+ *
+ * @param atual - Etapa atual do lead (null se não tem etapa)
+ * @param etapasDoFunil - Etapas do funil do lead
+ */
+export function etapaAoGanhar(
+  atual: { id: string; resultado: ResultadoEtapa | null } | null,
+  etapasDoFunil: { id: string; ordem: number; resultado: ResultadoEtapa | null }[],
+): string | null {
+  if (atual?.resultado === 'ganho') return null
+  return primeiraEtapaCom('ganho', etapasDoFunil)
+}
+
+function primeiraEtapaCom(
+  resultado: ResultadoEtapa,
+  etapasDoFunil: { id: string; ordem: number; resultado: ResultadoEtapa | null }[],
+): string | null {
   const destino = [...etapasDoFunil]
     .sort((a, b) => a.ordem - b.ordem || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-    .find(s => s.resultado === 'perdido')
+    .find(s => s.resultado === resultado)
   return destino?.id ?? null
 }
 

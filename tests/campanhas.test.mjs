@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  atualizacaoAposLote, decidirLote, descreverStatus, inicioDoDiaSaoPaulo, lerEstadoCampanha, podeDisparar,
-  proximaMeiaNoiteSaoPaulo,
+  atualizacaoAposLote, decidirLote, descreverStatus, inicioDoDiaSaoPaulo, lerEstadoCampanha, lerPedidoCampanha,
+  MAX_DESTINATARIOS_CAMPANHA, podeDisparar, proximaMeiaNoiteSaoPaulo,
 } from '../src/lib/whatsapp/campanha-regras.ts'
 
 const iso = d => d.toISOString()
@@ -72,4 +72,36 @@ test('texto do status', () => {
   assert.equal(descreverStatus({ status: 'pausada', motivo: 'manual', retomarEm: null }, progresso, agora), 'Pausada manualmente')
   assert.equal(descreverStatus({ status: 'agendada', agendadaPara: new Date('2026-11-04T12:00:00Z') }, progresso, agora),
     'Agendada para 04/11/2026, 09:00')
+})
+
+test('pedido de criação de campanha', () => {
+  const destinatario = {
+    lead_id: '00000000-0000-4000-8135-000000000101', phone: '5531991350101', nome: 'Ana',
+    has_optin: true, in_csw: false, cost_usd: 0.0625,
+  }
+  const pedido = {
+    nome: '  Black Friday  ', template_id: '00000000-0000-4000-8135-000000000301',
+    agendada_para: null, limite_diario: 250, destinatarios: [destinatario, { ...destinatario, lead_id: null }],
+  }
+  const lido = lerPedidoCampanha(pedido)
+  assert.equal(lido.ok, true)
+  assert.equal(lido.pedido.nome, 'Black Friday')
+  assert.equal(lido.pedido.destinatarios.length, 2)
+  assert.equal(lerPedidoCampanha({ ...pedido, agendada_para: '2026-11-20T12:00:00-03:00' }).pedido.agendada_para,
+    '2026-11-20T15:00:00.000Z')
+
+  const erro = corpo => { const r = lerPedidoCampanha(corpo); return r.ok ? null : r.erro }
+  assert.equal(erro(null), 'Pedido inválido.')
+  assert.equal(erro({ ...pedido, nome: ' ' }), 'Informe o nome da campanha.')
+  assert.equal(erro({ ...pedido, template_id: 'x' }), 'Selecione um template.')
+  assert.equal(erro({ ...pedido, limite_diario: 0 }), 'Informe um limite diário de pelo menos 1 envio.')
+  assert.equal(erro({ ...pedido, limite_diario: 1.5 }), 'Informe um limite diário de pelo menos 1 envio.')
+  assert.equal(erro({ ...pedido, agendada_para: 'amanhã' }), 'Data de agendamento inválida.')
+  assert.equal(erro({ ...pedido, destinatarios: [] }), 'Nenhum destinatário válido.')
+  assert.equal(erro({ ...pedido, destinatarios: [destinatario, { ...destinatario, phone: '(31) 99135-0101' }] }),
+    'Destinatário 2 inválido.')
+  assert.equal(erro({ ...pedido, destinatarios: [{ ...destinatario, lead_id: 'abc' }] }), 'Destinatário 1 inválido.')
+  assert.equal(erro({ ...pedido, destinatarios: [{ ...destinatario, cost_usd: -1 }] }), 'Destinatário 1 inválido.')
+  assert.equal(erro({ ...pedido, destinatarios: Array(MAX_DESTINATARIOS_CAMPANHA + 1).fill(destinatario) }),
+    `No máximo ${MAX_DESTINATARIOS_CAMPANHA} destinatários por campanha.`)
 })

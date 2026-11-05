@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  etapaAoPerder, etapaAoReabrir, gravacaoPerda, motivoArquivamento, motivoParaAgrupar, reaberturaPorMensagem,
+  etapaAoGanhar, etapaAoPerder, etapaAoReabrir, gravacaoPerda, motivoArquivamento, motivoParaAgrupar, reaberturaPorMensagem,
   rotuloMotivoPerda,
 } from '../src/lib/status-lead.ts'
 
@@ -52,6 +52,22 @@ test('marcar perdido leva para a etapa de perda do funil', () => {
   assert.equal(etapaAoPerder({ id: 'perdido-b', resultado: 'perdido' }, etapas), null)
   // Funil sem etapa de perda: o lead fica na coluna onde está, com o selo Perdido
   assert.equal(etapaAoPerder({ id: 'novo', resultado: null }, etapas.filter(s => s.resultado !== 'perdido')), null)
+})
+
+test('marcar ganho leva para a etapa de ganho do funil', () => {
+  const etapas = [
+    { id: 'novo', ordem: 0, resultado: null },
+    { id: 'ganho-b', ordem: 4, resultado: 'ganho' },
+    { id: 'ganho-a', ordem: 2, resultado: 'ganho' },
+    { id: 'perdido', ordem: 3, resultado: 'perdido' },
+  ]
+  assert.equal(etapaAoGanhar({ id: 'novo', resultado: null }, etapas), 'ganho-a')
+  assert.equal(etapaAoGanhar({ id: 'perdido', resultado: 'perdido' }, etapas), 'ganho-a')
+  assert.equal(etapaAoGanhar(null, etapas), 'ganho-a')
+  // Já numa etapa de ganho (mesmo não a primeira): fica onde está
+  assert.equal(etapaAoGanhar({ id: 'ganho-b', resultado: 'ganho' }, etapas), null)
+  // Funil sem etapa de ganho: o lead fica na coluna onde está, com o selo Ganho
+  assert.equal(etapaAoGanhar({ id: 'novo', resultado: null }, etapas.filter(s => s.resultado !== 'ganho')), null)
 })
 
 test('mensagem recebida reabre ganho e perdido na etapa padrão', () => {

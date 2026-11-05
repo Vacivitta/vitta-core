@@ -58,8 +58,8 @@ INSERT INTO public.funnel_stages (id, funnel_id, nome, ordem, resultado, unit_id
   ('00000000-0000-4000-8135-0000000000d2', '00000000-0000-4000-8135-0000000000d0', 'Perdido', 1, 'perdido', '00000000-0000-4000-8135-0000000000a0'),
   ('00000000-0000-4000-8135-0000000000e1', '00000000-0000-4000-8135-0000000000e0', 'Novo',    0, NULL,      '00000000-0000-4000-8135-0000000000b0');
 
-INSERT INTO public.wa_tags (id, unit_id, name) VALUES
-  ('00000000-0000-4000-8135-0000000000c1', '00000000-0000-4000-8135-0000000000a0', 'Evento');
+INSERT INTO public.wa_tags (id, unit_id, name, tipo) VALUES
+  ('00000000-0000-4000-8135-0000000000c1', '00000000-0000-4000-8135-0000000000a0', 'Evento', 'lead');
 
 -- Lead que já existe na unidade A
 INSERT INTO public.leads (id, nome, telefone, funnel_id, stage_id, unit_id) VALUES

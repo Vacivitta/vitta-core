@@ -96,7 +96,9 @@ export interface ContextoExportacao {
   etapas:        ReadonlyMap<string, string>
   motivos:       ReadonlyMap<string, string>
   responsaveis:  ReadonlyMap<string, string>
-  tagsPorLead:   ReadonlyMap<string, readonly string[]>
+  /** Nomes das tags do cliente (lead_tags) e das conversas do lead, separadas desde a 133 */
+  tagsDoCliente:    ReadonlyMap<string, readonly string[]>
+  tagsDasConversas: ReadonlyMap<string, readonly string[]>
 }
 
 const STATUS_TEXTO: Record<StatusLead, string> = { aberto: 'Aberto', ganho: 'Ganho', perdido: 'Perdido' }
@@ -104,7 +106,7 @@ const STATUS_TEXTO: Record<StatusLead, string> = { aberto: 'Aberto', ganho: 'Gan
 export function cabecalhoExportacao(campos: readonly CampoLead[]): string[] {
   return [
     'Nome', 'Telefone', 'E-mail', 'Origem', 'Cidade', 'Funil', 'Etapa', 'Status', 'Motivo de perda', 'Cliente',
-    'Responsável', 'Tags', ...campos.map(c => c.rotulo), 'Criado em', 'Arquivado',
+    'Responsável', 'Tags do cliente', 'Tags das conversas', ...campos.map(c => c.rotulo), 'Criado em', 'Arquivado',
   ]
 }
 
@@ -138,7 +140,8 @@ export function linhaExportacao(lead: LeadExportado, ctx: ContextoExportacao): s
     motivoDePerda(lead, ctx.motivos),
     lead.is_converted ? 'Sim' : 'Não',
     doLead(ctx.responsaveis, lead.responsavel_id),
-    (ctx.tagsPorLead.get(lead.id) ?? []).join(', '),
+    (ctx.tagsDoCliente.get(lead.id) ?? []).join(', '),
+    (ctx.tagsDasConversas.get(lead.id) ?? []).join(', '),
     ...ctx.campos.map(c => formatarValor(c, lead.campos?.[c.chave])),
     dataBR(lead.created_at),
     lead.arquivado ? (lead.arquivado_motivo?.trim() || 'Sim') : '',

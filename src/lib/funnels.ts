@@ -1,5 +1,20 @@
 import { createClient } from './supabase/client'
 import type { Funnel, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
+import { mensagemRecusaPorReferencia, mensagemUsadaPorAutomacao } from './funil/exclusao'
+
+// Automações por tempo que usam o funil ou alguma das etapas como filtro (o banco
+// recusa a exclusão: FKs ON DELETE RESTRICT, migração 135)
+async function automacoesQueFiltram(funnelId: string | null, stageIds: string[]): Promise<string[]> {
+  const condicoes = [
+    ...(funnelId ? [`filter_funnel_id.eq.${funnelId}`] : []),
+    ...(stageIds.length > 0 ? [`filter_stage_id.in.(${stageIds.join(',')})`] : []),
+  ]
+  if (condicoes.length === 0) return []
+  const { data, error } = await createClient()
+    .from('wa_timed_automations').select('nome').or(condicoes.join(','))
+  if (error) throw error
+  return (data ?? []).map(a => String(a.nome ?? ''))
+}
 
 // ---- Funis ----------------------------------------------------------------
 
@@ -48,9 +63,10 @@ export async function deactivateFunnel(id: string): Promise<void> {
   await updateFunnel(id, { ativo: false })
 }
 
-// Exclui permanentemente — só permite se o funil não tem nenhum lead, nem perdido:
-// as FKs de leads (funnel_id, stage_id) são ON DELETE SET NULL e o histórico de
-// etapas (para_stage_id) é apagado em cascata.
+// Exclui permanentemente — só se o funil não tem nenhum lead, nem perdido ou
+// arquivado, e se nenhuma automação por tempo o usa como filtro. O banco também
+// recusa (FKs ON DELETE RESTRICT, migração 135); conferir antes dá a mensagem certa. As etapas vão em cascata e os campos
+// personalizados do funil ficam na unidade, desativados.
 export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount: number }> {
   const supabase = createClient()
 
@@ -68,8 +84,11 @@ export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount
 
   if (leadCount > 0) return { ok: false, leadCount }
 
+  const usada = mensagemUsadaPorAutomacao('funil', await automacoesQueFiltram(id, stageIds))
+  if (usada) throw new Error(usada)
+
   const { error } = await supabase.from('funnels').delete().eq('id', id)
-  if (error) throw error
+  if (error) throw new Error(mensagemRecusaPorReferencia('funil', error) ?? error.message)
   return { ok: true, leadCount: 0 }
 }
 
@@ -117,7 +136,8 @@ export async function updateStage(
 }
 
 // Só exclui etapa sem nenhum lead, inclusive perdido (a coluna de perda guarda os
-// perdidos; leads.stage_id é ON DELETE SET NULL e o histórico seria apagado)
+// perdidos) e que nenhuma automação por tempo usa como filtro. O banco também recusa (leads.stage_id ON DELETE RESTRICT, migração
+// 135); o histórico de quem passou pela etapa fica, sem o destino.
 export async function deleteStage(id: string): Promise<void> {
   const supabase = createClient()
 
@@ -126,8 +146,11 @@ export async function deleteStage(id: string): Promise<void> {
     throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} (inclusive perdidos). Distribua os leads para outras etapas antes de excluir.`)
   }
 
+  const usada = mensagemUsadaPorAutomacao('etapa', await automacoesQueFiltram(null, [id]))
+  if (usada) throw new Error(usada)
+
   const { error } = await supabase.from('funnel_stages').delete().eq('id', id)
-  if (error) throw error
+  if (error) throw new Error(mensagemRecusaPorReferencia('etapa', error) ?? error.message)
 }
 
 // Reordena etapas de um funil. Usa dois passos sequenciais para contornar
