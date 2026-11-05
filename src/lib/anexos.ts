@@ -107,7 +107,6 @@ export function nomeParaCaminho(nome: string): string {
   return s.slice(0, 80).replace(/[-.]+$/, '') || 'arquivo'
 }
 
-/** Prefixo dos objetos de um lead no bucket. */
 export function prefixoAnexos(unitId: string, leadId: string): string {
   return `${unitId}/${leadId}/`
 }

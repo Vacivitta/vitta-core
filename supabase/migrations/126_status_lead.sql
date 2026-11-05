@@ -56,8 +56,10 @@
 -- depender de leads.arquivado (view, policy), o DROP COLUMN falha e nada muda.
 -- Deploy do app logo depois: o app antigo escreve arquivado, que passa a ser
 -- gerado (erro 428C9 ao arquivar/restaurar até o deploy).
--- Depois de um restore, reaplicar 118, 121 e esta (a 121 recria mesclar_leads sem
--- o status).
+-- Depois de um restore, seguir a ordem do CLAUDE.md (Database migrations): 118,
+-- 121, esta e as seguintes que recriam mesclar_leads, terminando na mais nova
+-- delas (a 121 recria mesclar_leads sem o status; parar nesta perde tags, anexos
+-- e campos na mesclagem).
 --
 -- Reversão (só com aprovação, perde status/datas/motivos estruturados): recriar
 -- arquivado como coluna comum a partir de status, o CHECK antigo, as views da 084

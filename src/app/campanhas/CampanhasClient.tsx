@@ -843,7 +843,6 @@ const selectSt: React.CSSProperties = {
   borderRadius: 10, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#25402C', cursor: 'pointer',
 }
 
-// ── Importador de CSV ────────────────────────────────────────────────────────
 // Formato esperado: coluna "nome" e coluna "telefone" (qualquer ordem, cabeçalho na 1ª linha).
 // Sem cabeçalho reconhecível, usa as duas primeiras colunas (nome, telefone).
 
