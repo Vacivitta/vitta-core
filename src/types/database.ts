@@ -271,6 +271,8 @@ export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos'> {
   tarefas_pendentes:  number
   total_notas:        number
   total_contatos:     number
+  /** Só em leads_kanban (migração 134); leads_arquivados não traz */
+  campos?:            CamposDoLead
 }
 
 // ---- Relacionamentos do lead ------------------------------------------------

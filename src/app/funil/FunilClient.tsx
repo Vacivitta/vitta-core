@@ -1,7 +1,10 @@
 'use client'
 
 import { Fragment, useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
+import type { CampoLead, Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
+import {
+  camposFiltraveis, opcoesDoFiltro, passaFiltroCampos, totalFiltrosCampos, type FiltroCampos,
+} from '@/lib/funil/filtro-campos'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
 import {
@@ -38,6 +41,8 @@ interface Props {
   totalArquivadosInicial: number
   /** Lead do link /funil?lead=<id> (notificações), já conferido no servidor */
   leadDoLink: { lead: LeadKanban; aba: string | null } | null
+  /** Campos personalizados ativos da unidade (filtro por campo) */
+  camposLead: CampoLead[]
 }
 
 function MultiCheckFilter({ label, selected, options, onChange }: {
@@ -142,7 +147,10 @@ interface Filters {
   cidade: string
   stage_ids: string[]
   tag_ids: string[]
+  campos: FiltroCampos
 }
+
+const FILTROS_VAZIOS: Filters = { search: '', responsavel_ids: [], cidade: '', stage_ids: [], tag_ids: [], campos: {} }
 
 /** Grava a ordenação no cookie (1 ano) e no localStorage. */
 function salvarOrdenacao(mode: string) {
@@ -150,7 +158,7 @@ function salvarOrdenacao(mode: string) {
   try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial, totalArquivadosInicial, leadDoLink }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial, totalArquivadosInicial, leadDoLink, camposLead }: Props) {
   const supabase = createClient()
 
   // Lead de outro funil: troca o funil exibido (funil inativo fica no atual, a ficha abre igual)
@@ -179,17 +187,12 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   useEffect(() => {
     if (leadDoLink && window.location.search) window.history.replaceState(null, '', window.location.pathname)
   }, [leadDoLink])
+
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
   const [showArquivados, setShowArquivados] = useState(false)
   const [totalArquivados, setTotalArquivados] = useState(totalArquivadosInicial)
   const [newConvOpen, setNewConvOpen]     = useState(false)
-  const [filters, setFilters]             = useState<Filters>({
-    search:          '',
-    responsavel_ids: [],
-    cidade:          '',
-    stage_ids:       [],
-    tag_ids:         [],
-  })
+  const [filters, setFilters]             = useState<Filters>(FILTROS_VAZIOS)
   const [showFilters, setShowFilters]     = useState(false)
   const [unitTags, setUnitTags]           = useState<EtiquetaCard[]>([])
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>(resumoInicial.unreadByLead)
@@ -338,6 +341,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   }, [supabase])
 
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId) ?? funnels[0]
+  const camposDoFiltro = useMemo(() => camposFiltraveis(camposLead, selectedFunnelId), [camposLead, selectedFunnelId])
 
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
@@ -360,11 +364,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         const lt = tagsByLead[l.id]
         if (!lt || !filters.tag_ids.some(tid => lt.some(t => t.id === tid))) return false
       }
+      if (!passaFiltroCampos(l.campos, filters.campos, camposDoFiltro)) return false
       return true
     })
-  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds])
+  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds, camposDoFiltro])
 
   const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
+    + totalFiltrosCampos(filters.campos, camposDoFiltro)
 
   // Os perdidos da coluna de perda (migração 131) não estão em acompanhamento
   const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId && l.status !== 'perdido').length
@@ -550,7 +556,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
                 download
                 className="flex items-center gap-1.5"
                 style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
-                title="Baixar em CSV os contatos deste funil com os filtros aplicados (a busca por texto não entra)"
+                title="Baixar em CSV os contatos deste funil com os filtros aplicados (a busca por texto e os filtros por campo personalizado não entram)"
               >
                 <span className="hidden sm:inline">Exportar</span>
                 <span className="sm:hidden">CSV</span>
@@ -617,6 +623,16 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             onChange={ids => setFilters(f => ({ ...f, stage_ids: ids }))}
           />
 
+          {camposDoFiltro.map(c => (
+            <MultiCheckFilter
+              key={c.id}
+              label={c.rotulo}
+              selected={filters.campos[c.chave] ?? []}
+              options={opcoesDoFiltro(c)}
+              onChange={ids => setFilters(f => ({ ...f, campos: { ...f.campos, [c.chave]: ids } }))}
+            />
+          ))}
+
           {unitTags.length > 0 && (
             <MultiCheckFilter
               label="Tag"
@@ -628,7 +644,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
 
           {activeFiltersCount > 0 && (
             <button
-              onClick={() => setFilters({ search: '', responsavel_ids: [], cidade: '', stage_ids: [], tag_ids: [] })}
+              onClick={() => setFilters(FILTROS_VAZIOS)}
               style={{ fontSize: 11, color: '#C87F1B', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
             >
               Limpar filtros
