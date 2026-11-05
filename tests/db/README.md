@@ -35,6 +35,12 @@ O `run.sh`, em ordem:
    mensagem certa quando rodadas como `postgres` ou sem `--single-transaction`.
    Exceção conhecida: a 090 reaplicada depois da 113 aborta, porque a guarda dela
    não conhece `is_gestor()`;
+   e testa a ordem pós-restore (`ordem_pos_restore`, a mesma do CLAUDE.md e do
+   runbook, conferida no texto deles quando existem): guarda o estado de toda
+   função e view do `public` (privilégios e definição), simula o restore (EXECUTE
+   de volta para `authenticated` em todas as funções, `anon` lendo as views de
+   leads), confere que a 118 aplicada logo em seguida aborta, aplica a ordem uma
+   a uma e exige que o estado volte igual ao de antes;
 5. roda `tests/db/*.test.sql` em ordem, como `supabase_admin`.
 
 ## O que o prelúdio faz e por quê

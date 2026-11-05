@@ -137,7 +137,13 @@ Resolvidas: `WHATSAPP_APP_ID`/`WHATSAPP_APP_SECRET` no Coolify (validados na Met
 - **Cada migração nova** (090 em diante): aplicar com `--single-transaction`, registrar a versão **como `supabase_admin`** (`INSERT ... (version, name) VALUES ('0NN', '<nome>') ON CONFLICT DO NOTHING`) e rodar `notify pgrst, 'reload schema'`. No Postgres 15.8 da produção, `postgres` não é superusuário e não grava no registro, de propósito (só lê, por ser membro de `pg_read_all_data`).
 - **Nunca usar a CLI do Supabase contra a produção** (`db push`, `migration repair`, `db reset`): ela tentaria aplicar 001–089.
 - **Papel:** migração com GRANT/REVOKE ou que substitui função `SECURITY DEFINER` roda como `supabase_admin`. Como `postgres`, o REVOKE não tem efeito e só gera aviso.
-- **Depois de qualquer restauração do backup (OBRIGATÓRIO):** reaplicar a `118_reaplicar_grants_funcoes.sql` como `supabase_admin`, com `--single-transaction` (a 090 não serve mais: a guarda dela é anterior à `is_gestor()` e aborta desde a 113), e conferir com `has_function_privilege`: `anon` = `false` em todas as funções `SECURITY DEFINER` e `authenticated` = `true` só em `is_global_admin`, `is_admin`, `is_gestor`, `get_agent_stats` e nas duas `record_stage_history`. O teste de restauração de 29/10 mostrou que o restore reabre essas funções para `anon` **e** `authenticated`. A mudança de privilégios padrão prevista para a migração 091 (PR-00b, ainda a aplicar) mantém `anon` fechado depois de um restore, mas `authenticated` volta nas 12 funções restritas; por isso ela **não substitui** este passo.
+- **Depois de qualquer restauração do backup (OBRIGATÓRIO): ordem pós-restore.** O restore recria as funções com o privilégio padrão (EXECUTE para `authenticated`; `anon` fechado pela 091) e sem os REVOKE das migrações; o teste de restauração de 29/10 mostrou isso nas 12 funções restritas da 118. Reaplicar, como `supabase_admin`, cada uma com `--single-transaction` (registrar versão não precisa: já estão no registro), **nesta ordem exata: 113, 115, 121, 123, 124, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 118** — a mesma do CLAUDE.md, e o `tests/db/run.sh` simula o restore, aplica essa ordem e confere que privilégios e definições de toda função e view do `public` voltam ao estado de antes. Por quê:
+  - **118 por último**: a guarda dela aborta se alguma `SECURITY DEFINER` estiver aberta para `authenticated` fora da lista dela, e depois do restore estão abertas as de 121–133 (`mesclar_leads`, `registrar_erro_app`, funções de `lead_tags`, `lead_anexos` e de tags por tipo). A 090 não serve mais (a guarda dela é anterior à `is_gestor()`).
+  - **113 e 115** fecham de novo as funções de trigger `fn_guard_lead_unit_change` e `fn_guard_unit_tipo`; **123** e **124** fecham `reservar_destinatarios_campanha` e `registrar_erro_app`.
+  - **121 → 126 → 127 → 128 → 129**: cada uma recria `mesclar_leads` inteira a partir da anterior; a 129 tem de ser a última delas (parar antes traz uma versão que perde o status, recusa toda mesclagem ou perde os campos do lead removido).
+  - **126 → 131 → 132 → 134**: 126 recria `leads_kanban`/`leads_arquivados` e `execute_quote_automation` com as regras antigas; 131 traz de volta a versão da automação que leva o perdido à etapa de perda; 132 recria as duas views com a regra do arquivamento (a 131 depois dela aborta: reaplicar a 132 de novo); 134 acrescenta `campos` à `leads_kanban` e só roda sobre a forma da 132. A 126 reaplicada não mexe em arquivamentos (`arquivado` é gerada).
+  - **130** depois da 129 (depende dela), **133** depois da 132 e antes da 118, **135** depois da 132 (fecha as funções de trigger dela e o `anon` de `criar_campanha`).
+  Conferir depois com `has_function_privilege`: `anon` = `false` em todas as funções `SECURITY DEFINER` e `authenticated` = `true` só em `is_global_admin`, `is_admin`, `is_gestor`, `get_agent_stats` e nas duas `record_stage_history`. Migração nova que crie função com REVOKE, recrie função ou view destas entra nesta ordem (e no `ordem_pos_restore` do `tests/db/run.sh`, que confere que este texto e o CLAUDE.md trazem a mesma sequência).
 
 ## Campanhas de WhatsApp: migração 123 e job `process-wa-campaigns` (passo manual, [H])
 Desde a 123 as campanhas andam sozinhas: o botão Disparar só marca a campanha como `enviando` e o job
@@ -194,8 +200,8 @@ assinada de 5 minutos pela rota `GET /api/leads/[id]/anexos/[anexoId]`, depois d
    recusa rodar sem elas); registrar a versão `128` e rodar
    `notify pgrst, 'reload schema'`. Conferir: `SELECT public, file_size_limit FROM storage.buckets WHERE id = 'lead-anexos';`
    → `f`, `20971520`; `SELECT has_function_privilege('authenticated', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE');` → `false`.
-   Depois de um restore, reaplicar 118, 121, 126, 127, 128 e por último a 129 (idempotentes; fecham de novo o EXECUTE e
-   deixam vigente a `mesclar_leads` completa).
+   Depois de um restore, seguir a ordem pós-restore (seção de migrações acima): fecha de novo o EXECUTE e deixa
+   vigente a `mesclar_leads` completa.
 3. Deploy do app. A ordem importa pouco: sem a 128 a aba Anexos mostra erro ao carregar; sem o deploy ninguém usa o bucket.
    A 126, a 127 e a 128 recriam `mesclar_leads` inteira, cada uma partindo do corpo da anterior; a última aplicada é a
    que vale. Reaplicar a 126 ou a 127 depois da 128 traz de volta uma versão sem `lead_anexos` (toda mesclagem aborta
@@ -235,8 +241,8 @@ por trigger: chave de campo ativo da unidade e do funil do lead, valor do tipo c
    → `false`; `SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'public.mesclar_leads(uuid,uuid,uuid)'::regprocedure;`
    → `supabase_admin` (o trigger não valida o que o dono junta na mesclagem; a guarda final da 129 confere).
 2. Deploy do app. Sem a 129 a seção Informações da ficha mostra erro ao carregar; sem o deploy ninguém usa os campos.
-3. A 129 recria `mesclar_leads` a partir do corpo da 128 (mais a fusão de `campos`). Depois de um restore, reaplicar
-   118, 121, 126, 127, 128 e por último a 129. Reaplicar uma anterior depois da 129 traz de volta uma versão que perde os
+3. A 129 recria `mesclar_leads` a partir do corpo da 128 (mais a fusão de `campos`). Depois de um restore, seguir a
+   ordem pós-restore (seção de migrações acima). Reaplicar uma anterior depois da 129 traz de volta uma versão que perde os
    campos do lead removido: nesse caso, reaplicar a 129 em seguida.
 
 Reversão: ver o cabeçalho da `129_campos_personalizados.sql` (perde os valores gravados).
@@ -298,9 +304,9 @@ etapa não mudam.
    dashboard). O app de hoje não grava `arquivado` nem as colunas novas e continua funcionando com a 132; até o deploy,
    o painel "Perdidos" dele mostra os arquivados e mensagem recebida reabre o negócio mas não desarquiva.
 3. Não recria `mesclar_leads` nem `execute_quote_automation` (o ramo `archive` da automação de orçamento continua
-   PERDENDO o lead). Na mesclagem o lead mantido conserva o próprio arquivamento. Depois de um restore, reaplicá-la por
-   último (só a 134 vem depois), **depois da 126 e da 131** (as duas recriam `leads_kanban`; a 126 também `leads_arquivados`): ordem completa
-   no CLAUDE.md. A 131 reaplicada depois da 132 aborta (a view tem mais colunas): reaplicar a 132 de novo. A 126
+   PERDENDO o lead). Na mesclagem o lead mantido conserva o próprio arquivamento. Depois de um restore, reaplicá-la
+   **depois da 126 e da 131** (as duas recriam `leads_kanban`; a 126 também `leads_arquivados`) e antes da 134: ordem
+   pós-restore na seção de migrações acima. A 131 reaplicada depois da 132 aborta (a view tem mais colunas): reaplicar a 132 de novo. A 126
    reaplicada depois da 132 não mexe nos arquivamentos (`arquivado` continua gerada, a parte de dados dela é pulada).
    Reaplicar a 132 não rearquiva quem foi desarquivado.
 
@@ -335,8 +341,8 @@ múltipla e sim/não). Só a definição da view muda (a da 132 + `l.campos`); n
    Conferir: `SELECT has_table_privilege('anon', 'public.leads_kanban', 'SELECT');` → `false`.
 2. Ordem com o deploy: tanto faz, o melhor é **134 primeiro**. O app lê `leads_kanban` com `select('*')`: sem a 134 o
    filtro por campo aparece, mas não encontra nenhum lead; o app de hoje ignora a coluna nova.
-3. Depois de um restore, reaplicá-la por último, **depois da 132** (a 132 faz DROP + CREATE da view e tira `campos`):
-   ordem completa no CLAUDE.md. A 132 reaplicada depois da 134 passa, mas tira a coluna: reaplicar a 134 em seguida.
+3. Depois de um restore, reaplicá-la **depois da 132** (a 132 faz DROP + CREATE da view e tira `campos`): ordem
+   pós-restore na seção de migrações acima. A 132 reaplicada depois da 134 passa, mas tira a coluna: reaplicar a 134 em seguida.
 
 Reversão: ver o cabeçalho da `134_kanban_campos.sql`.
 
@@ -362,8 +368,8 @@ Protege no banco o que o app já fazia e fecha duas brechas:
 2. Ordem com o deploy: **135 primeiro, deploy depois**. O app novo cria campanha por `criar_campanha` (sem a 135, criar
    campanha dá erro). O app de hoje funciona com a 135: não exclui etapa nem funil com leads e cria campanha pelas
    tabelas.
-3. Não recria função SECURITY DEFINER: a 118 reaplicada depois passa. Depois de um restore, reaplicar a 135 (idempotente)
-   fecha de novo o EXECUTE de `anon` em `criar_campanha`.
+3. Não recria função SECURITY DEFINER: a 118 reaplicada depois passa. Depois de um restore, reaplicar a 135 (idempotente,
+   na ordem pós-restore) fecha de novo o EXECUTE das funções de trigger dela e o de `anon` em `criar_campanha`.
 
 Reversão: ver o cabeçalho da `135_pendencias.sql` (volta a apagar histórico ao excluir etapa).
 

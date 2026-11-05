@@ -123,11 +123,87 @@ for m in "${migracoes[@]}"; do
   checagens=$((checagens + 1))
 done
 
-# Ordem pós-restore do CLAUDE.md: a 118 reaplicada depois das que recriam funções
-# SECURITY DEFINER (a 131 recria execute_quote_automation; a 133 cria as de tags) passa
-aplicar supabase_admin "$(arquivo_da_versao 118)" --single-transaction ||
-  { cat "$saida"; falhar "reaplicar a 118 depois da $(arquivo_da_versao 133) deveria passar"; }
+# ── Ordem pós-restore (CLAUDE.md, "After any database restore", e runbook) ───
+# O restore recria as funções com o privilégio padrão (EXECUTE para authenticated;
+# anon fechado pela 091), sem os REVOKE das migrações. Simula isso, reaplica a
+# ordem documentada, cada uma como o Infra aplica, e confere que o banco volta
+# exatamente ao estado de antes: privilégios e definição de toda função e view
+# do public. Mudou a ordem aqui, mude no CLAUDE.md e no runbook (conferido abaixo).
+ordem_pos_restore=(113 115 121 123 124 126 127 128 129 130 131 132 133 134 135 118)
+texto_ordem="$(printf '%s, ' "${ordem_pos_restore[@]}")"
+texto_ordem="${texto_ordem%, }"
+for doc in CLAUDE.md docs/migracao-vps/runbook.md; do
+  # O run.sh também roda de um recorte do repositório (só migrações e testes)
+  [[ -f "$doc" ]] || continue
+  grep -qF -- "$texto_ordem" "$doc" || falhar "$doc não traz a ordem pós-restore testada: $texto_ordem"
+done
+
+estado_do_banco() {
+  cat <<SQL
+INSERT INTO zz_pos_restore.estado
+SELECT '$1', 'função ' || p.oid::regprocedure::text,
+       concat_ws(' ',
+         CASE WHEN has_function_privilege('anon', p.oid, 'EXECUTE') THEN 'anon' END,
+         CASE WHEN has_function_privilege('authenticated', p.oid, 'EXECUTE') THEN 'authenticated' END,
+         CASE WHEN has_function_privilege('service_role', p.oid, 'EXECUTE') THEN 'service_role' END),
+       md5(pg_get_functiondef(p.oid))
+  FROM pg_proc p
+ WHERE p.pronamespace = 'public'::regnamespace AND p.prokind IN ('f', 'p')
+UNION ALL
+SELECT '$1', 'view ' || c.oid::regclass::text,
+       concat_ws(' ',
+         CASE WHEN has_table_privilege('anon', c.oid, 'SELECT') THEN 'anon' END,
+         CASE WHEN has_table_privilege('authenticated', c.oid, 'SELECT') THEN 'authenticated' END),
+       md5(pg_get_viewdef(c.oid))
+  FROM pg_class c
+ WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'v';
+SQL
+}
+
+{
+  echo 'DROP SCHEMA IF EXISTS zz_pos_restore CASCADE;'
+  echo 'CREATE SCHEMA zz_pos_restore;'
+  echo 'CREATE TABLE zz_pos_restore.estado (momento text, objeto text, acesso text, definicao text);'
+  estado_do_banco antes
+  # O "restore": toda função volta executável por authenticated; as views de
+  # leads voltam legíveis por anon
+  echo 'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;'
+  echo 'GRANT SELECT ON public.leads_kanban, public.leads_arquivados TO anon;'
+} | psql_como supabase_admin --single-transaction >"$saida" 2>&1 || { cat "$saida"; falhar "simular o restore"; }
+
+# Por que a 118 não pode ir primeiro: a guarda dela recusa as SECURITY DEFINER
+# das migrações posteriores (mesclar_leads, tags, anexos...) reabertas
+esperar_erro "logo depois do restore" "118: executáveis por authenticated fora das permitidas" \
+  supabase_admin "$(arquivo_da_versao 118)" --single-transaction
+
+for v in "${ordem_pos_restore[@]}"; do
+  aplicar supabase_admin "$(arquivo_da_versao "$v")" --single-transaction ||
+    { cat "$saida"; falhar "ordem pós-restore ($texto_ordem): $(arquivo_da_versao "$v") abortou"; }
+done
+
+{
+  estado_do_banco depois
+  cat <<'SQL'
+DO $$
+DECLARE diferencas text;
+BEGIN
+  SELECT string_agg(format('%s: antes [%s] depois [%s]%s', objeto, a.acesso, d.acesso,
+                           CASE WHEN a.definicao IS DISTINCT FROM d.definicao THEN ' (definição mudou)' ELSE '' END),
+                    E'\n' ORDER BY objeto)
+    INTO diferencas
+    FROM (SELECT * FROM zz_pos_restore.estado WHERE momento = 'antes') a
+    FULL JOIN (SELECT * FROM zz_pos_restore.estado WHERE momento = 'depois') d USING (objeto)
+   WHERE a.acesso IS DISTINCT FROM d.acesso OR a.definicao IS DISTINCT FROM d.definicao;
+  IF diferencas IS NOT NULL THEN
+    RAISE EXCEPTION E'a ordem pós-restore não devolveu o banco ao estado de antes:\n%', diferencas;
+  END IF;
+END $$;
+DROP SCHEMA zz_pos_restore CASCADE;
+SQL
+} | psql_como supabase_admin --single-transaction >"$saida" 2>&1 ||
+  { cat "$saida"; falhar "ordem pós-restore ($texto_ordem) não restaurou privilégios e definições"; }
 checagens=$((checagens + 1))
+echo "ok  ordem pós-restore $texto_ordem: 118 antes delas aborta; depois do restore simulado, privilégios e definições voltam"
 
 for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
