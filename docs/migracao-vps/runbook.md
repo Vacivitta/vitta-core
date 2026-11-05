@@ -256,3 +256,22 @@ com o SQLSTATE `VC001`. Automações, webhook, importação pelo servidor e tran
    fecha de novo o EXECUTE das funções dela (idempotente).
 
 Reversão: ver o cabeçalho da `130_obrigatorios_etapa.sql` (perde a configuração das etapas).
+
+## Perdido na etapa de perda: migração 131 ([H])
+Corrige o "perdido some do funil" da 126: `leads_kanban` volta a mostrar os perdidos que estão na etapa de perda do funil
+(`funnel_stages.resultado = 'perdido'`), e os perdidos fora dela vão para ela quando o funil tem uma. Funil sem etapa de
+perda continua como antes (o lead fica só no painel Perdidos). O app novo (`marcarPerdido`) passa a mover para a etapa de
+perda no mesmo update do status e grava o histórico com `movido_via = 'perdido'`.
+
+1. Aplicar `131_perdido_na_etapa.sql` como `supabase_admin`, com `--single-transaction`, **depois da 130** (a guarda recusa
+   rodar sem ela); registrar a versão `131` e rodar `notify pgrst, 'reload schema'`. Os NOTICEs dizem quantos perdidos
+   foram movidos e quantos ficaram no quadro e só no painel. `status`, `perdido_em` e o motivo não mudam (a migração
+   aborta se mudarem). Conferir: `SELECT has_table_privilege('anon', 'public.leads_kanban', 'SELECT');` → `false`.
+2. Ordem com o deploy: tanto faz, mas o melhor é **deploy primeiro, 131 depois**. Com a 131 antes do deploy, o app antigo
+   ainda marca perdido sem mudar a etapa, e esses leads somem do quadro até o deploy; reaplicar a 131 depois do deploy
+   (idempotente) os leva para a etapa de perda. Com o deploy antes da 131, quem é marcado perdido já vai para a etapa de
+   perda, mas só aparece no quadro depois da 131 (até lá, só no painel Perdidos, como hoje).
+3. A 131 não recria `mesclar_leads` nem funções `SECURITY DEFINER`. Depois de um restore, reaplicá-la **depois da 126**:
+   a 126 recria `leads_kanban` escondendo todos os perdidos.
+
+Reversão: ver o cabeçalho da `131_perdido_na_etapa.sql`.

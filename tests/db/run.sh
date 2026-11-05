@@ -123,10 +123,10 @@ for m in "${migracoes[@]}"; do
   checagens=$((checagens + 1))
 done
 
-for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130; do
+for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130; do
+for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 

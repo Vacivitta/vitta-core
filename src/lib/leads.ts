@@ -1,5 +1,5 @@
 import { createClient } from './supabase/client'
-import { etapaAoReabrir } from './status-lead'
+import { etapaAoPerder, etapaAoReabrir } from './status-lead'
 import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
 
 // ---- Funis ----------------------------------------------------------------
@@ -79,14 +79,42 @@ export async function marcarGanho(id: string): Promise<void> {
   if (error) throw error
 }
 
-/** @param detalhe - Texto livre (obrigatório no motivo "Outro"; valide com gravacaoPerda) */
+/**
+ * Marca o negócio como perdido. Se o funil tem etapa de perda e o lead não está
+ * nela, move para ela no mesmo update (o lead continua no kanban, na coluna de
+ * perda) e grava o histórico de etapa com a etapa de onde saiu.
+ *
+ * @param detalhe - Texto livre (obrigatório no motivo "Outro"; valide com gravacaoPerda)
+ */
 export async function marcarPerdido(id: string, motivoId: string, detalhe?: string | null): Promise<void> {
   const supabase = createClient()
+  const { data: lead, error: leadErr } = await supabase
+    .from('leads').select('stage_id, funnel_id').eq('id', id).single()
+  if (leadErr) throw leadErr
+
+  const { data: etapas, error: etapasErr } = await supabase
+    .from('funnel_stages').select('id, ordem, resultado').eq('funnel_id', lead.funnel_id)
+  if (etapasErr) throw etapasErr
+  const lista = (etapas ?? []) as Pick<FunnelStage, 'id' | 'ordem' | 'resultado'>[]
+  const destino = etapaAoPerder(lista.find(s => s.id === lead.stage_id) ?? null, lista)
+
+  const valores = { status: 'perdido', motivo_perda_id: motivoId, motivo_perda: detalhe?.trim() || null } as const
   const { error } = await supabase
     .from('leads')
-    .update({ status: 'perdido', motivo_perda_id: motivoId, motivo_perda: detalhe?.trim() || null })
+    .update(destino ? { ...valores, stage_id: destino } : valores)
     .eq('id', id)
   if (error) throw error
+
+  if (!destino) return
+  const { data: { user } } = await supabase.auth.getUser()
+  const { error: rpcErr } = await supabase.rpc('record_stage_history', {
+    p_lead_id:    id,
+    p_de_stage:   lead.stage_id,
+    p_para_stage: destino,
+    p_movido_por: user?.id ?? null,
+    p_movido_via: 'perdido',
+  })
+  if (rpcErr) console.error('[marcarPerdido] record_stage_history falhou:', rpcErr)
 }
 
 /**

@@ -64,6 +64,27 @@ export function etapaAoReabrir(
 }
 
 /**
+ * Etapa para onde vai um lead marcado como perdido pela ficha: a etapa de perda
+ * do funil (resultado 'perdido'; a de menor ordem, se houver mais de uma), para
+ * ele continuar no kanban, na coluna de perda (leads_kanban, migração 131).
+ * Null se ele já está numa etapa de perda ou se o funil não tem nenhuma (aí o
+ * lead fica só no painel Perdidos).
+ *
+ * @param atual - Etapa atual do lead (null se não tem etapa)
+ * @param etapasDoFunil - Etapas do funil do lead
+ */
+export function etapaAoPerder(
+  atual: { id: string; resultado: ResultadoEtapa | null } | null,
+  etapasDoFunil: { id: string; ordem: number; resultado: ResultadoEtapa | null }[],
+): string | null {
+  if (atual?.resultado === 'perdido') return null
+  const destino = [...etapasDoFunil]
+    .sort((a, b) => a.ordem - b.ordem || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .find(s => s.resultado === 'perdido')
+  return destino?.id ?? null
+}
+
+/**
  * Mensagem recebida de um lead com negócio fechado (ganho ou perdido) reabre o
  * negócio na etapa padrão da unidade (1ª etapa do 1º funil), como o webhook já
  * fazia com os arquivados. is_converted não muda: quem é cliente continua cliente.
