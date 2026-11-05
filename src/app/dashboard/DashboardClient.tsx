@@ -99,8 +99,6 @@ function Bar({ value, max, color, h }: { value: number; max: number; color: stri
   )
 }
 
-// ─── Negócios (status do lead) ───────────────────────────────────────────────
-
 const VERDE_ESCURO = '#25402C'
 const VERDE = '#3E9849'
 const BEGE = '#FBFAF4'
@@ -619,7 +617,6 @@ export default function DashboardClient({ currentUser, filtros, desdeISO, funis,
           </div>
         </Section>
 
-        {/* ── RECUSA DE ORÇAMENTOS ── */}
         <Section title="Recusa de orçamentos">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div style={card}>

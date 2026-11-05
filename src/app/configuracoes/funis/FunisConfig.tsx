@@ -651,7 +651,6 @@ function SortableStageRow({
           Mensal
         </button>
 
-        {/* Campos exigidos para entrar */}
         <button
           type="button"
           onClick={() => setMostrarExigencias(v => !v)}
@@ -669,7 +668,6 @@ function SortableStageRow({
           Exigir{exigidos.length ? ` · ${exigidos.length}` : ''}
         </button>
 
-        {/* Resultado da etapa */}
         <select
           value={stage.resultado ?? ''}
           onChange={e => onResultadoChange(e.target.value === 'ganho' || e.target.value === 'perdido' ? e.target.value : null)}
@@ -772,8 +770,6 @@ function SortableStageRow({
     </div>
   )
 }
-
-// ── Motivos de perda do funil ─────────────────────────────────────────────────
 
 function MotivosPerdaSection({ funnelId }: { funnelId: string }) {
   const [motivos,    setMotivos]    = useState<MotivoPerda[] | null>(null)

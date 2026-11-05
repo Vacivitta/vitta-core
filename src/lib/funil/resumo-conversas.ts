@@ -20,13 +20,11 @@ export interface ResumoConversas {
   tagsByLead:    Record<string, EtiquetaCard[]>
 }
 
-/** Linha de `lead_tags` usada pelo funil (com a tag aninhada). */
 export interface TagDoLeadFunil {
   lead_id: string
   tag?:    unknown
 }
 
-/** Colunas buscadas em `lead_tags` para as etiquetas do próprio lead. */
 export const SELECT_TAGS_DOS_LEADS = 'lead_id, tag:wa_tags(id,name,color)'
 
 /** Colunas buscadas em `wa_conversations` para montar o resumo. */

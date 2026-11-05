@@ -85,7 +85,6 @@ type TimelineItem =
 
 const COLUNAS_DO_FORM = ['email', 'telefone', 'sobrenome', 'profissao', 'cidade', 'estado', 'origem', 'responsavel_id'] as const
 
-/** Formulário da ficha com os campos fixos preenchidos no modal de campos exigidos. */
 function formComFixos<F extends Record<(typeof COLUNAS_DO_FORM)[number], string>>(form: F, fixos: ValoresFixos): F {
   const novo = { ...form }
   for (const k of COLUNAS_DO_FORM) {
@@ -558,7 +557,6 @@ function LeadDrawer({
   // Formulário de orçamento aberto aqui mesmo, sem ir para a tela de Orçamentos
   const [novoOrcamento, setNovoOrcamento] = useState(false)
 
-  // Tags do lead e catálogo da unidade dele (o mesmo das conversas)
   useEffect(() => {
     void supabase.from('lead_tags').select('tag:wa_tags(id,name,color)').eq('lead_id', lead.id)
       .then(({ data }) => setLeadTags(((data ?? []) as unknown as Array<{ tag: ConvTag | null }>)
@@ -737,7 +735,6 @@ function LeadDrawer({
     setDeletingTaskId(null)
   }
 
-  // ── Campos exigidos pela etapa (migração 130) ──────────────────────────────
   const [obrigatorios, setObrigatorios] = useState<{
     etapaId:  string
     funnelId: string
@@ -812,7 +809,6 @@ function LeadDrawer({
     } finally { setSaving(false) }
   }
 
-  // ── Status do negócio (ganho / reabrir) ────────────────────────────────────
   const [isConverted,  setIsConverted]  = useState<boolean>(lead.is_converted)
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusError,  setStatusError]  = useState('')
@@ -916,7 +912,6 @@ function LeadDrawer({
     }
   }
 
-  // ── Perda ──────────────────────────────────────────────────────────────────
   // Mesma regra do antigo Arquivar: atendente não marca perdido pela ficha
   const podeMarcarPerdido = !isAtendente
   const [perdaModal,    setPerdaModal]    = useState(false)
@@ -1356,7 +1351,6 @@ function LeadDrawer({
             </div>
           </div>
 
-          {/* ── Pinned footer: status do negócio ── */}
           <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {statusAtual === 'aberto' ? (
               <button
@@ -2279,7 +2273,6 @@ function LeadDrawer({
         </div>
       </div>
 
-      {/* ── Modal de perda ── */}
       {perdaModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
           <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>

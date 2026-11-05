@@ -61,7 +61,6 @@ export function urlExportacao(f: Partial<FiltrosExportacao>): string {
   return '/api/leads/exportar' + (qs ? '?' + qs : '')
 }
 
-/** Colunas de `leads` que a exportação lê. */
 export const SELECT_EXPORTACAO =
   'id, nome, sobrenome, telefone, email, origem, cidade, funnel_id, stage_id, status, motivo_perda_id, motivo_perda,'
   + ' is_converted, responsavel_id, campos, created_at'

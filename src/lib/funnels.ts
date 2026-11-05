@@ -194,7 +194,6 @@ export async function getLeadCountsByFunnel(
   return counts
 }
 
-// ---- Motivos de perda -------------------------------------------------------
 // Sem exclusão pela tela: desativar tira o motivo da lista sem mexer nos leads que o usam.
 
 export async function createMotivoPerda(funnel_id: string, nome: string, ordem: number): Promise<MotivoPerda> {

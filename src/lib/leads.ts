@@ -70,7 +70,6 @@ export async function updateLead(
   return data
 }
 
-// ---- Status do negócio -------------------------------------------------------
 // O trigger fn_lead_status (migração 126) preenche ganho_em/perdido_em, marca
 // is_converted no ganho e limpa o motivo ao sair de perdido.
 

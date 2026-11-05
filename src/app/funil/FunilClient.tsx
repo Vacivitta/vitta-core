@@ -282,7 +282,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     }
   }, [supabase])
 
-  // Carrega tags disponíveis da unidade ativa (sem o filtro, o admin global via as de todas)
+  // Sem o filtro de unidade, o admin global via as tags de todas
   useEffect(() => {
     void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id).order('name')
       .then(({ data }) => { if (data) setUnitTags(data) })
@@ -610,7 +610,6 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         />
       </main>
 
-      {/* Painel de perdidos */}
       {showPerdidos && (
         <PerdidosPanel
           funnels={funnels}

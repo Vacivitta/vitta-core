@@ -138,8 +138,6 @@ export interface MotivoPerda {
   created_at: string
 }
 
-// ---- Campos personalizados (migração 129) ------------------------------------
-
 export type TipoCampo =
   | 'texto' | 'numero' | 'data' | 'selecao' | 'multipla' | 'sim_nao' | 'telefone' | 'email' | 'moeda'
 
@@ -608,8 +606,6 @@ export interface AutomationRun {
 export interface AutomationRunComLead extends AutomationRun {
   lead_nome: string | null
 }
-
-// ---- Tags (catálogo wa_tags, aplicado em conversas e leads) ----------------
 
 export interface WaTag {
   id:         string

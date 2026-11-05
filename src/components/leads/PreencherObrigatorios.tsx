@@ -35,7 +35,7 @@ interface Props {
 
 /**
  * Pede os campos que a etapa exige (migração 130), grava no lead e devolve a
- * vez para quem tentou mover. Usado pelo kanban e pela ficha.
+ * vez para quem tentou mover.
  */
 export default function PreencherObrigatorios({
   leadId, unitId, funnelId, etapaNome, faltando, profiles, onCancelar, onPreenchido,

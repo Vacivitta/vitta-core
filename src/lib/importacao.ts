@@ -208,7 +208,6 @@ export interface ContextoImportacao {
   tags:         readonly { id: string; name: string }[]
   /** Origem gravada quando a linha não tem uma */
   origemPadrao: string | null
-  /** Funil de destino */
   funnelId:      string
   /** Campos que a etapa de destino exige para entrar (funnel_stages.campos_obrigatorios, migração 130) */
   exigidos:      readonly string[]
