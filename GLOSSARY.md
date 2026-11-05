@@ -99,7 +99,7 @@ Página que o contato (paciente ou licenciado) abre por link com código, sem se
 _Avoid_: Área do cliente, app do paciente
 
 **Dose aplicada**:
-Registro de que uma vacina foi aplicada num contato (data, dose); vem do RNDS/SI-PNI quando possível, senão do sistema clínico ou de registro manual.
+Registro de que uma vacina foi aplicada num contato (data, dose); vem do sistema clínico, que é quem envia a aplicação ao governo.
 _Avoid_: Aplicação, vacinação, atendimento
 
 **Grupo**:
