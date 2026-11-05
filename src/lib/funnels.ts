@@ -48,25 +48,23 @@ export async function deactivateFunnel(id: string): Promise<void> {
   await updateFunnel(id, { ativo: false })
 }
 
-// Exclui permanentemente — só permite se não houver leads em nenhuma etapa
+// Exclui permanentemente — só permite se o funil não tem nenhum lead, nem perdido:
+// as FKs de leads (funnel_id, stage_id) são ON DELETE SET NULL e o histórico de
+// etapas (para_stage_id) é apagado em cascata.
 export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount: number }> {
   const supabase = createClient()
 
-  // Conta leads ativos vinculados ao funil (via etapas)
-  const { data: stages } = await supabase
+  const { data: stages, error: stagesErr } = await supabase
     .from('funnel_stages').select('id').eq('funnel_id', id)
+  if (stagesErr) throw stagesErr
 
   const stageIds = (stages ?? []).map(s => s.id)
-  let leadCount = 0
-
-  if (stageIds.length > 0) {
-    const { count } = await supabase
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .in('stage_id', stageIds)
-      .neq('status', 'perdido')
-    leadCount = count ?? 0
-  }
+  const { count, error: countErr } = await supabase
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .or(stageIds.length > 0 ? `funnel_id.eq.${id},stage_id.in.(${stageIds.join(',')})` : `funnel_id.eq.${id}`)
+  if (countErr) throw countErr
+  const leadCount = count ?? 0
 
   if (leadCount > 0) return { ok: false, leadCount }
 
@@ -118,17 +116,14 @@ export async function updateStage(
   if (error) throw error
 }
 
+// Só exclui etapa sem nenhum lead, inclusive perdido (a coluna de perda guarda os
+// perdidos; leads.stage_id é ON DELETE SET NULL e o histórico seria apagado)
 export async function deleteStage(id: string): Promise<void> {
   const supabase = createClient()
 
-  const { count } = await supabase
-    .from('leads')
-    .select('id', { count: 'exact', head: true })
-    .eq('stage_id', id)
-    .neq('status', 'perdido')
-
-  if (count && count > 0) {
-    throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} ativo${count !== 1 ? 's' : ''}. Distribua os leads para outras etapas antes de excluir.`)
+  const count = await getLeadCountByStage(id)
+  if (count > 0) {
+    throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} (inclusive perdidos). Distribua os leads para outras etapas antes de excluir.`)
   }
 
   const { error } = await supabase.from('funnel_stages').delete().eq('id', id)
@@ -164,19 +159,18 @@ export async function reorderStages(orderedIds: string[]): Promise<void> {
   }
 }
 
-// Conta leads ativos em uma etapa
+// Conta todos os leads de uma etapa, inclusive perdidos (protege a exclusão)
 export async function getLeadCountByStage(stage_id: string): Promise<number> {
   const supabase = createClient()
   const { count, error } = await supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
     .eq('stage_id', stage_id)
-    .neq('status', 'perdido')
   if (error) throw error
   return count ?? 0
 }
 
-// Retorna mapa stage_id → count para um funil inteiro (uma só query)
+// Retorna mapa stage_id → count (todos os leads, inclusive perdidos) para um funil inteiro
 export async function getLeadCountsByFunnel(
   funnel_id: string,
 ): Promise<Record<string, number>> {
@@ -185,7 +179,6 @@ export async function getLeadCountsByFunnel(
     .from('leads')
     .select('stage_id')
     .eq('funnel_id', funnel_id)
-    .neq('status', 'perdido')
   if (error) throw error
   const counts: Record<string, number> = {}
   for (const row of data ?? []) {
