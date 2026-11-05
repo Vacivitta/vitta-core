@@ -963,7 +963,7 @@ function NewTaskModal({
         .from('leads')
         .select('id, nome, sobrenome')
         .ilike('nome', `%${q}%`)
-        .eq('arquivado', false)
+        .neq('status', 'perdido')
         .eq('unit_id', currentUser.unit_id)
         .limit(6)
       setLeadResults((data ?? []) as LeadOption[])

@@ -24,7 +24,7 @@ export default async function ClientesPage() {
       .from('leads')
       .select('*')
       .eq('is_converted', true)
-      .eq('arquivado', false)
+      .neq('status', 'perdido')
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false }),
     supabase.from('profiles').select('id, full_name').eq('unit_id', unitId).order('full_name'),
@@ -90,7 +90,7 @@ async function buscarTelefonesDuplicados(
 
   const { data: leads } = await supabase
     .from('leads')
-    .select('id, nome, sobrenome, telefone, telefone_norm, unit_id, created_at, arquivado, is_converted')
+    .select('id, nome, sobrenome, telefone, telefone_norm, unit_id, created_at, status, is_converted')
     .eq('unit_id', unitId)
     .in('telefone_norm', repetidos)
     .order('created_at')

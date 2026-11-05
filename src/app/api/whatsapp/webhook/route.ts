@@ -9,6 +9,8 @@ import { buscarConversaPorTelefone, buscarLeadPorTelefone } from '@/lib/whatsapp
 import { formatarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import { resumoErro } from '@/lib/log-seguro'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { reaberturaPorMensagem } from '@/lib/status-lead'
+import type { StatusLead } from '@/types/database'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
 export const maxDuration = 60
@@ -351,22 +353,13 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   if (!conv.lead_id) {
     resolvedLeadId = await autoLinkOrCreateLead(supabase, conv.id, unitId, waPhone, contactName, isOptOut)
   } else {
-    // Reativar lead arquivado que mandou mensagem
     const { data: linkedLead } = await supabase
       .from('leads')
-      .select('id, arquivado')
+      .select('id, status, stage_id')
       .eq('id', conv.lead_id)
       .single()
 
-    if (linkedLead?.arquivado) {
-      const defaultStage = await getDefaultStage(supabase, unitId)
-      await supabase.from('leads').update({
-        arquivado: false,
-        motivo_perda: null,
-        ...(defaultStage ? { funnel_id: defaultStage.funnel_id, stage_id: defaultStage.stage_id, stage_changed_at: new Date().toISOString() } : {}),
-      }).eq('id', linkedLead.id)
-      console.log(`[WA webhook] lead arquivado reativado (conversa existente): ${linkedLead.id}`)
-    }
+    if (linkedLead) await reabrirPorMensagem(supabase, linkedLead, unitId)
   }
 
   // 4b. Verifica campanha — lead existente ou contato XLS sem lead
@@ -417,7 +410,6 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
           origem:      'campanha_whatsapp',
           funnel_id:   defaultStage.funnel_id,
           stage_id:    defaultStage.stage_id,
-          arquivado:   false,
           wa_optin_at: new Date().toISOString(),
           campanha_id: xlsRecip.campaign_id,
         }).select('id').single()
@@ -517,23 +509,11 @@ async function autoLinkOrCreateLead(
 
   let leadId: string
 
-  if (matched && !matched.arquivado) {
+  if (matched) {
     leadId = matched.id
     console.log(`[WA webhook] lead existente encontrado: ${leadId}`)
+    await reabrirPorMensagem(supabase, matched, unitId)
   } else {
-    if (matched) {
-      leadId = matched.id
-      const defaultStage = await getDefaultStage(supabase, unitId)
-      await supabase.from('leads').update({
-        arquivado: false,
-        motivo_perda: null,
-        ...(defaultStage ? { funnel_id: defaultStage.funnel_id, stage_id: defaultStage.stage_id, stage_changed_at: new Date().toISOString() } : {}),
-      }).eq('id', leadId)
-      console.log(`[WA webhook] lead arquivado reativado: ${leadId}`)
-
-      await supabase.from('wa_conversations').update({ lead_id: leadId }).eq('id', convId)
-      return leadId
-    }
     // 2. Cria novo lead com os dados do WhatsApp
     const { nome, sobrenome } = splitName(contactName)
 
@@ -553,7 +533,6 @@ async function autoLinkOrCreateLead(
         origem:    'whatsapp',
         funnel_id: defaultStage.funnel_id,
         stage_id:  defaultStage.stage_id,
-        arquivado: false,
       })
       .select('id')
       .single()
@@ -621,6 +600,37 @@ async function getDefaultStage(supabase: ReturnType<typeof adminClient>, unitId:
 
   if (!stage?.id) return null
   return { funnel_id: funnelId, stage_id: stage.id }
+}
+
+/**
+ * Mensagem recebida de lead com negócio ganho ou perdido reabre o negócio na
+ * etapa padrão da unidade (regra em reaberturaPorMensagem) e grava o histórico.
+ */
+async function reabrirPorMensagem(
+  supabase: ReturnType<typeof adminClient>,
+  lead:     { id: string; status: StatusLead; stage_id: string | null },
+  unitId:   string,
+): Promise<void> {
+  if (lead.status === 'aberto') return
+  const reabertura = reaberturaPorMensagem(lead, await getDefaultStage(supabase, unitId))
+  if (!reabertura) return
+
+  const { error } = await supabase.from('leads').update(reabertura.valores).eq('id', lead.id)
+  if (error) {
+    console.error(`[WA webhook] erro ao reabrir lead ${lead.id}:`, resumoErro(error))
+    return
+  }
+  console.log(`[WA webhook] negócio ${lead.status} reaberto: ${lead.id}`)
+
+  if (!reabertura.historico) return
+  const { error: histErr } = await supabase.from('lead_stage_history').insert({
+    lead_id:       lead.id,
+    de_stage_id:   reabertura.historico.de,
+    para_stage_id: reabertura.historico.para,
+    movido_por:    null,
+    movido_via:    'reabertura',
+  })
+  if (histErr) console.error(`[WA webhook] histórico da reabertura ${lead.id}:`, resumoErro(histErr))
 }
 
 function splitName(fullName: string | null): { nome: string; sobrenome: string | null } {
@@ -880,7 +890,7 @@ async function fallbackAssignResponsavel(
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('responsavel_id', agentId)
-        .eq('arquivado', false)
+        .neq('status', 'perdido')
       return { agentId, count: count ?? 0 }
     })
   )

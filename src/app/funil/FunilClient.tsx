@@ -7,7 +7,7 @@ import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type 
 import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil, type ResumoConversas } from '@/lib/funil/resumo-conversas'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
-import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
+import PerdidosPanel from '@/components/leads/PerdidosPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
@@ -136,7 +136,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funnels[0]?.id ?? '')
   const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
-  const [showArchived, setShowArchived]   = useState(false)
+  const [showPerdidos, setShowPerdidos]   = useState(false)
   const [newConvOpen, setNewConvOpen]     = useState(false)
   const [filters, setFilters]             = useState<Filters>({
     search:          '',
@@ -320,7 +320,6 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
 
   const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
-  const totalVendidos = leads.filter(l => l.funnel_id === selectedFunnelId && l.stage_ordem === Math.max(...(selectedFunnel?.stages.map(s => s.ordem) ?? [0])) - 1).length
 
   async function reloadLeads() {
     const { data, error } = await fetchAll((from, to) => supabase
@@ -457,15 +456,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           </button>
 
           <button
-            onClick={() => setShowArchived(true)}
+            onClick={() => setShowPerdidos(true)}
             className="flex items-center gap-1.5"
             style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', cursor: 'pointer', fontWeight: 700 }}
-            title="Ver contatos arquivados"
+            title="Ver negócios perdidos"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
-            <span className="hidden sm:inline">Arquivados</span>
+            <span className="hidden sm:inline">Perdidos</span>
           </button>
 
           <button
@@ -562,13 +561,13 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         />
       </main>
 
-      {/* Painel de arquivados */}
-      {showArchived && (
-        <ArchivedLeadsPanel
+      {/* Painel de perdidos */}
+      {showPerdidos && (
+        <PerdidosPanel
           funnels={funnels}
           selectedFunnelId={selectedFunnelId}
-          onOpenLead={lead => { setShowArchived(false); setModalLead(lead) }}
-          onClose={() => setShowArchived(false)}
+          onOpenLead={lead => { setShowPerdidos(false); setModalLead(lead) }}
+          onClose={() => setShowPerdidos(false)}
         />
       )}
 

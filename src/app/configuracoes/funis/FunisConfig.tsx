@@ -8,11 +8,13 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { FunnelStage, FunnelWithStages } from '@/types/database'
+import type { FunnelStage, FunnelWithStages, MotivoPerda, ResultadoEtapa } from '@/types/database'
 import {
   listFunnels, createFunnel, updateFunnel, deactivateFunnel, deleteFunnel,
   createStage, updateStage, deleteStage, reorderStages,
+  createMotivoPerda, updateMotivoPerda, reorderMotivosPerda,
 } from '@/lib/funnels'
+import { getMotivosPerda } from '@/lib/leads'
 
 const PRESET_COLORS = [
   '#94a3b8','#60a5fa','#a78bfa','#f472b6',
@@ -112,7 +114,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     try {
       const result = await deleteFunnel(id)
       if (!result.ok) {
-        setDeleteError(`Este funil tem ${result.leadCount} lead${result.leadCount !== 1 ? 's' : ''} ativos. Mova ou arquive os leads antes de excluir.`)
+        setDeleteError(`Este funil tem ${result.leadCount} lead${result.leadCount !== 1 ? 's' : ''} ativos. Mova os leads ou marque-os como perdidos antes de excluir.`)
         return
       }
       await reload()
@@ -153,6 +155,15 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     setFunnels(prev => prev.map(f =>
       f.id === stage.funnel_id
         ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, sla_mensal: next } : s) }
+        : f
+    ))
+  }
+
+  async function handleResultadoChange(stage: FunnelStage, resultado: ResultadoEtapa | null) {
+    await updateStage(stage.id, { resultado })
+    setFunnels(prev => prev.map(f =>
+      f.id === stage.funnel_id
+        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, resultado } : s) }
         : f
     ))
   }
@@ -417,6 +428,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           onColorChange={cor => void handleChangeColor(stage, cor)}
                           onAlertHoursChange={h => void handleAlertDaysChange(stage, h)}
                           onSlaMensalToggle={() => void handleSlaMensalToggle(stage)}
+                          onResultadoChange={r => void handleResultadoChange(stage, r)}
                           onDeleteRequest={() => { setConfirmDeleteStageId(stage.id); setDeleteError(null) }}
                           confirmDelete={confirmDeleteStageId === stage.id}
                           onDeleteConfirm={() => void handleDeleteStage(stage)}
@@ -456,6 +468,11 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                   Arraste pelo ícone ⠿ para reordenar as etapas
                 </p>
               )}
+              <p style={{ fontSize: 11, color: '#9AA79C', marginTop: 6, lineHeight: 1.4 }}>
+                Resultado: o lead que entrar numa etapa de <b>ganho</b> vira negócio ganho (e cliente); numa de <b>perdido</b>, negócio perdido.
+              </p>
+
+              <MotivosPerdaSection key={selectedFunnel.id} funnelId={selectedFunnel.id} />
             </div>
           )}
         </main>
@@ -485,6 +502,7 @@ interface StageRowProps {
   onColorChange:      (cor: string) => void
   onAlertHoursChange: (h: number | null) => void
   onSlaMensalToggle:  () => void
+  onResultadoChange:  (r: ResultadoEtapa | null) => void
   onDeleteRequest:    () => void
   confirmDelete:      boolean
   onDeleteConfirm:    () => void
@@ -499,6 +517,7 @@ function SortableStageRow({
   showColorPicker, onColorPickerToggle, onColorChange,
   onAlertHoursChange,
   onSlaMensalToggle,
+  onResultadoChange,
   onDeleteRequest, confirmDelete, onDeleteConfirm, onDeleteCancel,
   deleteError,
   busy,
@@ -601,6 +620,24 @@ function SortableStageRow({
           Mensal
         </button>
 
+        {/* Resultado da etapa */}
+        <select
+          value={stage.resultado ?? ''}
+          onChange={e => onResultadoChange(e.target.value === 'ganho' || e.target.value === 'perdido' ? e.target.value : null)}
+          title="Resultado: entrar nesta etapa marca o negócio como ganho ou perdido"
+          aria-label={`Resultado da etapa ${stage.nome}`}
+          style={{
+            flexShrink: 0, fontSize: 10, fontWeight: 600, padding: '3px 4px', borderRadius: 8, outline: 'none', cursor: 'pointer',
+            background: stage.resultado === 'ganho' ? '#E8F7EE' : stage.resultado === 'perdido' ? '#FEF2F2' : '#F9FAFB',
+            border: `1px solid ${stage.resultado === 'ganho' ? '#A7E3C1' : stage.resultado === 'perdido' ? '#FECACA' : '#EBE7DA'}`,
+            color: stage.resultado === 'ganho' ? '#1D9E75' : stage.resultado === 'perdido' ? '#DC2626' : '#9CA3AF',
+          }}
+        >
+          <option value="">Sem resultado</option>
+          <option value="ganho">Ganho</option>
+          <option value="perdido">Perdido</option>
+        </select>
+
         {/* Delete */}
         {leadCount > 0 ? (
           <span title="Mova os leads antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0, cursor: 'not-allowed' }}>
@@ -651,5 +688,145 @@ function SortableStageRow({
         </div>
       )}
     </div>
+  )
+}
+
+// ── Motivos de perda do funil ─────────────────────────────────────────────────
+
+function MotivosPerdaSection({ funnelId }: { funnelId: string }) {
+  const [motivos,    setMotivos]    = useState<MotivoPerda[] | null>(null)
+  const [erro,       setErro]       = useState<string | null>(null)
+  const [novoNome,   setNovoNome]   = useState('')
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editNome,   setEditNome]   = useState('')
+  const [salvando,   setSalvando]   = useState(false)
+
+  useEffect(() => {
+    getMotivosPerda(funnelId, false)
+      .then(setMotivos)
+      .catch(() => { setMotivos([]); setErro('Não foi possível carregar os motivos de perda.') })
+  }, [funnelId])
+
+  async function executar(acao: () => Promise<void>) {
+    setSalvando(true)
+    setErro(null)
+    try {
+      await acao()
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code
+      setErro(code === '23505' ? 'Já existe um motivo com esse nome neste funil.' : 'Não foi possível salvar o motivo.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  function handleCriar() {
+    const nome = novoNome.trim()
+    if (!nome || !motivos) return
+    void executar(async () => {
+      const criado = await createMotivoPerda(funnelId, nome, (motivos.at(-1)?.ordem ?? 0) + 1)
+      setMotivos([...motivos, criado])
+      setNovoNome('')
+    })
+  }
+
+  function handleRenomear(m: MotivoPerda) {
+    const nome = editNome.trim()
+    setEditandoId(null)
+    if (!nome || nome === m.nome) return
+    void executar(async () => {
+      await updateMotivoPerda(m.id, { nome })
+      setMotivos(prev => prev?.map(x => x.id === m.id ? { ...x, nome } : x) ?? null)
+    })
+  }
+
+  function handleAtivo(m: MotivoPerda) {
+    void executar(async () => {
+      await updateMotivoPerda(m.id, { ativo: !m.ativo })
+      setMotivos(prev => prev?.map(x => x.id === m.id ? { ...x, ativo: !m.ativo } : x) ?? null)
+    })
+  }
+
+  function handleMover(index: number, delta: -1 | 1) {
+    if (!motivos) return
+    const alvo = index + delta
+    if (alvo < 0 || alvo >= motivos.length) return
+    const reordenados = arrayMove(motivos, index, alvo).map((m, i) => ({ ...m, ordem: i + 1 }))
+    void executar(async () => {
+      setMotivos(reordenados)
+      await reorderMotivosPerda(reordenados.map(m => m.id))
+    })
+  }
+
+  const botaoSeta = { padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', lineHeight: 0 }
+
+  return (
+    <section style={{ marginTop: 28 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 800, color: '#25402C', margin: 0 }}>Motivos de perda</h3>
+      <p style={{ fontSize: 12, color: '#9AA79C', margin: '2px 0 12px' }}>
+        Lista que aparece ao marcar um negócio deste funil como perdido. &ldquo;Outro&rdquo; pede uma descrição.
+        Desative o motivo que não quiser mais oferecer: os leads que já o usam continuam com ele.
+      </p>
+
+      {erro && <p style={{ fontSize: 12, color: '#DC2626', margin: '0 0 8px' }}>{erro}</p>}
+      {motivos === null ? (
+        <p style={{ fontSize: 12, color: '#9AA79C' }}>Carregando...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+          {motivos.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Nenhum motivo cadastrado.</p>}
+          {motivos.map((m, i) => (
+            <div key={m.id} style={{ background: '#fff', border: '1px solid #F1EFE5', borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, opacity: m.ativo ? 1 : 0.6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                <button onClick={() => handleMover(i, -1)} disabled={salvando || i === 0} title="Subir" aria-label={`Subir ${m.nome}`} style={botaoSeta}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                </button>
+                <button onClick={() => handleMover(i, 1)} disabled={salvando || i === motivos.length - 1} title="Descer" aria-label={`Descer ${m.nome}`} style={botaoSeta}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+              </div>
+              {editandoId === m.id ? (
+                <input
+                  autoFocus value={editNome}
+                  onChange={e => setEditNome(e.target.value)}
+                  onBlur={() => handleRenomear(m)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRenomear(m); if (e.key === 'Escape') setEditandoId(null) }}
+                  style={{ flex: 1, fontSize: 13, border: '1px solid #3E9849', borderRadius: 7, padding: '3px 8px', outline: 'none' }}
+                />
+              ) : (
+                <button onClick={() => { setEditandoId(m.id); setEditNome(m.nome) }} title="Renomear"
+                  style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#25402C', background: 'none', border: 'none', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.nome}
+                </button>
+              )}
+              <button onClick={() => handleAtivo(m)} disabled={salvando}
+                style={{
+                  flexShrink: 0, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
+                  border: `1px solid ${m.ativo ? '#A7E3C1' : '#EBE7DA'}`,
+                  background: m.ativo ? '#E8F7EE' : '#F9FAFB', color: m.ativo ? '#1D9E75' : '#9CA3AF',
+                }}>
+                {m.ativo ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          type="text" value={novoNome}
+          onChange={e => setNovoNome(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleCriar() }}
+          placeholder="Novo motivo de perda..."
+          style={{ flex: 1, fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', outline: 'none', background: '#fff' }}
+        />
+        <button
+          onClick={handleCriar}
+          disabled={salvando || !novoNome.trim() || motivos === null}
+          style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: salvando || !novoNome.trim() ? 0.5 : 1 }}
+        >
+          + Adicionar
+        </button>
+      </div>
+    </section>
   )
 }

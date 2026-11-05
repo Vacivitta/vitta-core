@@ -80,7 +80,7 @@ export default function QuickLeadForm({
       onCreated(lead, openFull)
     } catch (err) {
       setError(isViolacaoUnica(err)
-        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado).'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar em Perdidos).'
         : 'Erro ao salvar. Tente novamente.')
       setSaving(false)
     }

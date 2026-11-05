@@ -29,7 +29,7 @@ export default async function WhatsAppConfigPage() {
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.perfil === 'atendente') redirect('/configuracoes/funis')
+  if (!profile || profile.perfil === 'atendente') redirect('/funil')
 
   const headersList = await headers()
   const host        = headersList.get('host') ?? 'localhost:3000'

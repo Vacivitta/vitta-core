@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
             .from('leads')
             .insert({
               unit_id, nome, sobrenome, telefone: formatarTelefone(phone),
-              origem: 'whatsapp', funnel_id: funnel.id, stage_id: stage.id, arquivado: false,
+              origem: 'whatsapp', funnel_id: funnel.id, stage_id: stage.id,
             })
             .select('id').single()
           if (newLead) leadId = newLead.id

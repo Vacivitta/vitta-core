@@ -383,7 +383,7 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
     if (!currentUser.unit_id) return
     setLoadingAudience(true)
     let q = supabase.from('leads').select('id,nome,sobrenome,telefone,wa_optin_at,wa_optout_at')
-      .eq('arquivado', false).eq('unit_id', currentUser.unit_id)
+      .neq('status', 'perdido').eq('unit_id', currentUser.unit_id)
     if (filterStage)  q = q.eq('stage_id', filterStage)
     if (filterFunnel) q = q.eq('funnel_id', filterFunnel)
     const { data } = await q.limit(500)

@@ -106,6 +106,9 @@ export interface Funnel {
   created_at:  string
 }
 
+/** Resultado que entrar na etapa dá ao negócio (trigger fn_lead_status, migração 126). */
+export type ResultadoEtapa = 'ganho' | 'perdido'
+
 export interface FunnelStage {
   id:           string
   funnel_id:    string
@@ -114,6 +117,7 @@ export interface FunnelStage {
   ordem:        number
   alerta_horas: number | null
   sla_mensal:   boolean
+  resultado:    ResultadoEtapa | null
   unit_id:      string | null
   created_at:   string
 }
@@ -122,7 +126,29 @@ export interface FunnelWithStages extends Funnel {
   stages: FunnelStage[]
 }
 
+export interface MotivoPerda {
+  id:         string
+  funnel_id:  string
+  unit_id:    string
+  nome:       string
+  ordem:      number
+  ativo:      boolean
+  created_at: string
+}
+
 // ---- Leads -----------------------------------------------------------------
+
+/**
+ * Status do negócio. `is_converted` é outra coisa: "é cliente", para sempre;
+ * um cliente que volta a falar reabre o negócio (`aberto`) e continua cliente.
+ */
+export type StatusLead = 'aberto' | 'ganho' | 'perdido'
+
+export const STATUS_LEAD_LABELS: Record<StatusLead, string> = {
+  aberto:  'Aberto',
+  ganho:   'Ganho',
+  perdido: 'Perdido',
+}
 
 export interface Lead {
   id:              string
@@ -141,8 +167,14 @@ export interface Lead {
   funnel_id:       string
   stage_id:        string
   responsavel_id:  string | null
-  arquivado:       boolean
+  status:          StatusLead
+  ganho_em:        string | null
+  perdido_em:      string | null
+  motivo_perda_id: string | null
+  /** Detalhe do motivo (o texto de "Outro") ou motivo antigo em texto livre */
   motivo_perda:    string | null
+  /** Coluna gerada (status = 'perdido'): só leitura */
+  arquivado:       boolean
   ordem:           number
   unit_id:         string | null
   is_converted:    boolean
@@ -169,6 +201,8 @@ export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
   valor_negociado:    number | null
   stage_alerta_horas: number | null
   stage_sla_mensal:   boolean
+  stage_resultado:    ResultadoEtapa | null
+  motivo_perda_nome:  string | null
   valor_orcamentos:   number
   proxima_tarefa_data: string | null
   tarefas_pendentes:  number
@@ -576,17 +610,6 @@ export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
   dependente:  'Dependente',
   outro:       'Outro',
 }
-
-export const ARCHIVE_REASONS = [
-  'Sem orçamento',
-  'Escolheu concorrente',
-  'Sem interesse',
-  'Sem contato',
-  'Timing ruim',
-  'Outro',
-] as const
-
-export type ArchiveReason = typeof ARCHIVE_REASONS[number]
 
 export const MOTIVO_RECUSA_OPTIONS = [
   'Concorrência',

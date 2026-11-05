@@ -2,11 +2,13 @@
 
 import React, { useState, useMemo } from 'react'
 import type { Profile, SalesGoal } from '@/types/database'
-import { displayName, MOTIVO_RECUSA_OPTIONS, ARCHIVE_REASONS } from '@/types/database'
+import { displayName, MOTIVO_RECUSA_OPTIONS } from '@/types/database'
+import { motivoParaAgrupar } from '@/lib/status-lead'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null; motivo_perda: string | null }
+interface LeadRow     { id: string; stage_id: string | null; created_at: string; origem: string | null }
+interface PerdidoRow  { id: string; created_at: string; perdido_em: string | null; motivo_perda: string | null; motivo_nome: string | null }
 interface QuoteRow    { id: string; status: string; total_calculado: number | null; criado_em: string; aceito_em: string | null; responsavel_id: string | null; motivo_recusa: string | null; validade_ate: string | null }
 interface StageRow    { id: string; nome: string; cor: string; ordem: number; funnel_id: string; funnel: { id: string; nome: string } | null }
 interface TaskRow     { id: string; concluida: boolean; data_limite: string | null; responsavel_id: string | null }
@@ -33,6 +35,7 @@ interface Props {
   todayISO:      string
   salesGoals:    SalesGoal[]
   stageHistory:  StageHistoryRow[]
+  perdidos:      PerdidoRow[]
 }
 
 type Period = '7d' | '30d' | '90d' | 'all'
@@ -106,7 +109,7 @@ function Bar({ value, max, color, h }: { value: number; max: number; color: stri
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals, stageHistory }: Props) {
+export default function DashboardClient({ currentUser, leads, quotes, stages, tasks, conversations, messages, profiles, billing, queues, agentStats, todayISO, salesGoals: initialGoals, stageHistory, perdidos }: Props) {
   const [period, setPeriod] = useState<Period>('30d')
   const cut = useMemo(() => cutoff(period), [period])
 
@@ -200,17 +203,17 @@ export default function DashboardClient({ currentUser, leads, quotes, stages, ta
     return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
   }, [filteredQuotes])
 
-  // ── Motivos perda leads
+  // ── Motivos perda leads (perdidos no período; perdido_em é NULL só em dados antigos)
   const motivosPerda = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const l of filteredLeads) {
-      const raw = l.motivo_perda?.trim()
-      if (!raw) continue
-      const m = (ARCHIVE_REASONS as readonly string[]).includes(raw) ? raw : 'Outro'
+    for (const p of perdidos) {
+      if (!inPeriod(p.perdido_em ?? p.created_at, cut)) continue
+      const m = motivoParaAgrupar(p.motivo_nome, p.motivo_perda)
+      if (!m) continue
       map[m] = (map[m] ?? 0) + 1
     }
     return Object.entries(map).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8)
-  }, [filteredLeads])
+  }, [perdidos, cut])
 
   // ── Conversão por atendente
   const convPorAtendente = useMemo(() => {
