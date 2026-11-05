@@ -129,10 +129,10 @@ aplicar supabase_admin "$(arquivo_da_versao 118)" --single-transaction ||
   { cat "$saida"; falhar "reaplicar a 118 depois da $(arquivo_da_versao 133) deveria passar"; }
 checagens=$((checagens + 1))
 
-for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134; do
+for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134; do
+for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 
@@ -157,6 +157,27 @@ SQL
 fi
 grep -qF "122: 1 grupo(s) de leads com o mesmo telefone" "$saida" ||
   { cat "$saida"; falhar "$v122 com leads duplicados falhou, mas sem a mensagem esperada"; }
+checagens=$((checagens + 1))
+
+v135="$(arquivo_da_versao 135)"
+if {
+  cat <<'SQL'
+BEGIN;
+ALTER TABLE public.sales_goals DROP CONSTRAINT sales_goals_unit_id_user_id_month_key;
+INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8135-0000000000f0', 'Rede 135');
+INSERT INTO public.units (id, tenant_id, nome, tipo)
+VALUES ('00000000-0000-4000-8135-0000000000a0', '00000000-0000-4000-8135-0000000000f0', 'Unidade 135', 'clinica');
+INSERT INTO public.sales_goals (unit_id, user_id, month, target) VALUES
+  ('00000000-0000-4000-8135-0000000000a0', NULL, '2026-11-01', 100),
+  ('00000000-0000-4000-8135-0000000000a0', NULL, '2026-11-01', 200);
+SQL
+  echo "\\i /migracoes/$v135"
+  echo 'ROLLBACK;'
+} | psql_como supabase_admin >"$saida" 2>&1; then
+  falhar "$v135 com metas repetidas deveria abortar, mas passou"
+fi
+grep -qF "135: 1 grupo(s) de metas repetidas" "$saida" ||
+  { cat "$saida"; falhar "$v135 com metas repetidas falhou, mas sem a mensagem esperada"; }
 checagens=$((checagens + 1))
 echo "ok  $checagens checagens de guarda (reaplicação idempotente, papel errado, sem transação única)"
 
