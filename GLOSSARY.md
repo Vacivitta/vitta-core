@@ -5,12 +5,24 @@ Plataforma de relacionamento da marca Vacivitta: cada clínica, licenciado ou á
 ## Organização
 
 **Marca**:
-A rede que mantém a plataforma, os modelos de unidade e o catálogo base, e enxerga todas as unidades.
+A rede que mantém a plataforma, os modelos de unidade e o catálogo base, e enxerga tudo de todas as unidades, próprias e licenciadas.
 _Avoid_: Tenant, rede, franquia
+
+**Licenciado**:
+Organização que comprou a licença da marca e opera uma ou mais unidades licenciadas, podendo criar outras.
+_Avoid_: Franqueado, parceiro, cliente da marca
 
 **Unidade**:
 Um espaço de trabalho no VittaDesk, com seus próprios registros, configurações e conexões (uma clínica, o comercial de licenças, a CS).
 _Avoid_: Filial, conta, empresa
+
+**Unidade própria**:
+Unidade operada pela própria marca (hoje Salto, Itu, Comercial).
+_Avoid_: Matriz, unidade da rede
+
+**Unidade licenciada**:
+Unidade operada por um licenciado.
+_Avoid_: Franquia, unidade parceira
 
 **Modelo de unidade**:
 Pacote de configuração mantido pela marca (funis, campos, tags, tipos de serviço, horários, fluxos) copiado para uma unidade quando ela é criada.
@@ -79,6 +91,10 @@ Conversa com vários participantes, só disponível em conexões por QR Code.
 _Avoid_: Comunidade, lista
 
 ## Configuração
+
+**Módulo**:
+Conjunto de funções que cada unidade liga ou desliga (Empresas, Tickets, Orçamentos, Campanhas...); nenhum é exclusivo de um tipo de unidade.
+_Avoid_: Recurso, add-on, plugin
 
 **Campo personalizado**:
 Informação que a unidade define para seus registros, com tipo (texto, data, seleção...).
