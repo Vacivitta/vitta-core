@@ -137,12 +137,12 @@ Resolvidas: `WHATSAPP_APP_ID`/`WHATSAPP_APP_SECRET` no Coolify (validados na Met
 - **Cada migração nova** (090 em diante): aplicar com `--single-transaction`, registrar a versão **como `supabase_admin`** (`INSERT ... (version, name) VALUES ('0NN', '<nome>') ON CONFLICT DO NOTHING`) e rodar `notify pgrst, 'reload schema'`. No Postgres 15.8 da produção, `postgres` não é superusuário e não grava no registro, de propósito (só lê, por ser membro de `pg_read_all_data`).
 - **Nunca usar a CLI do Supabase contra a produção** (`db push`, `migration repair`, `db reset`): ela tentaria aplicar 001–089.
 - **Papel:** migração com GRANT/REVOKE ou que substitui função `SECURITY DEFINER` roda como `supabase_admin`. Como `postgres`, o REVOKE não tem efeito e só gera aviso.
-- **Depois de qualquer restauração do backup (OBRIGATÓRIO): ordem pós-restore.** O restore recria as funções com o privilégio padrão (EXECUTE para `authenticated`; `anon` fechado pela 091) e sem os REVOKE das migrações; o teste de restauração de 29/10 mostrou isso nas 12 funções restritas da 118. Reaplicar, como `supabase_admin`, cada uma com `--single-transaction` (registrar versão não precisa: já estão no registro), **nesta ordem exata: 113, 115, 121, 123, 124, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 137, 138, 141, 118** — a mesma do CLAUDE.md, e o `tests/db/run.sh` simula o restore, aplica essa ordem e confere que privilégios e definições de toda função e view do `public` voltam ao estado de antes. Por quê:
+- **Depois de qualquer restauração do backup (OBRIGATÓRIO): ordem pós-restore.** O restore recria as funções com o privilégio padrão (EXECUTE para `authenticated`; `anon` fechado pela 091) e sem os REVOKE das migrações; o teste de restauração de 29/10 mostrou isso nas 12 funções restritas da 118. Reaplicar, como `supabase_admin`, cada uma com `--single-transaction` (registrar versão não precisa: já estão no registro), **nesta ordem exata: 113, 115, 121, 123, 124, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 137, 138, 141, 143, 118** — a mesma do CLAUDE.md, e o `tests/db/run.sh` simula o restore, aplica essa ordem e confere que privilégios e definições de toda função e view do `public` voltam ao estado de antes. Por quê:
   - **118 por último**: a guarda dela aborta se alguma `SECURITY DEFINER` estiver aberta para `authenticated` fora da lista dela, e depois do restore estão abertas as de 121–133 (`mesclar_leads`, `registrar_erro_app`, funções de `lead_tags`, `lead_anexos` e de tags por tipo). A 090 não serve mais (a guarda dela é anterior à `is_gestor()`).
   - **113 e 115** fecham de novo as funções de trigger `fn_guard_lead_unit_change` e `fn_guard_unit_tipo`; **123** e **124** fecham `reservar_destinatarios_campanha` e `registrar_erro_app`.
   - **121 → 126 → 127 → 128 → 129**: cada uma recria `mesclar_leads` inteira a partir da anterior; a 129 tem de ser a última delas (parar antes traz uma versão que perde o status, recusa toda mesclagem ou perde os campos do lead removido).
   - **126 → 131 → 132 → 134**: 126 recria `leads_kanban`/`leads_arquivados` e `execute_quote_automation` com as regras antigas; 131 traz de volta a versão da automação que leva o perdido à etapa de perda; 132 recria as duas views com a regra do arquivamento (a 131 depois dela aborta: reaplicar a 132 de novo); 134 acrescenta `campos` à `leads_kanban` e só roda sobre a forma da 132. A 126 reaplicada não mexe em arquivamentos (`arquivado` é gerada).
-  - **130** depois da 129 (depende dela), **133** depois da 132 e antes da 118, **135** depois da 132 (fecha as funções de trigger dela e o `anon` de `criar_campanha`), **137** em qualquer ponto antes da 118 (fecha o `authenticated` de `reservar_mensagens_agendadas` e `reservar_disparo_por_tempo`), **138** em qualquer ponto antes da 118 (fecha `fn_quote_expirado_automacao`), **141** em qualquer ponto antes da 118 (fecha as funções de trigger `fn_valida_fuso` e `fn_horario_mesma_unidade`).
+  - **130** depois da 129 (depende dela), **133** depois da 132 e antes da 118, **135** depois da 132 (fecha as funções de trigger dela e o `anon` de `criar_campanha`), **137** em qualquer ponto antes da 118 (fecha o `authenticated` de `reservar_mensagens_agendadas` e `reservar_disparo_por_tempo`), **138** em qualquer ponto antes da 118 (fecha `fn_quote_expirado_automacao`), **141** em qualquer ponto antes da 118 (fecha as funções de trigger `fn_valida_fuso` e `fn_horario_mesma_unidade`), **143** em qualquer ponto antes da 118 (fecha `fn_conexao_dona`, `fn_wa_config_conexao` e `fn_conversa_conexao`).
   Conferir depois com `has_function_privilege`: `anon` = `false` em todas as funções `SECURITY DEFINER` e `authenticated` = `true` só em `is_global_admin`, `is_admin`, `is_gestor`, `get_agent_stats` e nas duas `record_stage_history`. Migração nova que crie função com REVOKE, recrie função ou view destas entra nesta ordem (e no `ordem_pos_restore` do `tests/db/run.sh`, que confere que este texto e o CLAUDE.md trazem a mesma sequência).
 
 ## Campanhas de WhatsApp: migração 123 e job `process-wa-campaigns` (passo manual, [H])
@@ -483,6 +483,24 @@ usam junto), e uma tabela temporária `profiles` de quem chama era lida no lugar
    pós-restore: o restore traz o `search_path` junto com a função, então não entra nela.
 
 Reversão: ver o cabeçalho da `142_security_definer_search_path.sql`.
+
+## Conexões de WhatsApp: migração 143 ([H])
+A conversa passa a pertencer a uma conexão (`conexoes`: oficial ou QR Code), e não ao número da unidade. Uma
+conexão oficial por `wa_config` (trigger mantém número e ativo em dia); unidade com conversa e sem `wa_config` ganha
+uma oficial desconectada. `wa_conversations.conexao_id` NOT NULL, preenchida com a oficial da unidade quando vem vazia.
+Conversa de conexão pessoal (QR Code da CS, ADR 0007) só para a dona e o admin da marca, com mensagens, notas e
+agendadas.
+
+1. Aplicar `143_conexoes.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão `143` e rodar
+   `notify pgrst, 'reload schema'`. Conferir: `SELECT count(*) FROM public.wa_conversations WHERE conexao_id IS NULL;`
+   → `0` e `SELECT count(*) FROM public.conexoes;` → número de `wa_config` (2 em 06/11/2026).
+2. Ordem com o deploy: **143 primeiro, deploy depois**. O app desta versão faz upsert de conversa por
+   `(conexao_id, wa_phone)` e envia pela conexão da conversa; o app de hoje funciona com a 143 (o trigger preenche a
+   conexão e o UNIQUE `(unit_id, wa_phone)` continua). Esse UNIQUE antigo sai na entrega 2 (QR Code).
+3. Depois de um restore, reaplicar a 143 (idempotente, na ordem pós-restore) fecha de novo o EXECUTE das três
+   funções de trigger.
+
+Reversão: ver o cabeçalho da `143_conexoes.sql`.
 
 ## Erros do servidor no log do container
 `src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
