@@ -4,6 +4,10 @@
  * Processa mensagens agendadas com scheduled_for <= now() e status = 'pending'.
  * Deve ser chamado periodicamente por um cron (Vercel Cron, pg_cron, etc.).
  *
+ * As mensagens são reservadas por reservar_mensagens_agendadas (migração 137)
+ * antes do envio: duas execuções ao mesmo tempo nunca pegam a mesma mensagem.
+ * O lote cabe com folga nos 10 min da reserva (20 × 15 s de timeout da Meta).
+ *
  * Proteja com CRON_SECRET:
  *   Authorization: Bearer <CRON_SECRET>
  */
@@ -15,6 +19,18 @@ import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
+const LOTE = 20
+
+interface MensagemAgendada {
+  id:              string
+  conversation_id: string
+  unit_id:         string
+  content:         string | null
+  type:            string
+  template_name:   string | null
+  language:        string | null
+  components:      unknown
+}
 
 // Garante que o Vercel não mate a função antes de processar toda a fila
 export const maxDuration = 60
@@ -36,16 +52,11 @@ async function handler(req: NextRequest) {
 
   const admin = adminClient()
 
-  // Fetch due messages
-  const { data: msgs, error } = await admin
-    .from('wa_scheduled_messages')
-    .select('id, conversation_id, unit_id, content, type, template_name, language, components')
-    .eq('status', 'pending')
-    .lte('scheduled_for', new Date().toISOString())
-    .limit(50)
+  const { data, error } = await admin.rpc('reservar_mensagens_agendadas', { p_limite: LOTE })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!msgs || msgs.length === 0) return NextResponse.json({ processed: 0 })
+  const msgs = (data ?? []) as MensagemAgendada[]
+  if (msgs.length === 0) return NextResponse.json({ processed: 0 })
 
   // Batch: buscar todas as conversas de uma vez em vez de N+1 SELECTs no loop
   const convIds = [...new Set(msgs.map(m => m.conversation_id))]
