@@ -437,6 +437,22 @@ com a paleta do app (`src/lib/unidades.ts`), na ordem de criação.
 
 Reversão: ver o cabeçalho da `139_cor_da_unidade.sql`.
 
+## Regras pelas unidades vinculadas: migração 140 ([H])
+As 13 tabelas que liberavam só a unidade ativa (`profiles.unit_id`) passam a liberar as unidades vinculadas
+(`user_units`) e o admin da marca: `internal_channels`, `internal_channel_messages`, `sales_goals`, `unit_payment_fees`,
+`wa_automations`, `wa_campaigns`, `wa_campaign_recipients`, `wa_message_costs`, `wa_message_templates`, `wa_queues`,
+`wa_queue_agents`, `wa_quick_replies` e `wa_template_folders`.
+
+1. Ordem com o deploy: **deploy do app desta versão primeiro, 140 depois**. O app desta versão filtra explicitamente
+   pela unidade ativa as telas que contavam com a regra (modelos e respostas rápidas no Atendimento e no LeadModal,
+   lista e Realtime de campanhas). Aplicar a 140 com o app anterior faz essas telas misturarem unidades.
+2. Aplicar `140_rls_unidades_vinculadas.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão
+   `140` e rodar `notify pgrst, 'reload schema'`. A própria migração falha se sobrar regra com `profiles.unit_id`.
+   Conferir: `SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND qual ~ 'profiles.unit_id';` → `0`.
+3. Não cria função: fora da ordem pós-restore.
+
+Reversão: ver o cabeçalho da `140_rls_unidades_vinculadas.sql`.
+
 ## Erros do servidor no log do container
 `src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
 e-mail, token e UUID mascarados, e é ali que se investiga. O Next 16 continua imprimindo o erro cru no stdout do
