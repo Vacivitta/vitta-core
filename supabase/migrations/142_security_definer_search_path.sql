@@ -28,10 +28,12 @@
 --   fn_notify_wa_note_mentions()       082, trigger em wa_internal_notes
 --   fn_notify_chat_interno_mentions()  082, trigger em internal_channel_messages
 --
--- Corpo igual ao da última migração que criou cada uma (a 092 trouxe is_admin()
--- do pg_get_functiondef de produção). Antes de aplicar, conferir que o
--- pg_get_functiondef de produção dessas 10 bate com essas migrações; se alguma
--- divergir, não aplicar e trazer a divergência para cá.
+-- Corpo igual ao de produção (prosrc lido em 06/11/2026): 8 batem com a última
+-- migração que as criou; increment_wa_unread já tinha public.wa_conversations e
+-- fn_notify_quote_expired tem a variável raw_valor e strings E'...' em vez do
+-- texto da 082 (mesmo resultado). Antes de aplicar em outro banco, conferir que
+-- o prosrc das 10 bate com o daqui (fora o public.); se divergir, não aplicar e
+-- trazer a divergência para cá.
 --
 -- Aplicar em produção: o Infra aplica, com aprovação e backup do dia, como
 -- supabase_admin, com --single-transaction; depois registra a versão '142' e roda
@@ -165,10 +167,9 @@ DECLARE
   patient_name TEXT;
   num_str TEXT;
   valor_str TEXT;
+  raw_valor TEXT;
 BEGIN
-  -- Só dispara quando o status MUDA para 'expirado'
   IF NEW.status = 'expirado' AND OLD.status IS DISTINCT FROM 'expirado' THEN
-    -- Evita notificação duplicada
     IF EXISTS (
       SELECT 1 FROM public.notifications
       WHERE quote_id = NEW.id AND type = 'quote_expirado'
@@ -176,7 +177,6 @@ BEGIN
       RETURN NEW;
     END IF;
 
-    -- Busca nome do lead/paciente
     SELECT nome, sobrenome INTO lead_name, lead_sobrenome
     FROM public.leads WHERE id = NEW.lead_id;
 
@@ -188,9 +188,9 @@ BEGIN
     num_str := lpad(COALESCE(NEW.numero, 0)::text, 4, '0');
 
     IF NEW.total_calculado IS NOT NULL THEN
-      valor_str := to_char(NEW.total_calculado, 'FM999G999G999D00');
-      valor_str := replace(replace(replace(valor_str, ',', '#T#'), '.', ','), '#T#', '.');
-      valor_str := ' · R$ ' || valor_str;
+      raw_valor := to_char(NEW.total_calculado, 'FM999G999G999D00');
+      raw_valor := replace(replace(replace(raw_valor, ',', '#T#'), '.', ','), '#T#', '.');
+      valor_str := E' · R$ ' || raw_valor;
     ELSE
       valor_str := '';
     END IF;
@@ -200,8 +200,8 @@ BEGIN
       NEW.unit_id,
       NEW.responsavel_id,
       'quote_expirado',
-      '⏰ Orçamento expirado',
-      '#' || num_str || ' · ' || patient_name || valor_str,
+      E'⏰ Orçamento expirado',
+      '#' || num_str || E' · ' || patient_name || valor_str,
       NEW.id,
       NEW.lead_id
     );
