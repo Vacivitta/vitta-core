@@ -96,7 +96,8 @@ O `.env.ambiente-teste.local` é gravado na worktree de origem.
 
 - **Storage** (anexos do lead, mídia de mensagens, imagem de modelo): o serviço de
   storage não sobe. O prelúdio dos testes de banco cria só as tabelas mínimas.
-- **WhatsApp**: as conexões não têm token, então enviar falha antes de chamar a Meta.
+- **WhatsApp**: as conexões não têm token nem WABA, então enviar falha antes de chamar a Meta e
+  `/api/whatsapp/meta-templates` responde 503 (aparece no console do Atendimento).
   Mensagens recebidas não chegam; para simular, insira em `wa_messages`.
 - **Crons** (`process-scheduled`, `process-campaigns`, `process-timed-automations`,
   `check-expiring`): os jobs que chamam o app não são criados. Chame a rota com
