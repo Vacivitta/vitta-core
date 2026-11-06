@@ -425,6 +425,18 @@ registrada e não desfaz a expiração. Os orçamentos que já estão expirados 
 
 Reversão: ver o cabeçalho da `138_orcamento_expirado_automacao.sql`.
 
+## Cor da unidade: migração 139 ([H])
+`units.cor` (#RRGGBB) para a caixa de entrada e o sino de quem atende várias unidades. Preenche as unidades sem cor
+com a paleta do app (`src/lib/unidades.ts`), na ordem de criação.
+
+1. Aplicar `139_cor_da_unidade.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão `139` e rodar
+   `notify pgrst, 'reload schema'`. Conferir: `SELECT count(*) FROM public.units WHERE cor IS NULL;` → `0`.
+2. Pode ir antes ou depois do deploy: o app desta versão usa a paleta pela posição quando a unidade não tem cor, e o de
+   hoje ignora a coluna.
+3. Não cria função: fora da ordem pós-restore.
+
+Reversão: ver o cabeçalho da `139_cor_da_unidade.sql`.
+
 ## Erros do servidor no log do container
 `src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
 e-mail, token e UUID mascarados, e é ali que se investiga. O Next 16 continua imprimindo o erro cru no stdout do
