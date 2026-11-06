@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { entradaAposLogin } from '@/lib/unidade-ativa'
+import { gravarUnidadeDaAba } from '@/lib/unidade-ativa-navegador'
 
 type View = 'login' | 'forgot' | 'forgot-sent'
 
@@ -42,13 +44,19 @@ function LoginContent() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError('E-mail ou senha incorretos.')
       setLoading(false)
-    } else {
-      router.push('/funil')
+      return
     }
+    const [{ data: vinculos }, { data: perfil }] = await Promise.all([
+      supabase.from('user_units').select('unit_id').eq('user_id', data.user.id),
+      supabase.from('profiles').select('unit_id').eq('id', data.user.id).single(),
+    ])
+    const entrada = entradaAposLogin((vinculos ?? []).map(v => v.unit_id as string), perfil?.unit_id ?? null)
+    if (entrada.unidade) gravarUnidadeDaAba(entrada.unidade)
+    router.push(entrada.destino)
   }
 
   async function handleForgot(e: React.FormEvent) {
