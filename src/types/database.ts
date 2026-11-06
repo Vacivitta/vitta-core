@@ -613,7 +613,7 @@ export interface LeadStageHistory {
   criado_em:     string
 }
 
-export type AutomationRunResultado = 'etapa_movida' | 'modelo_enviado' | 'pulado' | 'falhou'
+export type AutomationRunResultado = 'etapa_movida' | 'modelo_enviado' | 'lead_perdido' | 'pulado' | 'falhou'
 
 export interface AutomationRun {
   id:              string
