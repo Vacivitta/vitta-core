@@ -38,6 +38,31 @@ export interface Unit {
   fuso:       string
 }
 
+/** Migração 143. Como um número de WhatsApp está ligado à unidade. */
+export type ConexaoTipo = 'oficial' | 'qrcode'
+export type ConexaoStatus = 'conectada' | 'desconectada' | 'aguardando_qr'
+
+/**
+ * Migração 143. A conversa pertence a uma conexão (`wa_conversations.conexao_id`).
+ * No máximo uma oficial por unidade (ligada ao `wa_config`, que guarda o token);
+ * QR Code a partir da entrega 2. Conversas de conexão pessoal só para a dona e o
+ * admin da marca (ADR 0007). Escrita só pelo service_role.
+ */
+export interface Conexao {
+  id:           string
+  unit_id:      string
+  tipo:         ConexaoTipo
+  nome:         string
+  numero:       string | null
+  pessoal:      boolean
+  dona_id:      string | null
+  wa_config_id: string | null
+  instancia:    string | null
+  status:       ConexaoStatus
+  ativo:        boolean
+  criado_em:    string
+}
+
 export interface UserUnit {
   id:         string
   user_id:    string

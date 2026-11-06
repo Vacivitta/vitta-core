@@ -73,6 +73,70 @@ export async function getWaCredentials(unitId: string | null | undefined): Promi
   return SEM_CREDENCIAIS
 }
 
+interface ConexaoRow {
+  tipo:         'oficial' | 'qrcode'
+  ativo:        boolean
+  wa_config_id: string | null
+}
+
+/**
+ * Retorna as credenciais da conexão da conversa (143). A resposta sai sempre pela
+ * conexão em que a conversa está, nunca pelo número da unidade ativa.
+ *
+ * Conexão oficial: o `wa_config` ligado a ela. QR Code ainda não envia (entrega 2
+ * da Fase 3·2) e devolve campos vazios, que os chamadores tratam como 503.
+ *
+ * @param conexaoId - `wa_conversations.conexao_id`
+ */
+export async function getCredenciaisDaConexao(conexaoId: string | null | undefined): Promise<WaCredentials> {
+  if (!conexaoId) {
+    console.warn('[WA credenciais] conversa sem conexão — envio bloqueado')
+    return SEM_CREDENCIAIS
+  }
+  const { data: conexao } = await adminClient()
+    .from('conexoes')
+    .select('tipo, ativo, wa_config_id')
+    .eq('id', conexaoId)
+    .maybeSingle() as { data: ConexaoRow | null }
+
+  if (!conexao?.ativo || conexao.tipo !== 'oficial' || !conexao.wa_config_id) {
+    console.warn(`[WA credenciais] conexão ${conexaoId} sem envio: ${!conexao ? 'não encontrada' : !conexao.ativo ? 'inativa' : conexao.tipo === 'qrcode' ? 'QR Code ainda não envia' : 'sem wa_config'}`)
+    return SEM_CREDENCIAIS
+  }
+
+  const { data } = await adminClient()
+    .from('wa_config')
+    .select('phone_number_id, access_token, verify_token, waba_id')
+    .eq('id', conexao.wa_config_id)
+    .eq('is_active', true)
+    .maybeSingle() as { data: WaConfigRow | null }
+
+  if (!data?.phone_number_id || !data.access_token) {
+    console.warn(`[WA credenciais] conexão ${conexaoId}: wa_config inativo ou incompleto`)
+    return SEM_CREDENCIAIS
+  }
+  return {
+    phoneNumberId: data.phone_number_id,
+    accessToken:   data.access_token,
+    verifyToken:   data.verify_token ?? '',
+    wabaId:        data.waba_id      ?? '',
+  }
+}
+
+/**
+ * Conexão oficial da unidade (no máximo uma, 143), ou `null` se a unidade não tem.
+ * Usada para abrir conversa nova pela unidade.
+ */
+export async function conexaoOficialDaUnidade(unitId: string): Promise<string | null> {
+  const { data } = await adminClient()
+    .from('conexoes')
+    .select('id')
+    .eq('unit_id', unitId)
+    .eq('tipo', 'oficial')
+    .maybeSingle() as { data: { id: string } | null }
+  return data?.id ?? null
+}
+
 /**
  * Para o webhook: verifica se o token informado pelo Meta
  * bate com algum verify_token ativo (ou com o env var fallback).

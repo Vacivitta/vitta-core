@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cronAutorizado } from '@/lib/auth/cron'
 import { createClient } from '@supabase/supabase-js'
-import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
 import { resumoErro } from '@/lib/log-seguro'
 import {
   falha,
@@ -48,7 +48,7 @@ type Acao =
   | { kind: 'send_template'; templateId: string }
   | { kind: 'move_stage'; stageId: string }
 
-interface Conversa { id: string; wa_phone: string | null; lead_id: string | null; unit_id: string }
+interface Conversa { id: string; wa_phone: string | null; lead_id: string | null; unit_id: string; conexao_id: string | null }
 interface Alvo { leadId: string | null; conversationId: string | null }
 
 const CONDICOES = new Set(['no_patient_reply', 'lead_stuck_stage', 'no_agent_reply', 'lead_no_task'])
@@ -129,7 +129,7 @@ async function registrarMalConfigurada(admin: Admin, auto: TimedAutomation) {
 async function processNoPatientReply(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
   let query = admin
     .from('wa_conversations')
-    .select('id, wa_phone, lead_id, unit_id')
+    .select('id, wa_phone, lead_id, unit_id, conexao_id')
     .eq('unit_id', auto.unit_id)
     .eq('last_message_direction', 'outbound')
     .lt('last_message_at', cutoff)
@@ -151,7 +151,7 @@ async function processNoPatientReply(admin: Admin, auto: TimedAutomation, acao: 
 async function processNoAgentReply(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
   let query = admin
     .from('wa_conversations')
-    .select('id, wa_phone, lead_id, unit_id')
+    .select('id, wa_phone, lead_id, unit_id, conexao_id')
     .eq('unit_id', auto.unit_id)
     .eq('last_message_direction', 'inbound')
     .gt('unread_count', 0)
@@ -306,7 +306,7 @@ async function executeForLeads(admin: Admin, auto: TimedAutomation, acao: Acao, 
 
     const { data: conv, error: convErr } = await admin
       .from('wa_conversations')
-      .select('id, wa_phone, lead_id, unit_id')
+      .select('id, wa_phone, lead_id, unit_id, conexao_id')
       .eq('lead_id', lead.id)
       .eq('unit_id', auto.unit_id)
       .order('last_message_at', { ascending: false })
@@ -413,7 +413,7 @@ async function moverPorTempo(admin: Admin, leadId: string | null, stageId: strin
 async function sendTemplateToConv(
   admin: Admin,
   unitId: string,
-  conv: { id: string; wa_phone: string | null },
+  conv: { id: string; wa_phone: string | null; conexao_id: string | null },
   templateId: string,
 ): Promise<ResultadoAutomacao> {
   if (!conv.wa_phone) return { kind: 'pulado', motivo: 'sem_telefone' }
@@ -426,7 +426,7 @@ async function sendTemplateToConv(
 
   if (!template?.template_name) return { kind: 'pulado', motivo: 'modelo_ausente' }
 
-  const creds = await getWaCredentials(unitId)
+  const creds = await getCredenciaisDaConexao(conv.conexao_id)
   if (!creds.phoneNumberId || !creds.accessToken) return { kind: 'pulado', motivo: 'sem_credenciais' }
 
   const varCount = (template.content?.match(/\{\{\d+\}\}/g) ?? []).length

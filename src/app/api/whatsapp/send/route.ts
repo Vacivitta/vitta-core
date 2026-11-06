@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { getWaCredentials }         from '@/lib/whatsapp/credentials'
+import { getCredenciaisDaConexao }  from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   // Busca a conversa para obter o número de destino
   const { data: conv, error: convErr } = await supabase
     .from('wa_conversations')
-    .select('id, wa_phone, unit_id, assigned_to')
+    .select('id, wa_phone, unit_id, conexao_id, assigned_to')
     .eq('id', conversation_id)
     .single()
 
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
   // Monta o payload para a API do Meta
   const metaPayload = buildMetaPayload(conv.wa_phone, type, content, template_name, language, components, context_message_id)
 
-  // Chama a API do Meta — lê credenciais do banco ou fallback env vars
-  const creds = await getWaCredentials(conv.unit_id)
+  // Responde sempre pela conexão da conversa
+  const creds = await getCredenciaisDaConexao(conv.conexao_id)
 
   if (!creds.phoneNumberId || !creds.accessToken) {
     return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })

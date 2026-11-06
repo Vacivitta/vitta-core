@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
-import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
@@ -57,10 +57,10 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = adminClient()
-    const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id').eq('id', conversation_id).single()
+    const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id, conexao_id').eq('id', conversation_id).single()
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
-    const creds = await getWaCredentials(conv.unit_id)
+    const creds = await getCredenciaisDaConexao(conv.conexao_id)
     const phoneNumberId = creds.phoneNumberId
     const accessToken   = creds.accessToken
     if (!phoneNumberId || !accessToken)

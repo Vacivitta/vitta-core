@@ -3,19 +3,19 @@ import { normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import type { StatusLead } from '@/types/database'
 
 /**
- * Procura a conversa da unidade com qualquer versão do número (com ou sem o 9).
+ * Procura a conversa da conexão com qualquer versão do número (com ou sem o 9).
  * Para muitos DDDs a Meta identifica o contato SEM o 9º dígito; sem considerar as
  * duas formas, o mesmo cliente ganhava duas conversas. Se houver mais de uma
  * (duplicatas antigas), prefere a com mensagem mais recente.
  *
  * @param supabase - Cliente service-role
- * @param unitId - Unidade da conversa
+ * @param conexaoId - Conexão da conversa (143): o mesmo cliente pode falar com dois números da unidade
  * @param waPhone - Número com DDI, só dígitos (wa_id da Meta ou forma canônica)
  * @returns `{ id, lead_id, wa_phone, profile_picture_url }` ou `null`
  */
 export async function buscarConversaPorTelefone(
   supabase: SupabaseClient,
-  unitId: string,
+  conexaoId: string,
   waPhone: string,
 ): Promise<{ id: string; lead_id: string | null; wa_phone: string; profile_picture_url: string | null } | null> {
   const norm = normalizarWaPhone(waPhone)
@@ -23,7 +23,7 @@ export async function buscarConversaPorTelefone(
   const { data } = await supabase
     .from('wa_conversations')
     .select('id, lead_id, wa_phone, profile_picture_url')
-    .eq('unit_id', unitId)
+    .eq('conexao_id', conexaoId)
     .in('wa_phone', variantes)
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(1)
