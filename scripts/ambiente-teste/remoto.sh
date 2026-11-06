@@ -42,6 +42,28 @@ gerar_segredos() {
   } > .env
 }
 
+# Segredos do conector de QR Code, acrescentados a um .env que ainda não os tem
+segredos_evolution() {
+  grep -q '^EVOLUTION_API_KEY=' .env 2>/dev/null && return
+  umask 077
+  {
+    echo "SENHA_EVOLUTION_DB=$(aleatorio 32)"
+    echo "EVOLUTION_API_KEY=$(aleatorio 40)"
+    echo "EVOLUTION_WEBHOOK_SECRET=$(aleatorio 48)"
+  } >> .env
+}
+
+evolution() { docker compose -p ci-evolution-teste -f evolution.yml "$@"; }
+
+subir_evolution() {
+  gerar_segredos
+  segredos_evolution
+  set -a; source .env; set +a
+  evolution up -d
+  esperar "Evolution API" curl -sf http://127.0.0.1:8089/ -H "apikey: $EVOLUTION_API_KEY"
+  echo "ok  Evolution API no ar em 127.0.0.1:8089 (VPS, só pelo túnel)"
+}
+
 esperar() {
   local descricao="$1"; shift
   for _ in $(seq 1 120); do "$@" >/dev/null 2>&1 && return 0; sleep 1; done
@@ -121,7 +143,9 @@ SQL
 case "${1:-}" in
   subir)    subir ;;
   derrubar) compose down ;;
-  resetar)  compose down -v; rm -f .env; subir ;;
-  estado)   compose ps ;;
-  *)        falhar "uso: remoto.sh subir | derrubar | resetar | estado" ;;
+  resetar)  compose down -v; evolution down -v; rm -f .env; subir ;;
+  estado)   compose ps; evolution ps ;;
+  evolution)          subir_evolution ;;
+  evolution-derrubar) evolution down ;;
+  *)        falhar "uso: remoto.sh subir | derrubar | resetar | estado | evolution | evolution-derrubar" ;;
 esac
