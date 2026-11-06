@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { dadosDaConexao, getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
-import { enviarPorQrCode }          from '@/lib/whatsapp/envio-qrcode'
+import { destinoQr, enviarPorQrCode } from '@/lib/whatsapp/envio-qrcode'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   // Busca a conversa para obter o número de destino
   const { data: conv, error: convErr } = await supabase
     .from('wa_conversations')
-    .select('id, wa_phone, unit_id, conexao_id, assigned_to')
+    .select('id, wa_phone, unit_id, conexao_id, tipo, assigned_to')
     .eq('id', conversation_id)
     .single()
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     if (type !== 'text') {
       return NextResponse.json({ error: 'Modelos de mensagem só existem na API oficial; este número é por QR Code.' }, { status: 400 })
     }
-    const envio = await enviarPorQrCode(supabase, conexao, conv.wa_phone, { tipo: 'texto', texto: content!.trim() })
+    const envio = await enviarPorQrCode(supabase, conexao, destinoQr(conv), { tipo: 'texto', texto: content!.trim() })
     if (!envio.ok) return NextResponse.json({ error: envio.erro }, { status: envio.status })
     waMessageId = envio.waMessageId
   } else {

@@ -15,16 +15,18 @@ interface Props {
   currentUser: Profile
   onClose: () => void
   onCreated: (lead: Lead, openFull: boolean) => void
+  /** Valores iniciais (ex.: participante de grupo no Atendimento) */
+  inicial?: { nome?: string; telefone?: string }
 }
 
 export default function QuickLeadForm({
-  defaultStage, funnels, profiles, currentUser, onClose, onCreated,
+  defaultStage, funnels, profiles, currentUser, onClose, onCreated, inicial,
 }: Props) {
   const defaultFunnel = funnels.find(f => f.stages.some(s => s.id === defaultStage.id)) ?? funnels[0]
 
   const [form, setForm] = useState({
-    nome:           '',
-    telefone:       '',
+    nome:           inicial?.nome ?? '',
+    telefone:       inicial?.telefone ?? '',
     funnel_id:      defaultFunnel?.id ?? '',
     stage_id:       defaultStage.id,
     sobrenome:      '',

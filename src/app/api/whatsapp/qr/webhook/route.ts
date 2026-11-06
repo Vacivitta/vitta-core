@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { interpretarMensagemQr, previaDaMensagem, statusDaConexao, webhookEvolutionAutorizado, type MensagemQr } from '@/lib/whatsapp/evolution-webhook'
 import { buscarConversaPorTelefone } from '@/lib/whatsapp/telefone'
+import { nomeDoGrupo, receberGrupos } from '@/lib/whatsapp/evolution'
 import { resumoErro } from '@/lib/log-seguro'
 
 // Webhook do conector de QR Code (Evolution API, ADR 0002). Fora da sessão (proxy
@@ -9,7 +10,7 @@ import { resumoErro } from '@/lib/log-seguro'
 // EVOLUTION_WEBHOOK_SECRET. A conexão é achada pela instância; evento de
 // instância desconhecida é ignorado.
 //
-// Eventos: messages.upsert (conversa individual; grupos na entrega 3),
+// Eventos: messages.upsert (conversa individual ou de grupo, com o autor),
 // connection.update (status da conexão; queda avisa a dona ou a unidade) e
 // qrcode.updated (aguardando leitura). Mensagens do QR Code não criam lead nem
 // disparam automação: o número pode ser pessoal (ADR 0007) e o contato só vira
@@ -23,7 +24,7 @@ function adminClient(): SupabaseClient {
   return createClient(url, key)
 }
 
-interface Conexao { id: string; unit_id: string; status: string; pessoal: boolean; dona_id: string | null; nome: string }
+interface Conexao { id: string; unit_id: string; status: string; pessoal: boolean; dona_id: string | null; nome: string; instancia: string }
 
 interface EventoEvolution { event?: string; instance?: string; data?: unknown }
 
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   const supabase = adminClient()
   const { data: conexao } = await supabase
     .from('conexoes')
-    .select('id, unit_id, status, pessoal, dona_id, nome')
+    .select('id, unit_id, status, pessoal, dona_id, nome, instancia')
     .eq('instancia', evento.instance)
     .eq('tipo', 'qrcode')
     .maybeSingle<Conexao>()
@@ -82,6 +83,11 @@ async function atualizarStatus(supabase: SupabaseClient, conexao: Conexao, dados
   const status = statusDaConexao(dados?.state)
   if (!status || status === conexao.status) return
 
+  // Instância criada antes da entrega 3 nascia ignorando grupos
+  if (status === 'conectada') {
+    await receberGrupos(conexao.instancia).catch(e => console.error('[QR webhook] ligar grupos:', resumoErro(e)))
+  }
+
   const numero = dados?.wuid?.split('@')[0]?.replace(/\D/g, '')
   await supabase.from('conexoes')
     .update({ status, ...(status === 'conectada' && numero ? { numero: `+${numero}` } : {}) })
@@ -119,13 +125,29 @@ async function guardarMidia(supabase: SupabaseClient, unitId: string, m: Mensage
   return supabase.storage.from('wa-media').getPublicUrl(caminho).data.publicUrl
 }
 
+async function buscarGrupo(supabase: SupabaseClient, conexaoId: string, grupoId: string) {
+  const { data } = await supabase
+    .from('wa_conversations')
+    .select('id, lead_id, wa_phone, profile_picture_url')
+    .eq('conexao_id', conexaoId)
+    .eq('wa_phone', grupoId)
+    .maybeSingle()
+  return data
+}
+
 async function gravarMensagem(supabase: SupabaseClient, conexao: Conexao, m: MensagemQr) {
-  let conversa = await buscarConversaPorTelefone(supabase, conexao.id, m.telefone)
+  let conversa = m.grupo
+    ? await buscarGrupo(supabase, conexao.id, m.telefone)
+    : await buscarConversaPorTelefone(supabase, conexao.id, m.telefone)
   if (!conversa) {
+    // Grupo: o nome vem da Evolution; sem ele, a lista mostra o id do grupo
+    const nome = m.grupo
+      ? await nomeDoGrupo(conexao.instancia, m.telefone).catch(() => null)
+      : (m.deMim ? null : m.nome)
     const { data, error } = await supabase
       .from('wa_conversations')
       .upsert(
-        { unit_id: conexao.unit_id, conexao_id: conexao.id, wa_phone: m.telefone, wa_contact_name: m.deMim ? null : m.nome },
+        { unit_id: conexao.unit_id, conexao_id: conexao.id, wa_phone: m.telefone, tipo: m.grupo ? 'grupo' : 'individual', wa_contact_name: nome },
         { onConflict: 'conexao_id,wa_phone', ignoreDuplicates: false },
       )
       .select('id, lead_id, wa_phone, profile_picture_url')
@@ -147,6 +169,8 @@ async function gravarMensagem(supabase: SupabaseClient, conexao: Conexao, m: Men
         media_url:       await guardarMidia(supabase, conexao.unit_id, m),
         media_mime_type: m.midia?.mimetype ?? null,
         status:          m.deMim ? 'sent' : 'delivered',
+        autor_telefone:  m.autor?.telefone ?? null,
+        autor_nome:      m.autor?.nome ?? null,
       },
       { onConflict: 'wa_message_id', ignoreDuplicates: true },
     )
@@ -166,7 +190,7 @@ async function gravarMensagem(supabase: SupabaseClient, conexao: Conexao, m: Men
   await supabase.from('wa_conversations')
     .update({
       last_message_at: agora, status: 'open', last_message_content: previaDaMensagem(m), last_message_direction: 'inbound',
-      ...(m.nome ? { wa_contact_name: m.nome } : {}),
+      ...(m.nome && !m.grupo ? { wa_contact_name: m.nome } : {}),
     })
     .eq('id', conversa.id)
   const { error: unreadErr } = await supabase.rpc('increment_wa_unread', { p_conversation_id: conversa.id })
