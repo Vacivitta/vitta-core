@@ -249,9 +249,9 @@ function LeadDrawer({
         if (intNotes) setWaInternalNotes(intNotes)
 
         // Carrega templates, quick replies e tags para o ChatInput
-        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
+        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
           .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
-        void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
+        void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut')
           .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
         void fetch('/api/whatsapp/template-folders').then(r => r.json()).then(data => { if (Array.isArray(data)) setWaFolders(data) })
         void supabase.from('wa_conversation_tags').select('tag:wa_tags(id,name,color)').eq('conversation_id', conv.id)
@@ -468,10 +468,10 @@ function LeadDrawer({
       const meta: WaTemplate[] = (data.templates ?? [])
         .filter(t => t.status === 'APPROVED')
         .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
-      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,header_type,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
+      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).eq('category', 'custom').order('name')
       setWaTemplates([...meta, ...((custom ?? []) as WaTemplate[])])
     } catch {
-      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
+      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
       setWaTemplates((data ?? []) as WaTemplate[])
     }
   }
@@ -2335,7 +2335,7 @@ function LeadDrawer({
                     onModeChange={setWaInputMode}
                     unitId={currentUser.unit_id ?? ''}
                     onTemplatesReload={reloadWaTemplates}
-                    onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
+                    onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
                     isOutside24hWindow={waIsOutside24h}
                     signatureEnabled={waSignature}
                     signatureLocked={isAtendente}

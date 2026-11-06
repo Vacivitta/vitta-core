@@ -77,13 +77,13 @@ export default function CampanhasClient({ currentUser, initialCampaigns, templat
   // Realtime
   useEffect(() => {
     const ch = supabase.channel('campanhas_list')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_campaigns' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_campaigns', filter: `unit_id=eq.${currentUser.unit_id}` }, payload => {
         if (payload.eventType === 'INSERT') setCampaigns(p => [payload.new as CampaignRow, ...p])
         else if (payload.eventType === 'UPDATE') setCampaigns(p => p.map(c => c.id === payload.new.id ? payload.new as CampaignRow : c))
         else if (payload.eventType === 'DELETE') setCampaigns(p => p.filter(c => c.id !== payload.old.id))
       }).subscribe()
     return () => { void supabase.removeChannel(ch) }
-  }, [supabase])
+  }, [supabase, currentUser.unit_id])
 
   const S = {
     ink: '#25402C', muted: '#9AA79C', border: '#EBE7DA',

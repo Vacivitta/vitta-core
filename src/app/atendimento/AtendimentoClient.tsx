@@ -351,7 +351,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     // Carrega templates locais imediatamente (rápido)
     void supabase.from('wa_message_templates')
       .select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id')
-      .eq('ativo', true).order('name')
+      .eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
       .then(({ data }) => { if (data) setTemplates(data as WaTemplate[]) })
     // Depois atualiza com dados frescos da Meta (pode demorar)
     void (async () => {
@@ -374,12 +374,12 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
           }))
         const { data: custom } = await supabase.from('wa_message_templates')
           .select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id')
-          .eq('ativo', true).eq('category', 'custom').order('name')
+          .eq('unit_id', currentUser.unit_id).eq('ativo', true).eq('category', 'custom').order('name')
         setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
       } catch { /* mantém os templates locais já carregados */ }
     })()
     void fetch('/api/whatsapp/template-folders').then(r => r.json()).then((data: WaTemplateFolder[]) => { if (Array.isArray(data)) setTmplFolders(data) })
-    void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
+    void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
     void fetch('/api/whatsapp/tags?tipo=conversa').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
     void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
@@ -969,14 +969,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
                     const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
                       .filter(t => t.status === 'APPROVED')
                       .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
-                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
+                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).eq('category', 'custom').order('name')
                     setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
                   } catch {
-                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
+                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
                     setTemplates((data ?? []) as WaTemplate[])
                   }
                 }}
-                onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))}
+                onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut').then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))}
                 isOutside24hWindow={isOutside24hWindow}
                 signatureEnabled={signatureEnabled} signatureLocked={isAtendente} onToggleSignature={toggleSignature}
                 signerName={displayName(currentUser)}
