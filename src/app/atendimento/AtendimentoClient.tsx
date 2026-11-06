@@ -1241,6 +1241,7 @@ function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onF
           <div>
             <p style={{ fontSize: 19, fontWeight: 900, color: '#25402C', margin: 0 }}>Conversas</p>
             <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', margin: '2px 0 0' }}>
+              {variasUnidades && filterUnit === 'all' ? 'Todas as suas unidades · ' : ''}
               {totalUnread > 0 ? `${totalUnread} famílias esperando por você` : 'Tudo em dia'}
             </p>
           </div>
