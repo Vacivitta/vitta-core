@@ -373,6 +373,23 @@ Protege no banco o que o app já fazia e fecha duas brechas:
 
 Reversão: ver o cabeçalho da `135_pendencias.sql` (volta a apagar histórico ao excluir etapa).
 
+## Notificações por pessoa: migração 136 ([H])
+A notificação pessoal (menção, orçamento aceito, recusado, vencendo, vencido) passa a ser lida só por quem a recebe; o
+aviso da unidade continua para quem está nela e para o admin da marca. A leitura passa a ser por pessoa
+(`notification_reads`), e o app deixa de alterar `notifications`.
+
+1. Aplicar `136_notificacoes_por_pessoa.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão
+   `136` e rodar `notify pgrst, 'reload schema'`. Converte o que já estava lido (pessoal: leitura do destinatário;
+   aviso da unidade: leitura de quem está na unidade). Conferir:
+   `SELECT count(*) FROM public.notification_reads;` → igual a
+   `SELECT count(*) FILTER (WHERE user_id IS NOT NULL) + (SELECT count(*) FROM public.notifications n JOIN public.user_units u USING (unit_id) WHERE n.lida AND n.user_id IS NULL) FROM public.notifications WHERE lida;`.
+2. Ordem com o deploy: **136 primeiro, deploy depois**. O sino novo lê e grava `notification_reads`. Entre a 136 e o
+   deploy, o sino de hoje continua listando, já sem as notificações de colegas, mas não consegue marcar como lida (o
+   PATCH em `notifications` dá 403 e o sino ignora o erro).
+3. Não cria função: fora da ordem pós-restore.
+
+Reversão: ver o cabeçalho da `136_notificacoes_por_pessoa.sql`.
+
 ## search_path fixo nas SECURITY DEFINER: migração 142 ([H])
 As 10 funções SECURITY DEFINER do `public` sem `search_path` (`is_global_admin`, `is_admin`, `get_agent_stats`,
 `increment_wa_unread` e 6 funções de trigger) passam a ter `SET search_path TO 'public'` e tabelas qualificadas, com o

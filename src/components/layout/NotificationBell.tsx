@@ -4,7 +4,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/context/ProfileContext'
-import type { Notification } from '@/types/database'
+import type { Notification, NotificationRead } from '@/types/database'
+
+type ItemDoSino = Notification & { lida: boolean }
+type LinhaComLeitura = Notification & { notification_reads: Pick<NotificationRead, 'lida_em'>[] }
 
 const fmtTime = (iso: string) => {
   const d = new Date(iso)
@@ -27,7 +30,7 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
   const supabase    = createClient()
   const router      = useRouter()
 
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notifications, setNotifications] = useState<ItemDoSino[]>([])
   const [open,          setOpen]          = useState(false)
   const [toasts,        setToasts]        = useState<Toast[]>([])
   const [dropdownPos,   setDropdownPos]   = useState({ left: 0, bottom: 0, width: 0 })
@@ -40,10 +43,11 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
     if (!profile) return
     const { data } = await supabase
       .from('notifications')
-      .select('*')
+      .select('id, unit_id, user_id, type, title, body, quote_id, lead_id, criado_em, notification_reads(lida_em)')
       .order('criado_em', { ascending: false })
       .limit(30)
-    if (data) setNotifications(data as Notification[])
+      .returns<LinhaComLeitura[]>()
+    if (data) setNotifications(data.map(({ notification_reads, ...n }) => ({ ...n, lida: notification_reads.length > 0 })))
   }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
@@ -59,12 +63,9 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
         { event: 'INSERT', schema: 'public', table: 'notifications' },
         (payload) => {
           const n = payload.new as Notification
-          // Verificar se é para este usuário ou para toda a unidade
-          const isOwn  = n.user_id === profile.id
-          const isUnit = n.user_id === null && n.unit_id === profile.unit_id
-          if (!isOwn && !isUnit) return
+          if (n.user_id !== null && n.user_id !== profile.id) return
 
-          setNotifications(prev => [n, ...prev])
+          setNotifications(prev => [{ ...n, lida: false }, ...prev])
           setToasts(prev => [...prev, { id: n.id, title: n.title, body: n.body }])
           setTimeout(() => setToasts(prev => prev.filter(t => t.id !== n.id)), 5000)
         }
@@ -86,16 +87,25 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
   }, [open])
 
   // ── Marcar como lida ──────────────────────────────────────────────────────
-  async function markRead(id: string) {
-    await supabase.from('notifications').update({ lida: true }).eq('id', id)
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
+  async function marcarLidas(ids: string[]) {
+    if (!profile || ids.length === 0) return
+    const { error } = await supabase
+      .from('notification_reads')
+      .upsert(ids.map(id => ({ notification_id: id, user_id: profile.id })), {
+        onConflict: 'notification_id,user_id',
+        ignoreDuplicates: true,
+      })
+    if (error) return
+    const lidas = new Set(ids)
+    setNotifications(prev => prev.map(n => lidas.has(n.id) ? { ...n, lida: true } : n))
   }
 
-  async function markAllRead() {
-    const ids = notifications.filter(n => !n.lida).map(n => n.id)
-    if (ids.length === 0) return
-    await supabase.from('notifications').update({ lida: true }).in('id', ids)
-    setNotifications(prev => prev.map(n => ({ ...n, lida: true })))
+  function markRead(id: string) {
+    return marcarLidas([id])
+  }
+
+  function markAllRead() {
+    return marcarLidas(notifications.filter(n => !n.lida).map(n => n.id))
   }
 
   if (!profile) return null
