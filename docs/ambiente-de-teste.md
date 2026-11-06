@@ -78,6 +78,21 @@ bash scripts/ambiente-teste/subir.sh derrubar
   `.env.ambiente-teste.local` é regravado.
 - `derrubar`: para os containers e mantém os dados.
 
+## Conector de QR Code (Evolution API)
+
+```bash
+bash scripts/ambiente-teste/subir.sh evolution
+```
+
+Sobe a Evolution API 2.3.7 (`ci-evolution-teste`, com banco próprio, cerca de 320 MB) e
+acrescenta ao `.env.ambiente-teste.local` a chave da API, o segredo do webhook e as URLs.
+Com elas, o `npm run dev:teste` abre também o túnel para a API (`localhost:8089`) e o
+túnel reverso pelo qual o webhook da Evolution chega ao app local (`127.0.0.1:3012` da VPS
+→ `localhost:3001`). A porta da Evolution não fica exposta: ela roda na rede do host, e o
+ufw da VPS só libera a 22. Conecte um número de teste em Configurações › Conexões, lendo
+o QR Code no celular. Para parar: `bash scripts/ambiente-teste/subir.sh evolution-derrubar`
+(a sessão do número fica no volume; `resetar` apaga tudo).
+
 ## Testar uma pilha de PRs
 
 As migrações vêm da worktree indicada em `AMBIENTE_TESTE_ORIGEM`; o padrão é esta.

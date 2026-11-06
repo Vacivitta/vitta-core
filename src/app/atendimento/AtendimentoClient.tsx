@@ -18,7 +18,7 @@ import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { normalizarTelefone } from '@/lib/telefone'
-import { precisaConfirmarResposta, rotuloRespondendoComo, type UnidadeDaCaixa } from '@/lib/unidades'
+import { precisaConfirmarResposta, rotuloRespondendoComo, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
 import { useProfile } from '@/context/ProfileContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ interface WaConversation {
   status: 'open' | 'pending' | 'resolved'; unread_count: number
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
+  conexao_id?: string | null
   profile_picture_url?: string | null
   last_message_content?: string | null
   last_message_direction?: 'inbound' | 'outbound' | null
@@ -76,6 +77,7 @@ interface Props {
   initialConversaId?: string | null
   /** Unidades vinculadas ao usuário: a caixa mostra as conversas de todas. */
   unidades: UnidadeDaCaixa[]
+  conexoes: ConexaoDaCaixa[]
 }
 
 type ConvStatus = 'open' | 'pending' | 'resolved' | 'all'
@@ -99,7 +101,7 @@ const fmtCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-export default function AtendimentoClient({ funnels, profiles, currentUser, initialConversaId, unidades }: Props) {
+export default function AtendimentoClient({ funnels, profiles, currentUser, initialConversaId, unidades, conexoes }: Props) {
   const supabase = createClient()
   const router   = useRouter()
   const { switchUnit } = useProfile()
@@ -395,7 +397,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .in('unit_id', idsDaCaixa)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     if (error) console.error('[loadConversations] erro:', error.message)
@@ -858,6 +860,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const defaultStage = funnels[0]?.stages[0]
 
   const unidadeDaConversa = selectedConv?.unit_id ? unidadePorId.get(selectedConv.unit_id) ?? null : null
+  const conexaoDaConversa = conexoes.find(c => c.id === selectedConv?.conexao_id) ?? null
+  // QR Code não tem modelos da Meta: só texto e mídia
+  const conversaPorQrCode = conexaoDaConversa?.tipo === 'qrcode'
   const conversaDeOutraUnidade = !!selectedConv?.unit_id && selectedConv.unit_id !== currentUser.unit_id
 
   /** Envio para o cliente numa conversa de outra unidade: confirma uma vez por conversa. */
@@ -952,14 +957,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
                   <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
                 </div>
               )}
-              {unidadeDaConversa && unidades.length > 1 && (
-                <BarraRespondendoComo unidade={unidadeDaConversa} outraUnidade={conversaDeOutraUnidade}
+              {unidadeDaConversa && (unidades.length > 1 || conversaPorQrCode) && (
+                <BarraRespondendoComo unidade={unidadeDaConversa} conexao={conexaoDaConversa} outraUnidade={conversaDeOutraUnidade}
                   onTrocar={trocarParaUnidadeDaConversa} />
               )}
               <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={() => comConfirmacao(() => void handleSend())}
                 onMediaUpload={(file, caption) => comConfirmacao(() => void handleMediaUpload(file, caption))}
                 onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
-                templates={conversaDeOutraUnidade ? [] : templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
+                templates={conversaDeOutraUnidade || conversaPorQrCode ? [] : templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
                 unitId={currentUser.unit_id ?? ''}
                 mentionProfiles={profiles} currentUserId={currentUser.id}
                 onTemplatesReload={async () => {
@@ -1482,14 +1487,14 @@ function SeloUnidade({ unidade }: { unidade: UnidadeDaCaixa }) {
   )
 }
 
-function BarraRespondendoComo({ unidade, outraUnidade, onTrocar }: {
-  unidade: UnidadeDaCaixa; outraUnidade: boolean; onTrocar: () => void
+function BarraRespondendoComo({ unidade, conexao, outraUnidade, onTrocar }: {
+  unidade: UnidadeDaCaixa; conexao: ConexaoDaCaixa | null; outraUnidade: boolean; onTrocar: () => void
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: unidade.cor + '12', borderTop: `2px solid ${unidade.cor}`, flexShrink: 0 }}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: unidade.cor, flexShrink: 0 }} />
       <span style={{ fontSize: 11.5, fontWeight: 700, color: '#25402C', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {rotuloRespondendoComo(unidade)}
+        {rotuloRespondendoComo(unidade, conexao)}
       </span>
       {outraUnidade && (
         <button onClick={onTrocar} title="Modelos, filas e ficha do lead usam a unidade em que você está"

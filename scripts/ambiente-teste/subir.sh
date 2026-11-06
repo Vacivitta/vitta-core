@@ -2,7 +2,7 @@
 # Roda no seu computador. Copia o ambiente de teste (com as migrações da branch
 # atual) para a VPS e executa o comando lá; no fim baixa as chaves para
 # .env.ambiente-teste.local, que o `npm run dev:teste` usa.
-# Uso: bash scripts/ambiente-teste/subir.sh [subir|derrubar|resetar|estado]
+# Uso: bash scripts/ambiente-teste/subir.sh [subir|derrubar|resetar|estado|evolution|evolution-derrubar]
 # Com AMBIENTE_TESTE_ORIGEM=<outra worktree>, usa as migrações dela e grava o
 # .env.ambiente-teste.local lá (para testar uma pilha de PRs; mude de origem com resetar).
 set -euo pipefail
@@ -18,7 +18,7 @@ comando="${1:-subir}"
 
 pacote="$(mktemp -d)"
 trap 'rm -rf "$pacote"' EXIT
-cp scripts/ambiente-teste/{compose.yml,nginx.conf,remoto.sh,semente.sql} "$pacote/"
+cp scripts/ambiente-teste/{compose.yml,evolution.yml,nginx.conf,remoto.sh,semente.sql} "$pacote/"
 cp "$origem/tests/db/prelude.sql" "$origem/docs/migracao-vps/registro-migracoes.sql" "$pacote/"
 mkdir "$pacote/migrations"
 cp "$origem"/supabase/migrations/*.sql "$pacote/migrations/"
@@ -28,7 +28,7 @@ ssh "$host" "mkdir -p ~/$pasta && cd ~/$pasta && find . -mindepth 1 -maxdepth 1 
 tar -C "$pacote" -cf - . | ssh "$host" "tar -C ~/$pasta -xf -"
 ssh "$host" "cd ~/$pasta && SEM_SEMENTE=${SEM_SEMENTE:-} bash remoto.sh $comando"
 
-if [[ "$comando" == subir || "$comando" == resetar ]]; then
+if [[ "$comando" == subir || "$comando" == resetar || "$comando" == evolution ]]; then
   segredos="$(ssh "$host" "cat ~/$pasta/.env")"
   valor() { printf '%s\n' "$segredos" | sed -n "s/^$1=//p"; }
   umask 077
@@ -44,5 +44,15 @@ CRON_SECRET=$(valor CRON_SECRET)
 # gestor@teste.invalid (gestor de Itu), admin@teste.invalid (admin da marca)
 AMBIENTE_TESTE_SENHA=$(valor SENHA_USUARIOS)
 ENV
+  if [[ -n "$(valor EVOLUTION_API_KEY)" ]]; then
+    cat >> "$origem/.env.ambiente-teste.local" <<ENV
+# Conector de QR Code (bash scripts/ambiente-teste/subir.sh evolution): o dev.mjs
+# abre o túnel para a API (8089) e o túnel reverso do webhook (3012 → 3001).
+EVOLUTION_URL=http://localhost:8089
+EVOLUTION_API_KEY=$(valor EVOLUTION_API_KEY)
+EVOLUTION_WEBHOOK_SECRET=$(valor EVOLUTION_WEBHOOK_SECRET)
+EVOLUTION_WEBHOOK_URL=http://127.0.0.1:3012/api/whatsapp/qr/webhook
+ENV
+  fi
   echo "ok  chaves em $origem/.env.ambiente-teste.local"
 fi

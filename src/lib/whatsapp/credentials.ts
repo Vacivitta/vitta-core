@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { ConexaoEnvio } from '@/lib/whatsapp/envio-qrcode'
 
 export interface WaCredentials {
   phoneNumberId: string
@@ -121,6 +122,17 @@ export async function getCredenciaisDaConexao(conexaoId: string | null | undefin
     verifyToken:   data.verify_token ?? '',
     wabaId:        data.waba_id      ?? '',
   }
+}
+
+/** Tipo e estado da conexão, para escolher o canal de envio (Meta ou QR Code). */
+export async function dadosDaConexao(conexaoId: string | null | undefined): Promise<ConexaoEnvio | null> {
+  if (!conexaoId) return null
+  const { data } = await adminClient()
+    .from('conexoes')
+    .select('id, tipo, instancia, ativo, status')
+    .eq('id', conexaoId)
+    .maybeSingle() as { data: ConexaoEnvio | null }
+  return data
 }
 
 /**

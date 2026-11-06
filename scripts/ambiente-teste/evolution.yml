@@ -1,0 +1,69 @@
+# Conector de WhatsApp por QR Code (Evolution API) do ambiente de teste.
+# Projeto próprio (ci-evolution-teste), com banco próprio: nada do Supabase de
+# teste nem da produção. Sobe com `remoto.sh evolution`.
+#
+# A Evolution roda na rede do host para alcançar, em 127.0.0.1, a ponta do túnel
+# reverso que leva o webhook ao app local (dev.mjs). A porta dela (8089) não fica
+# exposta: o ufw da VPS só libera a 22, e processos na rede do host passam pelo
+# INPUT (só portas publicadas pelo Docker escapam dele). O banco publica só em
+# 127.0.0.1.
+
+name: ci-evolution-teste
+
+volumes:
+  evolution_dados:
+
+services:
+  evolution-db:
+    image: postgres:16.4-alpine
+    container_name: ci-evolution-teste-db
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${SENHA_EVOLUTION_DB}
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution_dados:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5439:5432"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "evolution"]
+      interval: 3s
+      retries: 60
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: ci-evolution-teste-api
+    depends_on:
+      evolution-db: { condition: service_healthy }
+    network_mode: host
+    mem_limit: 768m
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: "8089"
+      SERVER_URL: http://127.0.0.1:8089
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${SENHA_EVOLUTION_DB}@127.0.0.1:5439/evolution?schema=evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: vittadesk_teste
+      # Só a sessão fica na Evolution; mensagens, contatos e conversas ficam no VittaDesk
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      DATABASE_SAVE_IS_ON_WHATSAPP: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      TELEMETRY_ENABLED: "false"
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      DEL_INSTANCE: "false"
+      QRCODE_LIMIT: "30"
+      CONFIG_SESSION_PHONE_CLIENT: VittaDesk
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      LOG_LEVEL: ERROR,WARN,INFO
+      LOG_BAILEYS: error
+      LANGUAGE: pt-BR

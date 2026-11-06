@@ -32,7 +32,12 @@ let tunel = null
 if (await portaAberta()) {
   console.log(`túnel já aberto em localhost:${PORTA_TUNEL}`)
 } else {
-  tunel = spawn('ssh', ['-N', '-o', 'ExitOnForwardFailure=yes', '-L', `${PORTA_TUNEL}:127.0.0.1:${PORTA_TUNEL}`, host], { stdio: 'inherit' })
+  // Com o conector de QR Code (subir.sh evolution): a API da Evolution em
+  // localhost:8089 e o webhook dela chegando ao app pelo túnel reverso 3012 → 3001
+  const evolution = variaveis.EVOLUTION_URL
+    ? ['-L', '8089:127.0.0.1:8089', '-R', '127.0.0.1:3012:localhost:3001']
+    : []
+  tunel = spawn('ssh', ['-N', '-o', 'ExitOnForwardFailure=yes', '-L', `${PORTA_TUNEL}:127.0.0.1:${PORTA_TUNEL}`, ...evolution, host], { stdio: 'inherit' })
   for (let i = 0; i < 30 && !(await portaAberta()); i++) await new Promise(r => setTimeout(r, 500))
   if (!(await portaAberta())) {
     console.error(`túnel para ${host} não abriu (localhost:${PORTA_TUNEL})`)

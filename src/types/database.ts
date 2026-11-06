@@ -61,6 +61,8 @@ export interface Conexao {
   status:       ConexaoStatus
   ativo:        boolean
   criado_em:    string
+  /** Migração 144. Mensagens por minuto no QR Code (1 a 60). */
+  limite_por_minuto: number
 }
 
 export interface UserUnit {

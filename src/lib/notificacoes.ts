@@ -9,6 +9,7 @@ export function destinoDaNotificacao(n: NotificacaoAbrivel): string | null {
   if (n.quote_id && (n.type === 'quote_expiring' || n.type === 'quote_expirado')) {
     return `/orcamento?quote_id=${n.quote_id}`
   }
+  if (n.type === 'conexao_caiu') return '/configuracoes/conexoes'
   if (n.lead_id) {
     return `/funil?lead=${n.lead_id}${n.type === 'mention_note' ? '&tab=Anotações' : ''}`
   }
