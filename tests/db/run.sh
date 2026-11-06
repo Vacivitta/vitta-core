@@ -205,10 +205,10 @@ SQL
 checagens=$((checagens + 1))
 echo "ok  ordem pós-restore $texto_ordem: 118 antes delas aborta; depois do restore simulado, privilégios e definições voltam"
 
-for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135; do
+for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 142; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135; do
+for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 142; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 
