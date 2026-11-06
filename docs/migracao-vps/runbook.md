@@ -515,6 +515,15 @@ o mesmo cliente pode ter uma conversa em cada número da unidade.
 
 Reversão: ver o cabeçalho da `144_conexao_qrcode.sql`.
 
+## Conector de QR Code (Evolution API) na produção ([H], a fazer)
+Serviço à parte no Coolify, com aprovação: `evoapicloud/evolution-api:v2.3.7` e um Postgres próprio (nunca o banco do
+Supabase), na mesma rede Docker do app, sem domínio nem porta pública. Variáveis da Evolution como em
+`scripts/ambiente-teste/evolution.yml` (só a sessão é guardada; mensagens, contatos e conversas não). No app:
+`EVOLUTION_URL` (endereço interno do serviço), `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_SECRET` (aleatório, 48+
+caracteres) e `EVOLUTION_WEBHOOK_URL` (endereço interno do app + `/api/whatsapp/qr/webhook`). Sem essas variáveis a
+tela de Conexões mostra que o conector não está ligado e nada mais muda. A sessão do WhatsApp fica no banco da
+Evolution: entra no backup diário como banco à parte.
+
 ## Erros do servidor no log do container
 `src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
 e-mail, token e UUID mascarados, e é ali que se investiga. O Next 16 continua imprimindo o erro cru no stdout do

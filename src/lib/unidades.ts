@@ -14,8 +14,26 @@ export function corDaUnidade(cor: string | null, posicao: number): string {
   return cor ?? PALETA_UNIDADES[posicao % PALETA_UNIDADES.length]
 }
 
-export function rotuloRespondendoComo(unidade: Pick<UnidadeDaCaixa, 'nome' | 'numero'>): string {
-  return `Respondendo como ${unidade.nome} · ${unidade.numero ?? 'número não configurado'}`
+/** Conexão da conversa (143), como o Atendimento mostra; sem token. */
+export interface ConexaoDaCaixa {
+  id:      string
+  nome:    string
+  numero:  string | null
+  tipo:    'oficial' | 'qrcode'
+  pessoal: boolean
+}
+
+/**
+ * Rótulo da barra acima da caixa de texto: a unidade e o número pelo qual a
+ * resposta sai (o da conexão da conversa; sem ela, o da unidade). QR Code avisa
+ * que o canal não é oficial.
+ */
+export function rotuloRespondendoComo(
+  unidade: Pick<UnidadeDaCaixa, 'nome' | 'numero'>,
+  conexao?: Pick<ConexaoDaCaixa, 'numero' | 'tipo'> | null,
+): string {
+  const numero = conexao?.numero ?? unidade.numero ?? 'número não configurado'
+  return `Respondendo como ${unidade.nome} · ${numero}${conexao?.tipo === 'qrcode' ? ' · QR Code (não oficial)' : ''}`
 }
 
 /**

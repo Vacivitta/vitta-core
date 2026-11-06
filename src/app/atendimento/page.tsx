@@ -1,7 +1,7 @@
 ﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { corDaUnidade, type UnidadeDaCaixa } from '@/lib/unidades'
+import { corDaUnidade, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
 import AtendimentoClient from './AtendimentoClient'
 import type { Profile, FunnelWithStages } from '@/types/database'
 import { buscarPerfil } from '@/lib/supabase/perfil'
@@ -37,6 +37,11 @@ export default async function AtendimentoPage({
     unidadesDaCaixa(supabase, user.id),
   ])
 
+  // Conexões das unidades do usuário (RLS de conexoes, 143): nome, número e tipo, sem token
+  const { data: conexoesData } = await supabase.from('conexoes')
+    .select('id, nome, numero, tipo, pessoal')
+    .in('unit_id', unidades.map(u => u.id))
+
   const extraUserIds = (userUnits ?? [])
     .map(r => r.user_id as string)
     .filter(id => !(profilesData ?? []).some(p => p.id === id))
@@ -61,6 +66,7 @@ export default async function AtendimentoPage({
       initialNumero={numero ?? null}
       initialConversaId={conversa ?? null}
       unidades={unidades}
+      conexoes={(conexoesData ?? []) as ConexaoDaCaixa[]}
     />
   )
 }

@@ -22,6 +22,13 @@ test('barra Respondendo como: unidade e número, ou aviso sem número', () => {
   assert.equal(rotuloRespondendoComo({ nome: 'Salto', numero: null }), 'Respondendo como Salto · número não configurado')
 })
 
+test('barra Respondendo como: o número da conexão da conversa, com aviso no QR Code', () => {
+  const itu = { nome: 'Itu', numero: '+55 11 4000-0000' }
+  assert.equal(rotuloRespondendoComo(itu, { numero: '+55 11 4000-0000', tipo: 'oficial' }), 'Respondendo como Itu · +55 11 4000-0000')
+  assert.equal(rotuloRespondendoComo(itu, { numero: '+5511988880001', tipo: 'qrcode' }), 'Respondendo como Itu · +5511988880001 · QR Code (não oficial)')
+  assert.equal(rotuloRespondendoComo(itu, { numero: null, tipo: 'qrcode' }), 'Respondendo como Itu · +55 11 4000-0000 · QR Code (não oficial)')
+})
+
 test('confirma só ao responder conversa de outra unidade, uma vez por conversa', () => {
   const nenhuma = new Set()
   assert.equal(precisaConfirmarResposta('itu', 'itu', 'c1', nenhuma), false, 'mesma unidade não pede')

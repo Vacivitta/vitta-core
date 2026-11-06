@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { getCredenciaisDaConexao }  from '@/lib/whatsapp/credentials'
+import { dadosDaConexao, getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
+import { enviarPorQrCode }          from '@/lib/whatsapp/envio-qrcode'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
@@ -61,53 +62,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
 
-  // Monta o payload para a API do Meta
-  const metaPayload = buildMetaPayload(conv.wa_phone, type, content, template_name, language, components, context_message_id)
+  // Conversa de QR Code sai pela Evolution; as outras, pela API da Meta
+  const conexao = await dadosDaConexao(conv.conexao_id)
+  let waMessageId: string | null
+  if (conexao?.tipo === 'qrcode') {
+    if (type !== 'text') {
+      return NextResponse.json({ error: 'Modelos de mensagem só existem na API oficial; este número é por QR Code.' }, { status: 400 })
+    }
+    const envio = await enviarPorQrCode(supabase, conexao, conv.wa_phone, { tipo: 'texto', texto: content!.trim() })
+    if (!envio.ok) return NextResponse.json({ error: envio.erro }, { status: envio.status })
+    waMessageId = envio.waMessageId
+  } else {
+    // Monta o payload para a API do Meta
+    const metaPayload = buildMetaPayload(conv.wa_phone, type, content, template_name, language, components, context_message_id)
 
-  // Responde sempre pela conexão da conversa
-  const creds = await getCredenciaisDaConexao(conv.conexao_id)
+    // Responde sempre pela conexão da conversa
+    const creds = await getCredenciaisDaConexao(conv.conexao_id)
 
-  if (!creds.phoneNumberId || !creds.accessToken) {
-    return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
+    if (!creds.phoneNumberId || !creds.accessToken) {
+      return NextResponse.json({ error: 'WhatsApp não configurado. Acesse Configurações → WhatsApp API.' }, { status: 503 })
+    }
+
+    console.log(`[WA send] enviando conversa=${conversation_id} unidade=${conv.unit_id} tipo=${type}`)
+
+    let metaData: MetaResponse = {}
+    let metaOk = false
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
+
+      const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
+        method:  'POST',
+        headers: {
+          'Authorization': `Bearer ${creds.accessToken}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify(metaPayload),
+      })
+
+      metaData = await metaRes.json() as MetaResponse
+
+      if (metaRes.ok) { metaOk = true; break }
+      if (!metaData.error?.is_transient) break
+      console.warn(`[WA send] transient error, retrying (${attempt + 1}/3):`, metaData.error?.message)
+    }
+
+    if (!metaOk) {
+      console.error(`[WA send] erro da API do Meta conversa=${conversation_id}:`, resumoErro(metaData))
+      return NextResponse.json(
+        { error: 'Falha ao enviar mensagem', details: metaData },
+        { status: 502 }
+      )
+    }
+
+    waMessageId = metaData.messages?.[0]?.id ?? null
   }
-
-  console.log(`[WA send] enviando conversa=${conversation_id} unidade=${conv.unit_id} tipo=${type}`)
-
-  let metaData: MetaResponse = {}
-  let metaOk = false
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
-
-    const metaRes = await fetch(`${META_API_URL}/${creds.phoneNumberId}/messages`, {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${creds.accessToken}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify(metaPayload),
-    })
-
-    metaData = await metaRes.json() as MetaResponse
-
-    if (metaRes.ok) { metaOk = true; break }
-    if (!metaData.error?.is_transient) break
-    console.warn(`[WA send] transient error, retrying (${attempt + 1}/3):`, metaData.error?.message)
-  }
-
-  if (!metaOk) {
-    console.error(`[WA send] erro da API do Meta conversa=${conversation_id}:`, resumoErro(metaData))
-    return NextResponse.json(
-      { error: 'Falha ao enviar mensagem', details: metaData },
-      { status: 502 }
-    )
-  }
-
-  const waMessageId = metaData.messages?.[0]?.id ?? null
 
   // Salva a mensagem outbound no banco
+  // upsert: no QR Code, a Evolution pode devolver a própria mensagem pelo webhook antes daqui
   const { data: msg, error: msgErr } = await supabase
     .from('wa_messages')
-    .insert({
+    .upsert({
       conversation_id,
       unit_id:       conv.unit_id,
       wa_message_id: waMessageId,
@@ -120,7 +134,7 @@ export async function POST(req: NextRequest) {
       status:        'sent',
       sent_by:       user.id,
       reply_to_wa_message_id: context_message_id ?? null,
-    })
+    }, { onConflict: 'wa_message_id' })
     .select('id, created_at')
     .single()
 
