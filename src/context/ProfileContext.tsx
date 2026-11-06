@@ -78,14 +78,22 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const unidadeAtual = profile?.unit_id ?? null
+  // O cookie é um só por navegador: a aba o reescreve ao voltar a ela e a cada
+  // clique ou tecla, antes da navegação ou do fetch que a interação dispara. Duas
+  // janelas lado a lado não disparam visibilitychange ao trocar de uma para a outra.
   useEffect(() => {
     if (!unidadeAtual) return
-    const aoVoltar = () => { if (document.visibilityState === 'visible') escreverCookieDaUnidade(unidadeAtual) }
-    window.addEventListener('focus', aoVoltar)
+    const reescrever = () => escreverCookieDaUnidade(unidadeAtual)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') reescrever() }
+    window.addEventListener('focus', reescrever)
     document.addEventListener('visibilitychange', aoVoltar)
+    document.addEventListener('pointerdown', reescrever, true)
+    document.addEventListener('keydown', reescrever, true)
     return () => {
-      window.removeEventListener('focus', aoVoltar)
+      window.removeEventListener('focus', reescrever)
       document.removeEventListener('visibilitychange', aoVoltar)
+      document.removeEventListener('pointerdown', reescrever, true)
+      document.removeEventListener('keydown', reescrever, true)
     }
   }, [unidadeAtual])
 
