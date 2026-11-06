@@ -1413,7 +1413,7 @@ function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onF
         {convs.map(conv => {
           const isSelected = selected?.id === conv.id
           const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
-          const name = (conv.tipo === 'grupo' ? '👥 ' : '') + nomeDaConversa(conv, leadName)
+          const name = nomeDaConversa(conv, leadName)
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
           const unidade  = variasUnidades && conv.unit_id ? unidadePorId.get(conv.unit_id) : undefined
@@ -1441,7 +1441,7 @@ function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onF
                     const _pi = Math.abs(_h) % 3
                     return (
                       <div style={{ width: 42, height: 42, borderRadius: 14, background: _AVATAR_BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{conv.tipo === 'grupo' ? '👥' : name.slice(0, 2).toUpperCase()}</span>
                       </div>
                     )
                   })()
@@ -1584,7 +1584,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
           const _pi = Math.abs(_h) % 3
           return (
             <div style={{ width: 42, height: 42, borderRadius: 14, background: _BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{conv.tipo === 'grupo' ? '👥' : name.slice(0, 2).toUpperCase()}</span>
             </div>
           )
         })()
