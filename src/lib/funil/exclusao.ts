@@ -29,6 +29,6 @@ export function mensagemUsadaPorAutomacao(alvo: AlvoExclusao, automacoes: readon
  */
 export function mensagemRecusaPorReferencia(alvo: AlvoExclusao, erro: { code?: string } | null): string | null {
   if (erro?.code !== '23503') return null
-  return `${alvo === 'etapa' ? 'Esta etapa' : 'Este funil'} ainda está em uso (por leads ou por uma automação). `
-    + 'Atualize a página e confira os leads e as automações antes de excluir.'
+  return `${alvo === 'etapa' ? 'Esta etapa' : 'Este funil'} ainda está em uso (por leads, por uma automação ou por um horário de atendimento). `
+    + 'Atualize a página e confira os leads, as automações e os horários antes de excluir.'
 }

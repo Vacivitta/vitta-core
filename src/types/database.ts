@@ -34,6 +34,8 @@ export interface Unit {
   criado_em:  string
   /** Migração 139. #RRGGBB; sem cor, o app usa PALETA_UNIDADES pela posição. */
   cor:        string | null
+  /** Migração 141. Fuso IANA da unidade (padrão America/Sao_Paulo); só o admin da marca altera. */
+  fuso:       string
 }
 
 export interface UserUnit {
