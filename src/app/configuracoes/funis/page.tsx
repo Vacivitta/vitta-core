@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import FunisConfig from './FunisConfig'
 import type { CampoLead, FunnelWithStages } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Configurar Funis — VittaDesk' }
 
@@ -11,8 +12,7 @@ export default async function ConfigFunisPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, 'unit_id, perfil')
   if (!profileData) redirect('/login')
   // Funis, etapas e motivos de perda: só gestor e admin (o RLS da 126 também barra)
   if (profileData.perfil === 'atendente') redirect('/funil')

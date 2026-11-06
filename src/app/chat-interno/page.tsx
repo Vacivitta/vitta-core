@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import ChatInternoClient from './ChatInternoClient'
 import type { Profile, InternalChannel } from '@/types/database'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Chat Interno — VittaDesk' }
 
@@ -11,8 +12,7 @@ export default async function ChatInternoPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const profile = profileData as Profile
   if (!profile?.unit_id) redirect('/login')

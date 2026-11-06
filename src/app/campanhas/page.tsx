@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import CampanhasClient  from './CampanhasClient'
 import type { Profile }  from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Campanhas — VittaDesk' }
 
@@ -51,7 +52,7 @@ export default async function CampanhasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, '*')
   if (!profile) redirect('/login')
   if (profile.perfil === 'atendente') redirect('/funil')
 

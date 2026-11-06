@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { isPerfilGestor } from '@/lib/auth/access'
 import ImportarClient, { type FunilImportacao } from './ImportarClient'
 import type { CampoLead, TipoTag } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Importar contatos — VittaDesk' }
 
@@ -11,7 +12,7 @@ export default async function ImportarPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'unit_id, perfil')
   if (!profile) redirect('/login')
   // Importar é gestão (a rota confere de novo)
   if (!isPerfilGestor(profile.perfil)) redirect('/clientes')

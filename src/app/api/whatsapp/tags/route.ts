@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { lerTipoTag } from '@/lib/tags'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 // GET  /api/whatsapp/tags?tipo=lead|conversa — tags da unidade ativa (do tipo, se informado)
 // POST /api/whatsapp/tags              — cria nova tag { name, color, tipo }
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (tipoParam !== null && !tipo) return NextResponse.json({ error: 'tipo inválido' }, { status: 400 })
 
   // Sem o filtro de unidade o admin global (RLS libera tudo) recebia as tags de todas
-  const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'unit_id')
   if (!profile?.unit_id) return NextResponse.json([])
 
   let q = supabase.from('wa_tags').select('*').eq('unit_id', profile.unit_id)
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'unit_id')
   if (!profile?.unit_id) return NextResponse.json({ error: 'Usuário sem unidade' }, { status: 400 })
 
   const body = await req.json().catch(() => null) as { name?: unknown; color?: unknown; tipo?: unknown } | null

@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import ProdutosClient from './ProdutosClient'
 import type { Profile, Product } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Catálogo de Vacinas — VittaDesk' }
 
@@ -11,11 +12,7 @@ export default async function ProdutosPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   if (!profileData) redirect('/login')
 

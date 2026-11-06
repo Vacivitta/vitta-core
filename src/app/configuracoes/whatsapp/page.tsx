@@ -3,6 +3,7 @@ import { headers }      from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import WhatsAppConfigClient from './WhatsAppConfigClient'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'WhatsApp API — VittaDesk' }
 
@@ -23,11 +24,7 @@ export default async function WhatsAppConfigPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('unit_id, perfil')
-    .eq('id', user.id)
-    .single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'unit_id, perfil')
 
   if (!profile || profile.perfil === 'atendente') redirect('/funil')
 

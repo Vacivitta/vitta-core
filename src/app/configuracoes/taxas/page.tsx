@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import TaxasClient from './TaxasClient'
 import type { Profile, UnitPaymentFees } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Taxas de Pagamento — VittaDesk' }
 
@@ -11,11 +12,7 @@ export default async function TaxasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   if (!profileData) redirect('/login')
 

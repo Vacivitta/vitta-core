@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 async function getProfile() {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const admin = createAdminClient()
-  const { data: profile } = await admin
-    .from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'unit_id, perfil')
   return profile
 }
 

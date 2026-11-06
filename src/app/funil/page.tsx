@@ -10,6 +10,7 @@ import {
 import { KANBAN_SORT_OPTIONS, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
 import { linkDoLead } from '@/lib/funil/link-lead'
 import type { CampoLead, Profile, FunnelWithStages, LeadKanban } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export default async function FunilPage({
   searchParams,
@@ -22,8 +23,7 @@ export default async function FunilPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const unitId = (profileData as Profile)?.unit_id
 

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { corDaUnidade, type UnidadeDaCaixa } from '@/lib/unidades'
 import AtendimentoClient from './AtendimentoClient'
 import type { Profile, FunnelWithStages } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Atendimento — VittaDesk' }
 
@@ -18,8 +19,7 @@ export default async function AtendimentoPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const unitId = (profileData as Profile)?.unit_id
 
