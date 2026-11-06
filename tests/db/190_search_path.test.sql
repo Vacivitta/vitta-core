@@ -36,16 +36,27 @@ SELECT format('is_global_admin() com search_path '''' para %s: esperado %s, veio
  CROSS JOIN LATERAL (SELECT pg_temp.global_admin_sem_search_path(c.usuario) AS veio) r
  WHERE r.veio IS DISTINCT FROM c.esperado;
 
--- 3. Uma tabela profiles em pg_temp (o schema temporário de quem chama, procurado
--- antes dos outros quando não está no search_path) não engana is_global_admin()
+-- 3. Quem chama com pg_temp na frente do search_path, e uma tabela temporária
+-- profiles dizendo que é admin, não engana is_global_admin(). O search_path fixo
+-- não basta: sem pg_temp na lista, ele é procurado antes para tabelas; por isso
+-- a 142 qualifica public.profiles
 CREATE TEMP TABLE profiles (id uuid, perfil text);
 INSERT INTO pg_temp.profiles VALUES ('00000000-0000-4000-8190-000000000002', 'admin');
 
-SELECT set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8190-000000000002', 'role', 'authenticated')::text, true);
+CREATE FUNCTION pg_temp.global_admin_com_pg_temp(usuario uuid) RETURNS text
+LANGUAGE plpgsql SET search_path = pg_temp, public AS $$
+BEGIN
+  PERFORM pg_catalog.set_config('request.jwt.claims',
+    pg_catalog.json_build_object('sub', usuario, 'role', 'authenticated')::text, true);
+  RETURN public.is_global_admin()::text;
+EXCEPTION WHEN OTHERS THEN
+  RETURN 'erro ' || SQLSTATE || ': ' || SQLERRM;
+END $$;
+
 INSERT INTO pg_temp.falhas
-SELECT 'is_global_admin() leu pg_temp.profiles: atendente virou admin'
- WHERE public.is_global_admin();
+SELECT 'is_global_admin() com pg_temp.profiles na frente para um atendente: esperado false, veio ' || veio
+  FROM (SELECT pg_temp.global_admin_com_pg_temp('00000000-0000-4000-8190-000000000002') AS veio) r
+ WHERE veio IS DISTINCT FROM 'false';
 
 DROP TABLE pg_temp.profiles;
 
