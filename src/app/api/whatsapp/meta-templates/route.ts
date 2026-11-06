@@ -269,7 +269,7 @@ export async function DELETE(req: NextRequest) {
 
   // Só desativa no banco após confirmação da Meta
   await admin.from('wa_message_templates').update({ ativo: false })
-    .eq('template_name', name).eq('category', 'meta_api')
+    .eq('unit_id', profile.unit_id).eq('template_name', name).eq('category', 'meta_api')
 
   return NextResponse.json({ success: true })
 }

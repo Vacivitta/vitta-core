@@ -63,15 +63,17 @@ export default async function CampanhasPage() {
     supabase
       .from('wa_campaigns')
       .select('id,nome,template_nome,template_category,status,scheduled_at,motivo_pausa,retomar_em,started_at,completed_at,daily_limit,total_recipients,sent_count,delivered_count,read_count,replied_count,optout_count,failed_count,estimated_cost_usd,actual_cost_usd,created_at')
+      .eq('unit_id', profile.unit_id)
       .order('created_at', { ascending: false }),
     supabase
       .from('wa_message_templates')
       .select('id,name,content,category,template_name,language')
-      .eq('ativo', true)
+      .eq('unit_id', profile.unit_id).eq('ativo', true)
       .order('name'),
     supabase
       .from('funnel_stages')
       .select('id,nome,funnel_id,funnels(id,nome)')
+      .eq('unit_id', profile.unit_id)
       .order('funnel_id').order('ordem'),
   ])
 
