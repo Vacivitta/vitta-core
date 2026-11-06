@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/context/ProfileContext'
 import type { Notification, NotificationRead } from '@/types/database'
+import { destinoDaNotificacao, unidadeParaAbrir } from '@/lib/notificacoes'
+import { corDaUnidade } from '@/lib/unidades'
 
 type ItemDoSino = Notification & { lida: boolean }
 type LinhaComLeitura = Notification & { notification_reads: Pick<NotificationRead, 'lida_em'>[] }
@@ -26,7 +28,7 @@ interface Toast {
 }
 
 export default function NotificationBell({ collapsed = false }: { collapsed?: boolean }) {
-  const { profile } = useProfile()
+  const { profile, units, activeUnitId, switchUnit } = useProfile()
   const supabase    = createClient()
   const router      = useRouter()
 
@@ -37,6 +39,19 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const unread = notifications.filter(n => !n.lida).length
+
+  const variasUnidades = units.length > 1
+  const unidadePorId = new Map(units.map((u, posicao) => [u.id, { nome: u.nome, cor: corDaUnidade(u.cor, posicao) }]))
+
+  function abrir(n: ItemDoSino) {
+    void markRead(n.id)
+    setOpen(false)
+    const destino = destinoDaNotificacao(n)
+    if (!destino) return
+    const trocarPara = unidadeParaAbrir(n.unit_id, activeUnitId, units.map(u => u.id))
+    if (trocarPara) void switchUnit(trocarPara, destino)
+    else router.push(destino)
+  }
 
   // ── Carregar notificações ──────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -190,15 +205,7 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
               {notifications.map(n => (
                 <button
                   key={n.id}
-                  onClick={() => {
-                    markRead(n.id)
-                    setOpen(false)
-                    if (n.quote_id && ['quote_expiring', 'quote_expirado'].includes(n.type)) {
-                      router.push(`/orcamento?quote_id=${n.quote_id}`)
-                    } else if (n.lead_id) {
-                      router.push(`/funil?lead=${n.lead_id}${n.type === 'mention_note' ? '&tab=Anotações' : ''}`)
-                    }
-                  }}
+                  onClick={() => abrir(n)}
                   className="w-full text-left flex items-start gap-3 px-4 py-3 transition-colors"
                   style={{ background: !n.lida ? 'var(--color-brand-subtle)' : undefined }}
                 >
@@ -229,7 +236,15 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
                     {n.body && (
                       <p className="text-xs text-[#71856F] mt-0.5 truncate">{n.body}</p>
                     )}
-                    <p className="text-[11px] text-[#9AA79C] mt-1">{fmtTime(n.criado_em)}</p>
+                    <p className="text-[11px] text-[#9AA79C] mt-1 flex items-center gap-1.5">
+                      {fmtTime(n.criado_em)}
+                      {variasUnidades && unidadePorId.has(n.unit_id) && (
+                        <span className="inline-flex items-center gap-1 font-semibold" style={{ color: unidadePorId.get(n.unit_id)!.cor }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: unidadePorId.get(n.unit_id)!.cor }} />
+                          {unidadePorId.get(n.unit_id)!.nome}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   {!n.lida && (
                     <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--color-brand)' }} />

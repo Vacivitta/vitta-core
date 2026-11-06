@@ -18,6 +18,8 @@ import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { normalizarTelefone } from '@/lib/telefone'
+import { precisaConfirmarResposta, rotuloRespondendoComo, type UnidadeDaCaixa } from '@/lib/unidades'
+import { useProfile } from '@/context/ProfileContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,9 @@ interface LeadDetail {
 interface Props {
   funnels: FunnelWithStages[]; profiles: Profile[]
   currentUser: Profile; initialNumero?: string | null
+  initialConversaId?: string | null
+  /** Unidades vinculadas ao usuário: a caixa mostra as conversas de todas. */
+  unidades: UnidadeDaCaixa[]
 }
 
 type ConvStatus = 'open' | 'pending' | 'resolved' | 'all'
@@ -94,9 +99,20 @@ const fmtCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-export default function AtendimentoClient({ funnels, profiles, currentUser }: Props) {
+export default function AtendimentoClient({ funnels, profiles, currentUser, initialConversaId, unidades }: Props) {
   const supabase = createClient()
   const router   = useRouter()
+  const { switchUnit } = useProfile()
+
+  const idsDaCaixa = useMemo(
+    () => unidades.length > 0 ? unidades.map(u => u.id) : [currentUser.unit_id].filter((id): id is string => !!id),
+    [unidades, currentUser.unit_id],
+  )
+  const filtroRealtime = `unit_id=in.(${idsDaCaixa.join(',')})`
+  const unidadePorId = useMemo(() => new Map(unidades.map(u => [u.id, u])), [unidades])
+  const [filterUnit, setFilterUnit] = useState<string>('all')
+  const [respostasConfirmadas, setRespostasConfirmadas] = useState<ReadonlySet<string>>(new Set())
+  const [confirmacaoPendente, setConfirmacaoPendente] = useState<(() => void) | null>(null)
 
   const [queues,       setQueues]       = useState<WaQueue[]>([])
   const [templates,    setTemplates]    = useState<WaTemplate[]>([])
@@ -262,14 +278,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   // Subscription global — toca som e/ou mostra notificação nativa para mensagens inbound
   useEffect(() => {
-    if (!currentUser.unit_id) return
+    if (idsDaCaixa.length === 0) return
     const ch = supabase
       .channel('wa_sound_notify')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'wa_messages',
-        filter: `unit_id=eq.${currentUser.unit_id}`,
+        filter: filtroRealtime,
       }, payload => {
         const msg = payload.new as { direction: string; conversation_id: string }
         if (msg.direction !== 'inbound') return
@@ -295,7 +311,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       .subscribe()
     return () => { void supabase.removeChannel(ch) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, currentUser.unit_id])
+  }, [supabase, filtroRealtime])
 
   type RenderItem = ChatItem | { kind: 'date'; label: string; key: string }
   const chatRenderItems = useMemo<RenderItem[]>(() => {
@@ -375,33 +391,40 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   }, [supabase])
 
   // ── Load conversations ──────────────────────────────────────────────────────
+  const conversaInicialPendente = useRef(initialConversaId ?? null)
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('wa_conversations')
       .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
-      .eq('unit_id', currentUser.unit_id)
+      .in('unit_id', idsDaCaixa)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
-    if (error) console.error('[loadConversations] erro:', error.message, 'unit_id:', currentUser.unit_id)
+    if (error) console.error('[loadConversations] erro:', error.message)
     const list = (data ?? []) as unknown as WaConversation[]
     const openId = selectedConvIdRef.current
     setConversations(openId ? list.map(c => c.id === openId ? { ...c, unread_count: 0 } : c) : list)
     setConvsLoaded(true)
-  }, [supabase])
+    const inicial = conversaInicialPendente.current
+    if (inicial) {
+      conversaInicialPendente.current = null
+      const conv = list.find(c => c.id === inicial)
+      if (conv) selectConv(conv)
+    }
+  }, [supabase, idsDaCaixa])
 
   useEffect(() => { void loadConversations() }, [loadConversations])
 
   useEffect(() => {
-    // Filtra pela unidade ativa e agrupa mudanças próximas: cada mensagem recebida gera
+    // Filtra pelas unidades da caixa e agrupa mudanças próximas: cada mensagem recebida gera
     // várias atualizações na conversa (prévia, não lidas, atribuição) — uma recarga basta
     let timer: ReturnType<typeof setTimeout> | null = null
     const ch = supabase.channel('wa_conv_list')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_conversations', filter: `unit_id=eq.${currentUser.unit_id}` },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_conversations', filter: filtroRealtime },
         () => {
           if (timer) clearTimeout(timer)
           timer = setTimeout(() => { void loadConversations() }, 300)
         }).subscribe()
     return () => { if (timer) clearTimeout(timer); void supabase.removeChannel(ch) }
-  }, [supabase, loadConversations, currentUser.unit_id])
+  }, [supabase, loadConversations, filtroRealtime])
 
   // ── Load chat ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -814,6 +837,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   }
 
   const filteredConvs = conversations.filter(c => {
+    if (filterUnit !== 'all' && c.unit_id !== filterUnit) return false
     if (filterStatus !== 'all' && c.status !== filterStatus) return false
     if (filterQueue !== 'all' && c.queue_id !== filterQueue) return false
     if (filterMine && c.assigned_to !== currentUser.id) return false
@@ -833,10 +857,29 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const totalUnread  = conversations.reduce((s, c) => s + (c.unread_count ?? 0), 0)
   const defaultStage = funnels[0]?.stages[0]
 
+  const unidadeDaConversa = selectedConv?.unit_id ? unidadePorId.get(selectedConv.unit_id) ?? null : null
+  const conversaDeOutraUnidade = !!selectedConv?.unit_id && selectedConv.unit_id !== currentUser.unit_id
+
+  /** Envio para o cliente numa conversa de outra unidade: confirma uma vez por conversa. */
+  function comConfirmacao(enviar: () => void) {
+    if (!selectedConv || inputMode === 'note'
+        || !precisaConfirmarResposta(selectedConv.unit_id, currentUser.unit_id, selectedConv.id, respostasConfirmadas)) {
+      enviar()
+      return
+    }
+    setConfirmacaoPendente(() => enviar)
+  }
+
+  function trocarParaUnidadeDaConversa() {
+    if (!selectedConv?.unit_id) return
+    void switchUnit(selectedConv.unit_id, `/atendimento?conversa=${selectedConv.id}`)
+  }
+
   return (
     <>
       <div className="flex flex-1 overflow-hidden">
         <ConvList convs={filteredConvs} loaded={convsLoaded} selected={selectedConv} onSelect={selectConv}
+          unidades={unidades} filterUnit={filterUnit} onFilterUnit={setFilterUnit}
           search={convSearch} onSearch={setConvSearch} filterStatus={filterStatus} onFilterStatus={setFilterStatus}
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
           filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread}
@@ -851,9 +894,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff', minWidth: 0, position: 'relative' }}>
           {!selectedConv ? <EmptyChatState /> : (
             <>
-              <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
+              <ChatHeader conv={selectedConv} profiles={conversaDeOutraUnidade ? [] : profiles} queues={conversaDeOutraUnidade ? [] : queues}
                 onStatusChange={updateStatus} onAssignAgent={assignAgent} onAssignQueue={assignQueue}
                 contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)} />
+              {!conversaDeOutraUnidade && (
               <TagsBar
                 alvo={{ tipo: 'conversa', id: selectedConv.id }}
                 tags={convTags}
@@ -869,6 +913,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     ? { ...c, tags: (c.tags ?? []).filter(t => t.tag.id !== tagId) } : c))
                 }}
               />
+              )}
               <div ref={rolagemChatRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(37,64,44,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F2EEE1' }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#3E9849" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#9AA79C', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
@@ -907,9 +952,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                   <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
                 </div>
               )}
-              <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={handleSend}
-                onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
-                templates={templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
+              {unidadeDaConversa && unidades.length > 1 && (
+                <BarraRespondendoComo unidade={unidadeDaConversa} outraUnidade={conversaDeOutraUnidade}
+                  onTrocar={trocarParaUnidadeDaConversa} />
+              )}
+              <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={() => comConfirmacao(() => void handleSend())}
+                onMediaUpload={(file, caption) => comConfirmacao(() => void handleMediaUpload(file, caption))}
+                onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
+                templates={conversaDeOutraUnidade ? [] : templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
                 unitId={currentUser.unit_id ?? ''}
                 mentionProfiles={profiles} currentUserId={currentUser.id}
                 onTemplatesReload={async () => {
@@ -952,6 +1002,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
                 <p style={{ fontSize: 12, color: '#9AA79C' }}>Selecione uma conversa</p>
               </div>
+            ) : conversaDeOutraUnidade ? (
+              <ConversaDeOutraUnidade unidade={unidadeDaConversa} onTrocar={trocarParaUnidadeDaConversa} />
             ) : loadingLead ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#3E9849" /></div>
             ) : leadDetail ? (
@@ -967,6 +1019,17 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           )}
         </div>
       </div>
+
+      {confirmacaoPendente && selectedConv && (
+        <ConfirmarRespostaOutraUnidade unidade={unidadeDaConversa}
+          onCancelar={() => setConfirmacaoPendente(null)}
+          onConfirmar={() => {
+            const enviar = confirmacaoPendente
+            setRespostasConfirmadas(prev => new Set(prev).add(selectedConv.id))
+            setConfirmacaoPendente(null)
+            enviar()
+          }} />
+      )}
 
       {orcamentoLeadId && (
         <NovoOrcamentoRapido
@@ -1109,8 +1172,9 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
 
 // ── ConvList ──────────────────────────────────────────────────────────────────
 
-function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag, onMarkUnread }: {
+function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onFilterUnit, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag, onMarkUnread }: {
   convs: WaConversation[]; loaded: boolean; selected: WaConversation | null; onSelect: (c: WaConversation) => void
+  unidades: UnidadeDaCaixa[]; filterUnit: string; onFilterUnit: (u: string) => void
   search: string; onSearch: (q: string) => void; filterStatus: ConvStatus; onFilterStatus: (s: ConvStatus) => void
   filterQueue: string; onFilterQueue: (q: string) => void; queues: WaQueue[]; filterMine: boolean
   onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number; onNewConv: () => void
@@ -1118,7 +1182,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
   unitTags: ConvTag[]; filterTag: string; onFilterTag: (t: string) => void
   onMarkUnread: (convId: string) => void
 }) {
-  const [openDrop, setOpenDrop] = useState<'status' | 'queue' | 'tag' | null>(null)
+  const [openDrop, setOpenDrop] = useState<'unidade' | 'status' | 'queue' | 'tag' | null>(null)
   const filterBarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1129,13 +1193,16 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
     return () => document.removeEventListener('mousedown', onOut)
   }, [])
 
-  function toggleDrop(name: 'status' | 'queue' | 'tag') {
+  function toggleDrop(name: 'unidade' | 'status' | 'queue' | 'tag') {
     setOpenDrop(prev => prev === name ? null : name)
   }
 
   const STATUS_DOT: Record<string, string> = { all: '#9AA79C', open: '#25D366', pending: '#F59E0B', resolved: '#C05B3A' }
   const activeQueue = queues.find(q => q.id === filterQueue)
   const activeTag   = unitTags.find(t => t.id === filterTag)
+  const variasUnidades = unidades.length > 1
+  const unidadeFiltro  = unidades.find(u => u.id === filterUnit)
+  const unidadePorId   = new Map(unidades.map(u => [u.id, u]))
 
   const pillBase: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px',
@@ -1210,6 +1277,33 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
 
         {/* Filter pill bar */}
         <div ref={filterBarRef} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+
+          {variasUnidades && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => toggleDrop('unidade')} style={unidadeFiltro ? { ...pillActive, borderColor: unidadeFiltro.cor, color: unidadeFiltro.cor, background: unidadeFiltro.cor + '15' } : pillBase}>
+                {unidadeFiltro && <span style={{ width: 7, height: 7, borderRadius: '50%', background: unidadeFiltro.cor, flexShrink: 0 }} />}
+                {unidadeFiltro?.nome ?? 'Unidade'}
+                <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {openDrop === 'unidade' && (
+                <div style={dropBase}>
+                  <button onClick={() => { onFilterUnit('all'); setOpenDrop(null) }} style={dropItem(filterUnit === 'all')}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#9AA79C', flexShrink: 0 }} />
+                    Todas as unidades
+                  </button>
+                  <div style={{ height: 1, background: '#EBE7DA', margin: '4px 0' }} />
+                  {unidades.map(u => (
+                    <button key={u.id} onClick={() => { onFilterUnit(u.id); setOpenDrop(null) }} style={dropItem(filterUnit === u.id)}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: u.cor, flexShrink: 0 }} />
+                      {u.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Status pill */}
           <div style={{ position: 'relative' }}>
@@ -1301,6 +1395,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
+          const unidade  = variasUnidades && conv.unit_id ? unidadePorId.get(conv.unit_id) : undefined
           const rawPreview = conv.last_message_content?.replace(/\n+/g, ' ') ?? null
           const previewText = rawPreview
             ? (conv.last_message_direction === 'outbound' ? `Você: ${rawPreview}` : rawPreview)
@@ -1356,8 +1451,9 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                   </span>
                   {conv.unread_count > 0 && <span style={{ background: '#3E9849', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
                 </div>
-                {(conv.tags ?? []).length > 0 && (
+                {(unidade || (conv.tags ?? []).length > 0) && (
                   <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
+                    {unidade && <SeloUnidade unidade={unidade} />}
                     {(conv.tags ?? []).map(({ tag }) => (
                       <span key={tag.id} style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: tag.color + '22', color: tag.color, border: `1px solid ${tag.color}44`, letterSpacing: '0.02em' }}>
                         {tag.name}
@@ -1369,6 +1465,72 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Unidades ──────────────────────────────────────────────────────────────────
+
+function SeloUnidade({ unidade }: { unidade: UnidadeDaCaixa }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: unidade.cor + '1A', color: unidade.cor, border: `1px solid ${unidade.cor}44`, letterSpacing: '0.02em' }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: unidade.cor }} />
+      {unidade.nome}
+    </span>
+  )
+}
+
+function BarraRespondendoComo({ unidade, outraUnidade, onTrocar }: {
+  unidade: UnidadeDaCaixa; outraUnidade: boolean; onTrocar: () => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: unidade.cor + '12', borderTop: `2px solid ${unidade.cor}`, flexShrink: 0 }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: unidade.cor, flexShrink: 0 }} />
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#25402C', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {rotuloRespondendoComo(unidade)}
+      </span>
+      {outraUnidade && (
+        <button onClick={onTrocar} title="Modelos, filas e ficha do lead usam a unidade em que você está"
+          style={{ fontSize: 11, fontWeight: 700, color: unidade.cor, background: '#fff', border: `1px solid ${unidade.cor}66`, borderRadius: 99, padding: '3px 10px', cursor: 'pointer', flexShrink: 0 }}>
+          Trocar para {unidade.nome}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ConversaDeOutraUnidade({ unidade, onTrocar }: { unidade: UnidadeDaCaixa | null; onTrocar: () => void }) {
+  const nome = unidade?.nome ?? 'outra unidade'
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, textAlign: 'center' }}>
+      <span style={{ width: 10, height: 10, borderRadius: '50%', background: unidade?.cor ?? '#9AA79C' }} />
+      <p style={{ fontSize: 12, color: '#71856F', margin: 0, lineHeight: 1.5 }}>
+        Esta conversa é de <strong style={{ color: '#25402C' }}>{nome}</strong>. Para ver a ficha, vincular lead, usar modelos ou filas, troque para essa unidade.
+      </p>
+      <button onClick={onTrocar} style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: unidade?.cor ?? '#3E9849', border: 'none', borderRadius: 99, padding: '7px 14px', cursor: 'pointer' }}>
+        Trocar para {nome}
+      </button>
+    </div>
+  )
+}
+
+function ConfirmarRespostaOutraUnidade({ unidade, onConfirmar, onCancelar }: {
+  unidade: UnidadeDaCaixa | null; onConfirmar: () => void; onCancelar: () => void
+}) {
+  const nome = unidade?.nome ?? 'outra unidade'
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="confirmar-outra-unidade" onClick={onCancelar}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(37,64,44,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 22, width: 380, maxWidth: 'calc(100vw - 32px)', boxShadow: '0 12px 40px rgba(37,64,44,0.2)', borderTop: `4px solid ${unidade?.cor ?? '#3E9849'}` }}>
+        <p id="confirmar-outra-unidade" style={{ fontSize: 15, fontWeight: 800, color: '#25402C', margin: 0 }}>Responder como {nome}?</p>
+        <p style={{ fontSize: 12.5, color: '#71856F', margin: '8px 0 0', lineHeight: 1.5 }}>
+          Esta conversa é de <strong style={{ color: '#25402C' }}>{nome}</strong>, não da unidade em que você está. A mensagem sai pelo número de {nome}{unidade?.numero ? ` (${unidade.numero})` : ''}.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+          <button onClick={onCancelar} style={{ fontSize: 12.5, fontWeight: 600, color: '#71856F', background: 'transparent', border: '1px solid #EBE7DA', borderRadius: 99, padding: '7px 14px', cursor: 'pointer' }}>Cancelar</button>
+          <button autoFocus onClick={onConfirmar} style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', background: unidade?.cor ?? '#3E9849', border: 'none', borderRadius: 99, padding: '7px 14px', cursor: 'pointer' }}>Responder como {nome}</button>
+        </div>
       </div>
     </div>
   )

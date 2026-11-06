@@ -32,6 +32,8 @@ export interface Unit {
   telefone:   string | null
   ativo:      boolean
   criado_em:  string
+  /** Migração 139. #RRGGBB; sem cor, o app usa PALETA_UNIDADES pela posição. */
+  cor:        string | null
 }
 
 export interface UserUnit {

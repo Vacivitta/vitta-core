@@ -12,7 +12,8 @@ interface ProfileContextValue {
   loading:      boolean
   units:        Unit[]
   activeUnitId: string | null
-  switchUnit:   (unitId: string) => Promise<void>
+  /** Grava a unidade ativa e recarrega; com destino, abre essa página em vez de recarregar a atual. */
+  switchUnit:   (unitId: string, destino?: string) => Promise<void>
 }
 
 const ProfileContext = createContext<ProfileContextValue>({
@@ -57,7 +58,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const switchUnit = useCallback(async (unitId: string) => {
+  const switchUnit = useCallback(async (unitId: string, destino?: string) => {
     if (!profile) return
     const { error } = await supabase
       .from('profiles')
@@ -69,7 +70,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       return
     }
     setProfile(prev => prev ? { ...prev, unit_id: unitId } : prev)
-    window.location.reload()
+    if (destino) window.location.assign(destino)
+    else window.location.reload()
   }, [profile, supabase])
 
   const perfil       = profile?.perfil ?? null
