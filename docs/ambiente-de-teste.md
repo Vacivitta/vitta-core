@@ -54,7 +54,9 @@ A semente (`scripts/ambiente-teste/semente.sql`) traz:
 `npm run dev:teste` abre o túnel (ou reaproveita um aberto) e roda `next dev` com
 as chaves do ambiente. As variáveis do processo valem antes de qualquer `.env.local`,
 então um `.env.local` da produção não é usado. No app do Claude Code, a configuração
-`ambiente-teste` do `.claude/launch.json` faz o mesmo.
+`ambiente-teste` do `.claude/launch.json` faz o mesmo. Pare com Ctrl+C no terminal: no Windows,
+matar o processo de fora deixa o `next dev` vivo na porta 3001, e o próximo `dev:teste` acaba
+falando com ele (o código de outra worktree).
 
 ## Comandos
 
