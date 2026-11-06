@@ -186,6 +186,7 @@ const CONFIG_SECTIONS: ConfigSection[] = [
     items: [
       { href: '/configuracoes/funis',        label: 'Funis',            icon: <IcoFunis />,      gestorOnly: true  },
       { href: '/configuracoes/filas',        label: 'Filas',            icon: <IcoFilas />,      gestorOnly: true  },
+      { href: '/configuracoes/horario',      label: 'Horário',          icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>, gestorOnly: true  },
       { href: '/configuracoes/campos',       label: 'Campos do lead',   icon: <IcoCampos />,     gestorOnly: true  },
       { href: '/configuracoes/tags',         label: 'Tags',             icon: <IcoTags />,       gestorOnly: false },
       { href: '/configuracoes/automacoes',   label: 'Automações',       icon: <IcoAutomacoes />, gestorOnly: true  },
