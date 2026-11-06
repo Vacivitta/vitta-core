@@ -453,6 +453,22 @@ As 13 tabelas que liberavam só a unidade ativa (`profiles.unit_id`) passam a li
 
 Reversão: ver o cabeçalho da `140_rls_unidades_vinculadas.sql`.
 
+## search_path fixo nas SECURITY DEFINER: migração 142 ([H])
+As 10 funções SECURITY DEFINER do `public` sem `search_path` (`is_global_admin`, `is_admin`, `get_agent_stats`,
+`increment_wa_unread` e 6 funções de trigger) passam a ter `SET search_path TO 'public'` e tabelas qualificadas, com o
+mesmo corpo. Sem isso, `is_global_admin()` chamada com `search_path ''` falha com 42P01 (e as políticas de RLS que a
+usam junto), e uma tabela temporária `profiles` de quem chama era lida no lugar da verdadeira.
+
+1. Antes: conferir que o `pg_get_functiondef` de produção das 10 bate com o corpo da 142 (fora o `SET search_path` e o
+   `public.`); se divergir, não aplicar.
+2. Aplicar `142_security_definer_search_path.sql` como `supabase_admin`, com `--single-transaction`; registrar a versão
+   `142` e rodar `notify pgrst, 'reload schema'`. Conferir que volta vazio:
+   `SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prosecdef AND NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) c WHERE c LIKE 'search_path=%');`
+3. Independe do deploy. Não muda privilégios (CREATE OR REPLACE mantém dono e EXECUTE) nem recria função da ordem
+   pós-restore: o restore traz o `search_path` junto com a função, então não entra nela.
+
+Reversão: ver o cabeçalho da `142_security_definer_search_path.sql`.
+
 ## Erros do servidor no log do container
 `src/instrumentation.ts` (`onRequestError`) grava cada erro não tratado em `app_errors` (migração 124), com telefone,
 e-mail, token e UUID mascarados, e é ali que se investiga. O Next 16 continua imprimindo o erro cru no stdout do
