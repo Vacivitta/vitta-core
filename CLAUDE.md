@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev      # dev server at http://localhost:3000
+npm run dev:teste # app on :3001 against the disposable test Supabase on the VPS (docs/ambiente-de-teste.md)
 npm run build    # production build (runs tsc + Next.js compilation)
 npm run lint     # eslint; old errors are frozen in eslint-suppressions.json, new ones fail
 npm run typecheck # tsc --noEmit --skipLibCheck
