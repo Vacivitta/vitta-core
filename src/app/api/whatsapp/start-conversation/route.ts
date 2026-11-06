@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { getWaCredentials }         from '@/lib/whatsapp/credentials'
+import { conexaoOficialDaUnidade, getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
 import { runWaAutomation }          from '@/lib/whatsapp/automation'
 import { canAccessUnit }            from '@/lib/auth/access'
 import { buscarConversaPorTelefone, buscarLeadPorTelefone } from '@/lib/whatsapp/telefone'
@@ -56,18 +56,23 @@ export async function POST(req: NextRequest) {
 
   const supabase = adminClient()
 
+  // Conversa nova pela unidade sai pelo número oficial dela (143)
+  const conexaoId = await conexaoOficialDaUnidade(unit_id)
+  if (!conexaoId)
+    return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
+
   // 1. Reaproveita a conversa existente (com ou sem o 9º dígito) ou cria uma nova.
   // O envio usa o wa_phone da conversa encontrada — o mesmo wa_id pelo qual o
   // cliente responde —, evitando abrir uma segunda conversa para a mesma pessoa.
-  const existente = await buscarConversaPorTelefone(supabase, unit_id, phone)
+  const existente = await buscarConversaPorTelefone(supabase, conexaoId, phone)
   let conv: { id: string; lead_id: string | null } | null = existente
   const destino = existente?.wa_phone ?? phone
   if (!conv) {
     const { data: criada, error: convErr } = await supabase
       .from('wa_conversations')
       .upsert(
-        { unit_id, wa_phone: phone, wa_contact_name: contact_name || null },
-        { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
+        { unit_id, conexao_id: conexaoId, wa_phone: phone, wa_contact_name: contact_name || null },
+        { onConflict: 'conexao_id,wa_phone', ignoreDuplicates: false }
       )
       .select('id, lead_id')
       .maybeSingle()
@@ -114,7 +119,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Envia o template pelo Meta
-  const creds = await getWaCredentials(unit_id)
+  const creds = await getCredenciaisDaConexao(conexaoId)
   if (!creds.phoneNumberId || !creds.accessToken)
     return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
 

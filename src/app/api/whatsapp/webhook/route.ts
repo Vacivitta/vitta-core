@@ -143,16 +143,26 @@ async function processPayload(body: WAPayload) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-interface WaConfig { unit_id: string; access_token: string; phone_number_id: string }
+interface WaConfig { unit_id: string; access_token: string; phone_number_id: string; conexao_id: string }
 
+/** Unidade, token e conexão oficial (143) do número que recebeu a mensagem. */
 async function resolveConfig(supabase: ReturnType<typeof adminClient>, phoneNumberId: string): Promise<WaConfig | null> {
   const { data } = await supabase
     .from('wa_config')
-    .select('unit_id, access_token, phone_number_id')
+    .select('id, unit_id, access_token, phone_number_id')
     .eq('phone_number_id', phoneNumberId)
     .maybeSingle()
   if (!data?.unit_id || !data?.access_token) return null
-  return { unit_id: data.unit_id, access_token: data.access_token, phone_number_id: data.phone_number_id }
+  const { data: conexao } = await supabase
+    .from('conexoes')
+    .select('id')
+    .eq('wa_config_id', data.id)
+    .maybeSingle()
+  if (!conexao?.id) {
+    console.error('[WA webhook] wa_config sem conexão (aplicar a 143):', phoneNumberId)
+    return null
+  }
+  return { unit_id: data.unit_id, access_token: data.access_token, phone_number_id: data.phone_number_id, conexao_id: conexao.id }
 }
 
 async function fetchAndStoreProfilePicture(
@@ -216,12 +226,12 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     return
   }
 
-  const { unit_id: unitId, access_token: accessToken, phone_number_id: phoneNumberId } = config
+  const { unit_id: unitId, access_token: accessToken, phone_number_id: phoneNumberId, conexao_id: conexaoId } = config
 
   // 1. Conversa: se a equipe abriu a conversa com a outra versão do número (com/sem
   // o 9º dígito), adota essa conversa e passa a usar o wa_id da Meta nela; senão, upsert.
   let conv: { id: string; lead_id: string | null; profile_picture_url: string | null } | null = null
-  const existente = await buscarConversaPorTelefone(supabase, unitId, waPhone)
+  const existente = await buscarConversaPorTelefone(supabase, conexaoId, waPhone)
   if (existente && existente.wa_phone !== waPhone) {
     const { error: adoptErr } = await supabase
       .from('wa_conversations')
@@ -233,8 +243,8 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
     const { data, error: convErr } = await supabase
       .from('wa_conversations')
       .upsert(
-        { unit_id: unitId, wa_phone: waPhone, wa_contact_name: contactName },
-        { onConflict: 'unit_id,wa_phone', ignoreDuplicates: false }
+        { unit_id: unitId, conexao_id: conexaoId, wa_phone: waPhone, wa_contact_name: contactName },
+        { onConflict: 'conexao_id,wa_phone', ignoreDuplicates: false }
       )
       .select('id, lead_id, profile_picture_url')
       .maybeSingle()
