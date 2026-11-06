@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { canAccessUnit } from '@/lib/auth/access'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 // GET /api/whatsapp/media?id={media_id}[&unit_id={unit_id}]
 // Proxy para buscar mídia do Meta — não expõe o access token ao client.
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   const mediaId = req.nextUrl.searchParams.get('id')
   let unitId = req.nextUrl.searchParams.get('unit_id')
   if (!unitId) {
-    const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).maybeSingle()
+    const { data: profile } = await buscarPerfil(supabase, user.id, 'unit_id')
     unitId = profile?.unit_id ?? null
   }
   if (!unitId || !(await canAccessUnit(supabase, user.id, unitId))) {

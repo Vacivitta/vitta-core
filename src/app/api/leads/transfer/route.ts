@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessUnit } from '@/lib/auth/access'
 import { moverArquivosDoLead } from '@/lib/anexos-storage'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 interface TransferPayload {
   leadId:      string
@@ -52,8 +53,7 @@ export async function POST(req: NextRequest) {
     .from('funnels').select('id').eq('id', targetFunnelId).eq('unit_id', targetUnitId).maybeSingle()
   if (!targetFunnel) return NextResponse.json({ error: 'Funil não pertence à unidade destino' }, { status: 400 })
 
-  const { data: profile } = await admin
-    .from('profiles').select('id, unit_id, full_name').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'id, unit_id, full_name')
   if (!profile) return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 401 })
 
   const { data: lead } = await admin

@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { canAccessUnit, isPerfilGestor } from '@/lib/auth/access'
 import { lerPedidoCampanha } from '@/lib/whatsapp/campanha-regras'
 import { resumoErro } from '@/lib/log-seguro'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 /**
  * Cria a campanha e os destinatários numa transação só (criar_campanha,
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('perfil, unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'perfil, unit_id')
   const unitId = profile?.unit_id
   if (!profile || !isPerfilGestor(profile.perfil) || !unitId || !(await canAccessUnit(supabase, user.id, unitId))) {
     return NextResponse.json({ error: 'Sem permissão para criar campanhas' }, { status: 403 })

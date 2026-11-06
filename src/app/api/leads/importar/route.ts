@@ -11,6 +11,7 @@ import {
 import { telefonesExistentes } from '@/lib/importacao-banco'
 import { resumoErro } from '@/lib/log-seguro'
 import type { CampoLead, LeadGravavel, TipoTag } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 // POST /api/leads/importar — cria leads a partir de um CSV (só gestor/admin).
 // Tudo é validado de novo aqui com as mesmas regras da pré-visualização.
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('perfil, unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'perfil, unit_id')
   const unitId = profile?.unit_id as string | null | undefined
   if (!profile || !isPerfilGestor(profile.perfil) || !unitId || !(await canAccessUnit(supabase, user.id, unitId))) {
     return NextResponse.json({ error: 'Só gestor ou admin importa contatos' }, { status: 403 })

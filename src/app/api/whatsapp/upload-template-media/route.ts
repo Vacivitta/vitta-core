@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 const META = 'https://graph.facebook.com/v20.0'
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const admin = adminClient()
-  const { data: profile } = await admin.from('profiles').select('unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'unit_id')
   const unitId = profile?.unit_id ?? undefined
 
   const { accessToken } = await getWaCredentials(unitId)

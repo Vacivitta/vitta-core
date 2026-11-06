@@ -12,6 +12,7 @@ import {
 } from '@/lib/funil/resumo-conversas'
 import { resumoErro } from '@/lib/log-seguro'
 import type { CampoLead } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 // GET /api/leads/exportar?funnel_id=&stage_ids=&responsavel_ids=&tag_ids=&cidade=&status=&clientes=1&arquivados=1
 // CSV dos leads da unidade ativa (só gestor/admin: é extração em massa de dado
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('perfil, unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'perfil, unit_id')
   const unitId = profile?.unit_id as string | null | undefined
   if (!profile || !isPerfilGestor(profile.perfil) || !unitId || !(await canAccessUnit(supabase, user.id, unitId))) {
     return NextResponse.json({ error: 'Só gestor ou admin exporta contatos' }, { status: 403 })

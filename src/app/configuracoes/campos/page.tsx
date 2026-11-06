@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CamposClient from './CamposClient'
 import type { CampoLead, Funnel } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Campos do lead — VittaDesk' }
 
@@ -10,8 +11,7 @@ export default async function ConfigCamposPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, 'unit_id, perfil')
   if (!profileData) redirect('/login')
   // Configurar campos: só gestor e admin (o RLS da 129 também barra)
   if (profileData.perfil === 'atendente') redirect('/funil')

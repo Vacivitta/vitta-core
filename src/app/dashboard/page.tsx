@@ -6,6 +6,7 @@ import { contatosNoPeriodo, montarPainelNegocios, type LeadNegocio } from '@/lib
 import { janelaDoPeriodo, lerFiltros } from '@/lib/dashboard/filtros'
 import DashboardClient from './DashboardClient'
 import type { Profile, ResultadoEtapa, SalesGoal, StatusLead } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Dashboard — VittaDesk' }
 
@@ -21,8 +22,7 @@ export default async function DashboardPage({ searchParams }: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, '*')
 
   if (!profile) redirect('/login')
 

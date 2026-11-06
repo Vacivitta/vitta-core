@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import TemplatesClient from './TemplatesClient'
 import type { Profile, QuoteTemplate } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Templates de Orçamento — VittaDesk' }
 
@@ -11,11 +12,7 @@ export default async function TemplatesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   if (!profileData) redirect('/login')
   if (profileData.perfil === 'atendente') redirect('/funil')

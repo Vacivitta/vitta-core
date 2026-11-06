@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import TarefasClient from './TarefasClient'
 import type { Profile } from '@/types/database'
 import type { TaskWithLead } from './TarefasClient'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Tarefas — VittaDesk' }
 
@@ -12,8 +13,7 @@ export default async function TarefasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const unitId = (profileData as Profile)?.unit_id
 

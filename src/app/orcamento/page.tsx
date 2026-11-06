@@ -4,6 +4,7 @@ import { fetchAll } from '@/lib/supabase/fetch-all'
 import OrcamentosClient from './OrcamentosClient'
 import type { Profile, Product, QuoteTemplate, UnitPaymentFees } from '@/types/database'
 import type { QuoteRow, PatientOption } from './OrcamentosClient'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Orçamentos — VittaDesk' }
 
@@ -17,11 +18,7 @@ export default async function OrcamentosPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   if (!profileData) redirect('/login')
 

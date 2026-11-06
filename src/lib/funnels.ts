@@ -1,4 +1,5 @@
 import { createClient } from './supabase/client'
+import { lerUnidadeDaAba } from './unidade-ativa-navegador'
 import type { Funnel, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
 import { mensagemRecusaPorReferencia, mensagemUsadaPorAutomacao } from './funil/exclusao'
 
@@ -36,13 +37,14 @@ export async function createFunnel(nome: string, descricao?: string): Promise<Fu
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Usuário não autenticado')
   const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).single()
-  if (!profile?.unit_id) throw new Error('Usuário sem unidade')
+  const unidade = lerUnidadeDaAba() ?? profile?.unit_id
+  if (!unidade) throw new Error('Usuário sem unidade')
 
   const { data: existing } = await supabase.from('funnels').select('ordem').order('ordem', { ascending: false }).limit(1)
   const nextOrdem = (existing?.[0]?.ordem ?? -1) + 1
   const { data, error } = await supabase
     .from('funnels')
-    .insert({ nome, descricao: descricao ?? null, ativo: true, ordem: nextOrdem, unit_id: profile.unit_id })
+    .insert({ nome, descricao: descricao ?? null, ativo: true, ordem: nextOrdem, unit_id: unidade })
     .select()
     .single()
   if (error) throw error
@@ -105,7 +107,8 @@ export async function createStage(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Usuário não autenticado')
   const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).single()
-  if (!profile?.unit_id) throw new Error('Usuário sem unidade')
+  const unidade = lerUnidadeDaAba() ?? profile?.unit_id
+  if (!unidade) throw new Error('Usuário sem unidade')
 
   // Busca a maior ordem existente no funil
   const { data: existing } = await supabase
@@ -119,7 +122,7 @@ export async function createStage(
 
   const { data, error } = await supabase
     .from('funnel_stages')
-    .insert({ funnel_id, nome, cor, ordem: nextOrdem, unit_id: profile.unit_id })
+    .insert({ funnel_id, nome, cor, ordem: nextOrdem, unit_id: unidade })
     .select()
     .single()
   if (error) throw error

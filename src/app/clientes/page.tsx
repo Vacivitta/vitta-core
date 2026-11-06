@@ -2,14 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ClientesClient, { type LeadDuplicado } from './ClientesClient'
 import type { Profile } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export default async function ClientesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const unitId = (profileData as Profile)?.unit_id
 

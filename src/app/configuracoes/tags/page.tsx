@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import TagsConfigClient from './TagsConfigClient'
 import type { WaTag } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Tags — VittaDesk' }
 
@@ -10,7 +11,7 @@ export default async function TagsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, '*')
   if (!profile) redirect('/login')
 
   const unitId = profile.unit_id
