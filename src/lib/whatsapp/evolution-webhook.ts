@@ -49,10 +49,14 @@ export function statusDaConexao(estado: string | null | undefined): StatusConexa
 }
 
 export interface MensagemQr {
-  /** wa_id do contato: só dígitos, com DDI */
+  /** Conversa individual: wa_id do contato (só dígitos, com DDI). Grupo: id do grupo (antes do @g.us). */
   telefone:   string
+  grupo:      boolean
+  /** Quem escreveu no grupo; null na conversa individual e no que a própria conexão enviou */
+  autor:      { telefone: string | null; nome: string | null } | null
   deMim:      boolean
   id:         string
+  /** Nome do contato (pushName) na conversa individual; no grupo vai em autor */
   nome:       string | null
   tipo:       'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker'
   texto:      string | null
@@ -60,7 +64,7 @@ export interface MensagemQr {
 }
 
 interface DadosMensagem {
-  key?: { remoteJid?: string; fromMe?: boolean; id?: string }
+  key?: { remoteJid?: string; fromMe?: boolean; id?: string; participant?: string; participantAlt?: string }
   pushName?: string
   messageType?: string
   message?: Record<string, unknown> & { base64?: string }
@@ -77,16 +81,22 @@ const TIPOS: Record<string, MensagemQr['tipo']> = {
   stickerMessage: 'sticker',
 }
 
+function numeroDoJid(jid: string): string {
+  return jid.split('@')[0].split(':')[0].replace(/\D/g, '')
+}
+
 /**
  * Interpreta `data` de um evento `messages.upsert`. Devolve `null` para o que o
- * Atendimento ainda não mostra: grupos (entrega 3), status, transmissão, contato
- * só por LID (sem número) e tipos sem conteúdo (reação, enquete, chamada...).
+ * Atendimento não mostra: status, transmissão, contato só por LID (sem número) e
+ * tipos sem conteúdo (reação, enquete, chamada...). No grupo, o autor vem de
+ * key.participant ou, quando ele é um LID, de key.participantAlt.
  */
 export function interpretarMensagemQr(dados: DadosMensagem | null | undefined): MensagemQr | null {
   const jid = dados?.key?.remoteJid ?? ''
   const id = dados?.key?.id
-  if (!id || !jid.endsWith('@s.whatsapp.net')) return null
-  const telefone = jid.split('@')[0].split(':')[0].replace(/\D/g, '')
+  const grupo = jid.endsWith('@g.us')
+  if (!id || (!grupo && !jid.endsWith('@s.whatsapp.net'))) return null
+  const telefone = grupo ? jid.split('@')[0].replace(/[^0-9-]/g, '') : numeroDoJid(jid)
   if (!telefone) return null
 
   const tipo = TIPOS[dados?.messageType ?? '']
@@ -111,20 +121,26 @@ export function interpretarMensagemQr(dados: DadosMensagem | null | undefined): 
     : null
 
   if (tipo === 'text' && !texto) return null
+  const deMim = dados?.key?.fromMe === true
+  const nome = dados?.pushName?.trim() || null
+  const jidAutor = [dados?.key?.participant, dados?.key?.participantAlt].find(j => j?.endsWith('@s.whatsapp.net'))
   return {
     telefone,
-    deMim: dados?.key?.fromMe === true,
+    grupo,
+    autor: grupo && !deMim ? { telefone: jidAutor ? numeroDoJid(jidAutor) : null, nome } : null,
+    deMim,
     id,
-    nome: dados?.pushName?.trim() || null,
+    nome: grupo ? null : nome,
     tipo,
     texto,
     midia,
   }
 }
 
-/** Prévia da conversa na lista, como o webhook da Meta faz. */
-export function previaDaMensagem(m: Pick<MensagemQr, 'tipo' | 'texto'>): string {
-  if (m.tipo === 'text') return m.texto ?? ''
+/** Prévia da conversa na lista, como o webhook da Meta faz; no grupo, com o nome de quem escreveu. */
+export function previaDaMensagem(m: Pick<MensagemQr, 'tipo' | 'texto'> & { autor?: MensagemQr['autor'] }): string {
+  const quem = m.autor ? `${m.autor.nome ?? m.autor.telefone ?? 'Participante'}: ` : ''
+  if (m.tipo === 'text') return quem + (m.texto ?? '')
   const rotulo = { image: '📷 Imagem', audio: '🎤 Áudio', video: '🎬 Vídeo', document: '📎 Documento', sticker: '🏷️ Figurinha' }[m.tipo]
-  return m.texto ? `${rotulo}: ${m.texto}` : rotulo
+  return quem + (m.texto ? `${rotulo}: ${m.texto}` : rotulo)
 }

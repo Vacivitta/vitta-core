@@ -18,6 +18,7 @@ import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { normalizarTelefone } from '@/lib/telefone'
+import { corDoAutor, nomeDaConversa, participantesDoGrupo, telefoneDoParticipante, type Participante } from '@/lib/grupos'
 import { precisaConfirmarResposta, rotuloRespondendoComo, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
 import { useProfile } from '@/context/ProfileContext'
 
@@ -33,6 +34,8 @@ interface WaConversation {
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
   conexao_id?: string | null
+  /** Migração 145 */
+  tipo?: 'individual' | 'grupo'
   profile_picture_url?: string | null
   last_message_content?: string | null
   last_message_direction?: 'inbound' | 'outbound' | null
@@ -46,6 +49,8 @@ interface WaMessage {
   template_name: string | null
   status: string; created_at: string; sent_by: string | null
   reply_to_wa_message_id?: string | null
+  /** Migração 145: quem escreveu no grupo */
+  autor_telefone?: string | null; autor_nome?: string | null
 }
 
 interface WaNote {
@@ -170,6 +175,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
 
   const [modalLead,       setModalLead]       = useState<LeadKanban | null | undefined>(undefined)
   const [showQuickForm,   setShowQuickForm]   = useState(false)
+  // Participante de grupo virando contato: o formulário abre preenchido e o lead não é ligado ao grupo
+  const [contatoDoGrupo,  setContatoDoGrupo]  = useState<{ nome?: string; telefone: string } | null>(null)
   const [resolveDialogOpen,   setResolveDialogOpen]   = useState(false)
   const [contextPanelOpen,    setContextPanelOpen]    = useState(true)
   const [newConvOpen,         setNewConvOpen]         = useState(false)
@@ -397,7 +404,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,tipo,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .in('unit_id', idsDaCaixa)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     if (error) console.error('[loadConversations] erro:', error.message)
@@ -434,7 +441,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     setMsgsLoaded(false); setChatItems([]); setReplyTo(null)
     void Promise.all([
       supabase.from('wa_messages')
-        .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id')
+        .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id,autor_telefone,autor_nome')
         // As 200 mais RECENTES (antes vinham as 200 mais antigas e as novas ficavam de fora)
         .eq('conversation_id', selectedConv.id).order('created_at', { ascending: false }).limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
@@ -1009,6 +1016,9 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
               </div>
             ) : conversaDeOutraUnidade ? (
               <ConversaDeOutraUnidade unidade={unidadeDaConversa} onTrocar={trocarParaUnidadeDaConversa} />
+            ) : selectedConv.tipo === 'grupo' ? (
+              <GrupoView participantes={participantesDoGrupo(chatItems.flatMap(i => i.kind === 'message' && i.message ? [i.message] : []))}
+                onCriarContato={p => { setContatoDoGrupo({ nome: p.nome ?? undefined, telefone: telefoneDoParticipante(p.telefone) }); setShowQuickForm(true) }} />
             ) : loadingLead ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#3E9849" /></div>
             ) : leadDetail ? (
@@ -1063,8 +1073,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
       )}
       {showQuickForm && defaultStage && (
         <QuickLeadForm defaultStage={defaultStage} funnels={funnels} profiles={profiles} currentUser={currentUser}
-          onClose={() => setShowQuickForm(false)}
-          onCreated={(lead) => { setShowQuickForm(false); void linkLeadById(lead.id) }} />
+          inicial={contatoDoGrupo ?? undefined}
+          onClose={() => { setShowQuickForm(false); setContatoDoGrupo(null) }}
+          onCreated={(lead) => {
+            setShowQuickForm(false)
+            if (contatoDoGrupo) setContatoDoGrupo(null)
+            else void linkLeadById(lead.id)
+          }} />
       )}
       {newConvOpen && (
         <NewConversationModal
@@ -1398,7 +1413,7 @@ function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onF
         {convs.map(conv => {
           const isSelected = selected?.id === conv.id
           const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
-          const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
+          const name = nomeDaConversa(conv, leadName)
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
           const unidade  = variasUnidades && conv.unit_id ? unidadePorId.get(conv.unit_id) : undefined
@@ -1426,7 +1441,7 @@ function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onF
                     const _pi = Math.abs(_h) % 3
                     return (
                       <div style={{ width: 42, height: 42, borderRadius: 14, background: _AVATAR_BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{conv.tipo === 'grupo' ? '👥' : name.slice(0, 2).toUpperCase()}</span>
                       </div>
                     )
                   })()
@@ -1554,7 +1569,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
   const [showAgent,  setShowAgent]  = useState(false)
   const [showQueue,  setShowQueue]  = useState(false)
   const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
-  const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
+  const name = nomeDaConversa(conv, leadName)
   const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
 
   return (
@@ -1569,7 +1584,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
           const _pi = Math.abs(_h) % 3
           return (
             <div style={{ width: 42, height: 42, borderRadius: 14, background: _BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{conv.tipo === 'grupo' ? '👥' : name.slice(0, 2).toUpperCase()}</span>
             </div>
           )
         })()
@@ -1693,6 +1708,12 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMes
           boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
           border: failed ? '1px solid #E8B4B0' : isOut ? 'none' : '1px solid #EBE7DA',
         }}>
+          {!isOut && (msg.autor_nome || msg.autor_telefone) && (
+            <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 800, color: corDoAutor(msg.autor_telefone ?? msg.autor_nome ?? '') }}
+              title={msg.autor_telefone ? telefoneDoParticipante(msg.autor_telefone) : undefined}>
+              {msg.autor_nome ?? telefoneDoParticipante(msg.autor_telefone!)}
+            </p>
+          )}
           {quotedMsg && (
             <div style={{
               padding: '6px 10px', marginBottom: 4, borderRadius: 8,
@@ -1997,6 +2018,35 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             Transferir unidade
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── GrupoView ─────────────────────────────────────────────────────────────────
+
+function GrupoView({ participantes, onCriarContato }: { participantes: Participante[]; onCriarContato: (p: Participante) => void }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 12, overflowY: 'auto' }}>
+      <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: '14px 14px 6px' }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#25402C' }}>Conversa de grupo</p>
+        <p style={{ margin: '3px 0 10px', fontSize: 11.5, color: '#9AA79C', lineHeight: 1.4 }}>
+          O grupo não vira contato. Quem escreveu aparece abaixo; crie o contato de quem precisar.
+        </p>
+        {participantes.length === 0 && <p style={{ fontSize: 11.5, color: '#9AA79C', margin: '0 0 10px' }}>Ninguém escreveu nas mensagens carregadas.</p>}
+        {participantes.map(p => (
+          <div key={p.telefone} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #F1EEE4' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: corDoAutor(p.telefone), flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome ?? 'Sem nome'}</p>
+              <p style={{ margin: 0, fontSize: 11, color: '#9AA79C' }}>{telefoneDoParticipante(p.telefone)}</p>
+            </div>
+            <button onClick={() => onCriarContato(p)}
+              style={{ fontSize: 11, fontWeight: 700, color: '#3E9849', background: '#fff', border: '1px solid #CFE6CB', borderRadius: 99, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}>
+              Criar contato
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )

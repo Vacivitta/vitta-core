@@ -46,7 +46,7 @@ test('mensagem de texto recebida e enviada pelo próprio celular', () => {
     messageType: 'conversation',
     message: { conversation: 'oi' },
   })
-  assert.deepEqual(recebida, { telefone: '5511900000099', deMim: false, id: 'ABC1', nome: 'Licenciado', tipo: 'text', texto: 'oi', midia: null })
+  assert.deepEqual(recebida, { telefone: '5511900000099', grupo: false, autor: null, deMim: false, id: 'ABC1', nome: 'Licenciado', tipo: 'text', texto: 'oi', midia: null })
   const doCelular = interpretarMensagemQr({
     key: { remoteJid: '5511900000099@s.whatsapp.net', fromMe: true, id: 'ABC2' },
     messageType: 'extendedTextMessage',
@@ -88,9 +88,25 @@ test('mídia traz o base64, o tipo e a legenda; documento com legenda também', 
   assert.equal(semBase64.midia, null)
 })
 
-test('ignora grupo, status, LID sem número, reação e texto vazio', () => {
+test('mensagem de grupo: id do grupo, autor pelo participant ou pelo participantAlt quando é LID', () => {
+  const base = { messageType: 'conversation', message: { conversation: 'bom dia' }, pushName: 'Licenciado Itu' }
+  const doGrupo = interpretarMensagemQr({ ...base, key: { remoteJid: '120363000000000145@g.us', id: 'G1', participant: '5511900000777@s.whatsapp.net' } })
+  assert.equal(doGrupo.grupo, true)
+  assert.equal(doGrupo.telefone, '120363000000000145')
+  assert.deepEqual(doGrupo.autor, { telefone: '5511900000777', nome: 'Licenciado Itu' })
+  assert.equal(doGrupo.nome, null, 'o nome do autor não vira nome da conversa')
+  assert.equal(previaDaMensagem(doGrupo), 'Licenciado Itu: bom dia')
+  const porLid = interpretarMensagemQr({ ...base, key: { remoteJid: '120363000000000145@g.us', id: 'G2', participant: '987654321@lid', participantAlt: '5511900000888@s.whatsapp.net' } })
+  assert.equal(porLid.autor.telefone, '5511900000888')
+  const semNumero = interpretarMensagemQr({ ...base, key: { remoteJid: '120363000000000145@g.us', id: 'G3', participant: '987654321@lid' } })
+  assert.deepEqual(semNumero.autor, { telefone: null, nome: 'Licenciado Itu' })
+  const minha = interpretarMensagemQr({ ...base, key: { remoteJid: '120363000000000145@g.us', id: 'G4', fromMe: true } })
+  assert.equal(minha.autor, null, 'o que a conexão mandou não tem autor de fora')
+  assert.equal(previaDaMensagem(minha), 'bom dia')
+})
+
+test('ignora status, LID sem número, reação e texto vazio', () => {
   const base = { messageType: 'conversation', message: { conversation: 'oi' } }
-  assert.equal(interpretarMensagemQr({ ...base, key: { remoteJid: '120363000000000000@g.us', id: 'G1' } }), null)
   assert.equal(interpretarMensagemQr({ ...base, key: { remoteJid: 'status@broadcast', id: 'S1' } }), null)
   assert.equal(interpretarMensagemQr({ ...base, key: { remoteJid: '123456789@lid', id: 'L1' } }), null)
   assert.equal(interpretarMensagemQr({ key: { remoteJid: '5511900000099@s.whatsapp.net', id: 'R1' }, messageType: 'reactionMessage', message: {} }), null)

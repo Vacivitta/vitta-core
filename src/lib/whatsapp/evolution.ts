@@ -48,8 +48,8 @@ export const EVENTOS_WEBHOOK = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_
 
 /**
  * Cria a instância da conexão, já com o webhook assinado (o `jwt_key` faz a
- * Evolution mandar `Authorization: Bearer <JWT HS256 de 10 min>`). Grupos ficam
- * ignorados até a entrega 3 da Fase 3·2.
+ * Evolution mandar `Authorization: Bearer <JWT HS256 de 10 min>`). Grupos entram
+ * no Atendimento (entrega 3 da Fase 3·2).
  *
  * @returns o QR Code em data URL, quando a Evolution já o devolve
  */
@@ -60,7 +60,7 @@ export async function criarInstancia(instancia: string): Promise<string | null> 
     instanceName: instancia,
     integration: 'WHATSAPP-BAILEYS',
     qrcode: true,
-    groupsIgnore: true,
+    groupsIgnore: false,
     rejectCall: false,
     alwaysOnline: false,
     readMessages: false,
@@ -76,6 +76,23 @@ export async function criarInstancia(instancia: string): Promise<string | null> 
     },
   })
   return res.qrcode?.base64 ?? null
+}
+
+/**
+ * Liga as mensagens de grupo numa instância criada antes da entrega 3 (que nascia
+ * com groupsIgnore). Idempotente; o webhook chama ao conectar.
+ */
+export async function receberGrupos(instancia: string): Promise<void> {
+  await chamar('POST', `/settings/set/${encodeURIComponent(instancia)}`, {
+    groupsIgnore: false, rejectCall: false, alwaysOnline: false, readMessages: false, readStatus: false, syncFullHistory: false,
+  })
+}
+
+/** Nome (assunto) do grupo, ou `null` se a Evolution não souber. */
+export async function nomeDoGrupo(instancia: string, grupoId: string): Promise<string | null> {
+  const res = await chamar<{ subject?: string }>('GET',
+    `/group/findGroupInfos/${encodeURIComponent(instancia)}?groupJid=${encodeURIComponent(`${grupoId}@g.us`)}`)
+  return res.subject?.trim() || null
 }
 
 /** Pede um QR Code novo (ou o atual) para ler no celular. */

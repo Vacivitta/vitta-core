@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { dadosDaConexao, getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
-import { enviarPorQrCode } from '@/lib/whatsapp/envio-qrcode'
+import { destinoQr, enviarPorQrCode } from '@/lib/whatsapp/envio-qrcode'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = adminClient()
-    const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id, conexao_id').eq('id', conversation_id).single()
+    const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id, conexao_id, tipo').eq('id', conversation_id).single()
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
     // Conversa de QR Code sai pela Evolution; as outras, pela API da Meta
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     let waMessageId: string | null
     let mediaRef: string | null = null
     if (porQrCode && conexao) {
-      const envio = await enviarPorQrCode(admin, conexao, conv.wa_phone, {
+      const envio = await enviarPorQrCode(admin, conexao, destinoQr(conv), {
         tipo: 'midia',
         midia: {
           tipo:        msgType === 'image' || msgType === 'video' || msgType === 'audio' ? msgType : 'document',

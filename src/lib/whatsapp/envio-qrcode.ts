@@ -4,6 +4,11 @@ import { resumoErro } from '@/lib/log-seguro'
 
 export interface ConexaoEnvio { id: string; tipo: 'oficial' | 'qrcode'; instancia: string | null; ativo: boolean; status: string }
 
+/** Destino na Evolution: o número do contato ou, no grupo, o jid do grupo. */
+export function destinoQr(conversa: { wa_phone: string; tipo?: string | null }): string {
+  return conversa.tipo === 'grupo' ? `${conversa.wa_phone}@g.us` : conversa.wa_phone
+}
+
 export type ResultadoEnvioQr =
   | { ok: true; waMessageId: string | null }
   | { ok: false; erro: string; status: number }
