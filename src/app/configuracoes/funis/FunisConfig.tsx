@@ -46,6 +46,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, totalPo
   const [editingFunnelId,  setEditingFunnelId]  = useState<string | null>(null)
   const [editFunnelName,   setEditFunnelName]   = useState('')
   const [newFunnelName,    setNewFunnelName]    = useState('')
+  // Funil de negócio (leads) ou de ticket (147)
+  const [newFunnelObjeto,  setNewFunnelObjeto]  = useState<'negocio' | 'ticket'>('negocio')
   const [showNewFunnel,    setShowNewFunnel]    = useState(false)
   const [confirmAction,    setConfirmAction]    = useState<ConfirmFunnelAction | null>(null)
 
@@ -86,8 +88,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, totalPo
     if (!newFunnelName.trim()) return
     setBusy(true)
     try {
-      const created = await createFunnel(newFunnelName.trim())
+      const created = await createFunnel(newFunnelName.trim(), undefined, newFunnelObjeto)
       setNewFunnelName('')
+      setNewFunnelObjeto('negocio')
       setShowNewFunnel(false)
       await reload()
       setSelectedId(created.id)
@@ -283,6 +286,12 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, totalPo
                 placeholder="Nome do funil..."
                 style={{ width: '100%', fontSize: 13, border: '1px solid #B3DFFF', borderRadius: 8, padding: '7px 10px', outline: 'none', marginBottom: 8, boxSizing: 'border-box', background: '#fff' }}
               />
+              <select value={newFunnelObjeto} onChange={e => setNewFunnelObjeto(e.target.value as 'negocio' | 'ticket')}
+                aria-label="Tipo do funil"
+                style={{ width: '100%', fontSize: 12.5, border: '1px solid #B3DFFF', borderRadius: 8, padding: '6px 8px', marginBottom: 8, background: '#fff', color: '#25402C' }}>
+                <option value="negocio">Funil de negócio (leads)</option>
+                <option value="ticket">Funil de ticket (suporte)</option>
+              </select>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => void handleCreateFunnel()} disabled={busy || !newFunnelName.trim()}
                   style={{ flex: 1, padding: '7px', fontSize: 12, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
@@ -333,6 +342,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts, totalPo
                     )}
 
                     {/* Meta */}
+                    {funnel.objeto === 'ticket' && (
+                      <span style={{ fontSize: 9, fontWeight: 700, background: '#E0E7FF', color: '#3730A3', borderRadius: 99, padding: '2px 6px', flexShrink: 0 }}>TICKET</span>
+                    )}
                     <span style={{ fontSize: 10, color: '#9AA79C', flexShrink: 0 }}>{funnel.stages.length} et.</span>
                     {!funnel.ativo && (
                       <span style={{ fontSize: 9, fontWeight: 700, background: '#F1EFE5', color: '#9AA79C', borderRadius: 99, padding: '2px 6px', flexShrink: 0 }}>INATIVO</span>

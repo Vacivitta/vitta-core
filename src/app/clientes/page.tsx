@@ -33,6 +33,7 @@ export default async function ClientesPage() {
     supabase
       .from('funnels')
       .select('id, stages:funnel_stages(id)')
+      .eq('objeto', 'negocio')
       .eq('ativo', true)
       .eq('unit_id', unitId)
       .order('ordem')

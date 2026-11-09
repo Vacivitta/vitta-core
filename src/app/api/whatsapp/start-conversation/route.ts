@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     } else {
       // Busca primeiro stage do primeiro funil ativo
       const { data: funnel } = await supabase
-        .from('funnels').select('id').eq('unit_id', unit_id).eq('ativo', true).order('ordem').limit(1).maybeSingle()
+        .from('funnels').select('id').eq('objeto', 'negocio').eq('unit_id', unit_id).eq('ativo', true).order('ordem').limit(1).maybeSingle()
       if (funnel) {
         const { data: stage } = await supabase
           .from('funnel_stages').select('id').eq('funnel_id', funnel.id).order('ordem').limit(1).maybeSingle()

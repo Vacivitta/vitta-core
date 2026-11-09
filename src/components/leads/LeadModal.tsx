@@ -899,7 +899,7 @@ function LeadDrawer({
     setTransferUnitId(unitId)
     setTransferFunnelId('')
     const { data: funnels } = await supabase
-      .from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem')
+      .from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).eq('ativo', true).order('ordem')
     setTransferFunnels(funnels ?? [])
     if (funnels && funnels.length === 1) setTransferFunnelId(funnels[0].id)
   }

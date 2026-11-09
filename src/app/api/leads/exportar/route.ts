@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       if (!filtros.arquivados) q = q.eq('arquivado', false)
       return q.order('created_at', { ascending: false }).order('id').range(from, to).returns<LeadExportado[]>()
     }),
-    supabase.from('funnels').select('id, nome').eq('unit_id', unitId),
+    supabase.from('funnels').select('id, nome').eq('unit_id', unitId).eq('objeto', 'negocio'),
     supabase.from('funnel_stages').select('id, nome').eq('unit_id', unitId),
     supabase.from('motivos_perda').select('id, nome').eq('unit_id', unitId),
     supabase.from('campos_lead').select('*').eq('unit_id', unitId).eq('ativo', true)

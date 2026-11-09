@@ -7,7 +7,7 @@ import type { Lead, LeadGravavel, LeadKanban, FunnelStage, FunnelWithStages, Mot
 export async function getFunnelsWithStages(): Promise<FunnelWithStages[]> {
   const supabase = createClient()
   const [{ data: funnels }, { data: stages }] = await Promise.all([
-    supabase.from('funnels').select('*').eq('ativo', true).order('ordem'),
+    supabase.from('funnels').select('*').eq('objeto', 'negocio').eq('ativo', true).order('ordem'),
     supabase.from('funnel_stages').select('*').order('funnel_id').order('ordem'),
   ])
   return (funnels ?? []).map(f => ({

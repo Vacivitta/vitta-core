@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,6 +8,8 @@ import { useProfile } from '@/hooks/useProfile'
 import { PERFIL_LABELS } from '@/types/database'
 import { isPerfilAdminGlobal } from '@/lib/auth/access'
 import NotificationBell from './NotificationBell'
+import { modulosLigados, rotaNoMenu } from '@/lib/modulos'
+import type { Modulo } from '@/types/database'
 
 // ── Ícones Lucide (stroke 2, 17px) ───────────────────────────────────────────
 
@@ -160,8 +162,10 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',    label: 'Dashboard',    icon: <IcoDashboard /> },
   { href: '/funil',        label: 'Funil',        icon: <IcoFunil /> },
   { href: '/atendimento',  label: 'Atendimento',  icon: <IcoAtendimento /> },
+  { href: '/tickets',      label: 'Tickets',      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6z"/><path d="M14 5v14" strokeDasharray="2 2"/></svg> },
   { href: '/agenda',       label: 'Agenda',       icon: <IcoAgenda /> },
   { href: '/clientes',     label: 'Clientes',     icon: <IcoClientes /> },
+  { href: '/empresas',     label: 'Empresas',     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4"/></svg> },
   { href: '/produtos',     label: 'Catálogo',     icon: <IcoCatalogo /> },
   { href: '/orcamento',    label: 'Orçamentos',   icon: <IcoOrcamento /> },
   { href: '/chat-interno', label: 'Chat Interno', icon: <IcoChatInterno /> },
@@ -202,6 +206,7 @@ const CONFIG_SECTIONS: ConfigSection[] = [
       { href: '/configuracoes/conexoes',           label: 'Conexões',           icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>, gestorOnly: false },
       { href: '/configuracoes/equipe',             label: 'Equipe',             icon: <IcoEquipe />,      gestorOnly: true },
       { href: '/configuracoes/taxas',              label: 'Taxas de Pagamento', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, gestorOnly: true },
+      { href: '/configuracoes/modulos',            label: 'Módulos',            icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg>, gestorOnly: true, adminGlobalOnly: true },
       { href: '/configuracoes/erros',              label: 'Erros do servidor',  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, gestorOnly: true, adminGlobalOnly: true },
     ],
   },
@@ -257,6 +262,16 @@ export default function AppSidebar() {
   const router   = useRouter()
   const supabase = createClient()
   const { profile, perfil, isGestor, units, activeUnitId, switchUnit } = useProfile()
+
+  // Módulos da unidade ativa (146): o que está desligado some do menu
+  const [ligados, setLigados] = useState<Set<Modulo>>(() => modulosLigados([]))
+  useEffect(() => {
+    if (!activeUnitId) return
+    let vivo = true
+    void supabase.from('unidade_modulos').select('modulo, ativo').eq('unit_id', activeUnitId)
+      .then(({ data }) => { if (vivo) setLigados(modulosLigados(data ?? [])) })
+    return () => { vivo = false }
+  }, [activeUnitId, supabase])
 
   const [expanded, setExpanded] = useState(false)
   const [configOpen, setConfigOpen] = useState(() =>
@@ -379,12 +394,12 @@ export default function AppSidebar() {
 
       {/* ── Nav principal ──────────────────────────────────────────────────── */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
-        {NAV_ITEMS.map(item => (
+        {NAV_ITEMS.filter(item => rotaNoMenu(item.href, ligados)).map(item => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
         ))}
 
         {/* Campanhas — gestores only */}
-        {isGestor && (
+        {isGestor && ligados.has('campanhas') && (
           <Link
             href="/campanhas"
             title={collapsed ? 'Campanhas' : undefined}

@@ -58,7 +58,7 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
     if (!profile) return
     const { data } = await supabase
       .from('notifications')
-      .select('id, unit_id, user_id, type, title, body, quote_id, lead_id, criado_em, notification_reads(lida_em)')
+      .select('id, unit_id, user_id, type, title, body, quote_id, lead_id, ticket_id, criado_em, notification_reads(lida_em)')
       .order('criado_em', { ascending: false })
       .limit(30)
       .returns<LinhaComLeitura[]>()

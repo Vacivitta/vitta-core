@@ -21,7 +21,7 @@ export default async function ImportarPage() {
 
   const [{ data: funis }, { data: etapas }, { data: perfis }, { data: vinculos }, { data: campos }, { data: tags }] =
     await Promise.all([
-      supabase.from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem'),
+      supabase.from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).eq('ativo', true).order('ordem'),
       supabase.from('funnel_stages').select('id, funnel_id, nome, ordem, resultado, campos_obrigatorios').eq('unit_id', unitId).order('ordem'),
       supabase.from('profiles').select('id, full_name').eq('unit_id', unitId).order('full_name'),
       supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),

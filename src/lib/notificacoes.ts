@@ -1,7 +1,8 @@
 interface NotificacaoAbrivel {
-  type:     string
-  quote_id: string | null
-  lead_id:  string | null
+  type:      string
+  quote_id:  string | null
+  lead_id:   string | null
+  ticket_id?: string | null
 }
 
 /** Página que a notificação abre, ou null quando ela só informa. */
@@ -10,6 +11,7 @@ export function destinoDaNotificacao(n: NotificacaoAbrivel): string | null {
     return `/orcamento?quote_id=${n.quote_id}`
   }
   if (n.type === 'conexao_caiu') return '/configuracoes/conexoes'
+  if (n.ticket_id) return `/tickets?ticket=${n.ticket_id}`
   if (n.lead_id) {
     return `/funil?lead=${n.lead_id}${n.type === 'mention_note' ? '&tab=Anotações' : ''}`
   }
