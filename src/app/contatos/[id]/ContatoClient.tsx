@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { campoFixo, faltandoDoErro } from '@/lib/obrigatorios'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { nomeDoContato, type NegocioDoContato, type PessoaGravavel } from '@/lib/contatos'
@@ -25,6 +28,8 @@ interface Props {
   dependentes: Contato[]
   negocios:    NegocioDoContato[]
   conversas:   ConversaDoContato[]
+  /** Onde nasce o negócio novo; null se a unidade não tem funil de negócio ativo */
+  etapaNova:   { funnel_id: string; stage_id: string } | null
 }
 
 type Aba = 'Negócios' | 'Dependentes' | 'Conversas'
@@ -50,7 +55,31 @@ type Rascunho = Record<(typeof CAMPOS)[number]['chave'], string>
 const rascunhoDe = (c: Contato): Rascunho =>
   Object.fromEntries(CAMPOS.map(({ chave }) => [chave, c[chave] ?? ''])) as Rascunho
 
-export default function ContatoClient({ contato: inicial, responsavel, dependentes, negocios, conversas }: Props) {
+export default function ContatoClient({ contato: inicial, responsavel, dependentes, negocios, conversas, etapaNova }: Props) {
+  const router = useRouter()
+  const [abrindo, setAbrindo] = useState(false)
+  const [erroNovo, setErroNovo] = useState<string | null>(null)
+
+  /** Negócio novo para este contato (150): o banco liga ao contato e copia a pessoa */
+  async function abrirNegocio() {
+    if (!etapaNova) return
+    setAbrindo(true)
+    setErroNovo(null)
+    const { data, error } = await createClient().from('leads').insert({
+      unit_id: contato.unit_id, contato_id: contato.id, nome: contato.nome,
+      funnel_id: etapaNova.funnel_id, stage_id: etapaNova.stage_id, origem: null,
+    }).select('id').single()
+    setAbrindo(false)
+    if (error || !data) {
+      const faltando = faltandoDoErro(error)
+      setErroNovo(faltando
+        ? `A primeira etapa do funil exige: ${faltando.faltando.map(k => campoFixo(k)?.rotulo ?? 'campo personalizado').join(', ')}. Abra pelo funil, que pede o que falta.`
+        : `Não foi possível abrir o negócio: ${error?.message ?? 'erro desconhecido'}`)
+      return
+    }
+    router.push(`/funil?lead=${data.id}`)
+  }
+
   const [aba, setAba] = useState<Aba>('Negócios')
   const [contato, setContato] = useState(inicial)
   const [rascunho, setRascunho] = useState<Rascunho | null>(null)
@@ -179,6 +208,16 @@ export default function ContatoClient({ contato: inicial, responsavel, dependent
           ))}
         </div>
 
+        {aba === 'Negócios' && editavel && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => void abrirNegocio()} disabled={abrindo || !etapaNova}
+              title={etapaNova ? 'Cria um negócio na primeira etapa do funil, ligado a este contato' : 'A unidade não tem funil de negócio ativo'}
+              style={{ padding: '7px 14px', fontSize: 12.5, fontWeight: 700, border: 'none', borderRadius: 8, background: COR.verde, color: '#fff', cursor: 'pointer', opacity: abrindo || !etapaNova ? 0.6 : 1 }}>
+              {abrindo ? 'Abrindo…' : '+ Abrir negócio novo'}
+            </button>
+            {erroNovo && <span role="alert" style={{ fontSize: 12, color: '#C4534A' }}>{erroNovo}</span>}
+          </div>
+        )}
         {aba === 'Negócios' && (
           <Lista vazia="Nenhum negócio deste contato.">
             {negocios.map(n => (

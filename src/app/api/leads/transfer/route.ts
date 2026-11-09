@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (!profile) return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 401 })
 
   const { data: lead } = await admin
-    .from('leads').select('id, nome, sobrenome, telefone_norm, unit_id').eq('id', leadId).single()
+    .from('leads').select('id, nome, sobrenome, telefone_norm, unit_id, contato_id').eq('id', leadId).single()
   if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
 
   if (lead.unit_id === targetUnitId) {
@@ -71,6 +71,17 @@ export async function POST(req: NextRequest) {
   }
   if (tipos === 'bloqueado') {
     return NextResponse.json({ error: 'Transferência entre clínica e comercial só por um administrador' }, { status: 403 })
+  }
+
+  // O contato é da unidade (150): com outros negócios, mudar a unidade levaria todos
+  const { count: outrosNegocios } = await admin
+    .from('leads').select('id', { count: 'exact', head: true })
+    .eq('contato_id', lead.contato_id).neq('id', lead.id)
+  if (outrosNegocios) {
+    return NextResponse.json(
+      { error: `Este contato tem outros ${outrosNegocios} negócio(s) nesta unidade; a transferência levaria todos. Feche ou mescle os outros antes.` },
+      { status: 409 },
+    )
   }
 
   if (lead.telefone_norm) {

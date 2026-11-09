@@ -3,8 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 const TELEFONES_POR_CONSULTA = 200
 
 /**
- * Quais destes telefones (forma canônica) já têm lead na unidade. Consulta em
- * blocos: a lista vai na URL do PostgREST.
+ * Quais destes telefones (forma canônica) já têm contato na unidade. É o que
+ * impede reimportar o mesmo arquivo: desde a 150 o banco aceita outro negócio para
+ * o mesmo telefone (liga ao contato), então "já existe" é decidido aqui. Consulta
+ * em blocos: a lista vai na URL do PostgREST.
  */
 export async function telefonesExistentes(
   supabase: SupabaseClient,
@@ -15,9 +17,10 @@ export async function telefonesExistentes(
   for (let i = 0; i < telefones.length; i += TELEFONES_POR_CONSULTA) {
     const bloco = telefones.slice(i, i + TELEFONES_POR_CONSULTA)
     const { data, error } = await supabase
-      .from('leads')
+      .from('contatos')
       .select('telefone_norm')
       .eq('unit_id', unitId)
+      .is('responsavel_id', null)
       .in('telefone_norm', bloco)
     if (error) return { existentes, erro: error.message }
     for (const l of data ?? []) if (l.telefone_norm) existentes.add(l.telefone_norm as string)

@@ -9,8 +9,7 @@ import { buscarConversaPorTelefone, buscarLeadPorTelefone } from '@/lib/whatsapp
 import { formatarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import { resumoErro } from '@/lib/log-seguro'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
-import { reaberturaPorMensagem } from '@/lib/status-lead'
-import type { StatusLead } from '@/types/database'
+import { contatoPorTelefone, etapaPadrao, negocioDaMensagem } from '@/lib/whatsapp/negocio'
 
 // Tempo para o processamento em after() (mídia, automações) terminar após a resposta
 export const maxDuration = 60
@@ -363,13 +362,18 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   if (!conv.lead_id) {
     resolvedLeadId = await autoLinkOrCreateLead(supabase, conv.id, unitId, waPhone, contactName, isOptOut)
   } else {
+    // O negócio ligado pode estar fechado: a mensagem vai para o negócio aberto do
+    // contato, ou abre um novo (150), e a conversa passa a apontar para ele
     const { data: linkedLead } = await supabase
-      .from('leads')
-      .select('id, status, stage_id, arquivado')
-      .eq('id', conv.lead_id)
-      .single()
-
-    if (linkedLead) await reabrirPorMensagem(supabase, linkedLead, unitId)
+      .from('leads').select('contato:contatos(id, nome)').eq('id', conv.lead_id).single()
+    const contato = (linkedLead as { contato: { id: string; nome: string } | null } | null)?.contato ?? null
+    if (contato) {
+      const negocio = await negocioDaMensagem(supabase, unitId, contato, 'whatsapp')
+      if (negocio && negocio !== conv.lead_id) {
+        await supabase.from('wa_conversations').update({ lead_id: negocio }).eq('id', conv.id)
+        resolvedLeadId = negocio
+      }
+    }
   }
 
   // 4b. Verifica campanha — lead existente ou contato XLS sem lead
@@ -409,7 +413,7 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
 
     if (xlsRecip) {
       // Cria lead agora que a pessoa respondeu
-      const defaultStage = await getDefaultStage(supabase, unitId)
+      const defaultStage = await etapaPadrao(supabase, unitId)
       if (defaultStage) {
         const { nome: nomeCompleto, sobrenome } = splitName(xlsRecip.nome ?? contactName)
         const { data: newLead } = await supabase.from('leads').insert({
@@ -515,19 +519,21 @@ async function autoLinkOrCreateLead(
   isOptOut     = false,
 ): Promise<string | null> {
   const norm = normalizarWaPhone(waPhone)
-  const matched = norm ? await buscarLeadPorTelefone(supabase, unitId, norm) : null
+  const contato = norm ? await contatoPorTelefone(supabase, unitId, norm) : null
 
   let leadId: string
 
-  if (matched) {
-    leadId = matched.id
-    console.log(`[WA webhook] lead existente encontrado: ${leadId}`)
-    await reabrirPorMensagem(supabase, matched, unitId)
+  if (contato) {
+    // Contato conhecido: o negócio aberto dele, ou um novo se todos estão fechados (150)
+    const negocio = await negocioDaMensagem(supabase, unitId, contato, 'whatsapp')
+    if (!negocio) return null
+    leadId = negocio
+    console.log(`[WA webhook] contato existente ${contato.id}, negócio ${leadId}`)
   } else {
-    // 2. Cria novo lead com os dados do WhatsApp
+    // 2. Pessoa nova: o lead cria o contato (148)
     const { nome, sobrenome } = splitName(contactName)
 
-    const defaultStage = await getDefaultStage(supabase, unitId)
+    const defaultStage = await etapaPadrao(supabase, unitId)
     if (!defaultStage) {
       console.error('[WA webhook] nenhum funil/estágio encontrado para criar lead')
       return null
@@ -587,63 +593,6 @@ async function autoLinkOrCreateLead(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function getDefaultStage(supabase: ReturnType<typeof adminClient>, unitId: string): Promise<{ funnel_id: string; stage_id: string } | null> {
-  const { data: funnels } = await supabase
-    .from('funnels')
-    .select('id')
-    .eq('objeto', 'negocio')
-    .eq('unit_id', unitId)
-    .eq('ativo', true)
-    .order('ordem', { ascending: true })
-    .limit(1)
-
-  const funnelId = funnels?.[0]?.id
-  if (!funnelId) return null
-
-  const { data: stage } = await supabase
-    .from('funnel_stages')
-    .select('id')
-    .eq('funnel_id', funnelId)
-    .order('ordem', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (!stage?.id) return null
-  return { funnel_id: funnelId, stage_id: stage.id }
-}
-
-/**
- * Mensagem recebida de lead com negócio ganho ou perdido, ou arquivado, reabre
- * (e desarquiva) na etapa padrão da unidade (regra em reaberturaPorMensagem) e
- * grava o histórico.
- */
-async function reabrirPorMensagem(
-  supabase: ReturnType<typeof adminClient>,
-  lead:     { id: string; status: StatusLead; stage_id: string | null; arquivado: boolean },
-  unitId:   string,
-): Promise<void> {
-  if (lead.status === 'aberto' && !lead.arquivado) return
-  const reabertura = reaberturaPorMensagem(lead, await getDefaultStage(supabase, unitId))
-  if (!reabertura) return
-
-  const { error } = await supabase.from('leads').update(reabertura.valores).eq('id', lead.id)
-  if (error) {
-    console.error(`[WA webhook] erro ao reabrir lead ${lead.id}:`, resumoErro(error))
-    return
-  }
-  console.log(`[WA webhook] lead reaberto (${lead.status}${lead.arquivado ? ', arquivado' : ''}): ${lead.id}`)
-
-  if (!reabertura.historico) return
-  const { error: histErr } = await supabase.from('lead_stage_history').insert({
-    lead_id:       lead.id,
-    de_stage_id:   reabertura.historico.de,
-    para_stage_id: reabertura.historico.para,
-    movido_por:    null,
-    movido_via:    'reabertura',
-  })
-  if (histErr) console.error(`[WA webhook] histórico da reabertura ${lead.id}:`, resumoErro(histErr))
-}
 
 function splitName(fullName: string | null): { nome: string; sobrenome: string | null } {
   if (!fullName?.trim()) return { nome: 'Contato WhatsApp', sobrenome: null }

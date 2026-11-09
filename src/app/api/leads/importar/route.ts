@@ -165,10 +165,11 @@ interface ResultadoLote {
 /**
  * Insere o lote de uma vez; se o banco recusar (telefone criado no meio do
  * caminho, valor recusado por trigger), refaz linha a linha para pular só as
- * que falham. Telefone repetido vira "já existe" pelo índice único
- * uq_leads_unit_telefone_norm: por isso reenviar o mesmo arquivo não duplica.
- * (O índice é parcial, WHERE telefone_norm IS NOT NULL; ON CONFLICT pelo
- * PostgREST não consegue inferir índice parcial, daí o 23505 por linha.)
+ * que falham. Telefone que já tem contato foi separado antes, em
+ * telefonesExistentes: desde a 150 o banco ligaria a linha ao contato como
+ * negócio novo, então é essa checagem que impede reimportar o mesmo arquivo.
+ * O 23505 que ainda vier (dois contatos novos com o mesmo telefone ao mesmo
+ * tempo, uq_contatos_unit_telefone) vira "já existe".
  * Campo exigido pela etapa (VC001, 130) já foi barrado em prepararImportacao;
  * se ainda vier (etapa mudada no meio da importação), a linha é inválida.
  */

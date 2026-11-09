@@ -29,7 +29,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
   if (!contato) notFound()
 
   // O dependente não tem negócios nem conversas: a ficha dele aponta para o responsável
-  const [{ data: responsavel }, { data: dependentes }, { data: negocios }, { data: conversas }] = await Promise.all([
+  const [{ data: responsavel }, { data: dependentes }, { data: negocios }, { data: conversas }, { data: funil }] = await Promise.all([
     contato.responsavel_id
       ? supabase.from('contatos').select('id, nome, sobrenome').eq('id', contato.responsavel_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -43,7 +43,12 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
       .eq('contato_id', id)
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .returns<ConversaDoContato[]>(),
+    // Funil e etapa do negócio novo: os mesmos do webhook (1ª etapa do 1º funil de negócio)
+    supabase.from('funnels').select('id, stages:funnel_stages(id, ordem)')
+      .eq('unit_id', contato.unit_id).eq('objeto', 'negocio').eq('ativo', true)
+      .order('ordem').limit(1).maybeSingle<{ id: string; stages: { id: string; ordem: number }[] }>(),
   ])
+  const primeiraEtapa = [...(funil?.stages ?? [])].sort((a, b) => a.ordem - b.ordem)[0]
 
   const lista: NegocioDoContato[] = (negocios ?? []).map(n => ({
     id: n.id,
@@ -64,6 +69,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
       dependentes={dependentes ?? []}
       negocios={ordenarNegocios(lista)}
       conversas={conversas ?? []}
+      etapaNova={funil && primeiraEtapa ? { funnel_id: funil.id, stage_id: primeiraEtapa.id } : null}
     />
   )
 }
