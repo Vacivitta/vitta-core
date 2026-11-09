@@ -6,6 +6,7 @@ INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
   ('00000000-0000-4000-8145-0000000000a0', '00000000-0000-4000-8145-0000000000f0', 'Unidade 145', 'clinica');
 INSERT INTO public.funnels (id, nome, unit_id) VALUES
   ('00000000-0000-4000-8145-0000000000d0', 'Funil 145', '00000000-0000-4000-8145-0000000000a0');
+INSERT INTO public.unidade_modulos (unit_id, modulo, ativo) VALUES ('00000000-0000-4000-8145-0000000000a0', 'qrcode', true);
 INSERT INTO public.conexoes (id, unit_id, tipo, nome, status) VALUES
   ('00000000-0000-4000-8145-0000000000c1', '00000000-0000-4000-8145-0000000000a0', 'oficial', 'Oficial', 'conectada'),
   ('00000000-0000-4000-8145-0000000000c2', '00000000-0000-4000-8145-0000000000a0', 'qrcode', 'QR', 'conectada');

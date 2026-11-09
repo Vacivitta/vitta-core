@@ -3,6 +3,7 @@
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8144-0000000000f0', 'Rede 144');
 INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
   ('00000000-0000-4000-8144-0000000000a0', '00000000-0000-4000-8144-0000000000f0', 'Unidade 144', 'clinica');
+INSERT INTO public.unidade_modulos (unit_id, modulo, ativo) VALUES ('00000000-0000-4000-8144-0000000000a0', 'qrcode', true);
 INSERT INTO public.conexoes (id, unit_id, tipo, nome, status) VALUES
   ('00000000-0000-4000-8144-0000000000c1', '00000000-0000-4000-8144-0000000000a0', 'oficial', 'Oficial', 'conectada');
 INSERT INTO public.conexoes (id, unit_id, tipo, nome, instancia, status, limite_por_minuto) VALUES
