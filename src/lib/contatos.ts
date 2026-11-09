@@ -94,3 +94,34 @@ export function ordenarNegocios<N extends Pick<NegocioDoContato, 'status' | 'arq
   const grupo = (n: N) => (n.arquivado ? 2 : n.status === 'aberto' ? 0 : 1)
   return [...lista].sort((a, b) => grupo(a) - grupo(b) || b.created_at.localeCompare(a.created_at))
 }
+
+/** O que o app pode gravar no contato (149: GRANT de UPDATE só nestas colunas) */
+export type PessoaGravavel = Partial<Pick<Contato,
+  | 'nome' | 'sobrenome' | 'telefone' | 'email' | 'cpf' | 'data_nascimento' | 'profissao'
+  | 'cidade' | 'estado' | 'pais' | 'instagram' | 'site' | 'observacoes' | 'wa_optin_at' | 'wa_optout_at'>>
+
+const COLUNAS_DE_PESSOA = [
+  'nome', 'sobrenome', 'telefone', 'email', 'cpf', 'data_nascimento', 'profissao',
+  'cidade', 'estado', 'pais', 'instagram', 'site', 'wa_optin_at', 'wa_optout_at',
+] as const
+
+/**
+ * Separa o formulário do negócio: a pessoa vai para o contato (5c1), o resto para o
+ * lead. observacoes_cli (nome no lead) vira observacoes (nome no contato).
+ */
+export function separarPessoaENegocio<F extends Record<string, unknown>>(form: F): {
+  pessoa: PessoaGravavel
+  negocio: Omit<F, (typeof COLUNAS_DE_PESSOA)[number] | 'observacoes_cli'>
+} {
+  const pessoa: Record<string, unknown> = {}
+  const negocio: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(form)) {
+    if ((COLUNAS_DE_PESSOA as readonly string[]).includes(k)) pessoa[k] = v
+    else if (k === 'observacoes_cli') pessoa.observacoes = v
+    else negocio[k] = v
+  }
+  return {
+    pessoa: pessoa as PessoaGravavel,
+    negocio: negocio as Omit<F, (typeof COLUNAS_DE_PESSOA)[number] | 'observacoes_cli'>,
+  }
+}

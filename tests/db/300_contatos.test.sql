@@ -128,8 +128,8 @@ INSERT INTO casos (caso, papel, usuario, comando, esperado) VALUES
    $c$SELECT * FROM public.contatos WHERE id = '00000000-0000-4000-8148-000000000103'$c$, '1'),
   ('quem é de outra unidade não lê', 'authenticated', '00000000-0000-4000-8148-000000000002',
    $c$SELECT * FROM public.contatos WHERE id = '00000000-0000-4000-8148-000000000103'$c$, '0'),
-  ('o app não altera contato direto (5a)', 'authenticated', '00000000-0000-4000-8148-000000000001',
-   $c$UPDATE public.contatos SET nome = 'x' WHERE id = '00000000-0000-4000-8148-000000000103'$c$, 'erro 42501'),
+  ('o app não muda a unidade do contato (a 149 abre só as colunas de pessoa)', 'authenticated', '00000000-0000-4000-8148-000000000001',
+   $c$UPDATE public.contatos SET unit_id = '00000000-0000-4000-8148-0000000000b0' WHERE id = '00000000-0000-4000-8148-000000000103'$c$, 'erro 42501'),
   ('anon não lê', 'anon', NULL, $c$SELECT * FROM public.contatos$c$, 'erro 42501');
 
 -- Alteração feita pelo app (authenticated) fica gravada e espelha no contato

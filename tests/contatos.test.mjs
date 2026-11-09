@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   comPessoaDoContato, dependentesDoContato, nomeDaPessoaDaConversa, nomesDosDependentes, ordenarNegocios,
+  separarPessoaENegocio,
 } from '../src/lib/contatos.ts'
 
 const contato = (id, extra = {}) => ({
@@ -67,4 +68,13 @@ test('negócios: abertos primeiro, arquivados no fim, mais recente antes', () =>
     n('perdido-novo', 'perdido', '2026-09-01'),
   ]
   assert.deepEqual(ordenarNegocios(lista).map(x => x.id), ['aberto-novo', 'aberto-velho', 'perdido-novo', 'ganho-velho', 'arquivado'])
+})
+
+test('formulário do negócio: pessoa para o contato, o resto para o lead', () => {
+  const { pessoa, negocio } = separarPessoaENegocio({
+    nome: 'Ana', telefone: '5511900000001', email: '', observacoes_cli: 'manhã',
+    origem: 'Instagram', funnel_id: 'f1', stage_id: 'e1', responsavel_id: null,
+  })
+  assert.deepEqual(pessoa, { nome: 'Ana', telefone: '5511900000001', email: '', observacoes: 'manhã' })
+  assert.deepEqual(negocio, { origem: 'Instagram', funnel_id: 'f1', stage_id: 'e1', responsavel_id: null })
 })

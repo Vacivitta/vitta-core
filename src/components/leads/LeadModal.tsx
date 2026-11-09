@@ -36,7 +36,8 @@ import MotivoPerdaModal from '@/components/leads/MotivoPerdaModal'
 import { camposDoFunil } from '@/lib/campos'
 import { tagsDoTipo } from '@/lib/tags'
 import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
-import { comPessoaDoContato, dependentesDoContato } from '@/lib/contatos'
+import { comPessoaDoContato, dependentesDoContato, separarPessoaENegocio } from '@/lib/contatos'
+import { gravarPessoa } from '@/lib/contatos-gravacao'
 import type { Contato } from '@/types/database'
 import Link from 'next/link'
 
@@ -175,7 +176,10 @@ function LeadDrawer({
     const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
     const now = new Date().toISOString()
-    const { error } = await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
+    // Consentimento é da pessoa: grava no contato (149), que leva aos negócios dela
+    const { error } = contato
+      ? await supabase.from('contatos').update({ wa_optin_at: now }).eq('id', contato.id)
+      : await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
     if (!error) {
       setWaOptinAt(now)
       onLeadPatched?.({ wa_optin_at: now })
@@ -805,11 +809,16 @@ function LeadDrawer({
     try {
       const previousStageId = lead.stage_id
       try {
-        await updateLead(lead.id, {
+        // A pessoa vai para o contato (149) e o banco copia para os negócios dele; o lead
+        // recebe o que é do negócio. Sem contato carregado, tudo vai para o lead (o espelho
+        // leva ao contato). A pessoa antes: a etapa nova pode exigir campos dela.
+        const { pessoa: dadosPessoa, negocio } = separarPessoaENegocio({
           ...formAtual,
           telefone: telefoneParaGravar(formAtual.telefone),
           responsavel_id: formAtual.responsavel_id || null,
         })
+        if (contato) setContato(await gravarPessoa(contato.id, dadosPessoa))
+        await updateLead(lead.id, contato ? negocio : { ...negocio, ...dadosPessoa })
       } catch (err) {
         if (isViolacaoUnica(err)) {
           alert('Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.')

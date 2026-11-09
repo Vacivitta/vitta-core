@@ -4,7 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { nomeDoContato, type NegocioDoContato } from '@/lib/contatos'
+import { nomeDoContato, type NegocioDoContato, type PessoaGravavel } from '@/lib/contatos'
+import { gravarPessoa } from '@/lib/contatos-gravacao'
+import { avisoTelefone, telefoneParaGravar } from '@/lib/telefone'
+import { isViolacaoUnica } from '@/lib/supabase/erros'
 import { primeiraLetra } from '@/lib/texto'
 import { CONTACT_ROLE_LABELS, STATUS_LEAD_LABELS, type ContactRole, type Contato } from '@/types/database'
 
@@ -34,8 +37,49 @@ const data = (s: string) => format(new Date(s), "d 'de' MMM 'de' yyyy", { locale
 const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const ehRelacao = (r: string | null): r is ContactRole => !!r && r in CONTACT_ROLE_LABELS
 
-export default function ContatoClient({ contato, responsavel, dependentes, negocios, conversas }: Props) {
+/** Campos editáveis da pessoa, na ordem da tela */
+const CAMPOS: { chave: keyof Omit<PessoaGravavel, 'wa_optin_at' | 'wa_optout_at'>; rotulo: string; tipo?: string }[] = [
+  { chave: 'nome', rotulo: 'Nome' }, { chave: 'sobrenome', rotulo: 'Sobrenome' },
+  { chave: 'telefone', rotulo: 'Telefone' }, { chave: 'email', rotulo: 'E-mail', tipo: 'email' },
+  { chave: 'cpf', rotulo: 'CPF' }, { chave: 'data_nascimento', rotulo: 'Nascimento', tipo: 'date' },
+  { chave: 'profissao', rotulo: 'Profissão' }, { chave: 'cidade', rotulo: 'Cidade' },
+  { chave: 'estado', rotulo: 'Estado' }, { chave: 'instagram', rotulo: 'Instagram' }, { chave: 'site', rotulo: 'Site' },
+]
+type Rascunho = Record<(typeof CAMPOS)[number]['chave'], string>
+
+const rascunhoDe = (c: Contato): Rascunho =>
+  Object.fromEntries(CAMPOS.map(({ chave }) => [chave, c[chave] ?? ''])) as Rascunho
+
+export default function ContatoClient({ contato: inicial, responsavel, dependentes, negocios, conversas }: Props) {
   const [aba, setAba] = useState<Aba>('Negócios')
+  const [contato, setContato] = useState(inicial)
+  const [rascunho, setRascunho] = useState<Rascunho | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  // Dependente continua sendo editado no negócio do responsável (lead_contacts) até a 5c2
+  const editavel = !contato.responsavel_id
+  const aviso = rascunho ? avisoTelefone(rascunho.telefone) : null
+
+  async function salvar() {
+    if (!rascunho || !rascunho.nome.trim() || aviso) return
+    setSalvando(true)
+    setErro(null)
+    try {
+      const pessoa: PessoaGravavel = Object.fromEntries(
+        CAMPOS.map(({ chave }) => [chave, rascunho[chave].trim() || null]),
+      )
+      pessoa.nome = rascunho.nome.trim()
+      pessoa.telefone = telefoneParaGravar(rascunho.telefone)
+      setContato(await gravarPessoa(contato.id, pessoa))
+      setRascunho(null)
+    } catch (e) {
+      setErro(isViolacaoUnica(e)
+        ? 'Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.'
+        : `Não foi possível salvar: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSalvando(false)
+    }
+  }
   const nome = nomeDoContato(contato) ?? ''
   const contagem: Record<Aba, number> = { 'Negócios': negocios.length, 'Dependentes': dependentes.length, 'Conversas': conversas.length }
   const dados: [string, string | null][] = [
@@ -72,6 +116,29 @@ export default function ContatoClient({ contato, responsavel, dependentes, negoc
           </div>
         </div>
 
+        {rascunho ? (
+          <div style={{ ...cartao, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px 20px' }}>
+            {CAMPOS.map(({ chave, rotulo, tipo }) => (
+              <label key={chave} style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 10.5, fontWeight: 800, color: COR.fraco, textTransform: 'uppercase', letterSpacing: '.6px' }}>{rotulo}</span>
+                <input type={tipo ?? 'text'} value={rascunho[chave]} onChange={e => setRascunho({ ...rascunho, [chave]: e.target.value })}
+                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, padding: '7px 9px', fontSize: 13, border: `1px solid ${COR.borda}`, borderRadius: 8, color: COR.tinta, background: '#fff' }} />
+              </label>
+            ))}
+            {aviso && <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: '#C4534A' }}>{aviso}</p>}
+            {erro && <p role="alert" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: '#C4534A' }}>{erro}</p>}
+            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
+              <button onClick={() => void salvar()} disabled={salvando || !rascunho.nome.trim() || !!aviso}
+                style={{ padding: '7px 14px', fontSize: 12.5, fontWeight: 700, border: 'none', borderRadius: 8, background: COR.verde, color: '#fff', cursor: 'pointer', opacity: salvando ? 0.6 : 1 }}>
+                {salvando ? 'Salvando…' : 'Salvar'}
+              </button>
+              <button onClick={() => { setRascunho(null); setErro(null) }}
+                style={{ padding: '7px 14px', fontSize: 12.5, fontWeight: 600, border: `1px solid ${COR.borda}`, borderRadius: 8, background: '#fff', color: COR.medio, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
         <div style={{ ...cartao, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px 20px' }}>
           {dados.map(([rotulo, valor]) => (
             <div key={rotulo} style={{ minWidth: 0 }}>
@@ -85,10 +152,21 @@ export default function ContatoClient({ contato, responsavel, dependentes, negoc
               <p style={{ margin: '2px 0 0', fontSize: 13, color: COR.tinta, whiteSpace: 'pre-wrap' }}>{contato.observacoes}</p>
             </div>
           )}
-          <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 11.5, color: COR.fraco }}>
-            Para alterar os dados da pessoa, abra um negócio dela: por enquanto a edição fica na ficha do negócio.
-          </p>
+          {editavel ? (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <button onClick={() => setRascunho(rascunhoDe(contato))}
+                style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, border: `1px solid ${COR.borda}`, borderRadius: 8, background: '#fff', color: COR.tinta, cursor: 'pointer' }}>
+                Editar dados
+              </button>
+              <span style={{ marginLeft: 10, fontSize: 11.5, color: COR.fraco }}>Vale para todos os negócios deste contato.</span>
+            </div>
+          ) : (
+            <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 11.5, color: COR.fraco }}>
+              Os dados do dependente são editados na ficha do negócio do responsável.
+            </p>
+          )}
         </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${COR.borda}`, overflowX: 'auto' }}>
           {(['Negócios', 'Dependentes', 'Conversas'] as const).map(a => (
