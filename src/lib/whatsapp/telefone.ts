@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
 import type { StatusLead } from '@/types/database'
+import { escolherNegocio, type NegocioResumo } from '@/lib/negocios'
 
 /**
  * Procura a conversa da conexão com qualquer versão do número (com ou sem o 9).
@@ -32,8 +33,9 @@ export async function buscarConversaPorTelefone(
 }
 
 /**
- * Procura o lead da unidade pelo telefone na forma canônica (`leads.telefone_norm`).
- * Prefere o não arquivado e, entre iguais, o mais recente.
+ * Procura o negócio da unidade pelo telefone na forma canônica (`leads.telefone_norm`).
+ * Um contato pode ter vários (150): prefere o aberto, depois o não arquivado,
+ * e entre iguais o mais recente (escolherNegocio).
  *
  * @param supabase - Cliente service-role
  * @param unitId - Unidade do lead
@@ -47,13 +49,11 @@ export async function buscarLeadPorTelefone(
 ): Promise<{ id: string; status: StatusLead; stage_id: string | null; arquivado: boolean } | null> {
   const { data } = await supabase
     .from('leads')
-    .select('id, status, stage_id, arquivado')
+    .select('id, status, stage_id, arquivado, created_at')
     .eq('unit_id', unitId)
     .eq('telefone_norm', norm)
-    // false primeiro = não arquivados primeiro (arquivado é gerada por arquivado_em, migração 132)
-    .order('arquivado', { ascending: true })
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return data
+  const escolhido = escolherNegocio((data ?? []) as NegocioResumo[])
+  return escolhido
+    ? { id: escolhido.id, status: escolhido.status, stage_id: escolhido.stage_id, arquivado: escolhido.arquivado }
+    : null
 }

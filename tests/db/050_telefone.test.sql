@@ -36,13 +36,16 @@ BEGIN
      OR has_function_privilege('anon', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'mesclar_leads executável por authenticated/anon';
   END IF;
-  IF to_regclass('public.uq_leads_unit_telefone_norm') IS NULL THEN
-    RAISE EXCEPTION 'índice único da 122 não existe';
+  -- A 150 tirou o índice único de leads (o telefone é único no contato, 148)
+  IF to_regclass('public.uq_leads_unit_telefone_norm') IS NOT NULL THEN
+    RAISE EXCEPTION 'o índice único da 122 deveria ter saído na 150';
   END IF;
 END $$;
 
--- Estado de antes da 122: telefone repetido nos leads (e nos contatos que a 148 espelha)
-DROP INDEX public.uq_leads_unit_telefone_norm;
+-- Estado de antes da 122: telefone repetido nos leads (e nos contatos que a 148 espelha).
+-- Reaplica as funções da 148, que criam um contato por lead como antes da 150.
+\i /migracoes/148_contatos.sql
+DROP INDEX IF EXISTS public.uq_leads_unit_telefone_norm;
 DROP INDEX IF EXISTS public.uq_contatos_unit_telefone;
 
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8050-0000000000f0', 'Rede Telefone');

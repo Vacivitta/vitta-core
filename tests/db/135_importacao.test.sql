@@ -67,34 +67,26 @@ INSERT INTO public.leads (id, nome, telefone, funnel_id, stage_id, unit_id) VALU
    '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0');
 
 -- ── Telefone repetido ────────────────────────────────────────────────────────
-SELECT pg_temp.esperar('lote com um telefone já existente (outro formato) é recusado inteiro',
+-- Desde a 150 o telefone é único no contato, não no lead: o banco aceita outro
+-- negócio para o mesmo telefone e o liga ao contato. Quem impede reimportar o mesmo
+-- arquivo é a consulta do app (telefonesExistentes, em contatos), conferida aqui.
+SELECT pg_temp.esperar('lote com um telefone já existente (outro formato) entra inteiro',
   pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
     INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id) VALUES
       ('Novo 1', '(34) 3333-4444', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0'),
       ('Repetido', '+55 31 99667-4494', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0')
-  $c$), 'erro 23505');
-SELECT pg_temp.esperar('nada do lote recusado ficou gravado',
-  (SELECT count(*)::text FROM public.leads WHERE nome IN ('Novo 1', 'Repetido')), '0');
+  $c$), '2');
+SELECT pg_temp.esperar('a linha repetida virou negócio do contato que já existia (um contato, dois negócios)',
+  (SELECT count(*)::text FROM public.leads WHERE contato_id = '00000000-0000-4000-8135-000000000101'), '2');
+SELECT pg_temp.esperar('a consulta da importação acha o telefone já existente em outro formato',
+  (SELECT count(*)::text FROM public.contatos
+    WHERE unit_id = '00000000-0000-4000-8135-0000000000a0' AND responsavel_id IS NULL
+      AND telefone_norm = public.normalizar_telefone('31 9667-4494')),
+  '1');
 
-SELECT pg_temp.esperar('linha a linha: a nova entra',
-  pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
-    INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id) VALUES
-      ('Novo 1', '(34) 3333-4444', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0')
-  $c$), '1');
-SELECT pg_temp.esperar('linha a linha: a repetida dá 23505 (vira "já existe")',
-  pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
-    INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id) VALUES
-      ('Repetido', '31 9667-4494', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0')
-  $c$), 'erro 23505');
-SELECT pg_temp.esperar('reenviar a mesma linha também dá 23505 (importação idempotente)',
-  pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
-    INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id) VALUES
-      ('Novo 1', '34 3333 4444', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0')
-  $c$), 'erro 23505');
-
--- O índice é parcial (WHERE telefone_norm IS NOT NULL): ON CONFLICT só com as
--- colunas, que é o que o PostgREST manda no upsert, não acha o índice
-SELECT pg_temp.esperar('ON CONFLICT (unit_id, telefone_norm) sem o predicado não infere o índice parcial',
+-- Sem índice único de telefone em leads (150), ON CONFLICT pelas colunas não acha
+-- o que inferir: o upsert pelo PostgREST continua sem servir para deduplicar
+SELECT pg_temp.esperar('ON CONFLICT (unit_id, telefone_norm) não infere índice nenhum',
   pg_temp.como('authenticated', '00000000-0000-4000-8135-000000000001', $c$
     INSERT INTO public.leads (nome, telefone, funnel_id, stage_id, unit_id) VALUES
       ('Upsert', '(34) 3333-4444', '00000000-0000-4000-8135-0000000000d0', '00000000-0000-4000-8135-0000000000d1', '00000000-0000-4000-8135-0000000000a0')
