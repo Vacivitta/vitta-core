@@ -197,9 +197,14 @@ export type ValorTipado = { [T in TipoCampo]: { tipo: T; valor: ValorPorTipo[T] 
 /** leads.campos: chave do campo → valor (chave ausente = sem valor). */
 export type CamposDoLead = Record<string, ValorCampo>
 
+/** De quem é o campo (151): da pessoa (contatos.campos) ou do negócio (leads.campos) */
+export type ObjetoCampo = 'negocio' | 'contato'
+
 interface CampoLeadBase {
   id:        string
   unit_id:   string
+  /** Imutável depois de criado; campo da pessoa não tem funil */
+  objeto:    ObjetoCampo
   /** null: vale para todos os funis da unidade */
   funnel_id: string | null
   /** Gerada do rótulo na criação e imutável */
@@ -870,6 +875,8 @@ export interface Contato {
   wa_optout_at:    string | null
   responsavel_id:  string | null
   relacao:         string | null
+  /** Campos personalizados da pessoa (151): só chaves de campos com objeto 'contato' */
+  campos:          CamposDoLead
   criado_em:       string
   atualizado_em:   string
 }

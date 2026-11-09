@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { CampoLead, Funnel, TipoCampo } from '@/types/database'
-import { TIPOS_CAMPO, TIPO_CAMPO_LABELS, chaveDoRotulo, opcoesValidas, tipoTemOpcoes } from '@/lib/campos'
+import { OBJETO_CAMPO_LABELS, TIPOS_CAMPO, TIPO_CAMPO_LABELS, chaveDoRotulo, opcoesValidas, tipoTemOpcoes } from '@/lib/campos'
+import type { ObjetoCampo } from '@/types/database'
 
 interface Props {
   unitId: string
@@ -16,9 +17,11 @@ interface Rascunho {
   tipo:     TipoCampo
   opcoes:   string
   funnelId: string
+  /** Da pessoa (vale para todos os negócios dela, sem funil) ou do negócio (151) */
+  objeto:   ObjetoCampo
 }
 
-const RASCUNHO_VAZIO: Rascunho = { rotulo: '', tipo: 'texto', opcoes: '', funnelId: '' }
+const RASCUNHO_VAZIO: Rascunho = { rotulo: '', tipo: 'texto', opcoes: '', funnelId: '', objeto: 'negocio' }
 
 /** Uma opção por linha; espaços nas pontas e linhas vazias ou repetidas saem. */
 function lerOpcoes(texto: string): string[] {
@@ -69,7 +72,8 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
     setSalvando(true); setErro('')
     const { data, error } = await supabase.from('campos_lead').insert({
       unit_id:   unitId,
-      funnel_id: novo.funnelId || null,
+      objeto:    novo.objeto,
+      funnel_id: novo.objeto === 'contato' ? null : novo.funnelId || null,
       rotulo:    novo.rotulo.trim(),
       tipo:      novo.tipo,
       opcoes:    tipoTemOpcoes(novo.tipo) ? lerOpcoes(novo.opcoes) : null,
@@ -83,7 +87,7 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
 
   function abrirEdicao(c: CampoLead) {
     setEditId(c.id)
-    setEdicao({ rotulo: c.rotulo, tipo: c.tipo, opcoes: (c.opcoes ?? []).join('\n'), funnelId: c.funnel_id ?? '' })
+    setEdicao({ rotulo: c.rotulo, tipo: c.tipo, opcoes: (c.opcoes ?? []).join('\n'), funnelId: c.funnel_id ?? '', objeto: c.objeto })
     setErro('')
   }
 
@@ -93,7 +97,7 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
     setSalvando(true); setErro('')
     const { data, error } = await supabase.from('campos_lead').update({
       rotulo:    edicao.rotulo.trim(),
-      funnel_id: edicao.funnelId || null,
+      funnel_id: c.objeto === 'contato' ? null : edicao.funnelId || null,
       opcoes:    tipoTemOpcoes(c.tipo) ? lerOpcoes(edicao.opcoes) : null,
     }).eq('id', c.id).select().single()
     setSalvando(false)
@@ -129,11 +133,13 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
   return (
     <div style={{ padding: '32px 40px', maxWidth: 760 }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: '#25402C', margin: '0 0 4px', letterSpacing: '-0.01em' }}>
-        Campos do lead
+        Campos personalizados
       </h1>
       <p style={{ fontSize: 14, color: '#9AA79C', marginBottom: 28 }}>
-        Informações que a equipe preenche na ficha do lead (ex.: convênio, vacinas de interesse, capital disponível).
-        Um campo vale para todos os funis ou só para um. Campos desativados somem da ficha, mas os valores ficam guardados.
+        Informações que a equipe preenche na ficha (ex.: convênio, vacinas de interesse, capital disponível).
+        Campo <strong>da pessoa</strong> (convênio, alergias) é um valor só para todos os negócios dela e aparece também na
+        ficha do contato; campo <strong>do negócio</strong> (vacinas de interesse, valor pretendido) é de cada oportunidade
+        e pode valer para todos os funis ou só para um. Campos desativados somem da ficha, mas os valores ficam guardados.
       </p>
 
       <form onSubmit={criar} style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 18, marginBottom: 28, display: 'grid', gap: 12 }}>
@@ -153,12 +159,22 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Funil</label>
-            <select style={inputStyle} value={novo.funnelId} onChange={e => setNovo(r => ({ ...r, funnelId: e.target.value }))}>
-              <option value="">Todos os funis</option>
-              {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            <label style={labelStyle}>De quem é</label>
+            <select style={inputStyle} value={novo.objeto}
+              onChange={e => setNovo(r => ({ ...r, objeto: e.target.value as ObjetoCampo, funnelId: '' }))}>
+              <option value="negocio">{OBJETO_CAMPO_LABELS.negocio}</option>
+              <option value="contato">{OBJETO_CAMPO_LABELS.contato}</option>
             </select>
           </div>
+          {novo.objeto === 'negocio' && (
+            <div>
+              <label style={labelStyle}>Funil</label>
+              <select style={inputStyle} value={novo.funnelId} onChange={e => setNovo(r => ({ ...r, funnelId: e.target.value }))}>
+                <option value="">Todos os funis</option>
+                {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         {tipoTemOpcoes(novo.tipo) && (
           <div>
@@ -195,13 +211,15 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
                       <input style={inputStyle} value={edicao.rotulo} maxLength={80} autoFocus
                         onChange={e => setEdicao(r => ({ ...r, rotulo: e.target.value }))} />
                     </div>
-                    <div>
-                      <label style={labelStyle}>Funil</label>
-                      <select style={inputStyle} value={edicao.funnelId} onChange={e => setEdicao(r => ({ ...r, funnelId: e.target.value }))}>
-                        <option value="">Todos os funis</option>
-                        {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                      </select>
-                    </div>
+                    {c.objeto === 'negocio' && (
+                      <div>
+                        <label style={labelStyle}>Funil</label>
+                        <select style={inputStyle} value={edicao.funnelId} onChange={e => setEdicao(r => ({ ...r, funnelId: e.target.value }))}>
+                          <option value="">Todos os funis</option>
+                          {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                        </select>
+                      </div>
+                    )}
                   </div>
                   {tipoTemOpcoes(c.tipo) && (
                     <div>
@@ -209,7 +227,7 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
                       <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} value={edicao.opcoes}
                         onChange={e => setEdicao(r => ({ ...r, opcoes: e.target.value }))} />
                       <span style={{ fontSize: 11, color: '#9AA79C' }}>
-                        Tirar uma opção não apaga o que já foi gravado nos leads.
+                        Tirar uma opção não apaga o que já foi gravado.
                       </span>
                     </div>
                   )}
@@ -230,7 +248,8 @@ export default function CamposClient({ unitId, initialCampos, funis }: Props) {
                       {!c.ativo && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#9AA79C' }}>desativado</span>}
                     </p>
                     <p style={{ margin: '2px 0 0', fontSize: 12, color: '#9AA79C' }}>
-                      {TIPO_CAMPO_LABELS[c.tipo]} · {nomeDoFunil(c.funnel_id)} · chave <code>{c.chave}</code>
+                      {TIPO_CAMPO_LABELS[c.tipo]} · {OBJETO_CAMPO_LABELS[c.objeto]}
+                      {c.objeto === 'negocio' ? ` · ${nomeDoFunil(c.funnel_id)}` : ''} · chave <code>{c.chave}</code>
                     </p>
                     {c.opcoes && (
                       <p style={{ margin: '4px 0 0', fontSize: 12, color: '#71856F' }}>{c.opcoes.join(' · ')}</p>

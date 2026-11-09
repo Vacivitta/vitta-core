@@ -1,4 +1,4 @@
-import type { CampoLead, CamposDoLead, TipoCampo, ValorCampo, ValorTipado } from '@/types/database'
+import type { CampoLead, CamposDoLead, ObjetoCampo, TipoCampo, ValorCampo, ValorTipado } from '@/types/database'
 
 // Regras dos campos personalizados. A chave e a validade do valor repetem as
 // funções campo_chave_slug, campo_opcoes_validas e campo_valor_valido da
@@ -209,6 +209,28 @@ export function camposDoFunil(campos: CampoLead[], funnelId: string | null): Cam
   return campos
     .filter(c => c.ativo && (c.funnel_id === null || c.funnel_id === funnelId))
     .sort((a, b) => a.ordem - b.ordem || a.rotulo.localeCompare(b.rotulo, 'pt-BR'))
+}
+
+/** Rótulo de onde o campo é guardado, para a configuração e a ficha. */
+export const OBJETO_CAMPO_LABELS: Record<ObjetoCampo, string> = {
+  negocio: 'Do negócio',
+  contato: 'Da pessoa',
+}
+
+/**
+ * Separa valores de campos entre o negócio (leads.campos) e a pessoa
+ * (contatos.campos), pelo objeto de cada definição. Chave sem definição fica no
+ * negócio, onde o banco a recusa com a mensagem certa.
+ */
+export function separarCampos(
+  definicoes: readonly Pick<CampoLead, 'chave' | 'objeto'>[],
+  valores: CamposDoLead,
+): { negocio: CamposDoLead; pessoa: CamposDoLead } {
+  const daPessoa = new Set(definicoes.filter(d => d.objeto === 'contato').map(d => d.chave))
+  const negocio: CamposDoLead = {}
+  const pessoa: CamposDoLead = {}
+  for (const [k, v] of Object.entries(valores)) (daPessoa.has(k) ? pessoa : negocio)[k] = v
+  return { negocio, pessoa }
 }
 
 /** leads.campos com uma chave trocada (valor null tira a chave). */

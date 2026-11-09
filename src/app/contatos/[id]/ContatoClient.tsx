@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { campoFixo, faltandoDoErro } from '@/lib/obrigatorios'
+import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { nomeDoContato, type NegocioDoContato, type PessoaGravavel } from '@/lib/contatos'
@@ -82,6 +83,8 @@ export default function ContatoClient({ contato: inicial, responsavel, dependent
 
   const [aba, setAba] = useState<Aba>('Negócios')
   const [contato, setContato] = useState(inicial)
+  // Campos personalizados da pessoa (151): os mesmos que aparecem em todos os negócios dela
+  const camposDaPessoa = useCamposLead({ contatoId: inicial.id }, inicial.unit_id)
   const [rascunho, setRascunho] = useState<Rascunho | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -195,6 +198,15 @@ export default function ContatoClient({ contato: inicial, responsavel, dependent
             </p>
           )}
         </div>
+        )}
+
+        {editavel && camposDaPessoa.definicoes.some(d => d.objeto === 'contato') && (
+          <div style={cartao}>
+            <p style={{ margin: '0 0 10px', fontSize: 10.5, fontWeight: 800, color: COR.fraco, textTransform: 'uppercase', letterSpacing: '.6px' }}>
+              Informações da pessoa
+            </p>
+            <CamposLead funnelId={null} estado={camposDaPessoa} />
+          </div>
         )}
 
         <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${COR.borda}`, overflowX: 'auto' }}>

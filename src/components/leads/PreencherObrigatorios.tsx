@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { CampoLead, CamposDoLead, Profile } from '@/types/database'
 import { ORIGEM_OPTIONS } from '@/types/database'
-import { comValor, valorDaEntrada, entradaInicial, type EntradaCampo } from '@/lib/campos'
+import { comValor, separarCampos, valorDaEntrada, entradaInicial, type EntradaCampo } from '@/lib/campos'
 import { campoFixo, rotuloObrigatorio, type CampoFixo, type ValoresFixos } from '@/lib/obrigatorios'
 import { avisoTelefone, telefoneParaGravar } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
@@ -41,7 +41,9 @@ export default function PreencherObrigatorios({
   leadId, unitId, funnelId, etapaNome, faltando, profiles, onCancelar, onPreenchido,
 }: Props) {
   const [definicoes, setDefinicoes] = useState<CampoLead[]>([])
+  // Negócio e pessoa juntos (151); ao gravar, cada lado vai para a sua tabela
   const [camposAtuais, setCamposAtuais] = useState<CamposDoLead>({})
+  const [contatoId, setContatoId] = useState<string | null>(null)
   const [perfis, setPerfis] = useState(profiles ?? [])
   const [carregando, setCarregando] = useState(true)
   const [fixos, setFixos] = useState<Record<string, string>>({})
@@ -58,7 +60,7 @@ export default function PreencherObrigatorios({
       unitId
         ? supabase.from('campos_lead').select('*').eq('unit_id', unitId).eq('ativo', true)
         : Promise.resolve({ data: [], error: null }),
-      supabase.from('leads').select('campos').eq('id', leadId).maybeSingle(),
+      supabase.from('leads').select('campos, contato:contatos(id, campos)').eq('id', leadId).maybeSingle(),
       precisaPerfis && unitId
         ? supabase.from('profiles').select('id, full_name').eq('unit_id', unitId).eq('ativo', true).order('full_name')
         : Promise.resolve({ data: null, error: null }),
@@ -66,7 +68,9 @@ export default function PreencherObrigatorios({
       if (!vivo) return
       if (defs.error || lead.error) setErro('Não foi possível carregar os campos. Feche e tente de novo.')
       const lista = (defs.data ?? []) as CampoLead[]
-      const atuais = ((lead.data as { campos?: CamposDoLead } | null)?.campos) ?? {}
+      const l = lead.data as { campos?: CamposDoLead; contato?: { id: string; campos: CamposDoLead } | null } | null
+      const atuais = { ...(l?.campos ?? {}), ...(l?.contato?.campos ?? {}) }
+      setContatoId(l?.contato?.id ?? null)
       setDefinicoes(lista)
       setCamposAtuais(atuais)
       setEntradas(Object.fromEntries(lista.map(d => [d.chave, entradaInicial(d, atuais[d.chave])])))
@@ -108,9 +112,19 @@ export default function PreencherObrigatorios({
 
     setSalvando(true)
     const mudouCampos = itens.some(i => i.kind === 'campo')
-    const { error } = await createClient().from('leads')
-      .update(mudouCampos ? { ...valoresFixos, campos } : valoresFixos)
-      .eq('id', leadId)
+    const lados = separarCampos(definicoes, campos)
+    const mudouPessoa = itens.some(i => i.kind === 'campo' && i.def.objeto === 'contato')
+    const mudouNegocio = itens.some(i => i.kind === 'campo' && i.def.objeto !== 'contato')
+    const supabase = createClient()
+    // A pessoa antes: quem abriu o modal tenta mover de novo e a etapa lê o contato
+    const errPessoa = mudouPessoa && contatoId
+      ? (await supabase.from('contatos').update({ campos: lados.pessoa }).eq('id', contatoId)).error
+      : null
+    const { error } = errPessoa
+      ? { error: errPessoa }
+      : await supabase.from('leads')
+          .update(mudouCampos && mudouNegocio ? { ...valoresFixos, campos: lados.negocio } : valoresFixos)
+          .eq('id', leadId)
     if (error) {
       setSalvando(false)
       setErro(isViolacaoUnica(error)
