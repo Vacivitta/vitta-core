@@ -592,6 +592,7 @@ async function getDefaultStage(supabase: ReturnType<typeof adminClient>, unitId:
   const { data: funnels } = await supabase
     .from('funnels')
     .select('id')
+    .eq('objeto', 'negocio')
     .eq('unit_id', unitId)
     .eq('ativo', true)
     .order('ordem', { ascending: true })

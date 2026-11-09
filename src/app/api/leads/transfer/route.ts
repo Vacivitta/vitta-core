@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   // O funil destino precisa ser da unidade destino — senão o lead some do kanban
   const { data: targetFunnel } = await admin
-    .from('funnels').select('id').eq('id', targetFunnelId).eq('unit_id', targetUnitId).maybeSingle()
+    .from('funnels').select('id').eq('objeto', 'negocio').eq('id', targetFunnelId).eq('unit_id', targetUnitId).maybeSingle()
   if (!targetFunnel) return NextResponse.json({ error: 'Funil não pertence à unidade destino' }, { status: 400 })
 
   const { data: profile } = await buscarPerfil(admin, user.id, 'id, unit_id, full_name')

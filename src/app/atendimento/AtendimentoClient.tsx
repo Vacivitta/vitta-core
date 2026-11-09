@@ -18,6 +18,7 @@ import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { normalizarTelefone } from '@/lib/telefone'
+import NovoTicketModal, { type FunilDeTicket } from '@/components/tickets/NovoTicketModal'
 import { corDoAutor, nomeDaConversa, participantesDoGrupo, telefoneDoParticipante, type Participante } from '@/lib/grupos'
 import { precisaConfirmarResposta, rotuloRespondendoComo, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
 import { useProfile } from '@/context/ProfileContext'
@@ -34,6 +35,8 @@ interface WaConversation {
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
   conexao_id?: string | null
+  /** Migração 147: empresa do grupo */
+  empresa_id?: string | null
   /** Migração 145 */
   tipo?: 'individual' | 'grupo'
   profile_picture_url?: string | null
@@ -83,6 +86,8 @@ interface Props {
   /** Unidades vinculadas ao usuário: a caixa mostra as conversas de todas. */
   unidades: UnidadeDaCaixa[]
   conexoes: ConexaoDaCaixa[]
+  /** Tickets e empresas da unidade ativa (146/147) */
+  ticket: { ligado: boolean; funis: FunilDeTicket[]; pessoas: { id: string; nome: string }[]; empresas: { id: string; nome: string }[]; empresasLigado: boolean }
 }
 
 type ConvStatus = 'open' | 'pending' | 'resolved' | 'all'
@@ -106,7 +111,7 @@ const fmtCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-export default function AtendimentoClient({ funnels, profiles, currentUser, initialConversaId, unidades, conexoes }: Props) {
+export default function AtendimentoClient({ funnels, profiles, currentUser, initialConversaId, unidades, conexoes, ticket }: Props) {
   const supabase = createClient()
   const router   = useRouter()
   const { switchUnit } = useProfile()
@@ -177,6 +182,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const [showQuickForm,   setShowQuickForm]   = useState(false)
   // Participante de grupo virando contato: o formulário abre preenchido e o lead não é ligado ao grupo
   const [contatoDoGrupo,  setContatoDoGrupo]  = useState<{ nome?: string; telefone: string } | null>(null)
+  const [abrindoTicket,   setAbrindoTicket]   = useState(false)
+  const [ticketCriado,    setTicketCriado]    = useState<{ id: string; numero: number } | null>(null)
   const [resolveDialogOpen,   setResolveDialogOpen]   = useState(false)
   const [contextPanelOpen,    setContextPanelOpen]    = useState(true)
   const [newConvOpen,         setNewConvOpen]         = useState(false)
@@ -208,7 +215,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     setTransferUnitId(unitId)
     setTransferFunnelId('')
     const { data: fns } = await supabase
-      .from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem')
+      .from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).eq('ativo', true).order('ordem')
     setTransferFunnels(fns ?? [])
     if (fns && fns.length === 1) setTransferFunnelId(fns[0].id)
   }
@@ -404,7 +411,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,tipo,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,tipo,empresa_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .in('unit_id', idsDaCaixa)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     if (error) console.error('[loadConversations] erro:', error.message)
@@ -823,6 +830,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     void linkLeadById(lead.id)
   }
 
+  /** Grupo do WhatsApp ligado a uma empresa (147) */
+  async function ligarEmpresaAoGrupo(conversaId: string, empresaId: string | null) {
+    const { error } = await supabase.from('wa_conversations').update({ empresa_id: empresaId }).eq('id', conversaId)
+    if (error) { alert(`Não foi possível ligar a empresa: ${error.message}`); return }
+    setSelectedConv(prev => prev && prev.id === conversaId ? { ...prev, empresa_id: empresaId } : prev)
+    setConversations(prev => prev.map(c => c.id === conversaId ? { ...c, empresa_id: empresaId } : c))
+  }
+
   async function unlinkLead() {
     if (!selectedConv) return
     await supabase.from('wa_conversations').update({ lead_id: null }).eq('id', selectedConv.id)
@@ -908,7 +923,15 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
             <>
               <ChatHeader conv={selectedConv} profiles={conversaDeOutraUnidade ? [] : profiles} queues={conversaDeOutraUnidade ? [] : queues}
                 onStatusChange={updateStatus} onAssignAgent={assignAgent} onAssignQueue={assignQueue}
-                contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)} />
+                contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)}
+                onAbrirTicket={ticket.ligado && !conversaDeOutraUnidade ? () => { setTicketCriado(null); setAbrindoTicket(true) } : undefined} />
+              {ticketCriado && (
+                <div role="status" style={{ padding: '6px 14px', background: '#E8F4E6', borderBottom: '1px solid #CFE6CB', fontSize: 12, color: '#25402C', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  Ticket #{ticketCriado.numero} aberto.
+                  <a href={'/tickets?ticket=' + ticketCriado.id} style={{ color: '#3E9849', fontWeight: 700 }}>Ver ticket</a>
+                  <button onClick={() => setTicketCriado(null)} aria-label="Fechar aviso" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#71856F' }}>×</button>
+                </div>
+              )}
               {!conversaDeOutraUnidade && (
               <TagsBar
                 alvo={{ tipo: 'conversa', id: selectedConv.id }}
@@ -1018,6 +1041,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
               <ConversaDeOutraUnidade unidade={unidadeDaConversa} onTrocar={trocarParaUnidadeDaConversa} />
             ) : selectedConv.tipo === 'grupo' ? (
               <GrupoView participantes={participantesDoGrupo(chatItems.flatMap(i => i.kind === 'message' && i.message ? [i.message] : []))}
+                empresas={ticket.empresasLigado ? ticket.empresas : null} empresaId={selectedConv.empresa_id ?? null}
+                onEmpresa={empresaId => void ligarEmpresaAoGrupo(selectedConv.id, empresaId)}
                 onCriarContato={p => { setContatoDoGrupo({ nome: p.nome ?? undefined, telefone: telefoneDoParticipante(p.telefone) }); setShowQuickForm(true) }} />
             ) : loadingLead ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#3E9849" /></div>
@@ -1070,6 +1095,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
             setLeadDetail(prev => prev ? { ...prev, lead: { ...prev.lead, ...patch } } : null)
             setModalLead(prev => prev ? { ...prev, ...patch } : prev)
           }} />
+      )}
+      {abrindoTicket && selectedConv && (
+        <NovoTicketModal unitId={currentUser.unit_id ?? ''} funis={ticket.funis} pessoas={ticket.pessoas}
+          empresas={ticket.empresasLigado ? ticket.empresas : []} usuarioId={currentUser.id}
+          inicial={{ conversa_id: selectedConv.id, lead_id: selectedConv.lead_id, empresa_id: selectedConv.empresa_id ?? null }}
+          onFechar={() => setAbrindoTicket(false)}
+          onCriado={t => { setAbrindoTicket(false); setTicketCriado({ id: t.id, numero: t.numero }) }} />
       )}
       {showQuickForm && defaultStage && (
         <QuickLeadForm defaultStage={defaultStage} funnels={funnels} profiles={profiles} currentUser={currentUser}
@@ -1559,11 +1591,13 @@ function ConfirmarRespostaOutraUnidade({ unidade, onConfirmar, onCancelar }: {
 
 // ── ChatHeader ────────────────────────────────────────────────────────────────
 
-function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onAssignQueue, contextPanelOpen, onToggleContextPanel }: {
+function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onAssignQueue, contextPanelOpen, onToggleContextPanel, onAbrirTicket }: {
   conv: WaConversation; profiles: Profile[]; queues: WaQueue[]
   onStatusChange: (s: 'open' | 'pending' | 'resolved') => void
   onAssignAgent: (id: string | null) => void; onAssignQueue: (id: string | null) => void
   contextPanelOpen: boolean; onToggleContextPanel: () => void
+  /** Sem ele (módulo Tickets desligado), o botão não aparece */
+  onAbrirTicket?: () => void
 }) {
   const [showStatus, setShowStatus] = useState(false)
   const [showAgent,  setShowAgent]  = useState(false)
@@ -1651,6 +1685,12 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
               </div>
             )}
           </div>
+        )}
+        {onAbrirTicket && (
+          <button onClick={onAbrirTicket} title="Abrir um ticket a partir desta conversa"
+            style={{ padding: '5px 10px', border: '1px solid #E9E5D8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#71856F', flexShrink: 0 }}>
+            Abrir ticket
+          </button>
         )}
         {/* Toggle context panel */}
         <button onClick={onToggleContextPanel} title={contextPanelOpen ? 'Recolher painel' : 'Expandir painel'}
@@ -2025,7 +2065,11 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
 
 // ── GrupoView ─────────────────────────────────────────────────────────────────
 
-function GrupoView({ participantes, onCriarContato }: { participantes: Participante[]; onCriarContato: (p: Participante) => void }) {
+function GrupoView({ participantes, onCriarContato, empresas, empresaId, onEmpresa }: {
+  participantes: Participante[]; onCriarContato: (p: Participante) => void
+  /** null: módulo Empresas desligado */
+  empresas: { id: string; nome: string }[] | null; empresaId: string | null; onEmpresa: (id: string | null) => void
+}) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 12, overflowY: 'auto' }}>
       <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: '14px 14px 6px' }}>
@@ -2033,6 +2077,16 @@ function GrupoView({ participantes, onCriarContato }: { participantes: Participa
         <p style={{ margin: '3px 0 10px', fontSize: 11.5, color: '#9AA79C', lineHeight: 1.4 }}>
           O grupo não vira contato. Quem escreveu aparece abaixo; crie o contato de quem precisar.
         </p>
+        {empresas && (
+          <label style={{ display: 'block', margin: '0 0 10px', fontSize: 11.5, fontWeight: 700, color: '#71856F' }}>
+            Empresa do grupo
+            <select value={empresaId ?? ''} onChange={e => onEmpresa(e.target.value || null)}
+              style={{ display: 'block', width: '100%', marginTop: 4, padding: '6px 8px', fontSize: 12.5, border: '1px solid #EBE7DA', borderRadius: 8, color: '#25402C', background: '#fff' }}>
+              <option value="">Sem empresa</option>
+              {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          </label>
+        )}
         {participantes.length === 0 && <p style={{ fontSize: 11.5, color: '#9AA79C', margin: '0 0 10px' }}>Ninguém escreveu nas mensagens carregadas.</p>}
         {participantes.map(p => (
           <div key={p.telefone} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #F1EEE4' }}>

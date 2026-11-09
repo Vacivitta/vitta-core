@@ -1,6 +1,6 @@
 import { createClient } from './supabase/client'
 import { lerUnidadeDaAba } from './unidade-ativa-navegador'
-import type { Funnel, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
+import type { Funnel, FunnelStage, FunnelWithStages, MotivoPerda, FunilObjeto } from '@/types/database'
 import { mensagemRecusaPorReferencia, mensagemUsadaPorAutomacao } from './funil/exclusao'
 
 // Automações por tempo que usam o funil ou alguma das etapas como filtro (o banco
@@ -31,7 +31,7 @@ export async function listFunnels(): Promise<FunnelWithStages[]> {
   })) as FunnelWithStages[]
 }
 
-export async function createFunnel(nome: string, descricao?: string): Promise<Funnel> {
+export async function createFunnel(nome: string, descricao?: string, objeto: FunilObjeto = 'negocio'): Promise<Funnel> {
   const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,7 +44,7 @@ export async function createFunnel(nome: string, descricao?: string): Promise<Fu
   const nextOrdem = (existing?.[0]?.ordem ?? -1) + 1
   const { data, error } = await supabase
     .from('funnels')
-    .insert({ nome, descricao: descricao ?? null, ativo: true, ordem: nextOrdem, unit_id: unidade })
+    .insert({ nome, descricao: descricao ?? null, ativo: true, ordem: nextOrdem, unit_id: unidade, objeto })
     .select()
     .single()
   if (error) throw error

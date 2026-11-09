@@ -21,7 +21,7 @@ export default async function ConfigCamposPage() {
 
   const [{ data: campos }, { data: funis }] = await Promise.all([
     supabase.from('campos_lead').select('*').eq('unit_id', unitId).order('ordem').order('rotulo'),
-    supabase.from('funnels').select('id, nome').eq('unit_id', unitId).order('ordem'),
+    supabase.from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).order('ordem'),
   ])
 
   return (

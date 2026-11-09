@@ -67,6 +67,7 @@ export default async function AutomacoesPage() {
     supabase
       .from('funnels')
       .select('id, nome')
+      .eq('objeto', 'negocio')
       .order('nome'),
     supabase
       .from('automation_runs')

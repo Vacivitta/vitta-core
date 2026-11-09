@@ -5,6 +5,7 @@ import { corDaUnidade, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/un
 import AtendimentoClient from './AtendimentoClient'
 import type { Profile, FunnelWithStages } from '@/types/database'
 import { buscarPerfil } from '@/lib/supabase/perfil'
+import { dadosDeTicket } from '@/lib/tickets-servidor'
 
 export const metadata = { title: 'Atendimento — VittaDesk' }
 
@@ -31,16 +32,20 @@ export default async function AtendimentoPage({
     unidades,
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
-    supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
+    supabase.from('funnels').select('*').eq('objeto', 'negocio').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
     supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
     supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
     unidadesDaCaixa(supabase, user.id),
   ])
 
   // Conexões das unidades do usuário (RLS de conexoes, 143): nome, número e tipo, sem token
-  const { data: conexoesData } = await supabase.from('conexoes')
-    .select('id, nome, numero, tipo, pessoal')
-    .in('unit_id', unidades.map(u => u.id))
+  const [{ data: conexoesData }, dadosTicket] = await Promise.all([
+    supabase.from('conexoes')
+      .select('id, nome, numero, tipo, pessoal')
+      .in('unit_id', unidades.map(u => u.id)),
+    // Tickets e empresas da unidade ativa (146/147)
+    unitId ? dadosDeTicket(supabase, unitId) : Promise.resolve({ modulos: new Set<never>(), funis: [], pessoas: [], empresas: [] }),
+  ])
 
   const extraUserIds = (userUnits ?? [])
     .map(r => r.user_id as string)
@@ -67,6 +72,13 @@ export default async function AtendimentoPage({
       initialConversaId={conversa ?? null}
       unidades={unidades}
       conexoes={(conexoesData ?? []) as ConexaoDaCaixa[]}
+      ticket={{
+        ligado:         dadosTicket.modulos.has('tickets'),
+        funis:          dadosTicket.funis,
+        pessoas:        dadosTicket.pessoas,
+        empresas:       dadosTicket.empresas,
+        empresasLigado: dadosTicket.modulos.has('empresas'),
+      }}
     />
   )
 }

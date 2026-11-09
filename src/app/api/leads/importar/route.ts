@@ -128,7 +128,7 @@ type Destino =
 
 async function conferirDestino(supabase: SupabaseClient, unitId: string, pedido: PedidoImportacao): Promise<Destino> {
   const [{ data: funil }, { data: etapa }, { data: campos, error: camposErr }, { data: tags, error: tagsErr }] = await Promise.all([
-    supabase.from('funnels').select('id').eq('id', pedido.funnel_id).eq('unit_id', unitId).eq('ativo', true).maybeSingle(),
+    supabase.from('funnels').select('id').eq('objeto', 'negocio').eq('id', pedido.funnel_id).eq('unit_id', unitId).eq('ativo', true).maybeSingle(),
     supabase.from('funnel_stages').select('id, resultado, campos_obrigatorios').eq('id', pedido.stage_id).eq('funnel_id', pedido.funnel_id).maybeSingle(),
     supabase.from('campos_lead').select('*').eq('unit_id', unitId),
     supabase.from('wa_tags').select('id, name, tipo').eq('unit_id', unitId).eq('tipo', 'lead'),

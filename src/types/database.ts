@@ -135,7 +135,11 @@ export interface Funnel {
   ordem:       number
   unit_id:     string | null
   created_at:  string
+  /** Migração 147: funil de negócio (leads) ou de ticket */
+  objeto:      FunilObjeto
 }
+
+export type FunilObjeto = 'negocio' | 'ticket'
 
 /** Resultado que entrar na etapa dá ao negócio (trigger fn_lead_status, migração 126). */
 export type ResultadoEtapa = 'ganho' | 'perdido'
@@ -697,6 +701,8 @@ export interface Notification {
   body:      string | null
   quote_id:  string | null
   lead_id:   string | null
+  /** Migração 147 */
+  ticket_id: string | null
   criado_em: string
 }
 
@@ -765,3 +771,67 @@ export const ORIGEM_OPTIONS = [
   'Orgânico',
   'Outro',
 ] as const
+
+// ── Módulos, empresas e tickets (migrações 146 e 147) ─────────────────────────
+
+export type Modulo = 'orcamentos' | 'catalogo' | 'campanhas' | 'qrcode' | 'empresas' | 'tickets'
+
+export interface UnidadeModulo {
+  unit_id:      string
+  modulo:       Modulo
+  ativo:        boolean
+  alterado_em:  string
+  alterado_por: string | null
+}
+
+export interface Empresa {
+  id:             string
+  unit_id:        string
+  nome:           string
+  /** 14 dígitos, sem máscara; único na unidade */
+  cnpj:           string | null
+  responsavel_id: string | null
+  observacao:     string | null
+  criado_em:      string
+  criado_por:     string | null
+}
+
+export type PapelNaEmpresa = 'decisor' | 'socio' | 'contato' | 'financeiro' | 'outro'
+
+export const PAPEL_NA_EMPRESA_LABELS: Record<PapelNaEmpresa, string> = {
+  decisor: 'Decisor', socio: 'Sócio', contato: 'Contato', financeiro: 'Financeiro', outro: 'Outro',
+}
+
+export interface EmpresaVinculo {
+  empresa_id: string
+  lead_id:    string
+  papel:      PapelNaEmpresa
+  criado_em:  string
+}
+
+export type TicketStatus = 'aberto' | 'resolvido'
+export type TicketPrioridade = 'baixa' | 'media' | 'alta' | 'urgente'
+
+export const TICKET_PRIORIDADE_LABELS: Record<TicketPrioridade, string> = {
+  baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
+}
+
+export interface Ticket {
+  id:             string
+  numero:         number
+  unit_id:        string
+  titulo:         string
+  descricao:      string | null
+  funnel_id:      string
+  stage_id:       string | null
+  status:         TicketStatus
+  prioridade:     TicketPrioridade
+  responsavel_id: string | null
+  empresa_id:     string | null
+  lead_id:        string | null
+  conversa_id:    string | null
+  criado_por:     string | null
+  criado_em:      string
+  atualizado_em:  string
+  resolvido_em:   string | null
+}

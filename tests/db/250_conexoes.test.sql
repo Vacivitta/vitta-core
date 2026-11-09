@@ -22,6 +22,9 @@ BEGIN
   END IF;
 END $$;
 
+-- Módulo QR Code (146) ligado na unidade A
+INSERT INTO public.unidade_modulos (unit_id, modulo, ativo) VALUES ('00000000-0000-4000-8143-0000000000a0', 'qrcode', true);
+
 -- Usuários: 1 e 2 na unidade A (1 é a dona da conexão pessoal); 3 fora; 5 admin da marca
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('00000000-0000-4000-8143-000000000001', 'dona143@teste.invalid', '{"full_name": "Dona"}'),

@@ -23,7 +23,7 @@ export default async function HorarioPage() {
       .eq('unit_id', unitId)
       .returns<HorarioComFaixas[]>(),
     supabase.from('wa_queues').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('nome'),
-    supabase.from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem'),
+    supabase.from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).eq('ativo', true).order('ordem'),
     supabase.from('feriados')
       .select('id, unit_id, data, nome, fechado, inicio, fim')
       .or(`unit_id.is.null,unit_id.eq.${unitId}`)

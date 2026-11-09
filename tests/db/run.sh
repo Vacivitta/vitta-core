@@ -129,7 +129,7 @@ done
 # ordem documentada, cada uma como o Infra aplica, e confere que o banco volta
 # exatamente ao estado de antes: privilégios e definição de toda função e view
 # do public. Mudou a ordem aqui, mude no CLAUDE.md e no runbook (conferido abaixo).
-ordem_pos_restore=(113 115 121 123 124 126 127 128 129 130 131 132 133 134 135 137 138 141 143 144 145 118)
+ordem_pos_restore=(113 115 121 123 124 126 127 128 129 130 131 132 133 134 135 137 138 141 143 144 145 146 147 118)
 texto_ordem="$(printf '%s, ' "${ordem_pos_restore[@]}")"
 texto_ordem="${texto_ordem%, }"
 for doc in CLAUDE.md docs/migracao-vps/runbook.md; do
@@ -205,10 +205,10 @@ SQL
 checagens=$((checagens + 1))
 echo "ok  ordem pós-restore $texto_ordem: 118 antes delas aborta; depois do restore simulado, privilégios e definições voltam"
 
-for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145; do
+for v in 091 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147; do
   esperar_erro "como postgres" "rodar como supabase_admin" postgres "$(arquivo_da_versao "$v")" --single-transaction
 done
-for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145; do
+for v in 091 092 093 113 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147; do
   esperar_erro "sem --single-transaction" "rode com --single-transaction" supabase_admin "$(arquivo_da_versao "$v")"
 done
 
