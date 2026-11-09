@@ -19,6 +19,9 @@ import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { normalizarTelefone } from '@/lib/telefone'
 import NovoTicketModal, { type FunilDeTicket } from '@/components/tickets/NovoTicketModal'
+import { comPessoaDoContato, dependentesDoContato, nomeDaPessoaDaConversa, nomesDosDependentes } from '@/lib/contatos'
+import type { Contato } from '@/types/database'
+import Link from 'next/link'
 import { corDoAutor, nomeDaConversa, participantesDoGrupo, telefoneDoParticipante, type Participante } from '@/lib/grupos'
 import { precisaConfirmarResposta, rotuloRespondendoComo, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
 import { useProfile } from '@/context/ProfileContext'
@@ -43,6 +46,9 @@ interface WaConversation {
   last_message_content?: string | null
   last_message_direction?: 'inbound' | 'outbound' | null
   lead?: { nome: string; sobrenome: string | null } | null
+  /** Migração 148: a pessoa da conversa (5b: o nome vem daqui) */
+  contato_id?: string | null
+  contato?: { nome: string; sobrenome: string | null } | null
   tags?: { tag: ConvTag }[]
 }
 
@@ -130,7 +136,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const [templates,    setTemplates]    = useState<WaTemplate[]>([])
   const [tmplFolders,  setTmplFolders]  = useState<WaTemplateFolder[]>([])
   const [quickReplies, setQuickReplies] = useState<WaQuickReply[]>([])
-  const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
+  const [nomesDependentes, setNomesDependentes] = useState<Record<string, string>>({})
 
   const [conversations, setConversations] = useState<WaConversation[]>([])
   const conversationsRef = useRef<WaConversation[]>([])
@@ -313,9 +319,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
         // Notificação nativa quando a aba está minimizada/em segundo plano
         if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
           const conv = conversationsRef.current.find(c => c.id === msg.conversation_id)
-          const name = conv?.lead
-            ? `${conv.lead.nome}${conv.lead.sobrenome ? ` ${conv.lead.sobrenome}` : ''}`
-            : conv?.wa_contact_name ?? conv?.wa_phone ?? 'WhatsApp'
+          const name = (conv ? nomeDaPessoaDaConversa(conv) : null)
+            ?? conv?.wa_contact_name ?? conv?.wa_phone ?? 'WhatsApp'
           const n = new Notification('Nova mensagem — VittaDesk', {
             body: name,
             icon: '/favicon.ico',
@@ -398,11 +403,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
     void fetch('/api/whatsapp/tags?tipo=conversa').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
-    void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
-      if (!data) return
-      const map: Record<string, string> = {}
-      for (const c of data) { map[c.lead_id] = map[c.lead_id] ? `${map[c.lead_id]} ${c.nome}` : c.nome }
-      setContactNamesByLead(map)
+    void supabase.from('contatos').select('responsavel_id, nome').not('responsavel_id', 'is', null).then(({ data }) => {
+      if (data) setNomesDependentes(nomesDosDependentes(data))
     })
   }, [supabase])
 
@@ -411,7 +413,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,tipo,empresa_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,tipo,empresa_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),contato_id,contato:contatos(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
       .in('unit_id', idsDaCaixa)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
     if (error) console.error('[loadConversations] erro:', error.message)
@@ -478,16 +480,22 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
 
   async function loadLeadDetail(leadId: string) {
     setLoadingLead(true)
-    const [{ data: lead }, { data: notes }, { data: tasks }, { data: quotes }, { data: stageHistory }, { data: contacts }] = await Promise.all([
+    const [{ data: lead }, { data: notes }, { data: tasks }, { data: quotes }, { data: stageHistory }] = await Promise.all([
       supabase.from('leads').select('*').eq('id', leadId).single(),
       supabase.from('lead_notes').select('conteudo').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
       supabase.from('lead_tasks').select('*').eq('lead_id', leadId).eq('concluida', false).order('data_limite', { nullsFirst: false }),
       supabase.from('quotes').select('id,status,total_calculado,criado_em,quote_items(quantidade,nome_snapshot)').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
       supabase.from('lead_stage_history').select('criado_em').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
-      supabase.from('lead_contacts').select('*').eq('lead_id', leadId).order('created_at'),
     ])
+    // A pessoa e os dependentes vêm do contato (5b); o lead fica com o que é do negócio
+    const contatoId = (lead as LeadKanban | null)?.contato_id ?? null
+    const { data: daPessoa } = contatoId
+      ? await supabase.from('contatos').select('*').or(`id.eq.${contatoId},responsavel_id.eq.${contatoId}`)
+      : { data: [] }
+    const pessoas = (daPessoa ?? []) as Contato[]
+    const contato = pessoas.find(c => c.id === contatoId) ?? null
     if (lead) setLeadDetail({
-      lead: lead as LeadKanban,
+      lead: comPessoaDoContato(lead as LeadKanban, contato),
       latestNote:   notes?.[0]?.conteudo ?? null,
       tasks:        (tasks ?? []) as LeadTask[],
       lastQuote:    quotes?.[0] ? {
@@ -496,7 +504,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
         items_summary: ((quotes[0] as any).quote_items ?? []).map((i: any) => `${i.quantidade}× ${i.nome_snapshot}`).join(', ') || null,
       } as LastQuote : null,
       stageEntryAt: stageHistory?.[0]?.criado_em ?? null,
-      contacts:     (contacts ?? []) as LeadContact[],
+      contacts:     contatoId ? dependentesDoContato(pessoas, contatoId, leadId) : [],
     })
     setLoadingLead(false)
   }
@@ -593,9 +601,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     let components: object[] | undefined
     let renderedText = t.content
     if (varCount > 0) {
-      const clientName = selectedConv.lead
-        ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
-        : (selectedConv.wa_contact_name ?? selectedConv.wa_phone)
+      const clientName = nomeDaPessoaDaConversa(selectedConv) ?? selectedConv.wa_contact_name ?? selectedConv.wa_phone
       const agentName = displayName(currentUser)
       const now = new Date()
       const resolveVar = (id: string): string => {
@@ -657,9 +663,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     let components: object[] | undefined
     let renderedText = t.content
     if (varCount > 0) {
-      const clientName = selectedConv.lead
-        ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
-        : (selectedConv.wa_contact_name ?? selectedConv.wa_phone)
+      const clientName = nomeDaPessoaDaConversa(selectedConv) ?? selectedConv.wa_contact_name ?? selectedConv.wa_phone
       const agentName = displayName(currentUser)
       const sendAt = new Date(scheduledFor)
       const resolveVar = (id: string): string => {
@@ -872,8 +876,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
     const haystack = [
       c.wa_contact_name ?? c.wa_phone,
       c.wa_phone,
-      c.lead ? `${c.lead.nome} ${c.lead.sobrenome ?? ''}` : '',
-      c.lead_id ? (contactNamesByLead[c.lead_id] ?? '') : '',
+      nomeDaPessoaDaConversa(c) ?? '',
+      c.contato_id ? (nomesDependentes[c.contato_id] ?? '') : '',
       c.last_message_content ?? '',
     ].join(' ').toLowerCase()
     return words.every(w => haystack.includes(w))
@@ -1015,7 +1019,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser, init
                 isOutside24hWindow={isOutside24hWindow}
                 signatureEnabled={signatureEnabled} signatureLocked={isAtendente} onToggleSignature={toggleSignature}
                 signerName={displayName(currentUser)}
-                contactName={selectedConv?.lead ? [selectedConv.lead.nome, selectedConv.lead.sobrenome].filter(Boolean).join(' ') : (selectedConv?.wa_contact_name ?? selectedConv?.wa_phone ?? '')}
+                contactName={(selectedConv ? nomeDaPessoaDaConversa(selectedConv) : null) ?? selectedConv?.wa_contact_name ?? selectedConv?.wa_phone ?? ''}
               />
             </>
           )}
@@ -1444,7 +1448,7 @@ function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onF
         {loaded && convs.length === 0 && <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9AA79C', fontSize: 12 }}>Nenhuma conversa</div>}
         {convs.map(conv => {
           const isSelected = selected?.id === conv.id
-          const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
+          const leadName = nomeDaPessoaDaConversa(conv)
           const name = nomeDaConversa(conv, leadName)
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
@@ -1602,7 +1606,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
   const [showStatus, setShowStatus] = useState(false)
   const [showAgent,  setShowAgent]  = useState(false)
   const [showQueue,  setShowQueue]  = useState(false)
-  const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
+  const leadName = nomeDaPessoaDaConversa(conv)
   const name = nomeDaConversa(conv, leadName)
   const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
 
@@ -1930,6 +1934,9 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             )}
           </div>
         )}
+        <Link href={`/contatos/${lead.contato_id}`} style={{ fontSize: 11, fontWeight: 800, color: '#3E9849', textDecoration: 'none' }}>
+          Ficha do contato →
+        </Link>
       </div>
 
       {/* ── Card Próxima Tarefa ── */}

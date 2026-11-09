@@ -36,6 +36,9 @@ import MotivoPerdaModal from '@/components/leads/MotivoPerdaModal'
 import { camposDoFunil } from '@/lib/campos'
 import { tagsDoTipo } from '@/lib/tags'
 import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
+import { comPessoaDoContato, dependentesDoContato } from '@/lib/contatos'
+import type { Contato } from '@/types/database'
+import Link from 'next/link'
 
 interface Props {
   lead: LeadKanban | null
@@ -124,6 +127,12 @@ function LeadDrawer({
   // ── Edit mode ──────────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
+  // O contato chega depois de abrir: não sobrescreve o formulário que já está em edição
+  const editingRef = useRef(false)
+  useEffect(() => { editingRef.current = editing }, [editing])
+
+  const [contato, setContato] = useState<Contato | null>(null)
+  const pessoa = useMemo(() => comPessoaDoContato(lead, contato), [lead, contato])
 
   const [form, setForm] = useState({
     nome:           lead.nome           ?? '',
@@ -205,10 +214,10 @@ function LeadDrawer({
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
-    if (tab !== 'Atendimento' || !lead.telefone || waLoaded) return
+    if (tab !== 'Atendimento' || !pessoa.telefone || waLoaded) return
     setWaLoaded(false)
 
-    const telNorm = normalizarTelefone(lead.telefone)
+    const telNorm = normalizarTelefone(pessoa.telefone)
 
     // Busca por lead_id (link direto) com fallback por telefone
     const findConversation = async () => {
@@ -363,7 +372,7 @@ function LeadDrawer({
     let components: object[] | undefined
     let renderedText = t.content
     if (varCount > 0) {
-      const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+      const clientName = `${pessoa.nome}${pessoa.sobrenome ? ' ' + pessoa.sobrenome : ''}`
       const agentName  = displayName(currentUser)
       const now = new Date()
       const resolveVar = (id: string): string => {
@@ -430,7 +439,7 @@ function LeadDrawer({
     let schedComponents: object[] | undefined
     let schedRendered = t.content
     if (varCount > 0) {
-      const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+      const clientName = `${pessoa.nome}${pessoa.sobrenome ? ' ' + pessoa.sobrenome : ''}`
       const agentName  = displayName(currentUser)
       const refDate = new Date(scheduledFor)
       const resolveVar = (id: string): string => {
@@ -574,10 +583,35 @@ function LeadDrawer({
     }
   }, [lead.id, lead.unit_id, currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A pessoa e os dependentes vêm do contato (5b); a gravação ainda vai para o lead e lead_contacts
+  useEffect(() => {
+    void (async () => {
+      // O lead do quadro vem das views, que não trazem contato_id: busca na tabela
+      const contatoId = lead.contato_id
+        ?? (await supabase.from('leads').select('contato_id').eq('id', lead.id).maybeSingle()).data?.contato_id as string | undefined
+      if (!contatoId) return
+      const { data } = await supabase.from('contatos').select('*').or(`id.eq.${contatoId},responsavel_id.eq.${contatoId}`)
+      const lista = (data ?? []) as Contato[]
+      const titular = lista.find(c => c.id === contatoId) ?? null
+      setContato(titular)
+      setContacts(dependentesDoContato(lista, contatoId, lead.id))
+      if (!titular) return
+      const p = comPessoaDoContato(lead, titular)
+      if (!editingRef.current) {
+        setForm(prev => ({
+          ...prev,
+          nome: p.nome ?? '', sobrenome: p.sobrenome ?? '', profissao: p.profissao ?? '',
+          cidade: p.cidade ?? '', estado: p.estado ?? '', pais: p.pais ?? 'Brasil',
+          instagram: p.instagram ?? '', site: p.site ?? '', email: p.email ?? '', telefone: p.telefone ?? '',
+        }))
+      }
+      setWaOptinAt(p.wa_optin_at)
+      setWaOptoutAt(p.wa_optout_at)
+    })()
+  }, [lead.id, lead.contato_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const id = lead.id
-    supabase.from('lead_contacts').select('*').eq('lead_id', id).order('created_at')
-      .then(({ data }) => { if (data) setContacts(data as LeadContact[]) })
     supabase.from('lead_notes').select('*, autor:profiles(*)').eq('lead_id', id).order('created_at', { ascending: false })
       .then(({ data }) => { if (data) setNotes(data as LeadNote[]) })
     supabase.from('lead_tasks').select('*, responsavel:profiles(*)').eq('lead_id', id)
@@ -1039,7 +1073,10 @@ function LeadDrawer({
           {/* Cover + avatar */}
           <div className="shrink-0" style={{ position: 'relative' }}>
             <div style={{ background: '#25402C', padding: '24px 22px 46px' }}>
-              <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase' }}>Ficha do contato</span>
+              {contato ? <Link href={`/contatos/${contato.id}`} title="Abrir a ficha com todos os negócios deste contato"
+                style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase', textDecoration: 'none' }}>
+                Ficha do contato ↗
+              </Link> : <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase' }}>Ficha do contato</span>}
             </div>
             <div style={{
               position: 'absolute', bottom: '-28px', left: '22px',
@@ -1047,7 +1084,7 @@ function LeadDrawer({
               background: '#D6EBD2', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <span style={{ fontSize: 21, fontWeight: 900, color: '#35853F' }}>
-                {primeiraLetra(lead.nome) || '?'}
+                {primeiraLetra(pessoa.nome) || '?'}
               </span>
             </div>
           </div>
@@ -1474,7 +1511,7 @@ function LeadDrawer({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <h2 style={{ fontSize: 17, fontWeight: 900, margin: 0, color: '#25402C', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  Conversa com {lead.nome}
+                  Conversa com {pessoa.nome}
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3E9849', flexShrink: 0 }} />
                 </h2>
                 <p style={{ fontSize: '11.5px', fontWeight: 700, color: '#9AA79C', margin: '2px 0 0' }}>online agora</p>
@@ -2022,7 +2059,7 @@ function LeadDrawer({
             {/* ═══ ATENDIMENTO ═══ */}
             {tab === 'Atendimento' && (() => {
               // Sem telefone cadastrado
-              if (!lead.telefone) return (
+              if (!pessoa.telefone) return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' }}>
                   <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3E9849' }}>
                     <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>
@@ -2241,7 +2278,7 @@ function LeadDrawer({
                                     borderRadius: 6, padding: '5px 10px', marginBottom: 6,
                                   }}>
                                     <span style={{ fontSize: 11, fontWeight: 600, color: '#3E9849' }}>
-                                      {quotedMsg.direction === 'outbound' ? 'Você' : (lead.nome || 'Contato')}
+                                      {quotedMsg.direction === 'outbound' ? 'Você' : (pessoa.nome || 'Contato')}
                                     </span>
                                     <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#5A6E5A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
                                       {quotedMsg.content || (quotedMsg.type === 'image' ? '📷 Imagem' : quotedMsg.type === 'audio' ? '🎤 Áudio' : quotedMsg.type === 'document' ? '📎 Documento' : quotedMsg.type === 'video' ? '🎥 Vídeo' : '💬 Mensagem')}
@@ -2306,7 +2343,7 @@ function LeadDrawer({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#F7F5EE', borderTop: '1px solid #E9E5D8' }}>
                       <div style={{ flex: 1, borderLeft: '3px solid #3E9849', paddingLeft: 10, overflow: 'hidden' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#3E9849' }}>
-                          {waReplyTo.direction === 'outbound' ? 'Você' : (lead.nome || 'Contato')}
+                          {waReplyTo.direction === 'outbound' ? 'Você' : (pessoa.nome || 'Contato')}
                         </span>
                         <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7F6B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {waReplyTo.content || '💬 Mensagem'}
@@ -2341,7 +2378,7 @@ function LeadDrawer({
                     signatureLocked={isAtendente}
                     onToggleSignature={() => { if (isAtendente) return; setWaSignature(p => { const v = !p; localStorage.setItem('wa_signature', v ? '1' : '0'); return v }); }}
                     signerName={displayName(currentUser)}
-                    contactName={[lead.nome, lead.sobrenome].filter(Boolean).join(' ')}
+                    contactName={[pessoa.nome, pessoa.sobrenome].filter(Boolean).join(' ')}
                     mentionProfiles={profiles}
                     currentUserId={currentUser.id}
                     autoFocus

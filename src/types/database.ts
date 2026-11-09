@@ -296,7 +296,9 @@ export type ColunaGeradaLead = 'telefone_norm' | 'arquivado'
 /** contato_id: o banco cria o contato do lead novo (148); o app ainda não escolhe contato */
 export type LeadGravavel = Omit<Lead, ColunaGeradaLead | 'id' | 'created_at' | 'updated_at' | 'contato_id'>
 
-export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos'> {
+export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos' | 'contato_id'> {
+  /** Só quando lido da tabela leads: as views leads_kanban e leads_arquivados não trazem (148) */
+  contato_id?: string
   responsavel_nome:   string | null
   responsavel_avatar: string | null
   stage_nome:         string | null
