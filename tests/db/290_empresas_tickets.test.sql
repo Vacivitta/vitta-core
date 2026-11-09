@@ -200,9 +200,14 @@ INSERT INTO casos (caso, papel, usuario, comando, esperado) VALUES
    $c$SELECT * FROM public.empresa_vinculos$c$, '0'),
   ('atendente de A cria empresa', 'authenticated', '00000000-0000-4000-8147-000000000001',
    $c$INSERT INTO public.empresas (unit_id, nome) VALUES ('00000000-0000-4000-8147-0000000000a0', 'Nova')$c$, '1'),
-  -- Recusado já no trigger: sob o RLS de B, o funil de A não existe (23514, antes do 42501 da regra)
+    -- Recusado já no trigger de módulo: sob a regra de B, os módulos de A não aparecem (Tickets conta como desligado)
   ('atendente de B não cria ticket em A', 'authenticated', '00000000-0000-4000-8147-000000000003',
    $c$INSERT INTO public.tickets (unit_id, titulo, funnel_id) VALUES ('00000000-0000-4000-8147-0000000000a0', 'x', '00000000-0000-4000-8147-0000000000d2')$c$, 'erro 23514'),
+  -- A atendente não vê os vínculos do gestor em user_units; a checagem do responsável não pode depender disso
+  ('atendente de A abre ticket para o gestor', 'authenticated', '00000000-0000-4000-8147-000000000001',
+   $c$INSERT INTO public.tickets (unit_id, titulo, funnel_id, responsavel_id) VALUES ('00000000-0000-4000-8147-0000000000a0', 'Para o gestor', '00000000-0000-4000-8147-0000000000d2', '00000000-0000-4000-8147-000000000002')$c$, '1'),
+  ('atendente de A não atribui a quem é de B', 'authenticated', '00000000-0000-4000-8147-000000000001',
+   $c$INSERT INTO public.tickets (unit_id, titulo, funnel_id, responsavel_id) VALUES ('00000000-0000-4000-8147-0000000000a0', 'x', '00000000-0000-4000-8147-0000000000d2', '00000000-0000-4000-8147-000000000003')$c$, 'erro 23514'),
   ('atendente de A move o ticket de etapa', 'authenticated', '00000000-0000-4000-8147-000000000001',
    $c$UPDATE public.tickets SET stage_id = '00000000-0000-4000-8147-0000000000e3' WHERE id = '00000000-0000-4000-8147-000000000301'$c$, '1'),
   ('atendente não apaga ticket', 'authenticated', '00000000-0000-4000-8147-000000000001',

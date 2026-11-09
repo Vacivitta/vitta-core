@@ -17,6 +17,8 @@
 --   3. tickets (número, título, descrição, funil e etapa de ticket, status
 --      aberto | resolvido, prioridade, responsável, empresa, lead, conversa, quem
 --      abriu). Tudo da mesma unidade (23514); resolvido_em segue o status.
+--      As checagens rodam em fn_ticket_consistente (SECURITY DEFINER): a atendente
+--      não enxerga os vínculos dos colegas em user_units.
 --   4. Aviso pessoal ao responsável quando o ticket é atribuído a outra pessoa
 --      (notifications.ticket_id), por fn_ticket_notifica (SECURITY DEFINER: o app
 --      não grava notifications desde a 136).
@@ -184,10 +186,14 @@ DROP TRIGGER IF EXISTS trg_modulo_tickets ON public.tickets;
 CREATE TRIGGER trg_modulo_tickets BEFORE INSERT ON public.tickets
   FOR EACH ROW EXECUTE FUNCTION public.fn_exige_modulo('tickets');
 
+-- SECURITY DEFINER: as checagens leem user_units (cuja regra só mostra os vínculos
+-- do próprio usuário) e registros da unidade. Quem pode gravar o ticket continua
+-- sendo decidido pela RLS de tickets.
 CREATE OR REPLACE FUNCTION public.fn_ticket_consistente()
  RETURNS trigger
  LANGUAGE plpgsql
- SET search_path TO public
+ SECURITY DEFINER
+ SET search_path TO ''
 AS $function$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.funnels f WHERE f.id = NEW.funnel_id AND f.unit_id = NEW.unit_id AND f.objeto = 'ticket') THEN
@@ -486,7 +492,8 @@ GRANT  EXECUTE ON FUNCTION public.mesclar_leads(uuid, uuid, uuid) TO service_rol
 
 DO $$
 BEGIN
-  IF has_function_privilege('authenticated', 'public.fn_ticket_notifica()', 'EXECUTE')
+  IF has_function_privilege('authenticated', 'public.fn_ticket_consistente()', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.fn_ticket_notifica()', 'EXECUTE')
      OR has_function_privilege('anon', 'public.fn_ticket_notifica()', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE') THEN
