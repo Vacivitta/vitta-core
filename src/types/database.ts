@@ -244,6 +244,8 @@ export type MotivoArquivamento = typeof MOTIVOS_ARQUIVAMENTO[number]
 
 export interface Lead {
   id:              string
+  /** Migração 148: a pessoa deste negócio (no backfill, contato_id = id) */
+  contato_id: string
   nome:            string
   sobrenome:       string | null
   profissao:       string | null
@@ -291,7 +293,8 @@ export interface Lead {
 export type ColunaGeradaLead = 'telefone_norm' | 'arquivado'
 
 /** O que se pode gravar em leads (insert/update): sem as geradas nem as que o banco preenche */
-export type LeadGravavel = Omit<Lead, ColunaGeradaLead | 'id' | 'created_at' | 'updated_at'>
+/** contato_id: o banco cria o contato do lead novo (148); o app ainda não escolhe contato */
+export type LeadGravavel = Omit<Lead, ColunaGeradaLead | 'id' | 'created_at' | 'updated_at' | 'contato_id'>
 
 export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos'> {
   responsavel_nome:   string | null
@@ -834,4 +837,37 @@ export interface Ticket {
   criado_em:      string
   atualizado_em:  string
   resolvido_em:   string | null
+}
+
+// ── Contato (migração 148) ────────────────────────────────────────────────────
+
+/**
+ * A pessoa, cliente para sempre, da unidade (ADR 0001 e 0005). O lead é o negócio.
+ * Na etapa 5a o app ainda grava a pessoa no lead e o banco espelha aqui; o
+ * dependente é um contato com responsavel_id.
+ */
+export interface Contato {
+  id:              string
+  unit_id:         string
+  nome:            string
+  sobrenome:       string | null
+  telefone:        string | null
+  telefone_norm:   string | null
+  email:           string | null
+  cpf:             string | null
+  data_nascimento: string | null
+  profissao:       string | null
+  cidade:          string | null
+  estado:          string | null
+  pais:            string | null
+  instagram:       string | null
+  site:            string | null
+  observacoes:     string | null
+  cliente:         boolean
+  wa_optin_at:     string | null
+  wa_optout_at:    string | null
+  responsavel_id:  string | null
+  relacao:         string | null
+  criado_em:       string
+  atualizado_em:   string
 }

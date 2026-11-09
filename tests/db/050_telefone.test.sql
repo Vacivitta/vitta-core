@@ -41,7 +41,9 @@ BEGIN
   END IF;
 END $$;
 
+-- Estado de antes da 122: telefone repetido nos leads (e nos contatos que a 148 espelha)
 DROP INDEX public.uq_leads_unit_telefone_norm;
+DROP INDEX IF EXISTS public.uq_contatos_unit_telefone;
 
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8050-0000000000f0', 'Rede Telefone');
 INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
@@ -282,6 +284,8 @@ SELECT pg_temp.esperar('vínculo manual da conversa segue o lead mesclado',
   '00000000-0000-4000-8050-000000000112');
 
 \i /migracoes/122_telefone_unico.sql
+-- Depois de mesclar os duplicados, os contatos também ficam únicos de novo (148 é idempotente)
+\i /migracoes/148_contatos.sql
 
 DO $$
 BEGIN
