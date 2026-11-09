@@ -189,7 +189,7 @@ function LeadDrawer({
   // ── Tab ────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>(TABS.find(t => t === abaInicial) ?? 'Atendimento')
   const anexos = useLeadAnexos(lead.id)
-  const camposLead = useCamposLead(lead.id, lead.unit_id)
+  const camposLead = useCamposLead({ leadId: lead.id }, lead.unit_id)
   const temCampos = camposDoFunil(camposLead.definicoes, lead.funnel_id).length > 0
 
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
@@ -1359,7 +1359,7 @@ function LeadDrawer({
 
                 {temCampos && (
                   <WarmCard title="Informações">
-                    <CamposLead leadId={lead.id} funnelId={lead.funnel_id} estado={camposLead} />
+                    <CamposLead funnelId={lead.funnel_id} estado={camposLead} />
                   </WarmCard>
                 )}
               </>
@@ -2052,7 +2052,7 @@ function LeadDrawer({
 
             {tab === 'Informações' && (
               <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
-                <CamposLead leadId={lead.id} funnelId={lead.funnel_id} estado={camposLead} />
+                <CamposLead funnelId={lead.funnel_id} estado={camposLead} />
               </div>
             )}
 

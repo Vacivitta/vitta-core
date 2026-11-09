@@ -4,45 +4,76 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { CampoLead, CamposDoLead } from '@/types/database'
 import {
-  camposDoFunil, comValor, entradaInicial, formatarValor, valorDaEntrada, type EntradaCampo,
+  camposDoFunil, comValor, entradaInicial, formatarValor, separarCampos, valorDaEntrada, type EntradaCampo,
 } from '@/lib/campos'
 
+/** Onde ficam os valores: o negócio (e a pessoa dele) ou só a pessoa (ficha do contato) */
+export type DonoDosCampos = { leadId: string } | { contatoId: string }
+
 /**
- * Definições da unidade e valores do lead. As views do funil não trazem
- * leads.campos: a ficha lê da tabela ao abrir. Fica no LeadModal para o painel
- * esquerdo (desktop) e a aba Informações (celular) dividirem o mesmo estado.
+ * Definições da unidade e valores do negócio e da pessoa (151). As views do funil
+ * não trazem leads.campos: a ficha lê das tabelas ao abrir. Fica no LeadModal
+ * para o painel esquerdo (desktop) e a aba Informações (celular) dividirem o
+ * mesmo estado. `valores` junta os dois lados (as chaves são únicas na unidade).
  */
-export function useCamposLead(leadId: string, unitId: string | null) {
+export function useCamposLead(dono: DonoDosCampos, unitId: string | null) {
   const [definicoes, setDefinicoes] = useState<CampoLead[]>([])
   const [valores, setValores] = useState<CamposDoLead>({})
+  const [contatoId, setContatoId] = useState<string | null>('contatoId' in dono ? dono.contatoId : null)
   const [carregando, setCarregando] = useState(true)
   const [erroCarga, setErroCarga] = useState<string | null>(null)
+  const chaveDono = 'leadId' in dono ? `l:${dono.leadId}` : `c:${dono.contatoId}`
 
   useEffect(() => {
     let vivo = true
     const supabase = createClient()
+    const valoresDoDono = 'leadId' in dono
+      ? supabase.from('leads').select('campos, contato:contatos(id, campos)').eq('id', dono.leadId).maybeSingle()
+          .then(({ data, error }) => {
+            const l = data as { campos?: CamposDoLead; contato?: { id: string; campos: CamposDoLead } | null } | null
+            return { error, contatoId: l?.contato?.id ?? null, valores: { ...(l?.campos ?? {}), ...(l?.contato?.campos ?? {}) } }
+          })
+      : supabase.from('contatos').select('id, campos').eq('id', dono.contatoId).maybeSingle()
+          .then(({ data, error }) => ({ error, contatoId: dono.contatoId, valores: ((data?.campos ?? {}) as CamposDoLead) }))
     Promise.all([
       unitId
         ? supabase.from('campos_lead').select('*').eq('unit_id', unitId).eq('ativo', true)
         : Promise.resolve({ data: [], error: null }),
-      supabase.from('leads').select('campos').eq('id', leadId).maybeSingle(),
-    ]).then(([defs, lead]) => {
+      valoresDoDono,
+    ]).then(([defs, lidos]) => {
       if (!vivo) return
-      if (defs.error || lead.error) setErroCarga('Não foi possível carregar as informações.')
+      if (defs.error || lidos.error) setErroCarga('Não foi possível carregar as informações.')
       setDefinicoes((defs.data ?? []) as CampoLead[])
-      setValores(((lead.data as { campos?: CamposDoLead } | null)?.campos) ?? {})
+      setValores(lidos.valores)
+      setContatoId(lidos.contatoId)
       setCarregando(false)
     })
     return () => { vivo = false }
-  }, [leadId, unitId])
+  }, [chaveDono, unitId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { definicoes, valores, setValores, carregando, erroCarga }
+  /** Grava o lado do campo trocado: o da pessoa no contato, o do negócio no lead */
+  async function gravar(campo: CampoLead, novos: CamposDoLead): Promise<string | null> {
+    const lados = separarCampos(definicoes, novos)
+    const supabase = createClient()
+    let erro: string | null = null
+    if (campo.objeto === 'contato') {
+      if (!contatoId) erro = 'Este negócio ainda não tem contato.'
+      else erro = (await supabase.from('contatos').update({ campos: lados.pessoa }).eq('id', contatoId)).error?.message ?? null
+    } else if ('leadId' in dono) {
+      erro = (await supabase.from('leads').update({ campos: lados.negocio }).eq('id', dono.leadId)).error?.message ?? null
+    } else {
+      erro = 'Campo do negócio: edite na ficha do negócio.'
+    }
+    if (!erro) setValores(novos)
+    return erro
+  }
+
+  return { definicoes, valores, setValores, carregando, erroCarga, gravar, soDaPessoa: !('leadId' in dono) }
 }
 
 type EstadoCampos = ReturnType<typeof useCamposLead>
 
 interface Props {
-  leadId: string
   funnelId: string | null
   estado: EstadoCampos
 }
@@ -52,19 +83,24 @@ export const inputStyle: React.CSSProperties = {
   outline: 'none', background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C',
 }
 
-export default function CamposLead({ leadId, funnelId, estado }: Props) {
-  const { definicoes, valores, setValores, carregando, erroCarga } = estado
+export default function CamposLead({ funnelId, estado }: Props) {
+  const { definicoes, valores, carregando, erroCarga, gravar, soDaPessoa } = estado
   const [editando, setEditando] = useState<string | null>(null)
   const [entrada, setEntrada] = useState<EntradaCampo>('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  const campos = camposDoFunil(definicoes, funnelId)
+  // Na ficha do contato, só os da pessoa; no negócio, os dois (os da pessoa valem para todos os negócios dela)
+  const campos = camposDoFunil(definicoes, funnelId).filter(c => !soDaPessoa || c.objeto === 'contato')
 
   if (carregando) return <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Carregando…</p>
   if (erroCarga) return <p style={{ fontSize: 12, color: '#C4534A', margin: 0 }}>{erroCarga}</p>
   if (campos.length === 0) {
-    return <p style={{ fontSize: 12, color: '#9AA79C', fontStyle: 'italic', margin: 0 }}>Nenhum campo configurado para este funil.</p>
+    return (
+      <p style={{ fontSize: 12, color: '#9AA79C', fontStyle: 'italic', margin: 0 }}>
+        {soDaPessoa ? 'Nenhum campo da pessoa configurado.' : 'Nenhum campo configurado para este funil.'}
+      </p>
+    )
   }
 
   function abrir(c: CampoLead) {
@@ -78,11 +114,10 @@ export default function CamposLead({ leadId, funnelId, estado }: Props) {
     if (!r.ok) { setErro(r.erro); return }
     const novos = comValor(valores, c.chave, r.valor)
     setSalvando(true)
-    const { error } = await createClient().from('leads').update({ campos: novos }).eq('id', leadId)
+    const falha = await gravar(c, novos)
     setSalvando(false)
     // A mensagem do trigger (23514) já diz qual campo e por quê
-    if (error) { setErro(error.message); return }
-    setValores(novos)
+    if (falha) { setErro(falha); return }
     setEditando(null)
   }
 
@@ -117,7 +152,10 @@ export default function CamposLead({ leadId, funnelId, estado }: Props) {
         return (
           <button key={c.id} type="button" onClick={() => abrir(c)} title="Editar"
             style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#71856F', width: 110, flexShrink: 0 }}>{c.rotulo}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#71856F', width: 110, flexShrink: 0 }}
+              title={c.objeto === 'contato' && !soDaPessoa ? 'Da pessoa: vale para todos os negócios dela' : undefined}>
+              {c.rotulo}{c.objeto === 'contato' && !soDaPessoa ? ' ·' : ''}
+            </span>
             <span style={{ fontSize: 12, fontWeight: 800, color: exibido ? '#25402C' : '#C9C3B3', flex: 1, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
               {exibido || 'Adicionar'}
             </span>

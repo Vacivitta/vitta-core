@@ -67,7 +67,7 @@ export function urlExportacao(f: Partial<FiltrosExportacao>): string {
 
 export const SELECT_EXPORTACAO =
   'id, nome, sobrenome, telefone, email, origem, cidade, funnel_id, stage_id, status, motivo_perda_id, motivo_perda,'
-  + ' is_converted, responsavel_id, campos, created_at, arquivado, arquivado_motivo'
+  + ' is_converted, responsavel_id, campos, created_at, arquivado, arquivado_motivo, contato:contatos(campos)'
 
 export interface LeadExportado {
   id:              string
@@ -85,6 +85,8 @@ export interface LeadExportado {
   is_converted:    boolean
   responsavel_id:  string | null
   campos:          CamposDoLead | null
+  /** Campos da pessoa (151); a linha junta os dois (as chaves são únicas na unidade) */
+  contato?:        { campos: CamposDoLead | null } | null
   created_at:      string
   arquivado:       boolean
   arquivado_motivo: string | null
@@ -142,7 +144,7 @@ export function linhaExportacao(lead: LeadExportado, ctx: ContextoExportacao): s
     doLead(ctx.responsaveis, lead.responsavel_id),
     (ctx.tagsDoCliente.get(lead.id) ?? []).join(', '),
     (ctx.tagsDasConversas.get(lead.id) ?? []).join(', '),
-    ...ctx.campos.map(c => formatarValor(c, lead.campos?.[c.chave])),
+    ...ctx.campos.map(c => formatarValor(c, lead.campos?.[c.chave] ?? lead.contato?.campos?.[c.chave])),
     dataBR(lead.created_at),
     lead.arquivado ? (lead.arquivado_motivo?.trim() || 'Sim') : '',
   ]

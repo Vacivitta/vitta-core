@@ -99,3 +99,13 @@ test('comValor troca ou tira a chave sem mexer nas outras', () => {
   assert.deepEqual(comValor({ a: 1, b: 'x' }, 'a', null), { b: 'x' })
   assert.deepEqual(comValor({ b: 'x' }, 'a', true), { b: 'x', a: true })
 })
+
+test('campos da pessoa e do negócio: cada valor vai para o seu lado', async () => {
+  const { separarCampos } = await import('../src/lib/campos.ts')
+  const defs = [{ chave: 'convenio', objeto: 'contato' }, { chave: 'vacina', objeto: 'negocio' }]
+  assert.deepEqual(separarCampos(defs, { convenio: 'Unimed', vacina: 'Gripe', sem_definicao: 1 }), {
+    negocio: { vacina: 'Gripe', sem_definicao: 1 },
+    pessoa:  { convenio: 'Unimed' },
+  })
+  assert.deepEqual(separarCampos(defs, {}), { negocio: {}, pessoa: {} })
+})
