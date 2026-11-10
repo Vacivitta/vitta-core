@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     .eq('contato_id', lead.contato_id).neq('id', lead.id)
   if (outrosNegocios) {
     return NextResponse.json(
-      { error: `Este contato tem outros ${outrosNegocios} negócio(s) nesta unidade; a transferência levaria todos. Feche ou mescle os outros antes.` },
+      { error: `Este contato tem outros ${outrosNegocios} negócio(s) nesta unidade (contando ganhos e perdidos). A pessoa é da unidade, então transferir só este negócio ainda não é possível.` },
       { status: 409 },
     )
   }

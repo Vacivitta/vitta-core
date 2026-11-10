@@ -10,6 +10,8 @@ import { STATUS_LEAD_LABELS, type Lead, type Unit } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
 import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { pessoaDoTelefone, type PessoaExistente } from '@/lib/contatos-gravacao'
+import { avisoPessoaExistente } from '@/lib/contatos'
 import { urlExportacao } from '@/lib/exportacao'
 import Link from 'next/link'
 
@@ -49,6 +51,8 @@ export default function ClientesClient({
   const [error,      setError]      = useState('')
   const [deleting,   setDeleting]   = useState<string | null>(null)
   const [dupWarning, setDupWarning] = useState<Lead | null>(null)
+  // Telefone de alguém já cadastrado, cliente ou não (150): cadastrar abre mais um negócio dela
+  const [pessoaExistente, setPessoaExistente] = useState<PessoaExistente | null>(null)
   const [gruposTelefone, setGruposTelefone] = useState<LeadDuplicado[][]>(telefoneDuplicados)
   const [mesclagem, setMesclagem] = useState<{ grupo: LeadDuplicado[]; manter: string } | null>(null)
   const [mesclando, setMesclando] = useState(false)
@@ -153,6 +157,8 @@ export default function ClientesClient({
         (cpf   && c.cpf      && c.cpf.replace(/\D/g,'')       === cpf)
       )
       if (potential) { setDupWarning(potential); return }
+      const pessoa = await pessoaDoTelefone(units[0]?.id ?? profile?.unit_id ?? null, telNorm)
+      if (pessoa) { setPessoaExistente(pessoa); return }
     }
 
     setDupWarning(null)
@@ -529,6 +535,29 @@ export default function ClientesClient({
                 className="flex-1 text-white transition-colors"
                 style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 800, background: '#C87F1B', borderRadius: '999px' }}
               >
+                Cadastrar assim mesmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pessoaExistente && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(37,64,44,0.35)' }}>
+          <div role="alertdialog" className="bg-white w-full max-w-sm space-y-4" style={{ borderRadius: '18px', padding: '22px', boxShadow: '0 16px 40px -12px rgba(37,64,44,0.3)' }}>
+            <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>Esta pessoa já está cadastrada</p>
+            <p style={{ fontSize: '12.5px', color: '#71856F', lineHeight: 1.5 }}>{avisoPessoaExistente(pessoaExistente)}</p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setPessoaExistente(null)}
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, color: '#71856F', border: '1px solid #EBE7DA', borderRadius: '999px' }}>
+                Revisar dados
+              </button>
+              <a href={`/contatos/${pessoaExistente.id}`}
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, color: '#25402C', border: '1px solid #EBE7DA', borderRadius: '999px', textDecoration: 'none' }}>
+                Ver a ficha
+              </a>
+              <button onClick={() => { setPessoaExistente(null); void handleSave(true) }}
+                className="text-white" style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 800, background: '#C87F1B', borderRadius: '999px' }}>
                 Cadastrar assim mesmo
               </button>
             </div>

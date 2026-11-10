@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Profile }  from '@/types/database'
 import type { CampaignRow, TemplateRow, FunnelStageRow } from './page'
 import { formatarTelefone, normalizarTelefone, normalizarWaPhone, variantesTelefone } from '@/lib/telefone'
+import { umPorTelefone } from '@/lib/contatos'
 import { decodificarArquivo, ehPlanilhaExcel, lerCsv, registroVazio } from '@/lib/csv'
 import {
   descreverStatus, formatarDataHora, lerEstadoCampanha, podeDisparar,
@@ -354,13 +355,14 @@ function CampaignWizard({ currentUser, templates, stages, onClose, onCreated }: 
   // Audiência filtrada por opt-in/opt-out (CRM) ou XLS
   const audience = useMemo(() => {
     if (audienceSource === 'xls') return [] // XLS usa xlsContacts diretamente
-    return audienceRaw
+    // Uma pessoa com vários negócios (150) aparece em vários leads: recebe uma vez
+    return umPorTelefone(audienceRaw
       .filter(l => !l.wa_optout_at)
       .filter(l => includeNoOptin ? true : !!l.wa_optin_at)
       .flatMap(l => {
         const norm = normalizarTelefone(l.telefone)
         return norm ? [{ ...l, norm }] : []
-      })
+      }))
   }, [audienceRaw, includeNoOptin, audienceSource])
 
   const activeAudienceCount = audienceSource === 'xls' ? xlsContacts.length : audience.length
