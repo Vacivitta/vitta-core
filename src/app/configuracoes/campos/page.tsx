@@ -4,7 +4,7 @@ import CamposClient from './CamposClient'
 import type { CampoLead, Funnel } from '@/types/database'
 import { buscarPerfil } from '@/lib/supabase/perfil'
 
-export const metadata = { title: 'Campos do lead — VittaDesk' }
+export const metadata = { title: 'Campos personalizados — VittaDesk' }
 
 export default async function ConfigCamposPage() {
   const supabase = await createClient()

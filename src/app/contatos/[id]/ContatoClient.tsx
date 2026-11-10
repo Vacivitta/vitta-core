@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { campoFixo, faltandoDoErro } from '@/lib/obrigatorios'
 import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
+import { useProfile } from '@/context/ProfileContext'
+import MesclarContato from './MesclarContato'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { nomeDoContato, type NegocioDoContato, type PessoaGravavel } from '@/lib/contatos'
@@ -90,6 +92,7 @@ export default function ContatoClient({ contato: inicial, responsavel, dependent
   const [erro, setErro] = useState<string | null>(null)
   // Dependente continua sendo editado no negócio do responsável (lead_contacts) até a 5c2
   const editavel = !contato.responsavel_id
+  const { isGestor } = useProfile()
   const aviso = rascunho ? avisoTelefone(rascunho.telefone) : null
 
   async function salvar() {
@@ -191,6 +194,11 @@ export default function ContatoClient({ contato: inicial, responsavel, dependent
                 Editar dados
               </button>
               <span style={{ marginLeft: 10, fontSize: 11.5, color: COR.fraco }}>Vale para todos os negócios deste contato.</span>
+              {isGestor && (
+                <div style={{ marginTop: 10 }}>
+                  <MesclarContato contatoId={contato.id} unitId={contato.unit_id} nome={nomeDoContato(contato) ?? ''} />
+                </div>
+              )}
             </div>
           ) : (
             <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 11.5, color: COR.fraco }}>
