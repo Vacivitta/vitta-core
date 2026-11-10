@@ -379,10 +379,15 @@ async function handleInboundMessage(value: WAValue, msg: WAMessage) {
   // 4b. Verifica campanha — lead existente ou contato XLS sem lead
   // Caso 1: lead vinculado (pré-existente ou recém-criado) — verifica reply de campanha
   if (resolvedLeadId) {
+    // A campanha pode ter ido para outro negócio da mesma pessoa (150): procura em todos
+    const { data: doContato } = await supabase
+      .from('leads').select('id').eq('contato_id',
+        (await supabase.from('leads').select('contato_id').eq('id', resolvedLeadId).single()).data?.contato_id ?? '')
+    const negociosDaPessoa = [...new Set([resolvedLeadId, ...(doContato ?? []).map(l => l.id as string)])]
     const { data: recip } = await supabase
       .from('wa_campaign_recipients')
       .select('id, campaign_id')
-      .eq('lead_id', resolvedLeadId)
+      .in('lead_id', negociosDaPessoa)
       .in('status', ['sent', 'delivered', 'read'])
       .order('created_at', { ascending: false })
       .limit(1)

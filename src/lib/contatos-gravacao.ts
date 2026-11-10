@@ -17,3 +17,33 @@ export async function gravarPessoa(contatoId: string, pessoa: PessoaGravavel): P
   if (!gravado) throw new Error('Não foi possível gravar o contato: ele não está ao seu alcance.')
   return gravado as Contato
 }
+
+/** Pessoa que já tem este telefone na unidade, com a contagem dos negócios dela */
+export interface PessoaExistente {
+  id:       string
+  nome:     string
+  negocios: number
+  abertos:  number
+}
+
+/**
+ * Desde a 150 o banco não recusa mais criar lead com um telefone que já existe: o
+ * lead vira mais um negócio da pessoa. As telas de criação perguntam antes.
+ *
+ * @param norm - telefone na forma canônica (normalizarTelefone); null não procura
+ */
+export async function pessoaDoTelefone(unitId: string | null, norm: string | null): Promise<PessoaExistente | null> {
+  if (!unitId || !norm) return null
+  const { data } = await createClient()
+    .from('contatos').select('id, nome, sobrenome, leads(status, arquivado)')
+    .eq('unit_id', unitId).is('responsavel_id', null).eq('telefone_norm', norm)
+    .maybeSingle()
+  if (!data) return null
+  const negocios = (data.leads ?? []) as { status: string; arquivado: boolean }[]
+  return {
+    id: data.id as string,
+    nome: [data.nome, data.sobrenome].filter(Boolean).join(' '),
+    negocios: negocios.length,
+    abertos: negocios.filter(n => n.status === 'aberto' && !n.arquivado).length,
+  }
+}

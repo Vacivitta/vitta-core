@@ -78,15 +78,15 @@ export async function negocioDaMensagem(
     console.error('[negocio] unidade sem funil de negócio: não abre negócio novo')
     return null
   }
-  // O banco (150) preenche a pessoa do negócio a partir do contato
-  const { data: novo, error } = await supabase.from('leads').insert({
-    unit_id: unitId, contato_id: contato.id, nome: contato.nome, origem,
-    funnel_id: destino.funnel_id, stage_id: destino.stage_id,
-  }).select('id').single()
+  // Trava por contato (152): duas mensagens seguidas não abrem dois negócios; a
+  // segunda recebe o negócio que a primeira abriu. O banco copia a pessoa do contato.
+  const { data: novo, error } = await supabase.rpc('abrir_negocio_da_mensagem', {
+    p_contato: contato.id, p_stage: destino.stage_id, p_origem: origem,
+  })
   if (error || !novo) {
     console.error('[negocio] erro ao abrir negócio novo:', resumoErro(error))
     return null
   }
-  console.log(`[negocio] negócio novo ${novo.id} para o contato ${contato.id}`)
-  return novo.id as string
+  console.log(`[negocio] negócio ${novo} para o contato ${contato.id}`)
+  return novo as string
 }

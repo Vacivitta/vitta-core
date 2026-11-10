@@ -78,3 +78,21 @@ test('formulário do negócio: pessoa para o contato, o resto para o lead', () =
   assert.deepEqual(pessoa, { nome: 'Ana', telefone: '5511900000001', email: '', observacoes: 'manhã' })
   assert.deepEqual(negocio, { origem: 'Instagram', funnel_id: 'f1', stage_id: 'e1', responsavel_id: null })
 })
+
+test('campanha: uma linha por telefone, preferindo a com opt-in', async () => {
+  const { umPorTelefone } = await import('../src/lib/contatos.ts')
+  const r = umPorTelefone([
+    { id: 'ganho', norm: '5511900000001', wa_optin_at: null },
+    { id: 'aberto', norm: '5511900000001', wa_optin_at: '2026-11-01' },
+    { id: 'outra', norm: '5511900000002', wa_optin_at: null },
+    { id: 'terceiro', norm: '5511900000001', wa_optin_at: '2026-11-05' },
+  ])
+  assert.deepEqual(r.map(x => x.id), ['aberto', 'outra'])
+})
+
+test('aviso de pessoa já cadastrada diz quantos negócios e quantos abertos', async () => {
+  const { avisoPessoaExistente } = await import('../src/lib/contatos.ts')
+  assert.equal(avisoPessoaExistente({ nome: 'Ana Lima', negocios: 1, abertos: 1 }),
+    'Ana Lima já está cadastrada com este telefone (1 negócio, 1 aberto). Salvar abre mais um negócio para ela.')
+  assert.match(avisoPessoaExistente({ nome: 'Bia', negocios: 3, abertos: 0 }), /3 negócios, nenhum aberto/)
+})

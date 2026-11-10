@@ -125,3 +125,23 @@ export function separarPessoaENegocio<F extends Record<string, unknown>>(form: F
     negocio: negocio as Omit<F, (typeof COLUNAS_DE_PESSOA)[number] | 'observacoes_cli'>,
   }
 }
+
+/**
+ * Audiência de campanha com uma linha por telefone: uma pessoa com vários negócios
+ * (150) recebe uma vez. Fica a linha com opt-in, se houver; senão a primeira.
+ */
+export function umPorTelefone<L extends { norm: string; wa_optin_at: string | null }>(lista: L[]): L[] {
+  const porTelefone = new Map<string, L>()
+  for (const l of lista) {
+    const atual = porTelefone.get(l.norm)
+    if (!atual || (!atual.wa_optin_at && l.wa_optin_at)) porTelefone.set(l.norm, l)
+  }
+  return [...porTelefone.values()]
+}
+
+/** Texto do aviso de pessoa já cadastrada, nas telas que criam negócio */
+export function avisoPessoaExistente(p: { nome: string; negocios: number; abertos: number }): string {
+  const negocios = p.negocios === 1 ? '1 negócio' : `${p.negocios} negócios`
+  const abertos = p.abertos === 0 ? 'nenhum aberto' : p.abertos === 1 ? '1 aberto' : `${p.abertos} abertos`
+  return `${p.nome} já está cadastrada com este telefone (${negocios}, ${abertos}). Salvar abre mais um negócio para ela.`
+}
