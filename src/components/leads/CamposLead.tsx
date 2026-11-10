@@ -154,7 +154,7 @@ export default function CamposLead({ funnelId, estado }: Props) {
             style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#71856F', width: 110, flexShrink: 0 }}
               title={c.objeto === 'contato' && !soDaPessoa ? 'Da pessoa: vale para todos os negócios dela' : undefined}>
-              {c.rotulo}{c.objeto === 'contato' && !soDaPessoa ? ' ·' : ''}
+              {c.rotulo}{c.objeto === 'contato' && !soDaPessoa ? '\u00A0·' : ''}
             </span>
             <span style={{ fontSize: 12, fontWeight: 800, color: exibido ? '#25402C' : '#C9C3B3', flex: 1, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
               {exibido || 'Adicionar'}
