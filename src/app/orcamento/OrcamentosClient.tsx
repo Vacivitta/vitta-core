@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Product, QuoteTemplate, QuoteStatus, UnitPaymentFees } from '@/types/database'
 import { QUOTE_STATUS_LABELS } from '@/types/database'
-import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
+import EnviarOrcamentoDialog from '@/components/orcamento/EnviarOrcamentoDialog'
 import QuoteModal, { StatusBadge, StatCard, type PatientOption, type QuoteRow } from '@/components/orcamento/QuoteModal'
 
 // Tipos usados pelo page.tsx (o formulário vive em components/orcamento/QuoteModal)
@@ -49,7 +49,8 @@ export default function OrcamentosClient({
   const [editing,     setEditing]     = useState<QuoteRow | null>(null)
   const [copiedId,    setCopiedId]    = useState<string | null>(null)
   const [deletingId,  setDeletingId]  = useState<string | null>(null)
-  const [enviandoId,  setEnviandoId]  = useState<string | null>(null)
+  // Orçamento com a janela de envio no WhatsApp aberta
+  const [envioQuote,  setEnvioQuote]  = useState<QuoteRow | null>(null)
   const [enviadoId,   setEnviadoId]   = useState<string | null>(null)
 
   const canDelete = currentUser.perfil === 'admin' || currentUser.perfil === 'gestor_unidade' || currentUser.perfil === 'gestor_vacivitta'
@@ -129,21 +130,6 @@ export default function OrcamentosClient({
     await navigator.clipboard.writeText(url)
     setCopiedId(q.id)
     setTimeout(() => setCopiedId(null), 2000)
-  }
-
-  /** Envia o PDF do orçamento na conversa de WhatsApp do cliente (ver enviarOrcamentoWhatsapp). */
-  async function handleEnviarWhatsapp(q: QuoteRow) {
-    setEnviandoId(q.id)
-    try {
-      const novoStatus = await enviarOrcamentoWhatsapp(q.id)
-      setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, status: novoStatus } : x))
-      setEnviadoId(q.id)
-      setTimeout(() => setEnviadoId(null), 3000)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erro ao enviar o orçamento.')
-    } finally {
-      setEnviandoId(null)
-    }
   }
 
   return (
@@ -332,20 +318,14 @@ export default function OrcamentosClient({
                       </button>
                       {q.lead_id && (
                         <button
-                          onClick={() => handleEnviarWhatsapp(q)}
-                          disabled={enviandoId === q.id}
+                          onClick={() => setEnvioQuote(q)}
                           title={enviadoId === q.id ? 'Enviado no WhatsApp!' : 'Enviar PDF no WhatsApp do cliente'}
-                          className="p-1.5 rounded-lg transition-colors disabled:opacity-60"
+                          className="p-1.5 rounded-lg transition-colors"
                           style={{ color: enviadoId === q.id ? '#3E9849' : '#9AA79C', background: enviadoId === q.id ? '#E8F4E6' : '' }}
                           onMouseEnter={e => { if (enviadoId !== q.id) { e.currentTarget.style.color = '#25D366'; e.currentTarget.style.background = '#E8F4E6' } }}
                           onMouseLeave={e => { if (enviadoId !== q.id) { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' } }}
                         >
-                          {enviandoId === q.id ? (
-                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                          ) : enviadoId === q.id ? (
+                          {enviadoId === q.id ? (
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
@@ -412,6 +392,20 @@ export default function OrcamentosClient({
           initialPatient={editing ? null : initialPatient}
           onClose={() => { setModalOpen(false); setEditing(null); setInitialPatient(null) }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {envioQuote && (
+        <EnviarOrcamentoDialog
+          quote={{ id: envioQuote.id, numero: envioQuote.numero, token_publico: envioQuote.token_publico, nome: envioQuote.paciente_nome || envioQuote.lead?.nome || '' }}
+          onClose={() => setEnvioQuote(null)}
+          onEnviado={novoStatus => {
+            const id = envioQuote.id
+            setQuotes(prev => prev.map(x => x.id === id ? { ...x, status: novoStatus } : x))
+            setEnvioQuote(null)
+            setEnviadoId(id)
+            setTimeout(() => setEnviadoId(null), 3000)
+          }}
         />
       )}
     </div>
