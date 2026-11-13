@@ -92,6 +92,7 @@ const MOTIVO_PULO_LABEL: Record<string, string> = {
   sem_lead:          'Conversa sem lead',
   ja_na_etapa:       'Lead já estava na etapa',
   etapa_nao_movivel: 'Lead numa etapa que a automação não altera',
+  negocio_ganho:     'Negócio já ganho (mensagem de atendimento)',
   sem_telefone:      'Conversa sem telefone',
   sem_conversa:      'Lead sem conversa no WhatsApp',
   modelo_ausente:    'Template não encontrado',

@@ -5,6 +5,7 @@ export type MotivoPulo =
   | 'sem_lead'
   | 'ja_na_etapa'
   | 'etapa_nao_movivel'
+  | 'negocio_ganho'
   | 'sem_telefone'
   | 'sem_conversa'
   | 'modelo_ausente'
