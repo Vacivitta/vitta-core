@@ -8,11 +8,14 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { FunnelStage, FunnelWithStages } from '@/types/database'
+import type { CampoLead, FunnelStage, FunnelWithStages, MotivoPerda, ResultadoEtapa } from '@/types/database'
+import { alternarObrigatorio, opcoesObrigatorios, rotuloObrigatorio, type OpcaoObrigatorio } from '@/lib/obrigatorios'
 import {
   listFunnels, createFunnel, updateFunnel, deactivateFunnel, deleteFunnel,
   createStage, updateStage, deleteStage, reorderStages,
+  createMotivoPerda, updateMotivoPerda, reorderMotivosPerda,
 } from '@/lib/funnels'
+import { getMotivosPerda } from '@/lib/leads'
 
 const PRESET_COLORS = [
   '#94a3b8','#60a5fa','#a78bfa','#f472b6',
@@ -22,12 +25,17 @@ const PRESET_COLORS = [
 
 interface Props {
   initialFunnels:    FunnelWithStages[]
+  /** Leads não perdidos por etapa (número exibido) */
   initialLeadCounts: Record<string, number>
+  /** Todos os leads por etapa, inclusive perdidos: só eles bloqueiam a exclusão */
+  totalPorEtapa:     Record<string, number>
+  /** Campos personalizados da unidade, inclusive desativados */
+  camposLead:        CampoLead[]
 }
 
 type ConfirmFunnelAction = { id: string; type: 'deactivate' | 'delete' }
 
-export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props) {
+export default function FunisConfig({ initialFunnels, initialLeadCounts, totalPorEtapa, camposLead }: Props) {
   const [funnels,    setFunnels]    = useState<FunnelWithStages[]>(initialFunnels)
   const [selectedId, setSelectedId] = useState<string>(initialFunnels[0]?.id ?? '')
   const [leadCounts, setLeadCounts] = useState(initialLeadCounts)
@@ -38,6 +46,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
   const [editingFunnelId,  setEditingFunnelId]  = useState<string | null>(null)
   const [editFunnelName,   setEditFunnelName]   = useState('')
   const [newFunnelName,    setNewFunnelName]    = useState('')
+  // Funil de negócio (leads) ou de ticket (147)
+  const [newFunnelObjeto,  setNewFunnelObjeto]  = useState<'negocio' | 'ticket'>('negocio')
   const [showNewFunnel,    setShowNewFunnel]    = useState(false)
   const [confirmAction,    setConfirmAction]    = useState<ConfirmFunnelAction | null>(null)
 
@@ -53,9 +63,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
 
   const selectedFunnel = funnels.find(f => f.id === selectedId)
 
-  // Count leads across all stages of a funnel
+  // Leads (inclusive perdidos) em todas as etapas do funil: bloqueiam a exclusão
   const funnelLeadCount = (f: FunnelWithStages) =>
-    f.stages.reduce((s, st) => s + (leadCounts[st.id] ?? 0), 0)
+    f.stages.reduce((s, st) => s + (totalPorEtapa[st.id] ?? 0), 0)
 
   async function reload() {
     const fresh = await listFunnels()
@@ -78,8 +88,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     if (!newFunnelName.trim()) return
     setBusy(true)
     try {
-      const created = await createFunnel(newFunnelName.trim())
+      const created = await createFunnel(newFunnelName.trim(), undefined, newFunnelObjeto)
       setNewFunnelName('')
+      setNewFunnelObjeto('negocio')
       setShowNewFunnel(false)
       await reload()
       setSelectedId(created.id)
@@ -112,7 +123,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     try {
       const result = await deleteFunnel(id)
       if (!result.ok) {
-        setDeleteError(`Este funil tem ${result.leadCount} lead${result.leadCount !== 1 ? 's' : ''} ativos. Mova ou arquive os leads antes de excluir.`)
+        setDeleteError(`Este funil tem ${result.leadCount} lead${result.leadCount !== 1 ? 's' : ''} (inclusive perdidos). Mova os leads para outro funil antes de excluir.`)
         return
       }
       await reload()
@@ -153,6 +164,33 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
     setFunnels(prev => prev.map(f =>
       f.id === stage.funnel_id
         ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, sla_mensal: next } : s) }
+        : f
+    ))
+  }
+
+  async function handleResultadoChange(stage: FunnelStage, resultado: ResultadoEtapa | null) {
+    // Etapa de perda não exige campos (o banco recusa): as exigências saem junto
+    const campos_obrigatorios = resultado === 'perdido' ? [] : stage.campos_obrigatorios
+    if (resultado === 'perdido' && stage.campos_obrigatorios.length > 0
+        && !confirm(`Etapa de perda não exige campos. Tirar as exigências de "${stage.nome}"?`)) return
+    await updateStage(stage.id, { resultado, campos_obrigatorios })
+    setFunnels(prev => prev.map(f =>
+      f.id === stage.funnel_id
+        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, resultado, campos_obrigatorios } : s) }
+        : f
+    ))
+  }
+
+  async function handleObrigatoriosChange(stage: FunnelStage, campos_obrigatorios: string[]) {
+    try {
+      await updateStage(stage.id, { campos_obrigatorios })
+    } catch (e: unknown) {
+      alert((e as { message?: string })?.message ?? 'Não foi possível salvar.')
+      return
+    }
+    setFunnels(prev => prev.map(f =>
+      f.id === stage.funnel_id
+        ? { ...f, stages: f.stages.map(s => s.id === stage.id ? { ...s, campos_obrigatorios } : s) }
         : f
     ))
   }
@@ -248,6 +286,12 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                 placeholder="Nome do funil..."
                 style={{ width: '100%', fontSize: 13, border: '1px solid #B3DFFF', borderRadius: 8, padding: '7px 10px', outline: 'none', marginBottom: 8, boxSizing: 'border-box', background: '#fff' }}
               />
+              <select value={newFunnelObjeto} onChange={e => setNewFunnelObjeto(e.target.value as 'negocio' | 'ticket')}
+                aria-label="Tipo do funil"
+                style={{ width: '100%', fontSize: 12.5, border: '1px solid #B3DFFF', borderRadius: 8, padding: '6px 8px', marginBottom: 8, background: '#fff', color: '#25402C' }}>
+                <option value="negocio">Funil de negócio (leads)</option>
+                <option value="ticket">Funil de ticket (suporte)</option>
+              </select>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => void handleCreateFunnel()} disabled={busy || !newFunnelName.trim()}
                   style={{ flex: 1, padding: '7px', fontSize: 12, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
@@ -298,6 +342,9 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                     )}
 
                     {/* Meta */}
+                    {funnel.objeto === 'ticket' && (
+                      <span style={{ fontSize: 9, fontWeight: 700, background: '#E0E7FF', color: '#3730A3', borderRadius: 99, padding: '2px 6px', flexShrink: 0 }}>TICKET</span>
+                    )}
                     <span style={{ fontSize: 10, color: '#9AA79C', flexShrink: 0 }}>{funnel.stages.length} et.</span>
                     {!funnel.ativo && (
                       <span style={{ fontSize: 9, fontWeight: 700, background: '#F1EFE5', color: '#9AA79C', borderRadius: 99, padding: '2px 6px', flexShrink: 0 }}>INATIVO</span>
@@ -338,7 +385,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           <p style={{ fontWeight: 700, color: '#DC2626', margin: '0 0 2px' }}>Excluir "{funnel.nome}" permanentemente?</p>
                           <p style={{ color: '#EF4444', margin: '0 0 8px', lineHeight: 1.4 }}>
                             {totalLeads > 0
-                              ? `Este funil tem ${totalLeads} lead${totalLeads !== 1 ? 's' : ''} ativos — mova-os antes de excluir.`
+                              ? `Este funil tem ${totalLeads} lead${totalLeads !== 1 ? 's' : ''} (inclusive perdidos) — mova-os antes de excluir.`
                               : 'Todas as etapas serão removidas. Não pode ser desfeito.'}
                           </p>
                         </>
@@ -406,6 +453,7 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           key={stage.id}
                           stage={stage}
                           leadCount={leadCount}
+                          bloqueiaExclusao={(totalPorEtapa[stage.id] ?? 0) > 0}
                           isEditingName={editingStageId === stage.id}
                           editNameValue={editStageName}
                           onEditNameChange={setEditStageName}
@@ -417,6 +465,10 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                           onColorChange={cor => void handleChangeColor(stage, cor)}
                           onAlertHoursChange={h => void handleAlertDaysChange(stage, h)}
                           onSlaMensalToggle={() => void handleSlaMensalToggle(stage)}
+                          onResultadoChange={r => void handleResultadoChange(stage, r)}
+                          opcoesObrigatorios={opcoesObrigatorios(camposLead, stage.funnel_id, stage.campos_obrigatorios)}
+                          rotuloObrigatorio={chave => rotuloObrigatorio(chave, camposLead)}
+                          onObrigatoriosChange={lista => void handleObrigatoriosChange(stage, lista)}
                           onDeleteRequest={() => { setConfirmDeleteStageId(stage.id); setDeleteError(null) }}
                           confirmDelete={confirmDeleteStageId === stage.id}
                           onDeleteConfirm={() => void handleDeleteStage(stage)}
@@ -456,6 +508,11 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
                   Arraste pelo ícone ⠿ para reordenar as etapas
                 </p>
               )}
+              <p style={{ fontSize: 11, color: '#9AA79C', marginTop: 6, lineHeight: 1.4 }}>
+                Resultado: o lead que entrar numa etapa de <b>ganho</b> vira negócio ganho (e cliente); numa de <b>perdido</b>, negócio perdido.
+              </p>
+
+              <MotivosPerdaSection key={selectedFunnel.id} funnelId={selectedFunnel.id} />
             </div>
           )}
         </main>
@@ -474,6 +531,8 @@ export default function FunisConfig({ initialFunnels, initialLeadCounts }: Props
 interface StageRowProps {
   stage:              FunnelStage
   leadCount:          number
+  /** Etapa com algum lead, inclusive perdido: não pode ser excluída */
+  bloqueiaExclusao:   boolean
   isEditingName:      boolean
   editNameValue:      string
   onEditNameChange:   (v: string) => void
@@ -485,6 +544,10 @@ interface StageRowProps {
   onColorChange:      (cor: string) => void
   onAlertHoursChange: (h: number | null) => void
   onSlaMensalToggle:  () => void
+  onResultadoChange:  (r: ResultadoEtapa | null) => void
+  opcoesObrigatorios: { fixos: OpcaoObrigatorio[]; personalizados: OpcaoObrigatorio[] }
+  rotuloObrigatorio:  (chave: string) => string
+  onObrigatoriosChange: (lista: string[]) => void
   onDeleteRequest:    () => void
   confirmDelete:      boolean
   onDeleteConfirm:    () => void
@@ -494,17 +557,22 @@ interface StageRowProps {
 }
 
 function SortableStageRow({
-  stage, leadCount,
+  stage, leadCount, bloqueiaExclusao,
   isEditingName, editNameValue, onEditNameChange, onEditNameStart, onEditNameSave, onEditNameCancel,
   showColorPicker, onColorPickerToggle, onColorChange,
   onAlertHoursChange,
   onSlaMensalToggle,
+  onResultadoChange,
+  opcoesObrigatorios, rotuloObrigatorio, onObrigatoriosChange,
   onDeleteRequest, confirmDelete, onDeleteConfirm, onDeleteCancel,
   deleteError,
   busy,
 }: StageRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id })
   const [alertInput, setAlertInput] = useState(stage.alerta_horas?.toString() ?? '')
+  const [mostrarExigencias, setMostrarExigencias] = useState(false)
+  const exigidos = stage.campos_obrigatorios
+  const ehPerda = stage.resultado === 'perdido'
 
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
@@ -601,9 +669,43 @@ function SortableStageRow({
           Mensal
         </button>
 
+        <button
+          type="button"
+          onClick={() => setMostrarExigencias(v => !v)}
+          disabled={ehPerda}
+          aria-expanded={mostrarExigencias && !ehPerda}
+          title={ehPerda ? 'Etapa de perda não exige campos' : 'Campos que o lead precisa ter para entrar nesta etapa'}
+          style={{
+            flexShrink: 0, fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 8,
+            cursor: ehPerda ? 'not-allowed' : 'pointer', opacity: ehPerda ? 0.5 : 1,
+            background: exigidos.length ? '#EEF2FF' : '#F9FAFB',
+            border: `1px solid ${exigidos.length ? '#C7D2FE' : '#EBE7DA'}`,
+            color: exigidos.length ? '#4F46E5' : '#9CA3AF',
+          }}
+        >
+          Exigir{exigidos.length ? ` · ${exigidos.length}` : ''}
+        </button>
+
+        <select
+          value={stage.resultado ?? ''}
+          onChange={e => onResultadoChange(e.target.value === 'ganho' || e.target.value === 'perdido' ? e.target.value : null)}
+          title="Resultado: entrar nesta etapa marca o negócio como ganho ou perdido"
+          aria-label={`Resultado da etapa ${stage.nome}`}
+          style={{
+            flexShrink: 0, fontSize: 10, fontWeight: 600, padding: '3px 4px', borderRadius: 8, outline: 'none', cursor: 'pointer',
+            background: stage.resultado === 'ganho' ? '#E8F7EE' : stage.resultado === 'perdido' ? '#FEF2F2' : '#F9FAFB',
+            border: `1px solid ${stage.resultado === 'ganho' ? '#A7E3C1' : stage.resultado === 'perdido' ? '#FECACA' : '#EBE7DA'}`,
+            color: stage.resultado === 'ganho' ? '#1D9E75' : stage.resultado === 'perdido' ? '#DC2626' : '#9CA3AF',
+          }}
+        >
+          <option value="">Sem resultado</option>
+          <option value="ganho">Ganho</option>
+          <option value="perdido">Perdido</option>
+        </select>
+
         {/* Delete */}
-        {leadCount > 0 ? (
-          <span title="Mova os leads antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0, cursor: 'not-allowed' }}>
+        {bloqueiaExclusao ? (
+          <span title="Mova os leads (inclusive os perdidos) antes de excluir" style={{ padding: 4, color: '#EBE7DA', lineHeight: 0, flexShrink: 0, cursor: 'not-allowed' }}>
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
@@ -620,6 +722,39 @@ function SortableStageRow({
           </button>
         )}
       </div>
+
+      {mostrarExigencias && !ehPerda && (
+        <div style={{ margin: '4px 0 0', padding: '10px 14px', background: '#fff', border: '1px solid #F1EFE5', borderRadius: 10, fontSize: 12 }}>
+          <p style={{ fontWeight: 700, color: '#25402C', margin: '0 0 2px' }}>Exigir para entrar em &ldquo;{stage.nome}&rdquo;</p>
+          <p style={{ color: '#9AA79C', margin: '0 0 8px', lineHeight: 1.4 }}>
+            Quem mover um lead para cá precisa preencher estes campos. Automações e o WhatsApp movem sem exigir.
+          </p>
+          {exigidos.length > 0 && (
+            <p style={{ color: '#4F46E5', margin: '0 0 8px', lineHeight: 1.4 }}>
+              {exigidos.map(rotuloObrigatorio).join(', ')}
+            </p>
+          )}
+          {([['Campos do lead', opcoesObrigatorios.fixos], ['Campos personalizados', opcoesObrigatorios.personalizados]] as const)
+            .map(([titulo, opcoes]) => (
+              <fieldset key={titulo} style={{ border: 'none', padding: 0, margin: '0 0 8px' }}>
+                <legend style={{ fontSize: 11, fontWeight: 700, color: '#71856F', marginBottom: 4 }}>{titulo}</legend>
+                {opcoes.length === 0 ? (
+                  <p style={{ color: '#9AA79C', margin: 0 }}>Nenhum campo personalizado para este funil.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                    {opcoes.map(o => (
+                      <label key={o.chave} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#25402C', cursor: busy ? 'default' : 'pointer' }}>
+                        <input type="checkbox" checked={exigidos.includes(o.chave)} disabled={busy}
+                          onChange={() => onObrigatoriosChange(alternarObrigatorio(exigidos, o.chave))} />
+                        {o.rotulo}{o.desativado && <span style={{ color: '#9AA79C' }}> (desativado)</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </fieldset>
+            ))}
+        </div>
+      )}
 
       {/* Delete confirm */}
       {confirmDelete && (
@@ -651,5 +786,143 @@ function SortableStageRow({
         </div>
       )}
     </div>
+  )
+}
+
+function MotivosPerdaSection({ funnelId }: { funnelId: string }) {
+  const [motivos,    setMotivos]    = useState<MotivoPerda[] | null>(null)
+  const [erro,       setErro]       = useState<string | null>(null)
+  const [novoNome,   setNovoNome]   = useState('')
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editNome,   setEditNome]   = useState('')
+  const [salvando,   setSalvando]   = useState(false)
+
+  useEffect(() => {
+    getMotivosPerda(funnelId, false)
+      .then(setMotivos)
+      .catch(() => { setMotivos([]); setErro('Não foi possível carregar os motivos de perda.') })
+  }, [funnelId])
+
+  async function executar(acao: () => Promise<void>) {
+    setSalvando(true)
+    setErro(null)
+    try {
+      await acao()
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code
+      setErro(code === '23505' ? 'Já existe um motivo com esse nome neste funil.' : 'Não foi possível salvar o motivo.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  function handleCriar() {
+    const nome = novoNome.trim()
+    if (!nome || !motivos) return
+    void executar(async () => {
+      const criado = await createMotivoPerda(funnelId, nome, (motivos.at(-1)?.ordem ?? 0) + 1)
+      setMotivos([...motivos, criado])
+      setNovoNome('')
+    })
+  }
+
+  function handleRenomear(m: MotivoPerda) {
+    const nome = editNome.trim()
+    setEditandoId(null)
+    if (!nome || nome === m.nome) return
+    void executar(async () => {
+      await updateMotivoPerda(m.id, { nome })
+      setMotivos(prev => prev?.map(x => x.id === m.id ? { ...x, nome } : x) ?? null)
+    })
+  }
+
+  function handleAtivo(m: MotivoPerda) {
+    void executar(async () => {
+      await updateMotivoPerda(m.id, { ativo: !m.ativo })
+      setMotivos(prev => prev?.map(x => x.id === m.id ? { ...x, ativo: !m.ativo } : x) ?? null)
+    })
+  }
+
+  function handleMover(index: number, delta: -1 | 1) {
+    if (!motivos) return
+    const alvo = index + delta
+    if (alvo < 0 || alvo >= motivos.length) return
+    const reordenados = arrayMove(motivos, index, alvo).map((m, i) => ({ ...m, ordem: i + 1 }))
+    void executar(async () => {
+      setMotivos(reordenados)
+      await reorderMotivosPerda(reordenados.map(m => m.id))
+    })
+  }
+
+  const botaoSeta = { padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', lineHeight: 0 }
+
+  return (
+    <section style={{ marginTop: 28 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 800, color: '#25402C', margin: 0 }}>Motivos de perda</h3>
+      <p style={{ fontSize: 12, color: '#9AA79C', margin: '2px 0 12px' }}>
+        Lista que aparece ao marcar um negócio deste funil como perdido. &ldquo;Outro&rdquo; pede uma descrição.
+        Desative o motivo que não quiser mais oferecer: os leads que já o usam continuam com ele.
+      </p>
+
+      {erro && <p style={{ fontSize: 12, color: '#DC2626', margin: '0 0 8px' }}>{erro}</p>}
+      {motivos === null ? (
+        <p style={{ fontSize: 12, color: '#9AA79C' }}>Carregando...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+          {motivos.length === 0 && <p style={{ fontSize: 12, color: '#9AA79C', margin: 0 }}>Nenhum motivo cadastrado.</p>}
+          {motivos.map((m, i) => (
+            <div key={m.id} style={{ background: '#fff', border: '1px solid #F1EFE5', borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, opacity: m.ativo ? 1 : 0.6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                <button onClick={() => handleMover(i, -1)} disabled={salvando || i === 0} title="Subir" aria-label={`Subir ${m.nome}`} style={botaoSeta}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                </button>
+                <button onClick={() => handleMover(i, 1)} disabled={salvando || i === motivos.length - 1} title="Descer" aria-label={`Descer ${m.nome}`} style={botaoSeta}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+              </div>
+              {editandoId === m.id ? (
+                <input
+                  autoFocus value={editNome}
+                  onChange={e => setEditNome(e.target.value)}
+                  onBlur={() => handleRenomear(m)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRenomear(m); if (e.key === 'Escape') setEditandoId(null) }}
+                  style={{ flex: 1, fontSize: 13, border: '1px solid #3E9849', borderRadius: 7, padding: '3px 8px', outline: 'none' }}
+                />
+              ) : (
+                <button onClick={() => { setEditandoId(m.id); setEditNome(m.nome) }} title="Renomear"
+                  style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#25402C', background: 'none', border: 'none', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.nome}
+                </button>
+              )}
+              <button onClick={() => handleAtivo(m)} disabled={salvando}
+                style={{
+                  flexShrink: 0, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
+                  border: `1px solid ${m.ativo ? '#A7E3C1' : '#EBE7DA'}`,
+                  background: m.ativo ? '#E8F7EE' : '#F9FAFB', color: m.ativo ? '#1D9E75' : '#9CA3AF',
+                }}>
+                {m.ativo ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          type="text" value={novoNome}
+          onChange={e => setNovoNome(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleCriar() }}
+          placeholder="Novo motivo de perda..."
+          style={{ flex: 1, fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 10, padding: '9px 12px', outline: 'none', background: '#fff' }}
+        />
+        <button
+          onClick={handleCriar}
+          disabled={salvando || !novoNome.trim() || motivos === null}
+          style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, background: '#3E9849', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: salvando || !novoNome.trim() ? 0.5 : 1 }}
+        >
+          + Adicionar
+        </button>
+      </div>
+    </section>
   )
 }

@@ -1,23 +1,26 @@
 ﻿import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { corDaUnidade, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
 import AtendimentoClient from './AtendimentoClient'
 import type { Profile, FunnelWithStages } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
+import { dadosDeTicket } from '@/lib/tickets-servidor'
 
 export const metadata = { title: 'Atendimento — VittaDesk' }
 
 export default async function AtendimentoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ numero?: string }>
+  searchParams: Promise<{ numero?: string; conversa?: string }>
 }) {
   const supabase = await createClient()
-  const { numero } = await searchParams
+  const { numero, conversa } = await searchParams
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const unitId = (profileData as Profile)?.unit_id
 
@@ -26,11 +29,22 @@ export default async function AtendimentoPage({
     { data: funnelsData },
     { data: stagesData },
     { data: userUnits },
+    unidades,
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('unit_id', unitId).order('full_name'),
-    supabase.from('funnels').select('*').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
+    supabase.from('funnels').select('*').eq('objeto', 'negocio').eq('ativo', true).eq('unit_id', unitId).order('ordem'),
     supabase.from('funnel_stages').select('*').eq('unit_id', unitId).order('funnel_id').order('ordem'),
     supabase.from('user_units').select('user_id').eq('unit_id', unitId).eq('ativo', true),
+    unidadesDaCaixa(supabase, user.id),
+  ])
+
+  // Conexões das unidades do usuário (RLS de conexoes, 143): nome, número e tipo, sem token
+  const [{ data: conexoesData }, dadosTicket] = await Promise.all([
+    supabase.from('conexoes')
+      .select('id, nome, numero, tipo, pessoal')
+      .in('unit_id', unidades.map(u => u.id)),
+    // Tickets e empresas da unidade ativa (146/147)
+    unitId ? dadosDeTicket(supabase, unitId) : Promise.resolve({ modulos: new Set<never>(), funis: [], pessoas: [], empresas: [] }),
   ])
 
   const extraUserIds = (userUnits ?? [])
@@ -55,6 +69,43 @@ export default async function AtendimentoPage({
       profiles={allProfiles as Profile[]}
       currentUser={profileData as Profile}
       initialNumero={numero ?? null}
+      initialConversaId={conversa ?? null}
+      unidades={unidades}
+      conexoes={(conexoesData ?? []) as ConexaoDaCaixa[]}
+      ticket={{
+        ligado:         dadosTicket.modulos.has('tickets'),
+        funis:          dadosTicket.funis,
+        pessoas:        dadosTicket.pessoas,
+        empresas:       dadosTicket.empresas,
+        empresasLigado: dadosTicket.modulos.has('empresas'),
+      }}
     />
   )
+}
+
+/**
+ * Unidades vinculadas ao usuário, com cor e o número da conexão. O número vem do
+ * wa_config com service role (a tabela guarda o token e não tem policy para o
+ * navegador): só display_phone, e só das unidades em que o usuário está.
+ */
+async function unidadesDaCaixa(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<UnidadeDaCaixa[]> {
+  const { data: vinculos } = await supabase.from('user_units').select('unit_id').eq('user_id', userId)
+  const ids = (vinculos ?? []).map(v => v.unit_id as string)
+  if (ids.length === 0) return []
+
+  const [{ data: units }, { data: conexoes }] = await Promise.all([
+    supabase.from('units').select('id, nome, cor').in('id', ids).order('criado_em').order('id'),
+    createAdminClient().from('wa_config').select('unit_id, display_phone').in('unit_id', ids).eq('is_active', true),
+  ])
+  const numeroPorUnidade = new Map((conexoes ?? []).map(c => [c.unit_id as string, (c.display_phone as string | null) ?? null]))
+
+  return (units ?? []).map((u, posicao) => ({
+    id:     u.id as string,
+    nome:   u.nome as string,
+    cor:    corDaUnidade((u.cor as string | null) ?? null, posicao),
+    numero: numeroPorUnidade.get(u.id as string) ?? null,
+  }))
 }

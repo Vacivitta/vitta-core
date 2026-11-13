@@ -1,12 +1,19 @@
 'use client'
 
+import { Fragment } from 'react'
 import { usePathname } from 'next/navigation'
 import AppSidebar from './AppSidebar'
 import TaskReminder from '@/components/agenda/TaskReminder'
 
-import { ProfileProvider } from '@/context/ProfileContext'
+import { ProfileProvider, useProfile } from '@/context/ProfileContext'
 
 const PUBLIC_PATHS = ['/login', '/orcamento/ver/', '/termos', '/privacidade']
+
+/** Remonta a página quando a aba troca de unidade, para os componentes recarregarem os dados dela. */
+function ConteudoDaUnidade({ children }: { children: React.ReactNode }) {
+  const { versaoUnidade } = useProfile()
+  return <Fragment key={versaoUnidade}>{children}</Fragment>
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -19,7 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen overflow-hidden" style={{ background: 'var(--color-bg-app)' }}>
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-y-auto min-w-0">
-          {children}
+          <ConteudoDaUnidade>{children}</ConteudoDaUnidade>
         </div>
         <TaskReminder />
       </div>

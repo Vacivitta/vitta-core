@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient }             from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { resumoErro } from '@/lib/log-seguro'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 const MULTI_UNIT_PERFIS = ['admin', 'gestor_vacivitta']
@@ -23,17 +24,13 @@ function adminClient() {
   )
 }
 
-interface Caller { perfil: string; unitId: string }
+interface Caller { perfil: string; unitId: string | null }
 
 async function getCaller(): Promise<Caller | null> {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('unit_id, perfil')
-    .eq('id', user.id)
-    .single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, 'unit_id, perfil')
   if (!profile) return null
   return { perfil: profile.perfil, unitId: profile.unit_id }
 }

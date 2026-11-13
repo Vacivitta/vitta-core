@@ -7,6 +7,12 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "ambiente-teste",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:teste"],
+      "port": 3001
     }
   ]
 }

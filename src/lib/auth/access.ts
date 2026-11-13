@@ -26,6 +26,25 @@ export async function getAccessibleConversation(
 }
 
 /**
+ * Busca o lead respeitando o RLS do usuário.
+ *
+ * @param userClient - Client com a sessão do usuário (`createClient` de `@/lib/supabase/server`)
+ * @param leadId - ID em `leads`
+ * @returns `{ id, unit_id }` ou `null` se não existir ou não for da unidade do usuário
+ */
+export async function getAccessibleLead(
+  userClient: SupabaseClient,
+  leadId: string,
+): Promise<{ id: string; unit_id: string } | null> {
+  const { data } = await userClient
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .maybeSingle()
+  return data
+}
+
+/**
  * Indica se o usuário pode agir em nome da unidade: admins globais sempre,
  * demais perfis só nas unidades vinculadas em `user_units`.
  *

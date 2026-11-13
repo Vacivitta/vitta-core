@@ -76,9 +76,14 @@ type RowState = { action: ActionType; stage_id: string; template_id: string }
 
 const ACCENT_TIMED = '#F59E0B'
 
+const GATILHOS_ORCAMENTO: Record<string, string> = {
+  quote_expirado: 'Orçamento expirado',
+}
+
 const RESULTADO_META: Record<AutomationRunResultado, { label: string; bg: string; color: string }> = {
   etapa_movida:   { label: 'Movida',  bg: '#E8F7EE', color: '#1D9E75' },
   modelo_enviado: { label: 'Enviada', bg: '#E8F7EE', color: '#1D9E75' },
+  lead_perdido:   { label: 'Perdido', bg: '#FEF2F2', color: '#DC2626' },
   pulado:         { label: 'Pulada',  bg: '#F1EFE5', color: '#71856F' },
   falhou:         { label: 'Falhou',  bg: '#FEF2F2', color: '#DC2626' },
 }
@@ -92,6 +97,7 @@ const MOTIVO_PULO_LABEL: Record<string, string> = {
   modelo_ausente:    'Template não encontrado',
   sem_credenciais:   'WhatsApp da unidade não configurado',
   mal_configurada:   'Regra sem etapa ou template válido',
+  ja_perdido:        'Lead já estava perdido',
 }
 
 const FORMATO_DATA_HORA = new Intl.DateTimeFormat('pt-BR', {
@@ -241,7 +247,7 @@ export default function AutomacoesClient({
   }
 
   const conditionLabel = (key: string) => TIMED_CONDITIONS.find(c => c.key === key)?.label ?? key
-  const actionLabel = (key: string) => TIMED_ACTIONS.find(a => a.key === key)?.label ?? key
+  const actionLabel = (key: string) => TIMED_ACTIONS.find(a => a.key === key)?.label ?? (key === 'archive' ? 'Marcar como perdido' : key)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -666,13 +672,14 @@ function ExecucoesRecentes({ execucoes, falhas, stages, templates, timedAutos, c
       const auto = timedAutos.find(a => a.id === run.automation_id)
       return auto ? (auto.nome || conditionLabel(auto.condition)) : `${conditionLabel(run.gatilho)} (regra removida)`
     }
-    const evento = WA_TRIGGERS.find(t => t.key === run.gatilho)?.label ?? run.gatilho
+    const evento = WA_TRIGGERS.find(t => t.key === run.gatilho)?.label ?? GATILHOS_ORCAMENTO[run.gatilho] ?? run.gatilho
     return `${evento} → ${actionLabel(run.acao)}`
   }
 
   function descricao(run: AutomationRunComLead): string {
     switch (run.resultado) {
       case 'etapa_movida':
+      case 'lead_perdido':
         return `${stageNome(textoDetalhe(run.detalhe, 'de'))} → ${stageNome(textoDetalhe(run.detalhe, 'para'))}`
       case 'modelo_enviado': {
         const tplId = textoDetalhe(run.detalhe, 'templateId')

@@ -24,7 +24,10 @@ O `run.sh`, em ordem:
 1. aplica `prelude.sql` como `supabase_admin`;
 2. aplica cada migração em ordem (`LC_ALL=C sort`) com `--single-transaction` e
    `ON_ERROR_STOP`: 001–089 como `postgres`, 090 em diante como `supabase_admin`,
-   como o Infra aplica em produção. Para no primeiro erro, mostrando o arquivo;
+   como o Infra aplica em produção. Para no primeiro erro, mostrando o arquivo.
+   Antes da migração NNN, se existir `tests/db/dados_antes_NNN.sql`, aplica esse
+   arquivo: dados no formato antigo para a migração converter de verdade (a
+   126 migra arquivado/is_converted para status; `090_status.test.sql` confere);
 3. aplica `docs/migracao-vps/registro-migracoes.sql` e registra as versões ≥ 090
    (sempre depois da 089: a 037b e a 066b abortam se o registro já existir);
 4. checa as guardas: toda migração ≥ 090 reaplicada como `supabase_admin` passa
@@ -32,6 +35,12 @@ O `run.sh`, em ordem:
    mensagem certa quando rodadas como `postgres` ou sem `--single-transaction`.
    Exceção conhecida: a 090 reaplicada depois da 113 aborta, porque a guarda dela
    não conhece `is_gestor()`;
+   e testa a ordem pós-restore (`ordem_pos_restore`, a mesma do CLAUDE.md e do
+   runbook, conferida no texto deles quando existem): guarda o estado de toda
+   função e view do `public` (privilégios e definição), simula o restore (EXECUTE
+   de volta para `authenticated` em todas as funções, `anon` lendo as views de
+   leads), confere que a 118 aplicada logo em seguida aborta, aplica a ordem uma
+   a uma e exige que o estado volte igual ao de antes;
 5. roda `tests/db/*.test.sql` em ordem, como `supabase_admin`.
 
 ## O que o prelúdio faz e por quê

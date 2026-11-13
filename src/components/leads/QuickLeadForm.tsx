@@ -4,8 +4,12 @@ import { useState } from 'react'
 import type { FunnelStage, FunnelWithStages, Profile, Lead } from '@/types/database'
 import { ORIGEM_OPTIONS } from '@/types/database'
 import { createLead } from '@/lib/leads'
-import { telefoneParaGravar } from '@/lib/telefone'
+import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
+import { pessoaDoTelefone, type PessoaExistente } from '@/lib/contatos-gravacao'
+import { avisoPessoaExistente } from '@/lib/contatos'
+import Link from 'next/link'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { faltandoDoErro } from '@/lib/obrigatorios'
 
 interface Props {
   defaultStage: FunnelStage
@@ -14,16 +18,18 @@ interface Props {
   currentUser: Profile
   onClose: () => void
   onCreated: (lead: Lead, openFull: boolean) => void
+  /** Valores iniciais (ex.: participante de grupo no Atendimento) */
+  inicial?: { nome?: string; telefone?: string }
 }
 
 export default function QuickLeadForm({
-  defaultStage, funnels, profiles, currentUser, onClose, onCreated,
+  defaultStage, funnels, profiles, currentUser, onClose, onCreated, inicial,
 }: Props) {
   const defaultFunnel = funnels.find(f => f.stages.some(s => s.id === defaultStage.id)) ?? funnels[0]
 
   const [form, setForm] = useState({
-    nome:           '',
-    telefone:       '',
+    nome:           inicial?.nome ?? '',
+    telefone:       inicial?.telefone ?? '',
     funnel_id:      defaultFunnel?.id ?? '',
     stage_id:       defaultStage.id,
     sobrenome:      '',
@@ -36,6 +42,8 @@ export default function QuickLeadForm({
   const [expanded, setExpanded] = useState(false)
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState('')
+  // Telefone de alguém já cadastrado (150): salvar abre mais um negócio dela, então pergunta antes
+  const [existente, setExistente] = useState<PessoaExistente | null>(null)
 
   const activeFunnel = funnels.find(f => f.id === form.funnel_id) ?? defaultFunnel
 
@@ -48,11 +56,16 @@ export default function QuickLeadForm({
     }))
   }
 
-  async function handleSave(openFull = false) {
+  async function handleSave(openFull = false, confirmado = false) {
     if (!form.nome.trim()) { setError('Informe o nome do contato.'); return }
     setSaving(true)
     setError('')
     try {
+      if (!confirmado) {
+        const pessoa = await pessoaDoTelefone(currentUser.unit_id, normalizarTelefone(form.telefone))
+        if (pessoa) { setExistente(pessoa); setSaving(false); return }
+      }
+      setExistente(null)
       const lead = await createLead({
         nome:           form.nome.trim(),
         sobrenome:      form.sobrenome.trim()  || null,
@@ -79,9 +92,13 @@ export default function QuickLeadForm({
       })
       onCreated(lead, openFull)
     } catch (err) {
+      // Etapa com campos obrigatórios (migração 130): a mensagem do banco lista o que falta
+      const obrigatorios = faltandoDoErro(err)
       setError(isViolacaoUnica(err)
-        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado).'
-        : 'Erro ao salvar. Tente novamente.')
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado: veja o painel Arquivados).'
+        : obrigatorios
+          ? `${(err as { message: string }).message}. Ou crie numa etapa anterior e mova depois, preenchendo o que faltar.`
+          : 'Erro ao salvar. Tente novamente.')
       setSaving(false)
     }
   }
@@ -209,6 +226,21 @@ export default function QuickLeadForm({
             </div>
           )}
         </div>
+
+        {existente && (
+          <div role="alert" className="mx-5 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 space-y-2">
+            <p>{avisoPessoaExistente(existente)}</p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => handleSave(false, true)} disabled={saving}
+                className="font-semibold text-[#35853F] hover:underline">
+                Abrir outro negócio
+              </button>
+              <Link href={`/contatos/${existente.id}`} className="font-semibold text-gray-700 hover:underline">
+                Ver a ficha da pessoa
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-gray-100">

@@ -9,6 +9,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getWaCredentials } from '@/lib/whatsapp/credentials'
 import { isPerfilGestor } from '@/lib/auth/access'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 const META = 'https://graph.facebook.com/v20.0'
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const admin = adminClient()
-  const { data: profile } = await admin.from('profiles').select('unit_id').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'unit_id')
   const unitId = profile?.unit_id ?? undefined
 
   const { wabaId, accessToken } = await getCredentials(unitId)
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const admin = adminClient()
-  const { data: profile } = await admin.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'unit_id, perfil')
   if (!profile || !isPerfilGestor(profile.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para alterar modelos de WhatsApp' }, { status: 403 })
   }
@@ -237,7 +238,7 @@ export async function DELETE(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const admin = adminClient()
-  const { data: profile } = await admin.from('profiles').select('unit_id, perfil').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'unit_id, perfil')
   if (!profile || !isPerfilGestor(profile.perfil)) {
     return NextResponse.json({ error: 'Sem permissão para alterar modelos de WhatsApp' }, { status: 403 })
   }
@@ -269,7 +270,7 @@ export async function DELETE(req: NextRequest) {
 
   // Só desativa no banco após confirmação da Meta
   await admin.from('wa_message_templates').update({ ativo: false })
-    .eq('template_name', name).eq('category', 'meta_api')
+    .eq('unit_id', profile.unit_id).eq('template_name', name).eq('category', 'meta_api')
 
   return NextResponse.json({ success: true })
 }

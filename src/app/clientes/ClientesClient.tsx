@@ -6,15 +6,19 @@ import { format } from 'date-fns'
 import Drawer from '@/components/ui/Drawer'
 import { ptBR } from 'date-fns/locale'
 import { useProfile } from '@/hooks/useProfile'
-import type { Lead, Unit } from '@/types/database'
+import { STATUS_LEAD_LABELS, type Lead, type Unit } from '@/types/database'
 import { primeiraLetra } from '@/lib/texto'
 import { normalizarTelefone, telefoneParaGravar } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { pessoaDoTelefone, type PessoaExistente } from '@/lib/contatos-gravacao'
+import { avisoPessoaExistente } from '@/lib/contatos'
+import { urlExportacao } from '@/lib/exportacao'
+import Link from 'next/link'
 
 interface Profile { id: string; full_name: string }
 
 export type LeadDuplicado = Pick<Lead,
-  'id' | 'nome' | 'sobrenome' | 'telefone' | 'telefone_norm' | 'unit_id' | 'created_at' | 'arquivado' | 'is_converted'>
+  'id' | 'nome' | 'sobrenome' | 'telefone' | 'telefone_norm' | 'unit_id' | 'created_at' | 'status' | 'is_converted'>
 
 interface Props {
   initialClients:  Lead[]
@@ -47,6 +51,8 @@ export default function ClientesClient({
   const [error,      setError]      = useState('')
   const [deleting,   setDeleting]   = useState<string | null>(null)
   const [dupWarning, setDupWarning] = useState<Lead | null>(null)
+  // Telefone de alguém já cadastrado, cliente ou não (150): cadastrar abre mais um negócio dela
+  const [pessoaExistente, setPessoaExistente] = useState<PessoaExistente | null>(null)
   const [gruposTelefone, setGruposTelefone] = useState<LeadDuplicado[][]>(telefoneDuplicados)
   const [mesclagem, setMesclagem] = useState<{ grupo: LeadDuplicado[]; manter: string } | null>(null)
   const [mesclando, setMesclando] = useState(false)
@@ -62,10 +68,12 @@ export default function ClientesClient({
         table:  'leads',
         filter: 'is_converted=eq.true',
       }, payload => {
-        if (payload.eventType === 'INSERT') {
-          setClients(prev => [payload.new as Lead, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setClients(prev => prev.map(c => c.id === (payload.new as Lead).id ? payload.new as Lead : c))
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          // A lista mostra clientes com negócio não perdido e não arquivados (mesma regra do page.tsx)
+          const lead = payload.new as Lead
+          setClients(prev => lead.status === 'perdido' || lead.arquivado
+            ? prev.filter(c => c.id !== lead.id)
+            : prev.some(c => c.id === lead.id) ? prev.map(c => c.id === lead.id ? lead : c) : [lead, ...prev])
         } else if (payload.eventType === 'DELETE') {
           setClients(prev => prev.filter(c => c.id !== (payload.old as Lead).id))
         }
@@ -149,6 +157,8 @@ export default function ClientesClient({
         (cpf   && c.cpf      && c.cpf.replace(/\D/g,'')       === cpf)
       )
       if (potential) { setDupWarning(potential); return }
+      const pessoa = await pessoaDoTelefone(units[0]?.id ?? profile?.unit_id ?? null, telNorm)
+      if (pessoa) { setPessoaExistente(pessoa); return }
     }
 
     setDupWarning(null)
@@ -181,11 +191,13 @@ export default function ClientesClient({
             funnel_id:    defaultFunnelId,
             stage_id:     defaultStageId,
             is_converted: true,
+            // Cliente cadastrado direto já fechou negócio
+            status:       'ganho',
           })
           .select('*')
           .single()
         if (err) throw err
-        setClients(prev => [data as Lead, ...prev])
+        setClients(prev => prev.some(c => c.id === (data as Lead).id) ? prev : [data as Lead, ...prev])
       } else if (selected) {
         const { data, error: err } = await supabase
           .from('leads')
@@ -199,7 +211,7 @@ export default function ClientesClient({
       setModal(null)
     } catch (err) {
       setError(isViolacaoUnica(err)
-        ? 'Já existe um contato com este telefone nesta unidade (pode estar arquivado ou ainda não ser cliente).'
+        ? 'Já existe um contato com este telefone nesta unidade (pode estar perdido, arquivado ou ainda não ser cliente).'
         : 'Erro ao salvar. Tente novamente.')
     } finally {
       setSaving(false)
@@ -280,18 +292,39 @@ export default function ClientesClient({
             <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#25402C', lineHeight: 1.3 }}>Clientes</h1>
             <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', marginTop: '2px' }}>{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 text-white transition-colors"
-            style={{ background: '#3E9849', fontSize: '13.5px', fontWeight: 800, padding: '10px 20px', borderRadius: '999px', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Novo cliente
-          </button>
+          <div className="flex items-center gap-2">
+            {isGestor && (
+              <>
+                <Link
+                  href="/clientes/importar"
+                  style={{ fontSize: '13px', fontWeight: 700, padding: '9px 16px', borderRadius: '999px', border: '1px solid #E9E5D8', color: '#25402C', background: '#fff' }}
+                  title="Importar contatos de uma planilha CSV"
+                >
+                  Importar
+                </Link>
+                <a
+                  href={urlExportacao({ clientes: true, status: 'nao_perdido' })}
+                  download
+                  style={{ fontSize: '13px', fontWeight: 700, padding: '9px 16px', borderRadius: '999px', border: '1px solid #E9E5D8', color: '#25402C', background: '#fff' }}
+                  title="Baixar os clientes em CSV (a busca não entra)"
+                >
+                  Exportar
+                </a>
+              </>
+            )}
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 text-white transition-colors"
+              style={{ background: '#3E9849', fontSize: '13.5px', fontWeight: 800, padding: '10px 20px', borderRadius: '999px', boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Novo cliente
+            </button>
+          </div>
         </div>
 
         <div className="relative mt-3">
@@ -440,6 +473,7 @@ export default function ClientesClient({
                         onMouseEnter={e => { e.currentTarget.style.color = '#3E9849'; e.currentTarget.style.background = '#E8F4E6' }}
                         onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                         title="Editar"
+                        aria-label={`Editar ${c.nome}`}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -454,6 +488,7 @@ export default function ClientesClient({
                           onMouseEnter={e => { e.currentTarget.style.color = '#C05B3A'; e.currentTarget.style.background = '#F9E7E0' }}
                           onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.background = '' }}
                           title="Excluir"
+                          aria-label={`Excluir ${c.nome}`}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -509,6 +544,29 @@ export default function ClientesClient({
         </div>
       )}
 
+      {pessoaExistente && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(37,64,44,0.35)' }}>
+          <div role="alertdialog" className="bg-white w-full max-w-sm space-y-4" style={{ borderRadius: '18px', padding: '22px', boxShadow: '0 16px 40px -12px rgba(37,64,44,0.3)' }}>
+            <p style={{ fontSize: '13px', fontWeight: 800, color: '#25402C' }}>Esta pessoa já está cadastrada</p>
+            <p style={{ fontSize: '12.5px', color: '#71856F', lineHeight: 1.5 }}>{avisoPessoaExistente(pessoaExistente)}</p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setPessoaExistente(null)}
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, color: '#71856F', border: '1px solid #EBE7DA', borderRadius: '999px' }}>
+                Revisar dados
+              </button>
+              <a href={`/contatos/${pessoaExistente.id}`}
+                style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 700, color: '#25402C', border: '1px solid #EBE7DA', borderRadius: '999px', textDecoration: 'none' }}>
+                Ver a ficha
+              </a>
+              <button onClick={() => { setPessoaExistente(null); void handleSave(true) }}
+                className="text-white" style={{ padding: '9px 16px', fontSize: '13px', fontWeight: 800, background: '#C87F1B', borderRadius: '999px' }}>
+                Cadastrar assim mesmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mesclagem && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(37,64,44,0.35)' }}>
           <div className="bg-white w-full max-w-md space-y-4" style={{ borderRadius: '18px', padding: '22px', boxShadow: '0 16px 40px -12px rgba(37,64,44,0.3)' }}>
@@ -530,7 +588,7 @@ export default function ClientesClient({
                       {mesclagem.manter === l.id && <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#35853F', marginLeft: 6 }}>FICA</span>}
                     </p>
                     <p style={{ fontSize: '11.5px', color: '#9AA79C', marginTop: 2 }}>
-                      {[l.telefone, `cadastro ${fmt(l.created_at)}`, l.is_converted ? 'cliente' : 'lead', l.arquivado ? 'arquivado' : null].filter(Boolean).join(' · ')}
+                      {[l.telefone, `cadastro ${fmt(l.created_at)}`, l.is_converted ? 'cliente' : 'lead', l.status === 'aberto' ? null : STATUS_LEAD_LABELS[l.status].toLowerCase()].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </label>

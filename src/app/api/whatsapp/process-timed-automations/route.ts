@@ -4,8 +4,10 @@
  * Processa automações baseadas em tempo: leads parados, conversas sem resposta, etc.
  * Deve ser chamado a cada hora via pg_cron ou cron externo.
  *
- * Cada execução é gravada em `automation_runs`. `wa_timed_automation_log` continua
- * sendo a trava de "dispara uma vez" por lead/conversa. Um alvo com 3 execuções
+ * Cada execução é gravada em `automation_runs`. `wa_timed_automation_log` é a trava
+ * de "dispara uma vez" por alvo: reservar_disparo_por_tempo (migração 137) grava a
+ * linha antes de agir, e a linha sai quando o disparo não se consuma, para tentar
+ * de novo na hora seguinte. Duas execuções juntas nunca agem no mesmo alvo. Um alvo com 3 execuções
  * sem sucesso (falhou ou pulado) nas últimas 24h fica de fora até a janela passar,
  * para a mesma falha não se repetir a cada hora.
  *
@@ -14,7 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cronAutorizado } from '@/lib/auth/cron'
 import { createClient } from '@supabase/supabase-js'
-import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
 import { resumoErro } from '@/lib/log-seguro'
 import {
   falha,
@@ -46,7 +48,7 @@ type Acao =
   | { kind: 'send_template'; templateId: string }
   | { kind: 'move_stage'; stageId: string }
 
-interface Conversa { id: string; wa_phone: string | null; lead_id: string | null; unit_id: string }
+interface Conversa { id: string; wa_phone: string | null; lead_id: string | null; unit_id: string; conexao_id: string | null }
 interface Alvo { leadId: string | null; conversationId: string | null }
 
 const CONDICOES = new Set(['no_patient_reply', 'lead_stuck_stage', 'no_agent_reply', 'lead_no_task'])
@@ -127,7 +129,7 @@ async function registrarMalConfigurada(admin: Admin, auto: TimedAutomation) {
 async function processNoPatientReply(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
   let query = admin
     .from('wa_conversations')
-    .select('id, wa_phone, lead_id, unit_id')
+    .select('id, wa_phone, lead_id, unit_id, conexao_id')
     .eq('unit_id', auto.unit_id)
     .eq('last_message_direction', 'outbound')
     .lt('last_message_at', cutoff)
@@ -143,13 +145,13 @@ async function processNoPatientReply(admin: Admin, auto: TimedAutomation, acao: 
   const { data: convs } = await query.returns<Conversa[]>()
   if (!convs || convs.length === 0) return 0
 
-  return executeForConversations(admin, auto, acao, convs)
+  return executeForConversations(admin, auto, acao, await semLeadArquivado(admin, convs))
 }
 
 async function processNoAgentReply(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
   let query = admin
     .from('wa_conversations')
-    .select('id, wa_phone, lead_id, unit_id')
+    .select('id, wa_phone, lead_id, unit_id, conexao_id')
     .eq('unit_id', auto.unit_id)
     .eq('last_message_direction', 'inbound')
     .gt('unread_count', 0)
@@ -166,7 +168,7 @@ async function processNoAgentReply(admin: Admin, auto: TimedAutomation, acao: Ac
   const { data: convs } = await query.returns<Conversa[]>()
   if (!convs || convs.length === 0) return 0
 
-  return executeForConversations(admin, auto, acao, convs)
+  return executeForConversations(admin, auto, acao, await semLeadArquivado(admin, convs))
 }
 
 async function processLeadStuckStage(admin: Admin, auto: TimedAutomation, acao: Acao, cutoff: string) {
@@ -177,6 +179,9 @@ async function processLeadStuckStage(admin: Admin, auto: TimedAutomation, acao: 
     .select('id, unit_id')
     .eq('unit_id', auto.unit_id)
     .eq('stage_id', auto.filter_stage_id)
+    // Automações por tempo só agem em negócio aberto (ganho e perdido estão fechados)
+    // e fora do arquivo (arquivado = spam, engano...; migração 132)
+    .eq('status', 'aberto')
     .eq('arquivado', false)
     // stage_changed_at = entrada na etapa; updated_at muda com qualquer edição do lead
     .lt('stage_changed_at', cutoff)
@@ -203,6 +208,7 @@ async function processLeadNoTask(admin: Admin, auto: TimedAutomation, acao: Acao
     .from('leads')
     .select('id, unit_id')
     .eq('unit_id', auto.unit_id)
+    .eq('status', 'aberto')
     .eq('arquivado', false)
     .limit(200)
 
@@ -230,11 +236,25 @@ async function processLeadNoTask(admin: Admin, auto: TimedAutomation, acao: Acao
   return executeForLeads(admin, auto, acao, leadsWithout)
 }
 
+/** Tira as conversas de leads arquivados (spam, engano...; migração 132). Em erro, não age em nenhuma. */
+async function semLeadArquivado(admin: Admin, convs: Conversa[]): Promise<Conversa[]> {
+  const leadIds = [...new Set(convs.map(c => c.lead_id).filter((id): id is string => !!id))]
+  if (leadIds.length === 0) return convs
+  const { data, error } = await admin.from('leads').select('id').in('id', leadIds).eq('arquivado', true)
+  if (error) {
+    console.error('[timed-auto] erro ao conferir leads arquivados:', error.message)
+    return []
+  }
+  const arquivados = new Set((data ?? []).map(l => l.id as string))
+  return convs.filter(c => !c.lead_id || !arquivados.has(c.lead_id))
+}
+
 async function getFilteredLeadIds(admin: Admin, auto: TimedAutomation): Promise<string[]> {
   let query = admin
     .from('leads')
     .select('id')
     .eq('unit_id', auto.unit_id)
+    .eq('status', 'aberto')
     .eq('arquivado', false)
 
   if (auto.filter_stage_id) query = query.eq('stage_id', auto.filter_stage_id)
@@ -255,16 +275,17 @@ async function getFilteredLeadIds(admin: Admin, auto: TimedAutomation): Promise<
 async function executeForConversations(admin: Admin, auto: TimedAutomation, acao: Acao, convs: Conversa[]) {
   let count = 0
   for (const conv of convs) {
-    if (await wasAlreadyTriggered(admin, auto.id, conv.lead_id, conv.id)) continue
-
     const alvo: Alvo = { leadId: conv.lead_id, conversationId: conv.id }
     if (await excedeuTentativas(admin, auto.id, alvo)) continue
+
+    const reserva = await reservar(admin, auto.id, alvo)
+    if (!reserva) continue
 
     const resultado = await tentar(() => acao.kind === 'send_template'
       ? sendTemplateToConv(admin, auto.unit_id, conv, acao.templateId)
       : moverPorTempo(admin, conv.lead_id, acao.stageId))
 
-    if (await concluir(admin, auto, alvo, resultado)) count++
+    if (await concluir(admin, auto, alvo, resultado, reserva)) count++
   }
   return count
 }
@@ -272,19 +293,20 @@ async function executeForConversations(admin: Admin, auto: TimedAutomation, acao
 async function executeForLeads(admin: Admin, auto: TimedAutomation, acao: Acao, leads: { id: string; unit_id: string }[]) {
   let count = 0
   for (const lead of leads) {
-    if (await wasAlreadyTriggered(admin, auto.id, lead.id, null)) continue
     if (await excedeuTentativas(admin, auto.id, { leadId: lead.id, conversationId: null })) continue
 
     if (acao.kind === 'move_stage') {
       const alvo: Alvo = { leadId: lead.id, conversationId: null }
+      const reserva = await reservar(admin, auto.id, alvo)
+      if (!reserva) continue
       const resultado = await tentar(() => moverPorTempo(admin, lead.id, acao.stageId))
-      if (await concluir(admin, auto, alvo, resultado)) count++
+      if (await concluir(admin, auto, alvo, resultado, reserva)) count++
       continue
     }
 
     const { data: conv, error: convErr } = await admin
       .from('wa_conversations')
-      .select('id, wa_phone, lead_id, unit_id')
+      .select('id, wa_phone, lead_id, unit_id, conexao_id')
       .eq('lead_id', lead.id)
       .eq('unit_id', auto.unit_id)
       .order('last_message_at', { ascending: false })
@@ -293,14 +315,18 @@ async function executeForLeads(admin: Admin, auto: TimedAutomation, acao: Acao, 
 
     const alvo: Alvo = { leadId: lead.id, conversationId: conv?.id ?? null }
     if (convErr) {
-      await concluir(admin, auto, alvo, falha('banco', convErr))
+      await concluir(admin, auto, alvo, falha('banco', convErr), null)
       continue
     }
-    const resultado: ResultadoAutomacao = conv
-      ? await tentar(() => sendTemplateToConv(admin, auto.unit_id, conv, acao.templateId))
-      : { kind: 'pulado', motivo: 'sem_conversa' }
+    if (!conv) {
+      await concluir(admin, auto, alvo, { kind: 'pulado', motivo: 'sem_conversa' }, null)
+      continue
+    }
 
-    if (await concluir(admin, auto, alvo, resultado)) count++
+    const reserva = await reservar(admin, auto.id, alvo)
+    if (!reserva) continue
+    const resultado = await tentar(() => sendTemplateToConv(admin, auto.unit_id, conv, acao.templateId))
+    if (await concluir(admin, auto, alvo, resultado, reserva)) count++
   }
   return count
 }
@@ -341,13 +367,32 @@ function disparoConsumado(resultado: ResultadoAutomacao): boolean {
   }
 }
 
+/** Id da linha de wa_timed_automation_log que reserva o alvo, ou null se ele já foi disparado. */
+async function reservar(admin: Admin, automationId: string, alvo: Alvo): Promise<string | null> {
+  const { data, error } = await admin.rpc('reservar_disparo_por_tempo', {
+    p_automation: automationId,
+    p_lead:       alvo.leadId,
+    p_conversa:   alvo.conversationId,
+  })
+  if (error) {
+    console.error(`[timed-auto] reserva falhou automation=${automationId}:`, resumoErro(error))
+    return null
+  }
+  return (data as string | null) ?? null
+}
+
 async function concluir(
-  admin: Admin, auto: TimedAutomation, alvo: Alvo, resultado: ResultadoAutomacao,
+  admin: Admin, auto: TimedAutomation, alvo: Alvo, resultado: ResultadoAutomacao, reserva: string | null,
 ): Promise<boolean> {
   await registrarExecucao(admin, contexto(auto, alvo), resultado)
-  if (!disparoConsumado(resultado)) return false
-  await logTrigger(admin, auto.id, alvo.leadId, alvo.conversationId)
-  return resultado.kind === 'etapa_movida' || resultado.kind === 'modelo_enviado'
+  if (disparoConsumado(resultado)) {
+    return resultado.kind === 'etapa_movida' || resultado.kind === 'modelo_enviado'
+  }
+  if (reserva) {
+    const { error } = await admin.from('wa_timed_automation_log').delete().eq('id', reserva)
+    if (error) console.error(`[timed-auto] liberar reserva falhou automation=${auto.id}:`, resumoErro(error))
+  }
+  return false
 }
 
 async function moverPorTempo(admin: Admin, leadId: string | null, stageId: string): Promise<ResultadoAutomacao> {
@@ -368,7 +413,7 @@ async function moverPorTempo(admin: Admin, leadId: string | null, stageId: strin
 async function sendTemplateToConv(
   admin: Admin,
   unitId: string,
-  conv: { id: string; wa_phone: string | null },
+  conv: { id: string; wa_phone: string | null; conexao_id: string | null },
   templateId: string,
 ): Promise<ResultadoAutomacao> {
   if (!conv.wa_phone) return { kind: 'pulado', motivo: 'sem_telefone' }
@@ -381,7 +426,7 @@ async function sendTemplateToConv(
 
   if (!template?.template_name) return { kind: 'pulado', motivo: 'modelo_ausente' }
 
-  const creds = await getWaCredentials(unitId)
+  const creds = await getCredenciaisDaConexao(conv.conexao_id)
   if (!creds.phoneNumberId || !creds.accessToken) return { kind: 'pulado', motivo: 'sem_credenciais' }
 
   const varCount = (template.content?.match(/\{\{\d+\}\}/g) ?? []).length
@@ -463,36 +508,4 @@ async function sendTemplateToConv(
   if (msgErr || convErr) return falha('banco_apos_envio', msgErr ?? convErr)
 
   return { kind: 'modelo_enviado', templateId, waMessageId: waId }
-}
-
-async function wasAlreadyTriggered(
-  admin: Admin,
-  automationId: string,
-  leadId: string | null,
-  conversationId: string | null,
-) {
-  let query = admin
-    .from('wa_timed_automation_log')
-    .select('id', { count: 'exact', head: true })
-    .eq('automation_id', automationId)
-
-  if (leadId) query = query.eq('lead_id', leadId)
-  if (conversationId) query = query.eq('conversation_id', conversationId)
-
-  const { count } = await query
-  return (count ?? 0) > 0
-}
-
-async function logTrigger(
-  admin: Admin,
-  automationId: string,
-  leadId: string | null,
-  conversationId: string | null,
-) {
-  const { error } = await admin.from('wa_timed_automation_log').insert({
-    automation_id: automationId,
-    lead_id: leadId,
-    conversation_id: conversationId,
-  })
-  if (error) console.error(`[timed-auto] logTrigger falhou automation=${automationId}:`, resumoErro(error))
 }

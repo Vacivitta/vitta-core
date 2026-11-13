@@ -8,12 +8,6 @@
     }
   },
   "src/app/campanhas/CampanhasClient.tsx": {
-    "react-hooks/immutability": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
     "react/no-unescaped-entities": {
       "count": 4
     }
@@ -64,11 +58,6 @@
     }
   },
   "src/components/layout/NotificationBell.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/leads/ArchivedLeadsPanel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { LeadKanban } from '@/types/database'
+import type { LeadKanban, TipoTag } from '@/types/database'
 import { paraHorarioBR, partesBR } from '@/lib/datas-br'
 import { primeiraLetra } from '@/lib/texto'
 
-interface TagInfo { id: string; name: string; color: string }
+/** tipo (migração 133): a tag de conversa aparece com borda tracejada para não se confundir com a do cliente */
+interface TagInfo { id: string; name: string; color: string; tipo?: TipoTag }
 
 interface Props {
   lead: LeadKanban
@@ -83,7 +84,8 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     const changed = partesBR(new Date(lead.stage_changed_at))
     return changed.ano * 12 + changed.mes < today.ano * 12 + today.mes
   })())
-  const isSlaOverdue = isHoursSlaOverdue || isMonthlySlaOverdue
+  // Negócio perdido (coluna de perda, migração 131) não está sendo trabalhado: sem alerta de etapa
+  const isSlaOverdue = lead.status !== 'perdido' && (isHoursSlaOverdue || isMonthlySlaOverdue)
 
   const taskOverdue = lead.proxima_tarefa_data
     ? new Date(lead.proxima_tarefa_data).getTime() < now
@@ -204,9 +206,10 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
         {tags && tags.length > 0 && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
             {tags.map(tag => (
-              <span key={tag.id} style={{
-                fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
+              <span key={tag.id} title={tag.tipo === 'conversa' ? 'Tag da conversa' : 'Tag do cliente'} style={{
+                fontSize: 9, fontWeight: 600, padding: '0 5px', borderRadius: 4,
                 background: tag.color + '15', color: tag.color,
+                border: `1px ${tag.tipo === 'conversa' ? 'dashed' : 'solid'} ${tag.color}55`,
               }}>
                 {tag.name}
               </span>

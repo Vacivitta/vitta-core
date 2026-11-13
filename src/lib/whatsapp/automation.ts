@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
 import { resumoErro } from '@/lib/log-seguro'
 import { contarVariaveis, montarComponentesTemplate, resolveVariables } from '@/lib/whatsapp/template-variaveis'
 import {
@@ -18,7 +18,7 @@ const PULOS_DE_ROTINA_POR_MENSAGEM: ReadonlySet<MotivoPulo> = new Set<MotivoPulo
   'sem_lead', 'ja_na_etapa', 'etapa_nao_movivel',
 ])
 
-interface ConversaAlvo { lead_id: string | null; wa_phone: string | null }
+interface ConversaAlvo { lead_id: string | null; wa_phone: string | null; conexao_id: string | null }
 
 /**
  * Executa automações configuradas em `wa_automations` para um evento de WhatsApp.
@@ -75,7 +75,7 @@ async function executarAutomacoes(
 
   const { data: conv } = await supabase
     .from('wa_conversations')
-    .select('lead_id, wa_phone')
+    .select('lead_id, wa_phone, conexao_id')
     .eq('id', conversationId)
     .maybeSingle<ConversaAlvo>()
 
@@ -257,7 +257,8 @@ async function handleSendTemplate(
   if (templateErr) return falha('banco', templateErr)
   if (!template?.template_name) return { kind: 'pulado', motivo: 'modelo_ausente' }
 
-  const creds = await getWaCredentials(unitId)
+  // Pela conexão da conversa: conversa de QR Code não recebe modelo (só a API oficial tem modelos)
+  const creds = await getCredenciaisDaConexao(conv.conexao_id)
   if (!creds.phoneNumberId || !creds.accessToken) return { kind: 'pulado', motivo: 'sem_credenciais' }
 
   const varCount = contarVariaveis(template.content)

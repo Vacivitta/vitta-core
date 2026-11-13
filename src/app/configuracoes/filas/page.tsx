@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/types/database'
 import FilasConfig from './FilasConfig'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export const metadata = { title: 'Filas de Atendimento — VittaDesk' }
 
@@ -10,7 +11,7 @@ export default async function FilasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, '*')
   if (!profile) redirect('/login')
   if (profile.perfil === 'atendente') redirect('/funil')
 

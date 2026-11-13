@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import AutomacoesClient from './AutomacoesClient'
 import type { AutomationRun, AutomationRunComLead, Profile } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 const COLUNAS_EXECUCAO = 'id, unit_id, origem, automation_id, gatilho, acao, lead_id, conversation_id, resultado, motivo, detalhe, criado_em, leads(nome, sobrenome)'
 
@@ -23,8 +24,7 @@ export default async function AutomacoesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(supabase, user.id, '*')
 
   if (!profile) redirect('/login')
   if (profile.perfil === 'atendente') redirect('/funil')
@@ -67,6 +67,7 @@ export default async function AutomacoesPage() {
     supabase
       .from('funnels')
       .select('id, nome')
+      .eq('objeto', 'negocio')
       .order('nome'),
     supabase
       .from('automation_runs')

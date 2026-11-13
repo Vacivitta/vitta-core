@@ -963,6 +963,7 @@ function NewTaskModal({
         .from('leads')
         .select('id, nome, sobrenome')
         .ilike('nome', `%${q}%`)
+        .neq('status', 'perdido')
         .eq('arquivado', false)
         .eq('unit_id', currentUser.unit_id)
         .limit(6)

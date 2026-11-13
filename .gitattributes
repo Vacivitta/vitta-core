@@ -1,3 +1,7 @@
 # Scripts executados na VPS (Linux) precisam de LF
 *.sh text eol=lf
 Dockerfile text eol=lf
+# SQL das migrações: LF no checkout (os do repositório já estão em LF no índice)
+*.sql text eol=lf
+# Ambiente de teste: tudo roda na VPS (Linux)
+scripts/ambiente-teste/* text eol=lf

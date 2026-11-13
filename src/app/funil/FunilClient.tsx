@@ -1,16 +1,26 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import type { Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
+import { Fragment, useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import type { CampoLead, Lead, LeadKanban, FunnelStage, FunnelWithStages, Profile } from '@/types/database'
+import {
+  camposFiltraveis, opcoesDoFiltro, passaFiltroCampos, totalFiltrosCampos, type FiltroCampos,
+} from '@/lib/funil/filtro-campos'
 import KanbanBoard from '@/components/kanban/KanbanBoard'
 import { KANBAN_SORT_OPTIONS, DEFAULT_KANBAN_SORT, COOKIE_ORDENACAO_FUNIL, type KanbanSortMode } from '@/components/kanban/sort'
-import { montarResumoConversas, SELECT_CONVERSAS_FUNIL, type ConversaFunil, type ResumoConversas } from '@/lib/funil/resumo-conversas'
+import {
+  montarResumoConversas, montarTagsDosLeads, unirEtiquetas, SELECT_CONVERSAS_FUNIL, SELECT_TAGS_DOS_LEADS,
+  type ConversaFunil, type EtiquetaCard, type ResumoConversas, type TagDoLeadFunil,
+} from '@/lib/funil/resumo-conversas'
 import LeadModal from '@/components/leads/LeadModal'
 import QuickLeadForm from '@/components/leads/QuickLeadForm'
-import ArchivedLeadsPanel from '@/components/leads/ArchivedLeadsPanel'
+import ArquivadosPanel from '@/components/leads/ArquivadosPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
+import Link from 'next/link'
+import { isPerfilGestor } from '@/lib/auth/access'
+import { urlExportacao } from '@/lib/exportacao'
+import { agruparPorTipo } from '@/lib/tags'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -23,14 +33,23 @@ interface Props {
   etapasAtendimento: string[]
   /** Dados das conversas por lead já calculados no servidor (1ª tela sem "pulo") */
   resumoInicial: ResumoConversas
+  /** Tags aplicadas no próprio lead (lead_tags), por lead */
+  tagsDosLeadsIniciais: Record<string, EtiquetaCard[]>
   /** Ordenação salva no cookie; null = ainda não salva (lê a preferência antiga do localStorage) */
   ordenacaoInicial: KanbanSortMode | null
+  /** Leads arquivados da unidade (contador do botão Arquivados) */
+  totalArquivadosInicial: number
+  /** Lead do link /funil?lead=<id> (notificações), já conferido no servidor */
+  leadDoLink: { lead: LeadKanban; aba: string | null } | null
+  /** Campos personalizados ativos da unidade (filtro por campo) */
+  camposLead: CampoLead[]
 }
 
 function MultiCheckFilter({ label, selected, options, onChange }: {
   label: string
   selected: string[]
-  options: { id: string; label: string; color?: string }[]
+  /** grupo: título exibido antes da primeira opção de cada grupo (opções já em ordem de grupo) */
+  options: { id: string; label: string; color?: string; grupo?: string }[]
   onChange: (ids: string[]) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -79,11 +98,17 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
           borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           minWidth: 190, maxHeight: 260, overflowY: 'auto', padding: '6px 0',
         }}>
-          {options.map(opt => {
+          {options.map((opt, i) => {
             const checked = selected.includes(opt.id)
+            const abreGrupo = opt.grupo && opt.grupo !== options[i - 1]?.grupo
             return (
+              <Fragment key={opt.id}>
+              {abreGrupo && (
+                <div style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 800, color: '#9AA79C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {opt.grupo}
+                </div>
+              )}
               <label
-                key={opt.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
                   cursor: 'pointer', fontSize: 12, color: '#25402C',
@@ -107,6 +132,7 @@ function MultiCheckFilter({ label, selected, options, onChange }: {
                 <input type="checkbox" checked={checked} onChange={() => toggle(opt.id)} style={{ display: 'none' }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
               </label>
+              </Fragment>
             )
           })}
         </div>
@@ -121,7 +147,10 @@ interface Filters {
   cidade: string
   stage_ids: string[]
   tag_ids: string[]
+  campos: FiltroCampos
 }
+
+const FILTROS_VAZIOS: Filters = { search: '', responsavel_ids: [], cidade: '', stage_ids: [], tag_ids: [], campos: {} }
 
 /** Grava a ordenação no cookie (1 ano) e no localStorage. */
 function salvarOrdenacao(mode: string) {
@@ -129,30 +158,51 @@ function salvarOrdenacao(mode: string) {
   try { localStorage.setItem(COOKIE_ORDENACAO_FUNIL, mode) } catch { /* ignora */ }
 }
 
-export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, ordenacaoInicial }: Props) {
+export default function FunilClient({ initialLeads, funnels, profiles, currentUser, agoraServidor, etapasAtendimento, resumoInicial, tagsDosLeadsIniciais, ordenacaoInicial, totalArquivadosInicial, leadDoLink, camposLead }: Props) {
   const supabase = createClient()
 
+  // Lead de outro funil: troca o funil exibido (funil inativo fica no atual, a ficha abre igual)
+  const funilDoLink = (link: Props['leadDoLink']) =>
+    funnels.some(f => f.id === link?.lead.funnel_id) ? link!.lead.funnel_id : null
+
   const [leads, setLeads]                 = useState<LeadKanban[]>(initialLeads)
-  const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funnels[0]?.id ?? '')
-  const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(undefined)
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string>(funilDoLink(leadDoLink) ?? funnels[0]?.id ?? '')
+  const [modalLead, setModalLead]         = useState<LeadKanban | null | undefined>(leadDoLink?.lead)
+  const [abaDoLink, setAbaDoLink]         = useState<string | null>(leadDoLink?.aba ?? null)
+
+  // Notificação clicada com o funil já aberto: o servidor manda outro leadDoLink
+  // para o mesmo componente (ajuste de estado na renderização, sem efeito)
+  const [linkVisto, setLinkVisto] = useState(leadDoLink)
+  if (leadDoLink !== linkVisto) {
+    setLinkVisto(leadDoLink)
+    if (leadDoLink) {
+      const f = funilDoLink(leadDoLink)
+      if (f) setSelectedFunnelId(f)
+      setAbaDoLink(leadDoLink.aba)
+      setModalLead(leadDoLink.lead)
+    }
+  }
+
+  // Tira ?lead= da barra: recarregar a página não reabre a ficha
+  useEffect(() => {
+    if (leadDoLink && window.location.search) window.history.replaceState(null, '', window.location.pathname)
+  }, [leadDoLink])
+
   const [quickFormStage, setQuickFormStage] = useState<FunnelStage | null>(null)
-  const [showArchived, setShowArchived]   = useState(false)
+  const [showArquivados, setShowArquivados] = useState(false)
+  const [totalArquivados, setTotalArquivados] = useState(totalArquivadosInicial)
   const [newConvOpen, setNewConvOpen]     = useState(false)
-  const [filters, setFilters]             = useState<Filters>({
-    search:          '',
-    responsavel_ids: [],
-    cidade:          '',
-    stage_ids:       [],
-    tag_ids:         [],
-  })
+  const [filters, setFilters]             = useState<Filters>(FILTROS_VAZIOS)
   const [showFilters, setShowFilters]     = useState(false)
-  const [unitTags, setUnitTags]           = useState<Array<{ id: string; name: string; color: string }>>([])
+  const [unitTags, setUnitTags]           = useState<EtiquetaCard[]>([])
   const [unreadByLead, setUnreadByLead]         = useState<Record<string, number>>(resumoInicial.unreadByLead)
   const [lastMsgByLead, setLastMsgByLead]       = useState<Record<string, string>>(resumoInicial.lastMsgByLead)
   const [lastDirByLead, setLastDirByLead]       = useState<Record<string, 'inbound' | 'outbound'>>(resumoInicial.lastDirByLead)
   const [sortMode, setSortMode]                 = useState<KanbanSortMode>(ordenacaoInicial ?? DEFAULT_KANBAN_SORT)
   const [convIdByLead, setConvIdByLead]         = useState<Record<string, string>>(resumoInicial.convIdByLead)
-  const [tagsByLead, setTagsByLead]             = useState<Record<string, Array<{ id: string; name: string; color: string }>>>(resumoInicial.tagsByLead)
+  const [tagsConversasByLead, setTagsConversasByLead] = useState<Record<string, EtiquetaCard[]>>(resumoInicial.tagsByLead)
+  const [tagsDosLeads, setTagsDosLeads]         = useState<Record<string, EtiquetaCard[]>>(tagsDosLeadsIniciais)
+  const tagsByLead = useMemo(() => unirEtiquetas(tagsDosLeads, tagsConversasByLead), [tagsDosLeads, tagsConversasByLead])
   const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
   const [msgMatchLeadIds, setMsgMatchLeadIds] = useState<Set<string> | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -216,7 +266,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         setLastMsgByLead(r.lastMsgByLead)
         setLastDirByLead(r.lastDirByLead)
         setConvIdByLead(r.convIdByLead)
-        setTagsByLead(r.tagsByLead)
+        setTagsConversasByLead(r.tagsByLead)
       })
 
     function handleConvChange(payload: { new: Record<string, unknown> }) {
@@ -272,11 +322,11 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
     }
   }, [supabase])
 
-  // Carrega tags disponíveis da unidade
+  // Sem o filtro de unidade, o admin global via as tags de todas
   useEffect(() => {
-    void supabase.from('wa_tags').select('id,name,color').order('name')
-      .then(({ data }) => { if (data) setUnitTags(data) })
-  }, [supabase])
+    void supabase.from('wa_tags').select('id,name,color,tipo').eq('unit_id', currentUser.unit_id).order('name')
+      .then(({ data }) => { if (data) setUnitTags(data as EtiquetaCard[]) })
+  }, [supabase, currentUser.unit_id])
 
   // Carrega nomes dos contatos vinculados (dependentes/pacientes) para busca
   useEffect(() => {
@@ -291,6 +341,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   }, [supabase])
 
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId) ?? funnels[0]
+  const camposDoFiltro = useMemo(() => camposFiltraveis(camposLead, selectedFunnelId), [camposLead, selectedFunnelId])
 
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
@@ -313,16 +364,38 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         const lt = tagsByLead[l.id]
         if (!lt || !filters.tag_ids.some(tid => lt.some(t => t.id === tid))) return false
       }
+      if (!passaFiltroCampos(l.campos, filters.campos, camposDoFiltro)) return false
       return true
     })
-  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds])
+  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds, camposDoFiltro])
 
   const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
+    + totalFiltrosCampos(filters.campos, camposDoFiltro)
 
-  const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId).length
-  const totalVendidos = leads.filter(l => l.funnel_id === selectedFunnelId && l.stage_ordem === Math.max(...(selectedFunnel?.stages.map(s => s.ordem) ?? [0])) - 1).length
+  // Os perdidos da coluna de perda (migração 131) não estão em acompanhamento
+  const totalLeads    = leads.filter(l => l.funnel_id === selectedFunnelId && l.status !== 'perdido').length
+
+  // Tags do lead mudam na ficha; sem Realtime em lead_tags, recarrega junto com os leads
+  async function carregarTagsDosLeads() {
+    const { data, error } = await fetchAll((from, to) => supabase
+      .from('lead_tags')
+      .select(SELECT_TAGS_DOS_LEADS)
+      .eq('unit_id', currentUser.unit_id)
+      .order('lead_id')
+      .order('tag_id')
+      .range(from, to))
+    if (!error) setTagsDosLeads(montarTagsDosLeads(data as TagDoLeadFunil[]))
+  }
+
+  async function contarArquivados() {
+    const { count, error } = await supabase.from('leads').select('id', { count: 'exact', head: true })
+      .eq('unit_id', currentUser.unit_id).eq('arquivado', true)
+    if (!error && count !== null) setTotalArquivados(count)
+  }
 
   async function reloadLeads() {
+    void carregarTagsDosLeads()
+    void contarArquivados()
     const { data, error } = await fetchAll((from, to) => supabase
       .from('leads_kanban')
       .select('*')
@@ -457,16 +530,47 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
           </button>
 
           <button
-            onClick={() => setShowArchived(true)}
+            onClick={() => setShowArquivados(true)}
             className="flex items-center gap-1.5"
             style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', cursor: 'pointer', fontWeight: 700 }}
-            title="Ver contatos arquivados"
+            title="Ver contatos arquivados (fora do funil)"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
             <span className="hidden sm:inline">Arquivados</span>
+            {totalArquivados > 0 && (
+              <span style={{ background: '#E5E7EB', color: '#71856F', fontSize: 10, fontWeight: 800, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {totalArquivados}
+              </span>
+            )}
           </button>
+
+          {isPerfilGestor(currentUser.perfil) && (
+            <>
+              <a
+                href={urlExportacao({
+                  funnel_id: selectedFunnelId, stage_ids: filters.stage_ids, responsavel_ids: filters.responsavel_ids,
+                  tag_ids: filters.tag_ids, cidade: filters.cidade, status: 'nao_perdido',
+                })}
+                download
+                className="flex items-center gap-1.5"
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
+                title="Baixar em CSV os contatos deste funil com os filtros aplicados (a busca por texto e os filtros por campo personalizado não entram)"
+              >
+                <span className="hidden sm:inline">Exportar</span>
+                <span className="sm:hidden">CSV</span>
+              </a>
+              <Link
+                href="/clientes/importar"
+                className="hidden sm:flex items-center gap-1.5"
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 999, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#71856F', fontWeight: 700 }}
+                title="Importar contatos de uma planilha CSV"
+              >
+                Importar
+              </Link>
+            </>
+          )}
 
           <button
             onClick={() => setNewConvOpen(true)}
@@ -519,18 +623,28 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
             onChange={ids => setFilters(f => ({ ...f, stage_ids: ids }))}
           />
 
+          {camposDoFiltro.map(c => (
+            <MultiCheckFilter
+              key={c.id}
+              label={c.rotulo}
+              selected={filters.campos[c.chave] ?? []}
+              options={opcoesDoFiltro(c)}
+              onChange={ids => setFilters(f => ({ ...f, campos: { ...f.campos, [c.chave]: ids } }))}
+            />
+          ))}
+
           {unitTags.length > 0 && (
             <MultiCheckFilter
               label="Tag"
               selected={filters.tag_ids}
-              options={unitTags.map(t => ({ id: t.id, label: t.name, color: t.color }))}
+              options={agruparPorTipo(unitTags).flatMap(g => g.tags.map(t => ({ id: t.id, label: t.name, color: t.color, grupo: g.rotulo })))}
               onChange={ids => setFilters(f => ({ ...f, tag_ids: ids }))}
             />
           )}
 
           {activeFiltersCount > 0 && (
             <button
-              onClick={() => setFilters({ search: '', responsavel_ids: [], cidade: '', stage_ids: [], tag_ids: [] })}
+              onClick={() => setFilters(FILTROS_VAZIOS)}
               style={{ fontSize: 11, color: '#C87F1B', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
             >
               Limpar filtros
@@ -562,13 +676,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
         />
       </main>
 
-      {/* Painel de arquivados */}
-      {showArchived && (
-        <ArchivedLeadsPanel
+      {showArquivados && (
+        <ArquivadosPanel
           funnels={funnels}
           selectedFunnelId={selectedFunnelId}
-          onOpenLead={lead => { setShowArchived(false); setModalLead(lead) }}
-          onClose={() => setShowArchived(false)}
+          unitId={currentUser.unit_id}
+          podeDesarquivar={currentUser.perfil !== 'atendente'}
+          onOpenLead={lead => { setShowArquivados(false); setModalLead(lead) }}
+          onChanged={() => void reloadLeads()}
+          onClose={() => setShowArquivados(false)}
         />
       )}
 
@@ -596,13 +712,15 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       {/* Lead modal (existing leads) */}
       {modalLead !== undefined && (
         <LeadModal
+          key={modalLead?.id ?? 'novo'}
           lead={modalLead}
+          abaInicial={abaDoLink ?? undefined}
           defaultStageId={selectedFunnel.stages[0]?.id}
           funnel={selectedFunnel}
           allFunnels={funnels}
           profiles={profiles}
           currentUser={currentUser}
-          onClose={() => setModalLead(undefined)}
+          onClose={() => { setModalLead(undefined); setAbaDoLink(null); void carregarTagsDosLeads() }}
           onSaved={reloadLeads}
         />
       )}

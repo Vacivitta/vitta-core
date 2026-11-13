@@ -32,6 +32,37 @@ export interface Unit {
   telefone:   string | null
   ativo:      boolean
   criado_em:  string
+  /** Migração 139. #RRGGBB; sem cor, o app usa PALETA_UNIDADES pela posição. */
+  cor:        string | null
+  /** Migração 141. Fuso IANA da unidade (padrão America/Sao_Paulo); só o admin da marca altera. */
+  fuso:       string
+}
+
+/** Migração 143. Como um número de WhatsApp está ligado à unidade. */
+export type ConexaoTipo = 'oficial' | 'qrcode'
+export type ConexaoStatus = 'conectada' | 'desconectada' | 'aguardando_qr'
+
+/**
+ * Migração 143. A conversa pertence a uma conexão (`wa_conversations.conexao_id`).
+ * No máximo uma oficial por unidade (ligada ao `wa_config`, que guarda o token);
+ * QR Code a partir da entrega 2. Conversas de conexão pessoal só para a dona e o
+ * admin da marca (ADR 0007). Escrita só pelo service_role.
+ */
+export interface Conexao {
+  id:           string
+  unit_id:      string
+  tipo:         ConexaoTipo
+  nome:         string
+  numero:       string | null
+  pessoal:      boolean
+  dona_id:      string | null
+  wa_config_id: string | null
+  instancia:    string | null
+  status:       ConexaoStatus
+  ativo:        boolean
+  criado_em:    string
+  /** Migração 144. Mensagens por minuto no QR Code (1 a 60). */
+  limite_por_minuto: number
 }
 
 export interface UserUnit {
@@ -104,7 +135,14 @@ export interface Funnel {
   ordem:       number
   unit_id:     string | null
   created_at:  string
+  /** Migração 147: funil de negócio (leads) ou de ticket */
+  objeto:      FunilObjeto
 }
+
+export type FunilObjeto = 'negocio' | 'ticket'
+
+/** Resultado que entrar na etapa dá ao negócio (trigger fn_lead_status, migração 126). */
+export type ResultadoEtapa = 'ganho' | 'perdido'
 
 export interface FunnelStage {
   id:           string
@@ -114,6 +152,9 @@ export interface FunnelStage {
   ordem:        number
   alerta_horas: number | null
   sla_mensal:   boolean
+  resultado:    ResultadoEtapa | null
+  /** O que o lead precisa ter para entrar (migração 130): chaves de campos_lead e fixos 'lead:<coluna>' */
+  campos_obrigatorios: string[]
   unit_id:      string | null
   created_at:   string
 }
@@ -122,10 +163,94 @@ export interface FunnelWithStages extends Funnel {
   stages: FunnelStage[]
 }
 
+export interface MotivoPerda {
+  id:         string
+  funnel_id:  string
+  unit_id:    string
+  nome:       string
+  ordem:      number
+  ativo:      boolean
+  created_at: string
+}
+
+export type TipoCampo =
+  | 'texto' | 'numero' | 'data' | 'selecao' | 'multipla' | 'sim_nao' | 'telefone' | 'email' | 'moeda'
+
+/** Valor gravado em leads.campos para cada tipo (data em ISO aaaa-mm-dd, moeda em reais). */
+export interface ValorPorTipo {
+  texto:    string
+  numero:   number
+  data:     string
+  selecao:  string
+  multipla: string[]
+  sim_nao:  boolean
+  telefone: string
+  email:    string
+  moeda:    number
+}
+
+export type ValorCampo = ValorPorTipo[TipoCampo]
+
+/** Valor junto com o tipo, para tratar cada caso sem cast. */
+export type ValorTipado = { [T in TipoCampo]: { tipo: T; valor: ValorPorTipo[T] } }[TipoCampo]
+
+/** leads.campos: chave do campo → valor (chave ausente = sem valor). */
+export type CamposDoLead = Record<string, ValorCampo>
+
+/** De quem é o campo (151): da pessoa (contatos.campos) ou do negócio (leads.campos) */
+export type ObjetoCampo = 'negocio' | 'contato'
+
+interface CampoLeadBase {
+  id:        string
+  unit_id:   string
+  /** Imutável depois de criado; campo da pessoa não tem funil */
+  objeto:    ObjetoCampo
+  /** null: vale para todos os funis da unidade */
+  funnel_id: string | null
+  /** Gerada do rótulo na criação e imutável */
+  chave:     string
+  rotulo:    string
+  ordem:     number
+  ativo:     boolean
+  criado_em: string
+}
+
+export type CampoLead =
+  | (CampoLeadBase & { tipo: 'selecao' | 'multipla'; opcoes: string[] })
+  | (CampoLeadBase & { tipo: Exclude<TipoCampo, 'selecao' | 'multipla'>; opcoes: null })
+
 // ---- Leads -----------------------------------------------------------------
+
+/**
+ * Status do negócio. `is_converted` é outra coisa: "é cliente", para sempre;
+ * um cliente que volta a falar reabre o negócio (`aberto`) e continua cliente.
+ */
+export type StatusLead = 'aberto' | 'ganho' | 'perdido'
+
+export const STATUS_LEAD_LABELS: Record<StatusLead, string> = {
+  aberto:  'Aberto',
+  ganho:   'Ganho',
+  perdido: 'Perdido',
+}
+
+/**
+ * Motivos de arquivamento (lista fixa). Arquivar tira o lead do quadro sem mudar
+ * o negócio (migração 132); "Outro" exige descrição.
+ */
+export const MOTIVOS_ARQUIVAMENTO = [
+  'Spam',
+  'Contato errado ou engano',
+  'Fornecedor ou parceiro',
+  'Funcionário',
+  'Duplicado',
+  'Outro',
+] as const
+export type MotivoArquivamento = typeof MOTIVOS_ARQUIVAMENTO[number]
 
 export interface Lead {
   id:              string
+  /** Migração 148: a pessoa deste negócio (no backfill, contato_id = id) */
+  contato_id: string
   nome:            string
   sobrenome:       string | null
   profissao:       string | null
@@ -141,8 +266,18 @@ export interface Lead {
   funnel_id:       string
   stage_id:        string
   responsavel_id:  string | null
-  arquivado:       boolean
+  status:          StatusLead
+  ganho_em:        string | null
+  perdido_em:      string | null
+  motivo_perda_id: string | null
+  /** Detalhe do motivo (o texto de "Outro") ou motivo antigo em texto livre */
   motivo_perda:    string | null
+  /** Coluna gerada (arquivado_em IS NOT NULL, migração 132): só leitura. Independe do status */
+  arquivado:       boolean
+  /** Quando foi arquivado; gravar null desarquiva (use arquivar/desarquivar em src/lib/leads.ts) */
+  arquivado_em:    string | null
+  arquivado_motivo: string | null
+  arquivado_por:   string | null
   ordem:           number
   unit_id:         string | null
   is_converted:    boolean
@@ -152,12 +287,23 @@ export interface Lead {
   wa_optin_at:     string | null
   wa_optout_at:    string | null
   campanha_id:     string | null
+  /** Campos personalizados; a ficha lê da tabela (as views não trazem) */
+  campos:          CamposDoLead
   stage_changed_at: string
   created_at:      string
   updated_at:      string
 }
 
-export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
+/** Colunas geradas pelo banco (121 e 132): gravar nelas dá erro 428C9 */
+export type ColunaGeradaLead = 'telefone_norm' | 'arquivado'
+
+/** O que se pode gravar em leads (insert/update): sem as geradas nem as que o banco preenche */
+/** contato_id: o banco cria o contato do lead novo (148); o app ainda não escolhe contato */
+export type LeadGravavel = Omit<Lead, ColunaGeradaLead | 'id' | 'created_at' | 'updated_at' | 'contato_id'>
+
+export interface LeadKanban extends Omit<Lead, 'telefone_norm' | 'campos' | 'contato_id'> {
+  /** Só quando lido da tabela leads: as views leads_kanban e leads_arquivados não trazem (148) */
+  contato_id?: string
   responsavel_nome:   string | null
   responsavel_avatar: string | null
   stage_nome:         string | null
@@ -169,11 +315,15 @@ export interface LeadKanban extends Omit<Lead, 'telefone_norm'> {
   valor_negociado:    number | null
   stage_alerta_horas: number | null
   stage_sla_mensal:   boolean
+  stage_resultado:    ResultadoEtapa | null
+  motivo_perda_nome:  string | null
   valor_orcamentos:   number
   proxima_tarefa_data: string | null
   tarefas_pendentes:  number
   total_notas:        number
   total_contatos:     number
+  /** Só em leads_kanban (migração 134); leads_arquivados não traz */
+  campos?:            CamposDoLead
 }
 
 // ---- Relacionamentos do lead ------------------------------------------------
@@ -220,6 +370,19 @@ export interface LeadTask {
   created_at:            string
   updated_at:            string
   responsavel?:          Profile
+}
+
+/** Arquivo anexado à ficha do lead (migração 128). Sem `caminho`: o navegador abre pela rota, nunca pelo bucket. */
+export interface LeadAnexo {
+  id:          string
+  lead_id:     string
+  unit_id:     string
+  nome:        string
+  mime:        'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic' | 'image/heif'
+  tamanho:     number
+  enviado_por: string | null
+  criado_em:   string
+  autor?:      { full_name: string } | null
 }
 
 export interface LeadNegotiation {
@@ -489,12 +652,13 @@ export interface LeadStageHistory {
   id:            string
   lead_id:       string
   de_stage_id:   string | null
-  para_stage_id: string
+  /** Null quando a etapa de destino foi excluída (migração 135); gravar exige destino */
+  para_stage_id: string | null
   movido_por:    string | null
   criado_em:     string
 }
 
-export type AutomationRunResultado = 'etapa_movida' | 'modelo_enviado' | 'pulado' | 'falhou'
+export type AutomationRunResultado = 'etapa_movida' | 'modelo_enviado' | 'lead_perdido' | 'pulado' | 'falhou'
 
 export interface AutomationRun {
   id:              string
@@ -515,14 +679,25 @@ export interface AutomationRunComLead extends AutomationRun {
   lead_nome: string | null
 }
 
-// ---- Tags de conversas WhatsApp --------------------------------------------
+/** Onde a tag é aplicada (wa_tags.tipo, migração 133): no cliente (lead_tags) ou na conversa. */
+export type TipoTag = 'lead' | 'conversa'
 
 export interface WaTag {
   id:         string
   unit_id:    string
   name:       string
   color:      string
+  tipo:       TipoTag
   created_at: string
+}
+
+/** Tag do catálogo `wa_tags` aplicada no lead (migração 127). */
+export interface LeadTag {
+  lead_id:    string
+  tag_id:     string
+  unit_id:    string
+  criado_em:  string
+  criado_por: string | null
 }
 
 // ---- Notificações ----------------------------------------------------------
@@ -536,8 +711,16 @@ export interface Notification {
   body:      string | null
   quote_id:  string | null
   lead_id:   string | null
-  lida:      boolean
+  /** Migração 147 */
+  ticket_id: string | null
   criado_em: string
+}
+
+/** Uma linha por pessoa que leu a notificação (migração 136). */
+export interface NotificationRead {
+  notification_id: string
+  user_id:         string
+  lida_em:         string
 }
 
 export type AppErrorOrigem = 'rota' | 'renderizacao' | 'acao' | 'cron' | 'webhook' | 'outro'
@@ -577,17 +760,6 @@ export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
   outro:       'Outro',
 }
 
-export const ARCHIVE_REASONS = [
-  'Sem orçamento',
-  'Escolheu concorrente',
-  'Sem interesse',
-  'Sem contato',
-  'Timing ruim',
-  'Outro',
-] as const
-
-export type ArchiveReason = typeof ARCHIVE_REASONS[number]
-
 export const MOTIVO_RECUSA_OPTIONS = [
   'Concorrência',
   'Indisponibilidade',
@@ -609,3 +781,102 @@ export const ORIGEM_OPTIONS = [
   'Orgânico',
   'Outro',
 ] as const
+
+// ── Módulos, empresas e tickets (migrações 146 e 147) ─────────────────────────
+
+export type Modulo = 'orcamentos' | 'catalogo' | 'campanhas' | 'qrcode' | 'empresas' | 'tickets'
+
+export interface UnidadeModulo {
+  unit_id:      string
+  modulo:       Modulo
+  ativo:        boolean
+  alterado_em:  string
+  alterado_por: string | null
+}
+
+export interface Empresa {
+  id:             string
+  unit_id:        string
+  nome:           string
+  /** 14 dígitos, sem máscara; único na unidade */
+  cnpj:           string | null
+  responsavel_id: string | null
+  observacao:     string | null
+  criado_em:      string
+  criado_por:     string | null
+}
+
+export type PapelNaEmpresa = 'decisor' | 'socio' | 'contato' | 'financeiro' | 'outro'
+
+export const PAPEL_NA_EMPRESA_LABELS: Record<PapelNaEmpresa, string> = {
+  decisor: 'Decisor', socio: 'Sócio', contato: 'Contato', financeiro: 'Financeiro', outro: 'Outro',
+}
+
+export interface EmpresaVinculo {
+  empresa_id: string
+  lead_id:    string
+  papel:      PapelNaEmpresa
+  criado_em:  string
+}
+
+export type TicketStatus = 'aberto' | 'resolvido'
+export type TicketPrioridade = 'baixa' | 'media' | 'alta' | 'urgente'
+
+export const TICKET_PRIORIDADE_LABELS: Record<TicketPrioridade, string> = {
+  baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
+}
+
+export interface Ticket {
+  id:             string
+  numero:         number
+  unit_id:        string
+  titulo:         string
+  descricao:      string | null
+  funnel_id:      string
+  stage_id:       string | null
+  status:         TicketStatus
+  prioridade:     TicketPrioridade
+  responsavel_id: string | null
+  empresa_id:     string | null
+  lead_id:        string | null
+  conversa_id:    string | null
+  criado_por:     string | null
+  criado_em:      string
+  atualizado_em:  string
+  resolvido_em:   string | null
+}
+
+// ── Contato (migração 148) ────────────────────────────────────────────────────
+
+/**
+ * A pessoa, cliente para sempre, da unidade (ADR 0001 e 0005). O lead é o negócio.
+ * Na etapa 5a o app ainda grava a pessoa no lead e o banco espelha aqui; o
+ * dependente é um contato com responsavel_id.
+ */
+export interface Contato {
+  id:              string
+  unit_id:         string
+  nome:            string
+  sobrenome:       string | null
+  telefone:        string | null
+  telefone_norm:   string | null
+  email:           string | null
+  cpf:             string | null
+  data_nascimento: string | null
+  profissao:       string | null
+  cidade:          string | null
+  estado:          string | null
+  pais:            string | null
+  instagram:       string | null
+  site:            string | null
+  observacoes:     string | null
+  cliente:         boolean
+  wa_optin_at:     string | null
+  wa_optout_at:    string | null
+  responsavel_id:  string | null
+  relacao:         string | null
+  /** Campos personalizados da pessoa (151): só chaves de campos com objeto 'contato' */
+  campos:          CamposDoLead
+  criado_em:       string
+  atualizado_em:   string
+}

@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'conversation_id e tag_id são obrigatórios' }, { status: 400 })
   }
 
-  // A policy de wa_conversation_tags só valida a tag; a conversa também precisa ser da unidade
   if (!await getAccessibleConversation(supabase, body.conversation_id)) {
     return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
@@ -24,7 +23,13 @@ export async function POST(req: NextRequest) {
     .from('wa_conversation_tags')
     .upsert({ conversation_id: body.conversation_id, tag_id: body.tag_id }, { onConflict: 'conversation_id,tag_id' })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // 23514: tag de cliente (trigger da 133)
+    if (error.code === '23514') {
+      return NextResponse.json({ error: 'Esta tag é de cliente; na conversa só entram tags do tipo Conversa' }, { status: 400 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }
 
@@ -37,6 +42,10 @@ export async function DELETE(req: NextRequest) {
   const tagId          = req.nextUrl.searchParams.get('tag_id')
   if (!conversationId || !tagId) {
     return NextResponse.json({ error: 'conversation_id e tag_id são obrigatórios' }, { status: 400 })
+  }
+
+  if (!await getAccessibleConversation(supabase, conversationId)) {
+    return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
 
   const { error } = await supabase

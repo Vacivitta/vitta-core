@@ -1,5 +1,21 @@
 import { createClient } from './supabase/client'
-import type { Funnel, FunnelStage, FunnelWithStages } from '@/types/database'
+import { lerUnidadeDaAba } from './unidade-ativa-navegador'
+import type { Funnel, FunnelStage, FunnelWithStages, MotivoPerda, FunilObjeto } from '@/types/database'
+import { mensagemRecusaPorReferencia, mensagemUsadaPorAutomacao } from './funil/exclusao'
+
+// Automações por tempo que usam o funil ou alguma das etapas como filtro (o banco
+// recusa a exclusão: FKs ON DELETE RESTRICT, migração 135)
+async function automacoesQueFiltram(funnelId: string | null, stageIds: string[]): Promise<string[]> {
+  const condicoes = [
+    ...(funnelId ? [`filter_funnel_id.eq.${funnelId}`] : []),
+    ...(stageIds.length > 0 ? [`filter_stage_id.in.(${stageIds.join(',')})`] : []),
+  ]
+  if (condicoes.length === 0) return []
+  const { data, error } = await createClient()
+    .from('wa_timed_automations').select('nome').or(condicoes.join(','))
+  if (error) throw error
+  return (data ?? []).map(a => String(a.nome ?? ''))
+}
 
 // ---- Funis ----------------------------------------------------------------
 
@@ -15,19 +31,20 @@ export async function listFunnels(): Promise<FunnelWithStages[]> {
   })) as FunnelWithStages[]
 }
 
-export async function createFunnel(nome: string, descricao?: string): Promise<Funnel> {
+export async function createFunnel(nome: string, descricao?: string, objeto: FunilObjeto = 'negocio'): Promise<Funnel> {
   const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Usuário não autenticado')
   const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).single()
-  if (!profile?.unit_id) throw new Error('Usuário sem unidade')
+  const unidade = lerUnidadeDaAba() ?? profile?.unit_id
+  if (!unidade) throw new Error('Usuário sem unidade')
 
   const { data: existing } = await supabase.from('funnels').select('ordem').order('ordem', { ascending: false }).limit(1)
   const nextOrdem = (existing?.[0]?.ordem ?? -1) + 1
   const { data, error } = await supabase
     .from('funnels')
-    .insert({ nome, descricao: descricao ?? null, ativo: true, ordem: nextOrdem, unit_id: profile.unit_id })
+    .insert({ nome, descricao: descricao ?? null, ativo: true, ordem: nextOrdem, unit_id: unidade, objeto })
     .select()
     .single()
   if (error) throw error
@@ -48,30 +65,32 @@ export async function deactivateFunnel(id: string): Promise<void> {
   await updateFunnel(id, { ativo: false })
 }
 
-// Exclui permanentemente — só permite se não houver leads em nenhuma etapa
+// Exclui permanentemente — só se o funil não tem nenhum lead, nem perdido ou
+// arquivado, e se nenhuma automação por tempo o usa como filtro. O banco também
+// recusa (FKs ON DELETE RESTRICT, migração 135); conferir antes dá a mensagem certa. As etapas vão em cascata e os campos
+// personalizados do funil ficam na unidade, desativados.
 export async function deleteFunnel(id: string): Promise<{ ok: boolean; leadCount: number }> {
   const supabase = createClient()
 
-  // Conta leads ativos vinculados ao funil (via etapas)
-  const { data: stages } = await supabase
+  const { data: stages, error: stagesErr } = await supabase
     .from('funnel_stages').select('id').eq('funnel_id', id)
+  if (stagesErr) throw stagesErr
 
   const stageIds = (stages ?? []).map(s => s.id)
-  let leadCount = 0
-
-  if (stageIds.length > 0) {
-    const { count } = await supabase
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .in('stage_id', stageIds)
-      .eq('arquivado', false)
-    leadCount = count ?? 0
-  }
+  const { count, error: countErr } = await supabase
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .or(stageIds.length > 0 ? `funnel_id.eq.${id},stage_id.in.(${stageIds.join(',')})` : `funnel_id.eq.${id}`)
+  if (countErr) throw countErr
+  const leadCount = count ?? 0
 
   if (leadCount > 0) return { ok: false, leadCount }
 
+  const usada = mensagemUsadaPorAutomacao('funil', await automacoesQueFiltram(id, stageIds))
+  if (usada) throw new Error(usada)
+
   const { error } = await supabase.from('funnels').delete().eq('id', id)
-  if (error) throw error
+  if (error) throw new Error(mensagemRecusaPorReferencia('funil', error) ?? error.message)
   return { ok: true, leadCount: 0 }
 }
 
@@ -88,7 +107,8 @@ export async function createStage(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Usuário não autenticado')
   const { data: profile } = await supabase.from('profiles').select('unit_id').eq('id', user.id).single()
-  if (!profile?.unit_id) throw new Error('Usuário sem unidade')
+  const unidade = lerUnidadeDaAba() ?? profile?.unit_id
+  if (!unidade) throw new Error('Usuário sem unidade')
 
   // Busca a maior ordem existente no funil
   const { data: existing } = await supabase
@@ -102,7 +122,7 @@ export async function createStage(
 
   const { data, error } = await supabase
     .from('funnel_stages')
-    .insert({ funnel_id, nome, cor, ordem: nextOrdem, unit_id: profile.unit_id })
+    .insert({ funnel_id, nome, cor, ordem: nextOrdem, unit_id: unidade })
     .select()
     .single()
   if (error) throw error
@@ -111,28 +131,29 @@ export async function createStage(
 
 export async function updateStage(
   id: string,
-  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal'>>,
+  updates: Partial<Pick<FunnelStage, 'nome' | 'cor' | 'ordem' | 'alerta_horas' | 'sla_mensal' | 'resultado' | 'campos_obrigatorios'>>,
 ): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from('funnel_stages').update(updates).eq('id', id)
   if (error) throw error
 }
 
+// Só exclui etapa sem nenhum lead, inclusive perdido (a coluna de perda guarda os
+// perdidos) e que nenhuma automação por tempo usa como filtro. O banco também recusa (leads.stage_id ON DELETE RESTRICT, migração
+// 135); o histórico de quem passou pela etapa fica, sem o destino.
 export async function deleteStage(id: string): Promise<void> {
   const supabase = createClient()
 
-  const { count } = await supabase
-    .from('leads')
-    .select('id', { count: 'exact', head: true })
-    .eq('stage_id', id)
-    .eq('arquivado', false)
-
-  if (count && count > 0) {
-    throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} ativo${count !== 1 ? 's' : ''}. Distribua os leads para outras etapas antes de excluir.`)
+  const count = await getLeadCountByStage(id)
+  if (count > 0) {
+    throw new Error(`Etapa tem ${count} lead${count !== 1 ? 's' : ''} (inclusive perdidos). Distribua os leads para outras etapas antes de excluir.`)
   }
 
+  const usada = mensagemUsadaPorAutomacao('etapa', await automacoesQueFiltram(null, [id]))
+  if (usada) throw new Error(usada)
+
   const { error } = await supabase.from('funnel_stages').delete().eq('id', id)
-  if (error) throw error
+  if (error) throw new Error(mensagemRecusaPorReferencia('etapa', error) ?? error.message)
 }
 
 // Reordena etapas de um funil. Usa dois passos sequenciais para contornar
@@ -164,19 +185,18 @@ export async function reorderStages(orderedIds: string[]): Promise<void> {
   }
 }
 
-// Conta leads ativos em uma etapa
+// Conta todos os leads de uma etapa, inclusive perdidos (protege a exclusão)
 export async function getLeadCountByStage(stage_id: string): Promise<number> {
   const supabase = createClient()
   const { count, error } = await supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
     .eq('stage_id', stage_id)
-    .eq('arquivado', false)
   if (error) throw error
   return count ?? 0
 }
 
-// Retorna mapa stage_id → count para um funil inteiro (uma só query)
+// Retorna mapa stage_id → count (todos os leads, inclusive perdidos) para um funil inteiro
 export async function getLeadCountsByFunnel(
   funnel_id: string,
 ): Promise<Record<string, number>> {
@@ -185,11 +205,41 @@ export async function getLeadCountsByFunnel(
     .from('leads')
     .select('stage_id')
     .eq('funnel_id', funnel_id)
-    .eq('arquivado', false)
   if (error) throw error
   const counts: Record<string, number> = {}
   for (const row of data ?? []) {
     counts[row.stage_id] = (counts[row.stage_id] ?? 0) + 1
   }
   return counts
+}
+
+// Sem exclusão pela tela: desativar tira o motivo da lista sem mexer nos leads que o usam.
+
+export async function createMotivoPerda(funnel_id: string, nome: string, ordem: number): Promise<MotivoPerda> {
+  const supabase = createClient()
+  // unit_id vem do funil (trigger fn_motivo_perda_unidade)
+  const { data, error } = await supabase
+    .from('motivos_perda')
+    .insert({ funnel_id, nome, ordem })
+    .select()
+    .single()
+  if (error) throw error
+  return data as MotivoPerda
+}
+
+export async function updateMotivoPerda(
+  id: string,
+  updates: Partial<Pick<MotivoPerda, 'nome' | 'ativo' | 'ordem'>>,
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('motivos_perda').update(updates).eq('id', id)
+  if (error) throw error
+}
+
+export async function reorderMotivosPerda(orderedIds: string[]): Promise<void> {
+  const supabase = createClient()
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase.from('motivos_perda').update({ ordem: i + 1 }).eq('id', orderedIds[i])
+    if (error) throw error
+  }
 }

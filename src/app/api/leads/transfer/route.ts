@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessUnit } from '@/lib/auth/access'
+import { moverArquivosDoLead } from '@/lib/anexos-storage'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 interface TransferPayload {
   leadId:      string
@@ -48,15 +50,14 @@ export async function POST(req: NextRequest) {
 
   // O funil destino precisa ser da unidade destino — senão o lead some do kanban
   const { data: targetFunnel } = await admin
-    .from('funnels').select('id').eq('id', targetFunnelId).eq('unit_id', targetUnitId).maybeSingle()
+    .from('funnels').select('id').eq('objeto', 'negocio').eq('id', targetFunnelId).eq('unit_id', targetUnitId).maybeSingle()
   if (!targetFunnel) return NextResponse.json({ error: 'Funil não pertence à unidade destino' }, { status: 400 })
 
-  const { data: profile } = await admin
-    .from('profiles').select('id, unit_id, full_name').eq('id', user.id).single()
+  const { data: profile } = await buscarPerfil(admin, user.id, 'id, unit_id, full_name')
   if (!profile) return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 401 })
 
   const { data: lead } = await admin
-    .from('leads').select('id, nome, sobrenome, telefone_norm, unit_id').eq('id', leadId).single()
+    .from('leads').select('id, nome, sobrenome, telefone_norm, unit_id, contato_id').eq('id', leadId).single()
   if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
 
   if (lead.unit_id === targetUnitId) {
@@ -70,6 +71,17 @@ export async function POST(req: NextRequest) {
   }
   if (tipos === 'bloqueado') {
     return NextResponse.json({ error: 'Transferência entre clínica e comercial só por um administrador' }, { status: 403 })
+  }
+
+  // O contato é da unidade (150): com outros negócios, mudar a unidade levaria todos
+  const { count: outrosNegocios } = await admin
+    .from('leads').select('id', { count: 'exact', head: true })
+    .eq('contato_id', lead.contato_id).neq('id', lead.id)
+  if (outrosNegocios) {
+    return NextResponse.json(
+      { error: `Este contato tem outros ${outrosNegocios} negócio(s) nesta unidade (contando ganhos e perdidos). A pessoa é da unidade, então transferir só este negócio ainda não é possível.` },
+      { status: 409 },
+    )
   }
 
   if (lead.telefone_norm) {
@@ -131,6 +143,13 @@ export async function POST(req: NextRequest) {
     admin.from('lead_tasks').update({ unit_id: targetUnitId, responsavel_id: null }).eq('lead_id', leadId),
     admin.from('lead_responsible_history').update({ unit_id: targetUnitId }).eq('lead_id', leadId),
   ])
+
+  // lead_anexos.unit_id já acompanhou o lead (trigger da 128). Falha aqui não
+  // desfaz a transferência: o caminho antigo continua válido
+  const anexosNaoMovidos = await moverArquivosDoLead(admin, leadId, targetUnitId)
+  if (anexosNaoMovidos !== 0) {
+    console.error('[leads/transfer] anexos fora do prefixo da unidade nova:', anexosNaoMovidos)
+  }
 
   // Desvincula conversas WhatsApp da unidade origem
   await admin

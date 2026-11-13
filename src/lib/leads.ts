@@ -1,12 +1,13 @@
 import { createClient } from './supabase/client'
-import type { Lead, LeadKanban, Funnel, FunnelStage, FunnelWithStages } from '@/types/database'
+import { etapaAoGanhar, etapaAoPerder, etapaAoReabrir } from './status-lead'
+import type { Lead, LeadGravavel, LeadKanban, FunnelStage, FunnelWithStages, MotivoPerda } from '@/types/database'
 
 // ---- Funis ----------------------------------------------------------------
 
 export async function getFunnelsWithStages(): Promise<FunnelWithStages[]> {
   const supabase = createClient()
   const [{ data: funnels }, { data: stages }] = await Promise.all([
-    supabase.from('funnels').select('*').eq('ativo', true).order('ordem'),
+    supabase.from('funnels').select('*').eq('objeto', 'negocio').eq('ativo', true).order('ordem'),
     supabase.from('funnel_stages').select('*').order('funnel_id').order('ordem'),
   ])
   return (funnels ?? []).map(f => ({
@@ -39,7 +40,10 @@ export async function getLeadsKanban(filters?: {
 }
 
 export async function createLead(
-  lead: Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'arquivado' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'telefone_norm'>
+  lead: Omit<LeadGravavel, 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
+    | 'status' | 'ganho_em' | 'perdido_em'
+    | 'motivo_perda_id' | 'motivo_perda' | 'ordem' | 'stage_changed_at' | 'campos'>
+    & Partial<Pick<LeadGravavel, 'campos'>>
 ): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -51,7 +55,13 @@ export async function createLead(
   return data
 }
 
-export async function updateLead(id: string, updates: Partial<Omit<Lead, 'telefone_norm'>>): Promise<Lead> {
+// Status e datas do negócio mudam só por marcarGanho/marcarPerdido/reabrir; o
+// arquivamento, só por arquivar/desarquivar
+export async function updateLead(
+  id: string,
+  updates: Partial<Omit<LeadGravavel, 'arquivado_em' | 'arquivado_motivo' | 'arquivado_por'
+    | 'status' | 'ganho_em' | 'perdido_em' | 'motivo_perda_id'>>,
+): Promise<Lead> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('leads')
@@ -63,13 +73,131 @@ export async function updateLead(id: string, updates: Partial<Omit<Lead, 'telefo
   return data
 }
 
-export async function archiveLead(id: string, motivo_perda: string): Promise<void> {
+// O trigger fn_lead_status (migração 126) preenche ganho_em/perdido_em, marca
+// is_converted no ganho e limpa o motivo ao sair de perdido.
+
+type EtapaResumo = Pick<FunnelStage, 'id' | 'ordem' | 'resultado'>
+
+/** Etapa atual do lead e as etapas do funil dele, para decidir para onde vai. */
+async function etapasDoLead(id: string): Promise<{ stage_id: string; atual: EtapaResumo | null; lista: EtapaResumo[] }> {
   const supabase = createClient()
+  const { data: lead, error: leadErr } = await supabase
+    .from('leads').select('stage_id, funnel_id').eq('id', id).single()
+  if (leadErr) throw leadErr
+
+  const { data: etapas, error: etapasErr } = await supabase
+    .from('funnel_stages').select('id, ordem, resultado').eq('funnel_id', lead.funnel_id)
+  if (etapasErr) throw etapasErr
+  const lista = (etapas ?? []) as EtapaResumo[]
+  return { stage_id: lead.stage_id, atual: lista.find(s => s.id === lead.stage_id) ?? null, lista }
+}
+
+async function registrarMudancaDeEtapa(id: string, de: string, para: string, via: 'ganho' | 'perdido', origem: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { error } = await supabase.rpc('record_stage_history', {
+    p_lead_id:    id,
+    p_de_stage:   de,
+    p_para_stage: para,
+    p_movido_por: user?.id ?? null,
+    p_movido_via: via,
+  })
+  if (error) console.error(`[${origem}] record_stage_history falhou:`, error)
+}
+
+/**
+ * Marca o negócio como ganho. Se o funil tem etapa de ganho e o lead não está
+ * nela, move para ela no mesmo update e grava o histórico de etapa. A etapa de
+ * ganho pode exigir campos (migração 130): o erro VC001 sobe para quem chamou.
+ *
+ * @returns A etapa para onde o lead foi, ou null se ficou onde estava
+ */
+export async function marcarGanho(id: string): Promise<string | null> {
+  const supabase = createClient()
+  const { stage_id, atual, lista } = await etapasDoLead(id)
+  const destino = etapaAoGanhar(atual, lista)
+
   const { error } = await supabase
     .from('leads')
-    .update({ arquivado: true, motivo_perda })
+    .update(destino ? { status: 'ganho', stage_id: destino } : { status: 'ganho' })
     .eq('id', id)
   if (error) throw error
+
+  if (destino) await registrarMudancaDeEtapa(id, stage_id, destino, 'ganho', 'marcarGanho')
+  return destino
+}
+
+/**
+ * Marca o negócio como perdido. Se o funil tem etapa de perda e o lead não está
+ * nela, move para ela no mesmo update (o lead continua no kanban, na coluna de
+ * perda) e grava o histórico de etapa com a etapa de onde saiu.
+ *
+ * @param detalhe - Texto livre (obrigatório no motivo "Outro"; valide com gravacaoPerda)
+ * @param etapaEscolhida - Etapa de perda onde o card foi solto no kanban (no lugar
+ *   da primeira etapa de perda do funil)
+ */
+export async function marcarPerdido(
+  id: string, motivoId: string, detalhe?: string | null, etapaEscolhida?: string,
+): Promise<void> {
+  const supabase = createClient()
+  const { stage_id, atual, lista } = await etapasDoLead(id)
+  const escolhida = lista.find(s => s.id === etapaEscolhida && s.resultado === 'perdido')
+  const destino = escolhida
+    ? (escolhida.id === stage_id ? null : escolhida.id)
+    : etapaAoPerder(atual, lista)
+
+  const valores = { status: 'perdido', motivo_perda_id: motivoId, motivo_perda: detalhe?.trim() || null } as const
+  const { error } = await supabase
+    .from('leads')
+    .update(destino ? { ...valores, stage_id: destino } : valores)
+    .eq('id', id)
+  if (error) throw error
+
+  if (destino) await registrarMudancaDeEtapa(id, stage_id, destino, 'perdido', 'marcarPerdido')
+}
+
+/**
+ * Reabre o negócio. Se o lead está numa etapa com resultado (ex.: "Perdido"),
+ * volta para a primeira etapa sem resultado do funil e grava o histórico.
+ */
+export async function reabrir(id: string): Promise<void> {
+  const supabase = createClient()
+  const { data: lead, error: leadErr } = await supabase
+    .from('leads').select('stage_id, funnel_id').eq('id', id).single()
+  if (leadErr) throw leadErr
+
+  const { data: etapas, error: etapasErr } = await supabase
+    .from('funnel_stages').select('id, ordem, resultado').eq('funnel_id', lead.funnel_id)
+  if (etapasErr) throw etapasErr
+  const lista = (etapas ?? []) as Pick<FunnelStage, 'id' | 'ordem' | 'resultado'>[]
+  const destino = etapaAoReabrir(lista.find(s => s.id === lead.stage_id) ?? null, lista)
+
+  const { error } = await supabase
+    .from('leads')
+    .update(destino ? { status: 'aberto', stage_id: destino } : { status: 'aberto' })
+    .eq('id', id)
+  if (error) throw error
+
+  if (!destino) return
+  const { data: { user } } = await supabase.auth.getUser()
+  const { error: rpcErr } = await supabase.rpc('record_stage_history', {
+    p_lead_id:    id,
+    p_de_stage:   lead.stage_id,
+    p_para_stage: destino,
+    p_movido_por: user?.id ?? null,
+    p_movido_via: 'reabertura',
+  })
+  if (rpcErr) console.error('[reabrir] record_stage_history falhou:', rpcErr)
+}
+
+/** Motivos de perda do funil, na ordem configurada. */
+export async function getMotivosPerda(funnelId: string, apenasAtivos = true): Promise<MotivoPerda[]> {
+  const supabase = createClient()
+  let query = supabase.from('motivos_perda').select('*').eq('funnel_id', funnelId)
+  if (apenasAtivos) query = query.eq('ativo', true)
+  const { data, error } = await query.order('ordem').order('nome')
+  if (error) throw error
+  return (data ?? []) as MotivoPerda[]
 }
 
 export async function moveLeadStage(
@@ -112,20 +240,35 @@ export async function reorderLeads(updates: { id: string; ordem: number }[]): Pr
   )
 }
 
-export async function getArchivedLeads(funnel_id?: string): Promise<LeadKanban[]> {
+// ---- Arquivamento (migração 132) -------------------------------------------
+// Arquivar tira o lead do quadro (leads_kanban) sem mudar o negócio: status,
+// motivo da perda e etapa ficam. O trigger fn_lead_arquivado grava a data e o
+// autor (o navegador não escolhe); desarquivar limpa motivo e autor.
+
+/**
+ * @param texto - Motivo já validado por motivoArquivamento (src/lib/status-lead.ts)
+ */
+export async function arquivar(id: string, texto: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('leads')
+    .update({ arquivado_em: new Date().toISOString(), arquivado_motivo: texto })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function desarquivar(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('leads').update({ arquivado_em: null }).eq('id', id)
+  if (error) throw error
+}
+
+/** Leads arquivados (painel Arquivados do funil), mais recentes primeiro. */
+export async function getLeadsArquivados(funnel_id?: string, unit_id?: string | null): Promise<LeadKanban[]> {
   const supabase = createClient()
   let query = supabase.from('leads_arquivados').select('*')
   if (funnel_id) query = query.eq('funnel_id', funnel_id)
+  if (unit_id) query = query.eq('unit_id', unit_id)
   const { data, error } = await query
   if (error) throw error
   return data as LeadKanban[]
-}
-
-export async function restoreLead(id: string): Promise<void> {
-  const supabase = createClient()
-  const { error } = await supabase
-    .from('leads')
-    .update({ arquivado: false, motivo_perda: null })
-    .eq('id', id)
-  if (error) throw error
 }

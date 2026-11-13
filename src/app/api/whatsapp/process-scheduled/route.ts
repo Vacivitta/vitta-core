@@ -4,17 +4,33 @@
  * Processa mensagens agendadas com scheduled_for <= now() e status = 'pending'.
  * Deve ser chamado periodicamente por um cron (Vercel Cron, pg_cron, etc.).
  *
+ * As mensagens são reservadas por reservar_mensagens_agendadas (migração 137)
+ * antes do envio: duas execuções ao mesmo tempo nunca pegam a mesma mensagem.
+ * O lote cabe com folga nos 10 min da reserva (20 × 15 s de timeout da Meta).
+ *
  * Proteja com CRON_SECRET:
  *   Authorization: Bearer <CRON_SECRET>
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { cronAutorizado } from '@/lib/auth/cron'
 import { createClient } from '@supabase/supabase-js'
-import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { resumoErro } from '@/lib/log-seguro'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
+const LOTE = 20
+
+interface MensagemAgendada {
+  id:              string
+  conversation_id: string
+  unit_id:         string
+  content:         string | null
+  type:            string
+  template_name:   string | null
+  language:        string | null
+  components:      unknown
+}
 
 // Garante que o Vercel não mate a função antes de processar toda a fila
 export const maxDuration = 60
@@ -36,37 +52,34 @@ async function handler(req: NextRequest) {
 
   const admin = adminClient()
 
-  // Fetch due messages
-  const { data: msgs, error } = await admin
-    .from('wa_scheduled_messages')
-    .select('id, conversation_id, unit_id, content, type, template_name, language, components')
-    .eq('status', 'pending')
-    .lte('scheduled_for', new Date().toISOString())
-    .limit(50)
+  const { data, error } = await admin.rpc('reservar_mensagens_agendadas', { p_limite: LOTE })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!msgs || msgs.length === 0) return NextResponse.json({ processed: 0 })
+  const msgs = (data ?? []) as MensagemAgendada[]
+  if (msgs.length === 0) return NextResponse.json({ processed: 0 })
 
   // Batch: buscar todas as conversas de uma vez em vez de N+1 SELECTs no loop
   const convIds = [...new Set(msgs.map(m => m.conversation_id))]
   const { data: convRows } = await admin
     .from('wa_conversations')
-    .select('id, wa_phone')
+    .select('id, wa_phone, conexao_id')
     .in('id', convIds)
-  const convMap = new Map((convRows ?? []).map(c => [c.id, c.wa_phone as string]))
+  const convMap = new Map((convRows ?? []).map(c => [c.id as string, { waPhone: c.wa_phone as string, conexaoId: c.conexao_id as string }]))
 
-  // Cache de credenciais por unidade — várias mensagens podem ser da mesma unidade
-  const credsCache = new Map<string, Awaited<ReturnType<typeof getWaCredentials>>>()
-  async function credsFor(unitId: string) {
-    if (!credsCache.has(unitId)) credsCache.set(unitId, await getWaCredentials(unitId))
-    return credsCache.get(unitId)!
+  // Cache de credenciais por conexão: a mensagem sai pela conexão da conversa
+  const credsCache = new Map<string, Awaited<ReturnType<typeof getCredenciaisDaConexao>>>()
+  async function credsFor(conexaoId: string | undefined) {
+    if (!conexaoId) return getCredenciaisDaConexao(null)
+    if (!credsCache.has(conexaoId)) credsCache.set(conexaoId, await getCredenciaisDaConexao(conexaoId))
+    return credsCache.get(conexaoId)!
   }
 
   let processed = 0
   for (const msg of msgs) {
     try {
-      const waPhone = convMap.get(msg.conversation_id)
-      const creds   = await credsFor(msg.unit_id)
+      const conv    = convMap.get(msg.conversation_id)
+      const waPhone = conv?.waPhone
+      const creds   = await credsFor(conv?.conexaoId)
       if (!waPhone || !creds.phoneNumberId || !creds.accessToken) {
         await admin.from('wa_scheduled_messages').update({ status: 'failed' }).eq('id', msg.id)
         continue

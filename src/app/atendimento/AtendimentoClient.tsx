@@ -12,12 +12,19 @@ import QuickLeadForm from '@/components/leads/QuickLeadForm'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
 import type { WaTemplate, WaTemplateFolder, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
-import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import TagsBar from '@/components/whatsapp/TagsBar'
 import NewConversationModal from '@/components/whatsapp/NewConversationModal'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import { normalizarTelefone } from '@/lib/telefone'
+import NovoTicketModal, { type FunilDeTicket } from '@/components/tickets/NovoTicketModal'
+import { comPessoaDoContato, dependentesDoContato, nomeDaPessoaDaConversa, nomesDosDependentes } from '@/lib/contatos'
+import type { Contato } from '@/types/database'
+import Link from 'next/link'
+import { corDoAutor, nomeDaConversa, participantesDoGrupo, telefoneDoParticipante, type Participante } from '@/lib/grupos'
+import { precisaConfirmarResposta, rotuloRespondendoComo, type ConexaoDaCaixa, type UnidadeDaCaixa } from '@/lib/unidades'
+import { useProfile } from '@/context/ProfileContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,10 +37,18 @@ interface WaConversation {
   status: 'open' | 'pending' | 'resolved'; unread_count: number
   last_message_at: string | null; lead_id: string | null
   assigned_to: string | null; queue_id: string | null; unit_id: string | null
+  conexao_id?: string | null
+  /** Migração 147: empresa do grupo */
+  empresa_id?: string | null
+  /** Migração 145 */
+  tipo?: 'individual' | 'grupo'
   profile_picture_url?: string | null
   last_message_content?: string | null
   last_message_direction?: 'inbound' | 'outbound' | null
   lead?: { nome: string; sobrenome: string | null } | null
+  /** Migração 148: a pessoa da conversa (5b: o nome vem daqui) */
+  contato_id?: string | null
+  contato?: { nome: string; sobrenome: string | null } | null
   tags?: { tag: ConvTag }[]
 }
 
@@ -43,6 +58,8 @@ interface WaMessage {
   template_name: string | null
   status: string; created_at: string; sent_by: string | null
   reply_to_wa_message_id?: string | null
+  /** Migração 145: quem escreveu no grupo */
+  autor_telefone?: string | null; autor_nome?: string | null
 }
 
 interface WaNote {
@@ -71,6 +88,12 @@ interface LeadDetail {
 interface Props {
   funnels: FunnelWithStages[]; profiles: Profile[]
   currentUser: Profile; initialNumero?: string | null
+  initialConversaId?: string | null
+  /** Unidades vinculadas ao usuário: a caixa mostra as conversas de todas. */
+  unidades: UnidadeDaCaixa[]
+  conexoes: ConexaoDaCaixa[]
+  /** Tickets e empresas da unidade ativa (146/147) */
+  ticket: { ligado: boolean; funis: FunilDeTicket[]; pessoas: { id: string; nome: string }[]; empresas: { id: string; nome: string }[]; empresasLigado: boolean }
 }
 
 type ConvStatus = 'open' | 'pending' | 'resolved' | 'all'
@@ -94,15 +117,26 @@ const fmtCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-export default function AtendimentoClient({ funnels, profiles, currentUser }: Props) {
+export default function AtendimentoClient({ funnels, profiles, currentUser, initialConversaId, unidades, conexoes, ticket }: Props) {
   const supabase = createClient()
   const router   = useRouter()
+  const { switchUnit } = useProfile()
+
+  const idsDaCaixa = useMemo(
+    () => unidades.length > 0 ? unidades.map(u => u.id) : [currentUser.unit_id].filter((id): id is string => !!id),
+    [unidades, currentUser.unit_id],
+  )
+  const filtroRealtime = `unit_id=in.(${idsDaCaixa.join(',')})`
+  const unidadePorId = useMemo(() => new Map(unidades.map(u => [u.id, u])), [unidades])
+  const [filterUnit, setFilterUnit] = useState<string>('all')
+  const [respostasConfirmadas, setRespostasConfirmadas] = useState<ReadonlySet<string>>(new Set())
+  const [confirmacaoPendente, setConfirmacaoPendente] = useState<(() => void) | null>(null)
 
   const [queues,       setQueues]       = useState<WaQueue[]>([])
   const [templates,    setTemplates]    = useState<WaTemplate[]>([])
   const [tmplFolders,  setTmplFolders]  = useState<WaTemplateFolder[]>([])
   const [quickReplies, setQuickReplies] = useState<WaQuickReply[]>([])
-  const [contactNamesByLead, setContactNamesByLead] = useState<Record<string, string>>({})
+  const [nomesDependentes, setNomesDependentes] = useState<Record<string, string>>({})
 
   const [conversations, setConversations] = useState<WaConversation[]>([])
   const conversationsRef = useRef<WaConversation[]>([])
@@ -152,6 +186,10 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   const [modalLead,       setModalLead]       = useState<LeadKanban | null | undefined>(undefined)
   const [showQuickForm,   setShowQuickForm]   = useState(false)
+  // Participante de grupo virando contato: o formulário abre preenchido e o lead não é ligado ao grupo
+  const [contatoDoGrupo,  setContatoDoGrupo]  = useState<{ nome?: string; telefone: string } | null>(null)
+  const [abrindoTicket,   setAbrindoTicket]   = useState(false)
+  const [ticketCriado,    setTicketCriado]    = useState<{ id: string; numero: number } | null>(null)
   const [resolveDialogOpen,   setResolveDialogOpen]   = useState(false)
   const [contextPanelOpen,    setContextPanelOpen]    = useState(true)
   const [newConvOpen,         setNewConvOpen]         = useState(false)
@@ -183,7 +221,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setTransferUnitId(unitId)
     setTransferFunnelId('')
     const { data: fns } = await supabase
-      .from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem')
+      .from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).eq('ativo', true).order('ordem')
     setTransferFunnels(fns ?? [])
     if (fns && fns.length === 1) setTransferFunnelId(fns[0].id)
   }
@@ -262,14 +300,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   // Subscription global — toca som e/ou mostra notificação nativa para mensagens inbound
   useEffect(() => {
-    if (!currentUser.unit_id) return
+    if (idsDaCaixa.length === 0) return
     const ch = supabase
       .channel('wa_sound_notify')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'wa_messages',
-        filter: `unit_id=eq.${currentUser.unit_id}`,
+        filter: filtroRealtime,
       }, payload => {
         const msg = payload.new as { direction: string; conversation_id: string }
         if (msg.direction !== 'inbound') return
@@ -281,9 +319,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         // Notificação nativa quando a aba está minimizada/em segundo plano
         if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
           const conv = conversationsRef.current.find(c => c.id === msg.conversation_id)
-          const name = conv?.lead
-            ? `${conv.lead.nome}${conv.lead.sobrenome ? ` ${conv.lead.sobrenome}` : ''}`
-            : conv?.wa_contact_name ?? conv?.wa_phone ?? 'WhatsApp'
+          const name = (conv ? nomeDaPessoaDaConversa(conv) : null)
+            ?? conv?.wa_contact_name ?? conv?.wa_phone ?? 'WhatsApp'
           const n = new Notification('Nova mensagem — VittaDesk', {
             body: name,
             icon: '/favicon.ico',
@@ -295,7 +332,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
       .subscribe()
     return () => { void supabase.removeChannel(ch) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, currentUser.unit_id])
+  }, [supabase, filtroRealtime])
 
   type RenderItem = ChatItem | { kind: 'date'; label: string; key: string }
   const chatRenderItems = useMemo<RenderItem[]>(() => {
@@ -335,7 +372,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     // Carrega templates locais imediatamente (rápido)
     void supabase.from('wa_message_templates')
       .select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id')
-      .eq('ativo', true).order('name')
+      .eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
       .then(({ data }) => { if (data) setTemplates(data as WaTemplate[]) })
     // Depois atualiza com dados frescos da Meta (pode demorar)
     void (async () => {
@@ -358,50 +395,54 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           }))
         const { data: custom } = await supabase.from('wa_message_templates')
           .select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id')
-          .eq('ativo', true).eq('category', 'custom').order('name')
+          .eq('unit_id', currentUser.unit_id).eq('ativo', true).eq('category', 'custom').order('name')
         setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
       } catch { /* mantém os templates locais já carregados */ }
     })()
     void fetch('/api/whatsapp/template-folders').then(r => r.json()).then((data: WaTemplateFolder[]) => { if (Array.isArray(data)) setTmplFolders(data) })
-    void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
+    void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut')
       .then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))
-    void fetch('/api/whatsapp/tags').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
-    void supabase.from('lead_contacts').select('lead_id, nome').then(({ data }) => {
-      if (!data) return
-      const map: Record<string, string> = {}
-      for (const c of data) { map[c.lead_id] = map[c.lead_id] ? `${map[c.lead_id]} ${c.nome}` : c.nome }
-      setContactNamesByLead(map)
+    void fetch('/api/whatsapp/tags?tipo=conversa').then(r => r.json()).then((data: ConvTag[]) => setUnitTags(Array.isArray(data) ? data : []))
+    void supabase.from('contatos').select('responsavel_id, nome').not('responsavel_id', 'is', null).then(({ data }) => {
+      if (data) setNomesDependentes(nomesDosDependentes(data))
     })
   }, [supabase])
 
   // ── Load conversations ──────────────────────────────────────────────────────
+  const conversaInicialPendente = useRef(initialConversaId ?? null)
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('wa_conversations')
-      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
-      .eq('unit_id', currentUser.unit_id)
+      .select('id,wa_phone,wa_contact_name,status,unread_count,last_message_at,lead_id,assigned_to,queue_id,unit_id,conexao_id,tipo,empresa_id,profile_picture_url,last_message_content,last_message_direction,lead:leads(nome,sobrenome),contato_id,contato:contatos(nome,sobrenome),tags:wa_conversation_tags(tag:wa_tags(id,name,color))')
+      .in('unit_id', idsDaCaixa)
       .order('last_message_at', { ascending: false, nullsFirst: false }).limit(150)
-    if (error) console.error('[loadConversations] erro:', error.message, 'unit_id:', currentUser.unit_id)
+    if (error) console.error('[loadConversations] erro:', error.message)
     const list = (data ?? []) as unknown as WaConversation[]
     const openId = selectedConvIdRef.current
     setConversations(openId ? list.map(c => c.id === openId ? { ...c, unread_count: 0 } : c) : list)
     setConvsLoaded(true)
-  }, [supabase])
+    const inicial = conversaInicialPendente.current
+    if (inicial) {
+      conversaInicialPendente.current = null
+      const conv = list.find(c => c.id === inicial)
+      if (conv) selectConv(conv)
+    }
+  }, [supabase, idsDaCaixa])
 
   useEffect(() => { void loadConversations() }, [loadConversations])
 
   useEffect(() => {
-    // Filtra pela unidade ativa e agrupa mudanças próximas: cada mensagem recebida gera
+    // Filtra pelas unidades da caixa e agrupa mudanças próximas: cada mensagem recebida gera
     // várias atualizações na conversa (prévia, não lidas, atribuição) — uma recarga basta
     let timer: ReturnType<typeof setTimeout> | null = null
     const ch = supabase.channel('wa_conv_list')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_conversations', filter: `unit_id=eq.${currentUser.unit_id}` },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_conversations', filter: filtroRealtime },
         () => {
           if (timer) clearTimeout(timer)
           timer = setTimeout(() => { void loadConversations() }, 300)
         }).subscribe()
     return () => { if (timer) clearTimeout(timer); void supabase.removeChannel(ch) }
-  }, [supabase, loadConversations, currentUser.unit_id])
+  }, [supabase, loadConversations, filtroRealtime])
 
   // ── Load chat ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -409,7 +450,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     setMsgsLoaded(false); setChatItems([]); setReplyTo(null)
     void Promise.all([
       supabase.from('wa_messages')
-        .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id')
+        .select('id,wa_message_id,direction,type,content,media_url,media_mime_type,template_name,status,created_at,sent_by,reply_to_wa_message_id,autor_telefone,autor_nome')
         // As 200 mais RECENTES (antes vinham as 200 mais antigas e as novas ficavam de fora)
         .eq('conversation_id', selectedConv.id).order('created_at', { ascending: false }).limit(200),
       supabase.from('wa_internal_notes').select('id,content,author_id,created_at')
@@ -439,16 +480,22 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   async function loadLeadDetail(leadId: string) {
     setLoadingLead(true)
-    const [{ data: lead }, { data: notes }, { data: tasks }, { data: quotes }, { data: stageHistory }, { data: contacts }] = await Promise.all([
+    const [{ data: lead }, { data: notes }, { data: tasks }, { data: quotes }, { data: stageHistory }] = await Promise.all([
       supabase.from('leads').select('*').eq('id', leadId).single(),
       supabase.from('lead_notes').select('conteudo').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
       supabase.from('lead_tasks').select('*').eq('lead_id', leadId).eq('concluida', false).order('data_limite', { nullsFirst: false }),
       supabase.from('quotes').select('id,status,total_calculado,criado_em,quote_items(quantidade,nome_snapshot)').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
-      supabase.from('lead_stage_history').select('created_at').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1),
-      supabase.from('lead_contacts').select('*').eq('lead_id', leadId).order('created_at'),
+      supabase.from('lead_stage_history').select('criado_em').eq('lead_id', leadId).order('criado_em', { ascending: false }).limit(1),
     ])
+    // A pessoa e os dependentes vêm do contato (5b); o lead fica com o que é do negócio
+    const contatoId = (lead as LeadKanban | null)?.contato_id ?? null
+    const { data: daPessoa } = contatoId
+      ? await supabase.from('contatos').select('*').or(`id.eq.${contatoId},responsavel_id.eq.${contatoId}`)
+      : { data: [] }
+    const pessoas = (daPessoa ?? []) as Contato[]
+    const contato = pessoas.find(c => c.id === contatoId) ?? null
     if (lead) setLeadDetail({
-      lead: lead as LeadKanban,
+      lead: comPessoaDoContato(lead as LeadKanban, contato),
       latestNote:   notes?.[0]?.conteudo ?? null,
       tasks:        (tasks ?? []) as LeadTask[],
       lastQuote:    quotes?.[0] ? {
@@ -456,8 +503,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         items_summary: ((quotes[0] as any).quote_items ?? []).map((i: any) => `${i.quantidade}× ${i.nome_snapshot}`).join(', ') || null,
       } as LastQuote : null,
-      stageEntryAt: stageHistory?.[0]?.created_at ?? null,
-      contacts:     (contacts ?? []) as LeadContact[],
+      stageEntryAt: stageHistory?.[0]?.criado_em ?? null,
+      contacts:     contatoId ? dependentesDoContato(pessoas, contatoId, leadId) : [],
     })
     setLoadingLead(false)
   }
@@ -554,9 +601,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     let components: object[] | undefined
     let renderedText = t.content
     if (varCount > 0) {
-      const clientName = selectedConv.lead
-        ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
-        : (selectedConv.wa_contact_name ?? selectedConv.wa_phone)
+      const clientName = nomeDaPessoaDaConversa(selectedConv) ?? selectedConv.wa_contact_name ?? selectedConv.wa_phone
       const agentName = displayName(currentUser)
       const now = new Date()
       const resolveVar = (id: string): string => {
@@ -618,9 +663,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     let components: object[] | undefined
     let renderedText = t.content
     if (varCount > 0) {
-      const clientName = selectedConv.lead
-        ? `${selectedConv.lead.nome}${selectedConv.lead.sobrenome ? ' ' + selectedConv.lead.sobrenome : ''}`
-        : (selectedConv.wa_contact_name ?? selectedConv.wa_phone)
+      const clientName = nomeDaPessoaDaConversa(selectedConv) ?? selectedConv.wa_contact_name ?? selectedConv.wa_phone
       const agentName = displayName(currentUser)
       const sendAt = new Date(scheduledFor)
       const resolveVar = (id: string): string => {
@@ -769,7 +812,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     linkTimerRef.current = setTimeout(async () => {
       setLinkSearching(true)
       const digits = q.replace(/\D/g, '')
-      const base = supabase.from('leads').select('*').eq('arquivado', false).eq('unit_id', currentUser.unit_id).limit(6).order('nome')
+      const base = supabase.from('leads').select('*').neq('status', 'perdido').eq('arquivado', false).eq('unit_id', currentUser.unit_id).limit(6).order('nome')
       const norm = normalizarTelefone(q)
       const { data } = norm ? await base.eq('telefone_norm', norm)
         : digits.length >= 6 ? await base.ilike('telefone_norm', `%${digits}%`)
@@ -789,6 +832,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
 
   async function linkLead(lead: LeadKanban) {
     void linkLeadById(lead.id)
+  }
+
+  /** Grupo do WhatsApp ligado a uma empresa (147) */
+  async function ligarEmpresaAoGrupo(conversaId: string, empresaId: string | null) {
+    const { error } = await supabase.from('wa_conversations').update({ empresa_id: empresaId }).eq('id', conversaId)
+    if (error) { alert(`Não foi possível ligar a empresa: ${error.message}`); return }
+    setSelectedConv(prev => prev && prev.id === conversaId ? { ...prev, empresa_id: empresaId } : prev)
+    setConversations(prev => prev.map(c => c.id === conversaId ? { ...c, empresa_id: empresaId } : c))
   }
 
   async function unlinkLead() {
@@ -814,6 +865,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   }
 
   const filteredConvs = conversations.filter(c => {
+    if (filterUnit !== 'all' && c.unit_id !== filterUnit) return false
     if (filterStatus !== 'all' && c.status !== filterStatus) return false
     if (filterQueue !== 'all' && c.queue_id !== filterQueue) return false
     if (filterMine && c.assigned_to !== currentUser.id) return false
@@ -824,8 +876,8 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
     const haystack = [
       c.wa_contact_name ?? c.wa_phone,
       c.wa_phone,
-      c.lead ? `${c.lead.nome} ${c.lead.sobrenome ?? ''}` : '',
-      c.lead_id ? (contactNamesByLead[c.lead_id] ?? '') : '',
+      nomeDaPessoaDaConversa(c) ?? '',
+      c.contato_id ? (nomesDependentes[c.contato_id] ?? '') : '',
       c.last_message_content ?? '',
     ].join(' ').toLowerCase()
     return words.every(w => haystack.includes(w))
@@ -833,10 +885,32 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
   const totalUnread  = conversations.reduce((s, c) => s + (c.unread_count ?? 0), 0)
   const defaultStage = funnels[0]?.stages[0]
 
+  const unidadeDaConversa = selectedConv?.unit_id ? unidadePorId.get(selectedConv.unit_id) ?? null : null
+  const conexaoDaConversa = conexoes.find(c => c.id === selectedConv?.conexao_id) ?? null
+  // QR Code não tem modelos da Meta: só texto e mídia
+  const conversaPorQrCode = conexaoDaConversa?.tipo === 'qrcode'
+  const conversaDeOutraUnidade = !!selectedConv?.unit_id && selectedConv.unit_id !== currentUser.unit_id
+
+  /** Envio para o cliente numa conversa de outra unidade: confirma uma vez por conversa. */
+  function comConfirmacao(enviar: () => void) {
+    if (!selectedConv || inputMode === 'note'
+        || !precisaConfirmarResposta(selectedConv.unit_id, currentUser.unit_id, selectedConv.id, respostasConfirmadas)) {
+      enviar()
+      return
+    }
+    setConfirmacaoPendente(() => enviar)
+  }
+
+  function trocarParaUnidadeDaConversa() {
+    if (!selectedConv?.unit_id) return
+    void switchUnit(selectedConv.unit_id, `/atendimento?conversa=${selectedConv.id}`)
+  }
+
   return (
     <>
       <div className="flex flex-1 overflow-hidden">
         <ConvList convs={filteredConvs} loaded={convsLoaded} selected={selectedConv} onSelect={selectConv}
+          unidades={unidades} filterUnit={filterUnit} onFilterUnit={setFilterUnit}
           search={convSearch} onSearch={setConvSearch} filterStatus={filterStatus} onFilterStatus={setFilterStatus}
           filterQueue={filterQueue} onFilterQueue={setFilterQueue} queues={queues}
           filterMine={filterMine} onFilterMine={setFilterMine} profiles={profiles} totalUnread={totalUnread}
@@ -851,12 +925,21 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff', minWidth: 0, position: 'relative' }}>
           {!selectedConv ? <EmptyChatState /> : (
             <>
-              <ChatHeader conv={selectedConv} profiles={profiles} queues={queues}
+              <ChatHeader conv={selectedConv} profiles={conversaDeOutraUnidade ? [] : profiles} queues={conversaDeOutraUnidade ? [] : queues}
                 onStatusChange={updateStatus} onAssignAgent={assignAgent} onAssignQueue={assignQueue}
-                contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)} />
-              <ConvTagsBar
-                convId={selectedConv.id}
-                convTags={convTags}
+                contextPanelOpen={contextPanelOpen} onToggleContextPanel={() => setContextPanelOpen(v => !v)}
+                onAbrirTicket={ticket.ligado && !conversaDeOutraUnidade ? () => { setTicketCriado(null); setAbrindoTicket(true) } : undefined} />
+              {ticketCriado && (
+                <div role="status" style={{ padding: '6px 14px', background: '#E8F4E6', borderBottom: '1px solid #CFE6CB', fontSize: 12, color: '#25402C', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  Ticket #{ticketCriado.numero} aberto.
+                  <a href={'/tickets?ticket=' + ticketCriado.id} style={{ color: '#3E9849', fontWeight: 700 }}>Ver ticket</a>
+                  <button onClick={() => setTicketCriado(null)} aria-label="Fechar aviso" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#71856F' }}>×</button>
+                </div>
+              )}
+              {!conversaDeOutraUnidade && (
+              <TagsBar
+                alvo={{ tipo: 'conversa', id: selectedConv.id }}
+                tags={convTags}
                 unitTags={unitTags}
                 onTagAdded={tag => {
                   setConvTags(prev => [...prev, tag])
@@ -869,6 +952,7 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     ? { ...c, tags: (c.tags ?? []).filter(t => t.tag.id !== tagId) } : c))
                 }}
               />
+              )}
               <div ref={rolagemChatRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 48px', display: 'flex', flexDirection: 'column', gap: 4, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(37,64,44,0.03) 1px, transparent 0)', backgroundSize: '24px 24px', backgroundColor: '#F2EEE1' }}>
                 {!msgsLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}><Spinner size={22} color="#3E9849" /></div>}
                 {msgsLoaded && chatItems.length === 0 && <div style={{ textAlign: 'center', color: '#9AA79C', fontSize: 12, marginTop: 40 }}>Nenhuma mensagem ainda</div>}
@@ -907,9 +991,14 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                   <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9AA79C', fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
                 </div>
               )}
-              <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={handleSend}
-                onMediaUpload={handleMediaUpload} onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
-                templates={templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
+              {unidadeDaConversa && (unidades.length > 1 || conversaPorQrCode) && (
+                <BarraRespondendoComo unidade={unidadeDaConversa} conexao={conexaoDaConversa} outraUnidade={conversaDeOutraUnidade}
+                  onTrocar={trocarParaUnidadeDaConversa} />
+              )}
+              <ChatInputComponent value={chatInput} onChange={setChatInput} onSend={() => comConfirmacao(() => void handleSend())}
+                onMediaUpload={(file, caption) => comConfirmacao(() => void handleMediaUpload(file, caption))}
+                onTemplateSend={handleTemplateSend} onScheduleSend={handleScheduleSend} onScheduleTemplate={handleScheduleTemplate}
+                templates={conversaDeOutraUnidade || conversaPorQrCode ? [] : templates} folders={tmplFolders} quickReplies={quickReplies} sending={sending} mode={inputMode} onModeChange={setInputMode}
                 unitId={currentUser.unit_id ?? ''}
                 mentionProfiles={profiles} currentUserId={currentUser.id}
                 onTemplatesReload={async () => {
@@ -919,18 +1008,18 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
                     const metaTmpls: WaTemplate[] = (metaData.templates ?? [])
                       .filter(t => t.status === 'APPROVED')
                       .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
-                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
+                    const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).eq('category', 'custom').order('name')
                     setTemplates([...metaTmpls, ...((custom ?? []) as WaTemplate[])])
                   } catch {
-                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
+                    const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
                     setTemplates((data ?? []) as WaTemplate[])
                   }
                 }}
-                onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))}
+                onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut').then(({ data }) => setQuickReplies((data ?? []) as WaQuickReply[]))}
                 isOutside24hWindow={isOutside24hWindow}
                 signatureEnabled={signatureEnabled} signatureLocked={isAtendente} onToggleSignature={toggleSignature}
                 signerName={displayName(currentUser)}
-                contactName={selectedConv?.lead ? [selectedConv.lead.nome, selectedConv.lead.sobrenome].filter(Boolean).join(' ') : (selectedConv?.wa_contact_name ?? selectedConv?.wa_phone ?? '')}
+                contactName={(selectedConv ? nomeDaPessoaDaConversa(selectedConv) : null) ?? selectedConv?.wa_contact_name ?? selectedConv?.wa_phone ?? ''}
               />
             </>
           )}
@@ -952,6 +1041,13 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
                 <p style={{ fontSize: 12, color: '#9AA79C' }}>Selecione uma conversa</p>
               </div>
+            ) : conversaDeOutraUnidade ? (
+              <ConversaDeOutraUnidade unidade={unidadeDaConversa} onTrocar={trocarParaUnidadeDaConversa} />
+            ) : selectedConv.tipo === 'grupo' ? (
+              <GrupoView participantes={participantesDoGrupo(chatItems.flatMap(i => i.kind === 'message' && i.message ? [i.message] : []))}
+                empresas={ticket.empresasLigado ? ticket.empresas : null} empresaId={selectedConv.empresa_id ?? null}
+                onEmpresa={empresaId => void ligarEmpresaAoGrupo(selectedConv.id, empresaId)}
+                onCriarContato={p => { setContatoDoGrupo({ nome: p.nome ?? undefined, telefone: telefoneDoParticipante(p.telefone) }); setShowQuickForm(true) }} />
             ) : loadingLead ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={20} color="#3E9849" /></div>
             ) : leadDetail ? (
@@ -967,6 +1063,17 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
           )}
         </div>
       </div>
+
+      {confirmacaoPendente && selectedConv && (
+        <ConfirmarRespostaOutraUnidade unidade={unidadeDaConversa}
+          onCancelar={() => setConfirmacaoPendente(null)}
+          onConfirmar={() => {
+            const enviar = confirmacaoPendente
+            setRespostasConfirmadas(prev => new Set(prev).add(selectedConv.id))
+            setConfirmacaoPendente(null)
+            enviar()
+          }} />
+      )}
 
       {orcamentoLeadId && (
         <NovoOrcamentoRapido
@@ -993,10 +1100,22 @@ export default function AtendimentoClient({ funnels, profiles, currentUser }: Pr
             setModalLead(prev => prev ? { ...prev, ...patch } : prev)
           }} />
       )}
+      {abrindoTicket && selectedConv && (
+        <NovoTicketModal unitId={currentUser.unit_id ?? ''} funis={ticket.funis} pessoas={ticket.pessoas}
+          empresas={ticket.empresasLigado ? ticket.empresas : []} usuarioId={currentUser.id}
+          inicial={{ conversa_id: selectedConv.id, lead_id: selectedConv.lead_id, empresa_id: selectedConv.empresa_id ?? null }}
+          onFechar={() => setAbrindoTicket(false)}
+          onCriado={t => { setAbrindoTicket(false); setTicketCriado({ id: t.id, numero: t.numero }) }} />
+      )}
       {showQuickForm && defaultStage && (
         <QuickLeadForm defaultStage={defaultStage} funnels={funnels} profiles={profiles} currentUser={currentUser}
-          onClose={() => setShowQuickForm(false)}
-          onCreated={(lead) => { setShowQuickForm(false); void linkLeadById(lead.id) }} />
+          inicial={contatoDoGrupo ?? undefined}
+          onClose={() => { setShowQuickForm(false); setContatoDoGrupo(null) }}
+          onCreated={(lead) => {
+            setShowQuickForm(false)
+            if (contatoDoGrupo) setContatoDoGrupo(null)
+            else void linkLeadById(lead.id)
+          }} />
       )}
       {newConvOpen && (
         <NewConversationModal
@@ -1107,14 +1226,11 @@ function ResolveDialog({ onConfirm, onCancel }: { onConfirm: (r: string, n: stri
   )
 }
 
-// ── ConvTagsBar ───────────────────────────────────────────────────────────────
-
-// ConvTagsBar extracted to @/components/whatsapp/ConvTagsBar
-
 // ── ConvList ──────────────────────────────────────────────────────────────────
 
-function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag, onMarkUnread }: {
+function ConvList({ convs, loaded, selected, onSelect, unidades, filterUnit, onFilterUnit, search, onSearch, filterStatus, onFilterStatus, filterQueue, onFilterQueue, queues, filterMine, onFilterMine, profiles, totalUnread, onNewConv, soundEnabled, onToggleSound, unitTags, filterTag, onFilterTag, onMarkUnread }: {
   convs: WaConversation[]; loaded: boolean; selected: WaConversation | null; onSelect: (c: WaConversation) => void
+  unidades: UnidadeDaCaixa[]; filterUnit: string; onFilterUnit: (u: string) => void
   search: string; onSearch: (q: string) => void; filterStatus: ConvStatus; onFilterStatus: (s: ConvStatus) => void
   filterQueue: string; onFilterQueue: (q: string) => void; queues: WaQueue[]; filterMine: boolean
   onFilterMine: (v: boolean) => void; profiles: Profile[]; totalUnread: number; onNewConv: () => void
@@ -1122,7 +1238,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
   unitTags: ConvTag[]; filterTag: string; onFilterTag: (t: string) => void
   onMarkUnread: (convId: string) => void
 }) {
-  const [openDrop, setOpenDrop] = useState<'status' | 'queue' | 'tag' | null>(null)
+  const [openDrop, setOpenDrop] = useState<'unidade' | 'status' | 'queue' | 'tag' | null>(null)
   const filterBarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1133,13 +1249,16 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
     return () => document.removeEventListener('mousedown', onOut)
   }, [])
 
-  function toggleDrop(name: 'status' | 'queue' | 'tag') {
+  function toggleDrop(name: 'unidade' | 'status' | 'queue' | 'tag') {
     setOpenDrop(prev => prev === name ? null : name)
   }
 
   const STATUS_DOT: Record<string, string> = { all: '#9AA79C', open: '#25D366', pending: '#F59E0B', resolved: '#C05B3A' }
   const activeQueue = queues.find(q => q.id === filterQueue)
   const activeTag   = unitTags.find(t => t.id === filterTag)
+  const variasUnidades = unidades.length > 1
+  const unidadeFiltro  = unidades.find(u => u.id === filterUnit)
+  const unidadePorId   = new Map(unidades.map(u => [u.id, u]))
 
   const pillBase: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px',
@@ -1178,6 +1297,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
           <div>
             <p style={{ fontSize: 19, fontWeight: 900, color: '#25402C', margin: 0 }}>Conversas</p>
             <p style={{ fontSize: '11.5px', fontWeight: 600, color: '#9AA79C', margin: '2px 0 0' }}>
+              {variasUnidades && filterUnit === 'all' ? 'Todas as suas unidades · ' : ''}
               {totalUnread > 0 ? `${totalUnread} famílias esperando por você` : 'Tudo em dia'}
             </p>
           </div>
@@ -1214,6 +1334,33 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
 
         {/* Filter pill bar */}
         <div ref={filterBarRef} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+
+          {variasUnidades && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => toggleDrop('unidade')} style={unidadeFiltro ? { ...pillActive, borderColor: unidadeFiltro.cor, color: unidadeFiltro.cor, background: unidadeFiltro.cor + '15' } : pillBase}>
+                {unidadeFiltro && <span style={{ width: 7, height: 7, borderRadius: '50%', background: unidadeFiltro.cor, flexShrink: 0 }} />}
+                {unidadeFiltro?.nome ?? 'Unidade'}
+                <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {openDrop === 'unidade' && (
+                <div style={dropBase}>
+                  <button onClick={() => { onFilterUnit('all'); setOpenDrop(null) }} style={dropItem(filterUnit === 'all')}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#9AA79C', flexShrink: 0 }} />
+                    Todas as unidades
+                  </button>
+                  <div style={{ height: 1, background: '#EBE7DA', margin: '4px 0' }} />
+                  {unidades.map(u => (
+                    <button key={u.id} onClick={() => { onFilterUnit(u.id); setOpenDrop(null) }} style={dropItem(filterUnit === u.id)}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: u.cor, flexShrink: 0 }} />
+                      {u.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Status pill */}
           <div style={{ position: 'relative' }}>
@@ -1301,10 +1448,11 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
         {loaded && convs.length === 0 && <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9AA79C', fontSize: 12 }}>Nenhuma conversa</div>}
         {convs.map(conv => {
           const isSelected = selected?.id === conv.id
-          const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
-          const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
+          const leadName = nomeDaPessoaDaConversa(conv)
+          const name = nomeDaConversa(conv, leadName)
           const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
           const assignee = profiles.find(p => p.id === conv.assigned_to)
+          const unidade  = variasUnidades && conv.unit_id ? unidadePorId.get(conv.unit_id) : undefined
           const rawPreview = conv.last_message_content?.replace(/\n+/g, ' ') ?? null
           const previewText = rawPreview
             ? (conv.last_message_direction === 'outbound' ? `Você: ${rawPreview}` : rawPreview)
@@ -1329,7 +1477,7 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                     const _pi = Math.abs(_h) % 3
                     return (
                       <div style={{ width: 42, height: 42, borderRadius: 14, background: _AVATAR_BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: _AVATAR_INK[_pi], letterSpacing: '-0.02em' }}>{conv.tipo === 'grupo' ? '👥' : name.slice(0, 2).toUpperCase()}</span>
                       </div>
                     )
                   })()
@@ -1360,8 +1508,9 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
                   </span>
                   {conv.unread_count > 0 && <span style={{ background: '#3E9849', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 6px', flexShrink: 0 }}>{conv.unread_count}</span>}
                 </div>
-                {(conv.tags ?? []).length > 0 && (
+                {(unidade || (conv.tags ?? []).length > 0) && (
                   <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
+                    {unidade && <SeloUnidade unidade={unidade} />}
                     {(conv.tags ?? []).map(({ tag }) => (
                       <span key={tag.id} style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: tag.color + '22', color: tag.color, border: `1px solid ${tag.color}44`, letterSpacing: '0.02em' }}>
                         {tag.name}
@@ -1378,19 +1527,87 @@ function ConvList({ convs, loaded, selected, onSelect, search, onSearch, filterS
   )
 }
 
+// ── Unidades ──────────────────────────────────────────────────────────────────
+
+function SeloUnidade({ unidade }: { unidade: UnidadeDaCaixa }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: unidade.cor + '1A', color: unidade.cor, border: `1px solid ${unidade.cor}44`, letterSpacing: '0.02em' }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: unidade.cor }} />
+      {unidade.nome}
+    </span>
+  )
+}
+
+function BarraRespondendoComo({ unidade, conexao, outraUnidade, onTrocar }: {
+  unidade: UnidadeDaCaixa; conexao: ConexaoDaCaixa | null; outraUnidade: boolean; onTrocar: () => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: unidade.cor + '12', borderTop: `2px solid ${unidade.cor}`, flexShrink: 0 }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: unidade.cor, flexShrink: 0 }} />
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#25402C', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {rotuloRespondendoComo(unidade, conexao)}
+      </span>
+      {outraUnidade && (
+        <button onClick={onTrocar} title="Modelos, filas e ficha do lead usam a unidade em que você está"
+          style={{ fontSize: 11, fontWeight: 700, color: unidade.cor, background: '#fff', border: `1px solid ${unidade.cor}66`, borderRadius: 99, padding: '3px 10px', cursor: 'pointer', flexShrink: 0 }}>
+          Trocar para {unidade.nome}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ConversaDeOutraUnidade({ unidade, onTrocar }: { unidade: UnidadeDaCaixa | null; onTrocar: () => void }) {
+  const nome = unidade?.nome ?? 'outra unidade'
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, textAlign: 'center' }}>
+      <span style={{ width: 10, height: 10, borderRadius: '50%', background: unidade?.cor ?? '#9AA79C' }} />
+      <p style={{ fontSize: 12, color: '#71856F', margin: 0, lineHeight: 1.5 }}>
+        Esta conversa é de <strong style={{ color: '#25402C' }}>{nome}</strong>. Para ver a ficha, vincular lead, usar modelos ou filas, troque para essa unidade.
+      </p>
+      <button onClick={onTrocar} style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: unidade?.cor ?? '#3E9849', border: 'none', borderRadius: 99, padding: '7px 14px', cursor: 'pointer' }}>
+        Trocar para {nome}
+      </button>
+    </div>
+  )
+}
+
+function ConfirmarRespostaOutraUnidade({ unidade, onConfirmar, onCancelar }: {
+  unidade: UnidadeDaCaixa | null; onConfirmar: () => void; onCancelar: () => void
+}) {
+  const nome = unidade?.nome ?? 'outra unidade'
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="confirmar-outra-unidade" onClick={onCancelar}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(37,64,44,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 22, width: 380, maxWidth: 'calc(100vw - 32px)', boxShadow: '0 12px 40px rgba(37,64,44,0.2)', borderTop: `4px solid ${unidade?.cor ?? '#3E9849'}` }}>
+        <p id="confirmar-outra-unidade" style={{ fontSize: 15, fontWeight: 800, color: '#25402C', margin: 0 }}>Responder como {nome}?</p>
+        <p style={{ fontSize: 12.5, color: '#71856F', margin: '8px 0 0', lineHeight: 1.5 }}>
+          Esta conversa é de <strong style={{ color: '#25402C' }}>{nome}</strong>, não da unidade em que você está. A mensagem sai pelo número de {nome}{unidade?.numero ? ` (${unidade.numero})` : ''}.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+          <button onClick={onCancelar} style={{ fontSize: 12.5, fontWeight: 600, color: '#71856F', background: 'transparent', border: '1px solid #EBE7DA', borderRadius: 99, padding: '7px 14px', cursor: 'pointer' }}>Cancelar</button>
+          <button autoFocus onClick={onConfirmar} style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', background: unidade?.cor ?? '#3E9849', border: 'none', borderRadius: 99, padding: '7px 14px', cursor: 'pointer' }}>Responder como {nome}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── ChatHeader ────────────────────────────────────────────────────────────────
 
-function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onAssignQueue, contextPanelOpen, onToggleContextPanel }: {
+function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onAssignQueue, contextPanelOpen, onToggleContextPanel, onAbrirTicket }: {
   conv: WaConversation; profiles: Profile[]; queues: WaQueue[]
   onStatusChange: (s: 'open' | 'pending' | 'resolved') => void
   onAssignAgent: (id: string | null) => void; onAssignQueue: (id: string | null) => void
   contextPanelOpen: boolean; onToggleContextPanel: () => void
+  /** Sem ele (módulo Tickets desligado), o botão não aparece */
+  onAbrirTicket?: () => void
 }) {
   const [showStatus, setShowStatus] = useState(false)
   const [showAgent,  setShowAgent]  = useState(false)
   const [showQueue,  setShowQueue]  = useState(false)
-  const leadName = conv.lead ? [conv.lead.nome, conv.lead.sobrenome].filter(Boolean).join(' ') : null
-  const name = leadName ?? conv.wa_contact_name ?? conv.wa_phone
+  const leadName = nomeDaPessoaDaConversa(conv)
+  const name = nomeDaConversa(conv, leadName)
   const sc   = STATUS_COLORS[conv.status] ?? STATUS_COLORS.open
 
   return (
@@ -1405,7 +1622,7 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
           const _pi = Math.abs(_h) % 3
           return (
             <div style={{ width: 42, height: 42, borderRadius: 14, background: _BG[_pi], display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{name.slice(0, 2).toUpperCase()}</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: _INK[_pi], letterSpacing: '-0.02em' }}>{conv.tipo === 'grupo' ? '👥' : name.slice(0, 2).toUpperCase()}</span>
             </div>
           )
         })()
@@ -1473,6 +1690,12 @@ function ChatHeader({ conv, profiles, queues, onStatusChange, onAssignAgent, onA
             )}
           </div>
         )}
+        {onAbrirTicket && (
+          <button onClick={onAbrirTicket} title="Abrir um ticket a partir desta conversa"
+            style={{ padding: '5px 10px', border: '1px solid #E9E5D8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#71856F', flexShrink: 0 }}>
+            Abrir ticket
+          </button>
+        )}
         {/* Toggle context panel */}
         <button onClick={onToggleContextPanel} title={contextPanelOpen ? 'Recolher painel' : 'Expandir painel'}
           style={{ padding: '5px 7px', border: '1px solid #E9E5D8', borderRadius: 8, background: '#F6F4EC', cursor: 'pointer', lineHeight: 0, color: '#71856F', flexShrink: 0 }}>
@@ -1529,6 +1752,12 @@ function ChatBubble({ msg, unitId, onReply, quotedMsg, reactions }: { msg: WaMes
           boxShadow: '0 1px 2px rgba(37,64,44,0.06)',
           border: failed ? '1px solid #E8B4B0' : isOut ? 'none' : '1px solid #EBE7DA',
         }}>
+          {!isOut && (msg.autor_nome || msg.autor_telefone) && (
+            <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 800, color: corDoAutor(msg.autor_telefone ?? msg.autor_nome ?? '') }}
+              title={msg.autor_telefone ? telefoneDoParticipante(msg.autor_telefone) : undefined}>
+              {msg.autor_nome ?? telefoneDoParticipante(msg.autor_telefone!)}
+            </p>
+          )}
           {quotedMsg && (
             <div style={{
               padding: '6px 10px', marginBottom: 4, borderRadius: 8,
@@ -1705,6 +1934,9 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             )}
           </div>
         )}
+        <Link href={`/contatos/${lead.contato_id}`} style={{ fontSize: 11, fontWeight: 800, color: '#3E9849', textDecoration: 'none' }}>
+          Ficha do contato →
+        </Link>
       </div>
 
       {/* ── Card Próxima Tarefa ── */}
@@ -1833,6 +2065,49 @@ function LeadContextView({ detail, conv, onOpen, onUnlink, onCreateQuote, onSche
             Transferir unidade
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── GrupoView ─────────────────────────────────────────────────────────────────
+
+function GrupoView({ participantes, onCriarContato, empresas, empresaId, onEmpresa }: {
+  participantes: Participante[]; onCriarContato: (p: Participante) => void
+  /** null: módulo Empresas desligado */
+  empresas: { id: string; nome: string }[] | null; empresaId: string | null; onEmpresa: (id: string | null) => void
+}) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 12, overflowY: 'auto' }}>
+      <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: '14px 14px 6px' }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#25402C' }}>Conversa de grupo</p>
+        <p style={{ margin: '3px 0 10px', fontSize: 11.5, color: '#9AA79C', lineHeight: 1.4 }}>
+          O grupo não vira contato. Quem escreveu aparece abaixo; crie o contato de quem precisar.
+        </p>
+        {empresas && (
+          <label style={{ display: 'block', margin: '0 0 10px', fontSize: 11.5, fontWeight: 700, color: '#71856F' }}>
+            Empresa do grupo
+            <select value={empresaId ?? ''} onChange={e => onEmpresa(e.target.value || null)}
+              style={{ display: 'block', width: '100%', marginTop: 4, padding: '6px 8px', fontSize: 12.5, border: '1px solid #EBE7DA', borderRadius: 8, color: '#25402C', background: '#fff' }}>
+              <option value="">Sem empresa</option>
+              {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          </label>
+        )}
+        {participantes.length === 0 && <p style={{ fontSize: 11.5, color: '#9AA79C', margin: '0 0 10px' }}>Ninguém escreveu nas mensagens carregadas.</p>}
+        {participantes.map(p => (
+          <div key={p.telefone} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #F1EEE4' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: corDoAutor(p.telefone), flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#25402C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome ?? 'Sem nome'}</p>
+              <p style={{ margin: 0, fontSize: 11, color: '#9AA79C' }}>{telefoneDoParticipante(p.telefone)}</p>
+            </div>
+            <button onClick={() => onCriarContato(p)}
+              style={{ fontSize: 11, fontWeight: 700, color: '#3E9849', background: '#fff', border: '1px solid #CFE6CB', borderRadius: 99, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}>
+              Criar contato
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )

@@ -7,27 +7,39 @@ import { ptBR } from 'date-fns/locale'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 import MediaContent from '@/components/whatsapp/MediaContent'
 import ChatInputComponent from '@/components/whatsapp/ChatInput'
-import type { WaTemplate, WaQuickReply, InputMode, ConvTag } from '@/components/whatsapp/wa-types'
+import type { WaTemplate, WaQuickReply, InputMode, ConvTag, TagCatalogo } from '@/components/whatsapp/wa-types'
 import type { WaMessage as SharedWaMessage } from '@/components/whatsapp/wa-types'
-import ConvTagsBar from '@/components/whatsapp/ConvTagsBar'
+import TagsBar from '@/components/whatsapp/TagsBar'
 import type {
   LeadKanban, FunnelWithStages,
   LeadContact, LeadNote, LeadTask, LeadResponsibleHistory, Profile, ContactRole,
-  QuoteStatus, LeadStageHistory,
+  QuoteStatus, LeadStageHistory, StatusLead, MotivoArquivamento,
 } from '@/types/database'
 import {
-  CONTACT_ROLE_LABELS, ARCHIVE_REASONS, ORIGEM_OPTIONS,
+  CONTACT_ROLE_LABELS, ORIGEM_OPTIONS, STATUS_LEAD_LABELS, MOTIVOS_ARQUIVAMENTO,
   QUOTE_STATUS_LABELS, QUOTE_STATUS_COLORS, displayName,
-  type ArchiveReason,
 } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
-import { updateLead, archiveLead, restoreLead } from '@/lib/leads'
+import { updateLead, marcarGanho, marcarPerdido, reabrir, arquivar, desarquivar } from '@/lib/leads'
+import { motivoArquivamento, rotuloMotivoPerda } from '@/lib/status-lead'
 import { primeiraLetra } from '@/lib/texto'
 import NovoOrcamentoRapido from '@/components/orcamento/NovoOrcamentoRapido'
 import { useRolagemNoFim } from '@/components/whatsapp/useRolagemNoFim'
 import EnviarOrcamentoDialog from '@/components/orcamento/EnviarOrcamentoDialog'
 import { avisoTelefone, normalizarTelefone, telefoneParaGravar, variantesTelefone } from '@/lib/telefone'
 import { isViolacaoUnica } from '@/lib/supabase/erros'
+import { isPerfilGestor } from '@/lib/auth/access'
+import LeadAnexos, { useLeadAnexos } from '@/components/leads/LeadAnexos'
+import CamposLead, { useCamposLead } from '@/components/leads/CamposLead'
+import PreencherObrigatorios, { type Preenchido } from '@/components/leads/PreencherObrigatorios'
+import MotivoPerdaModal from '@/components/leads/MotivoPerdaModal'
+import { camposDoFunil } from '@/lib/campos'
+import { tagsDoTipo } from '@/lib/tags'
+import { faltandoDoErro, type ValoresFixos } from '@/lib/obrigatorios'
+import { comPessoaDoContato, dependentesDoContato, separarPessoaENegocio } from '@/lib/contatos'
+import { gravarPessoa } from '@/lib/contatos-gravacao'
+import type { Contato } from '@/types/database'
+import Link from 'next/link'
 
 interface Props {
   lead: LeadKanban | null
@@ -39,10 +51,13 @@ interface Props {
   onClose: () => void
   onSaved: () => void
   onLeadPatched?: (patch: Partial<LeadKanban>) => void
+  /** Aba aberta ao montar (ex.: link de notificação de menção abre Anotações) */
+  abaInicial?: string
 }
 
-type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos'
-const TABS: Tab[] = ['Atendimento', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos']
+type Tab = 'Histórico' | 'Anotações' | 'Tarefas' | 'Atendimento' | 'Orçamentos' | 'Anexos' | 'Informações'
+// Informações só no celular: no desktop os campos ficam no painel esquerdo
+const TABS: Tab[] = ['Atendimento', 'Informações', 'Histórico', 'Anotações', 'Tarefas', 'Orçamentos', 'Anexos']
 const DISABLED_TABS = new Set<Tab>([])
 
 interface WaConversation {
@@ -77,6 +92,17 @@ type TimelineItem =
   | { kind: 'resp';  id: string; ts: string; history: LeadResponsibleHistory }
   | { kind: 'stage'; id: string; ts: string; stageHistory: LeadStageHistoryWithDetails }
 
+const COLUNAS_DO_FORM = ['email', 'telefone', 'sobrenome', 'profissao', 'cidade', 'estado', 'origem', 'responsavel_id'] as const
+
+function formComFixos<F extends Record<(typeof COLUNAS_DO_FORM)[number], string>>(form: F, fixos: ValoresFixos): F {
+  const novo = { ...form }
+  for (const k of COLUNAS_DO_FORM) {
+    const v = fixos[k]
+    if (v !== undefined) novo[k] = (v ?? '') as F[typeof k]
+  }
+  return novo
+}
+
 // Wrapper — never violates hook rules
 export default function LeadModal(props: Props) {
   if (!props.lead) return null
@@ -84,9 +110,10 @@ export default function LeadModal(props: Props) {
 }
 
 function LeadDrawer({
-  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched,
+  lead, funnel, allFunnels, profiles, currentUser, onClose, onSaved, onLeadPatched, abaInicial,
 }: Props & { lead: LeadKanban }) {
-  const isArchived = lead.arquivado === true
+  const [statusAtual, setStatusAtual] = useState<StatusLead>(lead.status)
+  const isPerdido  = statusAtual === 'perdido'
   const supabase   = createClient()
   const router     = useRouter()
 
@@ -102,6 +129,12 @@ function LeadDrawer({
   // ── Edit mode ──────────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
+  // O contato chega depois de abrir: não sobrescreve o formulário que já está em edição
+  const editingRef = useRef(false)
+  useEffect(() => { editingRef.current = editing }, [editing])
+
+  const [contato, setContato] = useState<Contato | null>(null)
+  const pessoa = useMemo(() => comPessoaDoContato(lead, contato), [lead, contato])
 
   const [form, setForm] = useState({
     nome:           lead.nome           ?? '',
@@ -144,7 +177,10 @@ function LeadDrawer({
     const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
     const now = new Date().toISOString()
-    const { error } = await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
+    // Consentimento é da pessoa: grava no contato (149), que leva aos negócios dela
+    const { error } = contato
+      ? await supabase.from('contatos').update({ wa_optin_at: now }).eq('id', contato.id)
+      : await supabase.from('leads').update({ wa_optin_at: now }).eq('id', lead.id)
     if (!error) {
       setWaOptinAt(now)
       onLeadPatched?.({ wa_optin_at: now })
@@ -152,7 +188,10 @@ function LeadDrawer({
   }
 
   // ── Tab ────────────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>('Atendimento')
+  const [tab, setTab] = useState<Tab>(TABS.find(t => t === abaInicial) ?? 'Atendimento')
+  const anexos = useLeadAnexos(lead.id)
+  const camposLead = useCamposLead({ leadId: lead.id }, lead.unit_id)
+  const temCampos = camposDoFunil(camposLead.definicoes, lead.funnel_id).length > 0
 
   // ── WhatsApp chat ──────────────────────────────────────────────────────────
   const [waConversation, setWaConversation] = useState<WaConversation | null>(null)
@@ -173,14 +212,17 @@ function LeadDrawer({
   const [waQuickReplies, setWaQuickReplies] = useState<WaQuickReply[]>([])
   const [waFolders,      setWaFolders]      = useState<import('@/components/whatsapp/wa-types').WaTemplateFolder[]>([])
   const [waConvTags,     setWaConvTags]     = useState<ConvTag[]>([])
-  const [waUnitTags,     setWaUnitTags]     = useState<ConvTag[]>([])
+  const [waUnitTags,     setWaUnitTags]     = useState<TagCatalogo[]>([])
+  const [leadTags,       setLeadTags]       = useState<ConvTag[]>([])
+  const tagsDeCliente  = useMemo(() => tagsDoTipo(waUnitTags, 'lead'), [waUnitTags])
+  const tagsDeConversa = useMemo(() => tagsDoTipo(waUnitTags, 'conversa'), [waUnitTags])
 
   // Carrega conversa quando abre a aba Atendimento
   useEffect(() => {
-    if (tab !== 'Atendimento' || !lead.telefone || waLoaded) return
+    if (tab !== 'Atendimento' || !pessoa.telefone || waLoaded) return
     setWaLoaded(false)
 
-    const telNorm = normalizarTelefone(lead.telefone)
+    const telNorm = normalizarTelefone(pessoa.telefone)
 
     // Busca por lead_id (link direto) com fallback por telefone
     const findConversation = async () => {
@@ -221,16 +263,14 @@ function LeadDrawer({
         if (intNotes) setWaInternalNotes(intNotes)
 
         // Carrega templates, quick replies e tags para o ChatInput
-        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
+        void supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
           .then(({ data }) => setWaTemplates((data ?? []) as WaTemplate[]))
-        void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut')
+        void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut')
           .then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))
         void fetch('/api/whatsapp/template-folders').then(r => r.json()).then(data => { if (Array.isArray(data)) setWaFolders(data) })
         void supabase.from('wa_conversation_tags').select('tag:wa_tags(id,name,color)').eq('conversation_id', conv.id)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then(({ data }) => setWaConvTags((data ?? []).map((r: any) => r.tag).filter(Boolean)))
-        void supabase.from('wa_tags').select('id,name,color').eq('unit_id', currentUser.unit_id)
-          .then(({ data }) => setWaUnitTags((data ?? []) as ConvTag[]))
 
         // Zera unread_count via API (admin client garante que o update sempre persiste)
         if (conv.unread_count > 0) {
@@ -337,7 +377,7 @@ function LeadDrawer({
     let components: object[] | undefined
     let renderedText = t.content
     if (varCount > 0) {
-      const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+      const clientName = `${pessoa.nome}${pessoa.sobrenome ? ' ' + pessoa.sobrenome : ''}`
       const agentName  = displayName(currentUser)
       const now = new Date()
       const resolveVar = (id: string): string => {
@@ -404,7 +444,7 @@ function LeadDrawer({
     let schedComponents: object[] | undefined
     let schedRendered = t.content
     if (varCount > 0) {
-      const clientName = `${lead.nome}${lead.sobrenome ? ' ' + lead.sobrenome : ''}`
+      const clientName = `${pessoa.nome}${pessoa.sobrenome ? ' ' + pessoa.sobrenome : ''}`
       const agentName  = displayName(currentUser)
       const refDate = new Date(scheduledFor)
       const resolveVar = (id: string): string => {
@@ -442,10 +482,10 @@ function LeadDrawer({
       const meta: WaTemplate[] = (data.templates ?? [])
         .filter(t => t.status === 'APPROVED')
         .map(t => ({ id: t.name, name: t.name, content: t.components?.find(c => c.type === 'BODY')?.text ?? '', category: 'meta_api' as const, template_name: t.name, language: t.language, variable_order: t.variable_order ?? [], header_image_url: t.header_image_url ?? null, folder_id: t.folder_id ?? null, components: t.components }))
-      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,header_type,folder_id').eq('ativo', true).eq('category', 'custom').order('name')
+      const { data: custom } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).eq('category', 'custom').order('name')
       setWaTemplates([...meta, ...((custom ?? []) as WaTemplate[])])
     } catch {
-      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('ativo', true).order('name')
+      const { data } = await supabase.from('wa_message_templates').select('id,name,content,category,template_name,language,variable_order,header_image_url,header_type,folder_id').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('name')
       setWaTemplates((data ?? []) as WaTemplate[])
     }
   }
@@ -538,9 +578,45 @@ function LeadDrawer({
   const [novoOrcamento, setNovoOrcamento] = useState(false)
 
   useEffect(() => {
+    void supabase.from('lead_tags').select('tag:wa_tags(id,name,color)').eq('lead_id', lead.id)
+      .then(({ data }) => setLeadTags(((data ?? []) as unknown as Array<{ tag: ConvTag | null }>)
+        .flatMap(r => r.tag ? [r.tag] : [])))
+    const unidade = lead.unit_id ?? currentUser.unit_id
+    if (unidade) {
+      void supabase.from('wa_tags').select('id,name,color,tipo').eq('unit_id', unidade).order('name')
+        .then(({ data }) => setWaUnitTags((data ?? []) as TagCatalogo[]))
+    }
+  }, [lead.id, lead.unit_id, currentUser.unit_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A pessoa e os dependentes vêm do contato (5b); a gravação ainda vai para o lead e lead_contacts
+  useEffect(() => {
+    void (async () => {
+      // O lead do quadro vem das views, que não trazem contato_id: busca na tabela
+      const contatoId = lead.contato_id
+        ?? (await supabase.from('leads').select('contato_id').eq('id', lead.id).maybeSingle()).data?.contato_id as string | undefined
+      if (!contatoId) return
+      const { data } = await supabase.from('contatos').select('*').or(`id.eq.${contatoId},responsavel_id.eq.${contatoId}`)
+      const lista = (data ?? []) as Contato[]
+      const titular = lista.find(c => c.id === contatoId) ?? null
+      setContato(titular)
+      setContacts(dependentesDoContato(lista, contatoId, lead.id))
+      if (!titular) return
+      const p = comPessoaDoContato(lead, titular)
+      if (!editingRef.current) {
+        setForm(prev => ({
+          ...prev,
+          nome: p.nome ?? '', sobrenome: p.sobrenome ?? '', profissao: p.profissao ?? '',
+          cidade: p.cidade ?? '', estado: p.estado ?? '', pais: p.pais ?? 'Brasil',
+          instagram: p.instagram ?? '', site: p.site ?? '', email: p.email ?? '', telefone: p.telefone ?? '',
+        }))
+      }
+      setWaOptinAt(p.wa_optin_at)
+      setWaOptoutAt(p.wa_optout_at)
+    })()
+  }, [lead.id, lead.contato_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     const id = lead.id
-    supabase.from('lead_contacts').select('*').eq('lead_id', id).order('created_at')
-      .then(({ data }) => { if (data) setContacts(data as LeadContact[]) })
     supabase.from('lead_notes').select('*, autor:profiles(*)').eq('lead_id', id).order('created_at', { ascending: false })
       .then(({ data }) => { if (data) setNotes(data as LeadNote[]) })
     supabase.from('lead_tasks').select('*, responsavel:profiles(*)').eq('lead_id', id)
@@ -704,33 +780,67 @@ function LeadDrawer({
     setDeletingTaskId(null)
   }
 
+  const [obrigatorios, setObrigatorios] = useState<{
+    etapaId:  string
+    funnelId: string
+    faltando: string[]
+    tentarDeNovo: (valores: Preenchido) => Promise<void>
+  } | null>(null)
+
+  /** Abre o modal se o erro for de campos exigidos; devolve false para outros erros. */
+  function pedirObrigatorios(err: unknown, funnelId: string, tentarDeNovo: (valores: Preenchido) => Promise<void>): boolean {
+    const f = faltandoDoErro(err)
+    if (!f) return false
+    setObrigatorios({
+      ...f, funnelId,
+      tentarDeNovo: async valores => {
+        setObrigatorios(null)
+        camposLead.setValores(valores.campos)
+        onLeadPatched?.(valores.fixos)
+        await tentarDeNovo(valores)
+      },
+    })
+    return true
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
-  async function handleSave() {
-    if (!form.nome.trim() || phoneWarning) return
+  async function handleSave(formAtual = form) {
+    if (!formAtual.nome.trim() || phoneWarning) return
     setSaving(true)
     try {
       const previousStageId = lead.stage_id
       try {
-        await updateLead(lead.id, {
-          ...form,
-          telefone: telefoneParaGravar(form.telefone),
-          responsavel_id: form.responsavel_id || null,
+        // A pessoa vai para o contato (149) e o banco copia para os negócios dele; o lead
+        // recebe o que é do negócio. Sem contato carregado, tudo vai para o lead (o espelho
+        // leva ao contato). A pessoa antes: a etapa nova pode exigir campos dela.
+        const { pessoa: dadosPessoa, negocio } = separarPessoaENegocio({
+          ...formAtual,
+          telefone: telefoneParaGravar(formAtual.telefone),
+          responsavel_id: formAtual.responsavel_id || null,
         })
+        if (contato) setContato(await gravarPessoa(contato.id, dadosPessoa))
+        await updateLead(lead.id, contato ? negocio : { ...negocio, ...dadosPessoa })
       } catch (err) {
         if (isViolacaoUnica(err)) {
           alert('Já existe outro contato com este telefone nesta unidade. Para juntar os dois, use Mesclar na tela Clientes.')
           return
         }
+        // O formulário grava tudo junto: o que foi preenchido no modal entra nele antes de tentar de novo
+        if (pedirObrigatorios(err, formAtual.funnel_id, async valores => {
+          const novo = formComFixos(formAtual, valores.fixos)
+          setForm(novo)
+          await handleSave(novo)
+        })) return
         throw err
       }
 
       // Registrar mudança de stage via SECURITY DEFINER (bypassa RLS)
-      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: form.stage_id })
-      if (previousStageId && form.stage_id && previousStageId !== form.stage_id) {
+      console.log('[modal handleSave] stage check:', { previousStageId, newStageId: formAtual.stage_id })
+      if (previousStageId && formAtual.stage_id && previousStageId !== formAtual.stage_id) {
         const { error: rpcErr } = await supabase.rpc('record_stage_history', {
           p_lead_id:    lead.id,
           p_de_stage:   previousStageId,
-          p_para_stage: form.stage_id,
+          p_para_stage: formAtual.stage_id,
           p_movido_por: currentUser.id,
         })
         if (rpcErr) console.error('[modal handleSave] record_stage_history falhou:', rpcErr)
@@ -749,27 +859,61 @@ function LeadDrawer({
     } finally { setSaving(false) }
   }
 
-  // ── Convert to client ──────────────────────────────────────────────────────
   const [isConverted,  setIsConverted]  = useState<boolean>(lead.is_converted)
-  const [converting,   setConverting]   = useState(false)
-  const [convertError, setConvertError] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusError,  setStatusError]  = useState('')
 
-  async function handleConvert() {
-    if (isConverted || converting) return
-    setConverting(true)
-    setConvertError('')
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .update({ is_converted: true })
-        .eq('id', lead.id)
-      if (error) throw new Error(error.message)
+  async function handleGanho() {
+    if (statusAtual === 'ganho' || statusSaving) return
+    setStatusSaving(true)
+    setStatusError('')
+    async function ganhar() {
+      const destino = await marcarGanho(lead.id)
+      setStatusAtual('ganho')
       setIsConverted(true)
+      // Senão um Salvar depois tiraria o lead da etapa de ganho (e reabriria o negócio)
+      if (destino) setForm(f => ({ ...f, stage_id: destino }))
       onSaved()
+    }
+    try {
+      await ganhar()
     } catch (err) {
-      setConvertError(err instanceof Error ? err.message : 'Erro ao converter. Tente novamente.')
+      // A etapa de ganho pode exigir campos (130): preenche e tenta de novo
+      if (pedirObrigatorios(err, lead.funnel_id, async () => {
+        try {
+          await ganhar()
+        } catch (e) {
+          setStatusError((e as { message?: string })?.message ?? 'Erro ao marcar como ganho. Tente novamente.')
+        }
+      })) return
+      setStatusError((err as { message?: string })?.message ?? 'Erro ao marcar como ganho. Tente novamente.')
     } finally {
-      setConverting(false)
+      setStatusSaving(false)
+    }
+  }
+
+  async function handleReabrir() {
+    if (statusSaving) return
+    setStatusSaving(true)
+    setStatusError('')
+    try {
+      await reabrir(lead.id)
+      onSaved()
+      handleClose()
+    } catch (err) {
+      // Reabrir volta para a primeira etapa sem resultado, que também pode exigir campos
+      if (pedirObrigatorios(err, lead.funnel_id, async () => {
+        try {
+          await reabrir(lead.id)
+          onSaved()
+          handleClose()
+        } catch (e) {
+          setStatusError((e as { message?: string })?.message ?? 'Erro ao reabrir. Tente novamente.')
+        }
+      })) return
+      setStatusError(err instanceof Error ? err.message : 'Erro ao reabrir. Tente novamente.')
+    } finally {
+      setStatusSaving(false)
     }
   }
 
@@ -799,7 +943,7 @@ function LeadDrawer({
     setTransferUnitId(unitId)
     setTransferFunnelId('')
     const { data: funnels } = await supabase
-      .from('funnels').select('id, nome').eq('unit_id', unitId).eq('ativo', true).order('ordem')
+      .from('funnels').select('id, nome').eq('objeto', 'negocio').eq('unit_id', unitId).eq('ativo', true).order('ordem')
     setTransferFunnels(funnels ?? [])
     if (funnels && funnels.length === 1) setTransferFunnelId(funnels[0].id)
   }
@@ -831,23 +975,73 @@ function LeadDrawer({
     }
   }
 
-  // ── Archive ────────────────────────────────────────────────────────────────
-  const [archiveModal,  setArchiveModal]  = useState(false)
-  const [archiveReason, setArchiveReason] = useState<ArchiveReason | ''>('')
-  const [archiveCustom, setArchiveCustom] = useState('')
-  const [archiveSaving, setArchiveSaving] = useState(false)
+  // Mesma regra do antigo Arquivar: atendente não marca perdido pela ficha
+  const podeMarcarPerdido = !isAtendente
+  const [perdaModal,    setPerdaModal]    = useState(false)
 
-  async function handleArchive() {
-    if (!archiveReason) return
-    const motivo = archiveReason === 'Outro' ? `Outro: ${archiveCustom.trim() || '—'}` : archiveReason
-    setArchiveSaving(true)
-    try { await archiveLead(lead.id, motivo); onSaved(); handleClose() }
-    finally { setArchiveSaving(false) }
+  function openPerdaModal() {
+    setPerdaModal(true)
   }
-  async function handleRestore() {
-    await restoreLead(lead.id)
+
+  async function handlePerdido(motivoId: string, detalhe: string | null) {
+    await marcarPerdido(lead.id, motivoId, detalhe)
+    setPerdaModal(false)
     onSaved()
     handleClose()
+  }
+  const motivoPerdaAtual = isPerdido ? rotuloMotivoPerda(lead.motivo_perda_nome ?? null, lead.motivo_perda) : null
+
+  // ── Arquivar (migração 132): tira do quadro sem mudar o negócio ───────────
+  // Mesma regra do botão Perdido: atendente não arquiva nem desarquiva pela ficha
+  const podeArquivar = podeMarcarPerdido
+  const [arquivado,     setArquivado]     = useState<boolean>(lead.arquivado)
+  const [arqMotivoAtual, setArqMotivoAtual] = useState<string | null>(lead.arquivado_motivo ?? null)
+  const [arqModal,      setArqModal]      = useState(false)
+  const [arqMotivo,     setArqMotivo]     = useState<MotivoArquivamento | null>(null)
+  const [arqDetalhe,    setArqDetalhe]    = useState('')
+  const [arqSaving,     setArqSaving]     = useState(false)
+  const [arqErro,       setArqErro]       = useState('')
+  const arqValidado = motivoArquivamento(arqMotivo, arqDetalhe)
+
+  function openArqModal() {
+    setArqModal(true)
+    setArqMotivo(null)
+    setArqDetalhe('')
+    setArqErro('')
+  }
+
+  async function handleArquivar() {
+    if (!arqValidado.ok || arqSaving) return
+    setArqSaving(true)
+    setArqErro('')
+    try {
+      await arquivar(lead.id, arqValidado.texto)
+      setArquivado(true)
+      setArqMotivoAtual(arqValidado.texto)
+      setArqModal(false)
+      onSaved()
+      handleClose()
+    } catch (err) {
+      setArqErro(err instanceof Error ? err.message : 'Erro ao arquivar.')
+    } finally {
+      setArqSaving(false)
+    }
+  }
+
+  async function handleDesarquivar() {
+    if (statusSaving) return
+    setStatusSaving(true)
+    setStatusError('')
+    try {
+      await desarquivar(lead.id)
+      setArquivado(false)
+      setArqMotivoAtual(null)
+      onSaved()
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Erro ao desarquivar. Tente novamente.')
+    } finally {
+      setStatusSaving(false)
+    }
   }
 
   // ── Timeline ───────────────────────────────────────────────────────────────
@@ -889,7 +1083,10 @@ function LeadDrawer({
           {/* Cover + avatar */}
           <div className="shrink-0" style={{ position: 'relative' }}>
             <div style={{ background: '#25402C', padding: '24px 22px 46px' }}>
-              <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase' }}>Ficha do contato</span>
+              {contato ? <Link href={`/contatos/${contato.id}`} title="Abrir a ficha com todos os negócios deste contato"
+                style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase', textDecoration: 'none' }}>
+                Ficha do contato ↗
+              </Link> : <span style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1px', color: '#A8C3AB', textTransform: 'uppercase' }}>Ficha do contato</span>}
             </div>
             <div style={{
               position: 'absolute', bottom: '-28px', left: '22px',
@@ -897,7 +1094,7 @@ function LeadDrawer({
               background: '#D6EBD2', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <span style={{ fontSize: 21, fontWeight: 900, color: '#35853F' }}>
-                {primeiraLetra(lead.nome) || '?'}
+                {primeiraLetra(pessoa.nome) || '?'}
               </span>
             </div>
           </div>
@@ -907,16 +1104,55 @@ function LeadDrawer({
             <p style={{ fontSize: 19, fontWeight: 900, color: '#25402C', margin: 0 }}>
               {form.nome}{form.sobrenome ? ` ${form.sobrenome}` : ''}
             </p>
-            {stageNome && (
-              <span style={{ display: 'inline-block', marginTop: 6, fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#E8F4E6', color: '#35853F' }}>
-                {stageNome}
-              </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {stageNome && (
+                <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#E8F4E6', color: '#35853F' }}>
+                  {stageNome}
+                </span>
+              )}
+              {statusAtual !== 'aberto' && (
+                <span style={{
+                  fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999,
+                  background: isPerdido ? '#FDF1F2' : '#25402C', color: isPerdido ? '#C4534A' : '#fff',
+                }}>
+                  {STATUS_LEAD_LABELS[statusAtual]}
+                </span>
+              )}
+              {isConverted && (
+                <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#FFF7E0', color: '#9A6B00' }}>
+                  Cliente
+                </span>
+              )}
+              {arquivado && (
+                <span style={{ fontSize: '10.5px', fontWeight: 800, padding: '3px 11px', borderRadius: 999, background: '#EEF0F2', color: '#5B6470' }}>
+                  Arquivado
+                </span>
+              )}
+            </div>
+            {motivoPerdaAtual && (
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#C4534A', margin: '6px 0 0' }}>
+                Motivo da perda: {motivoPerdaAtual}
+              </p>
+            )}
+            {arquivado && (
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#5B6470', margin: '6px 0 0' }}>
+                Arquivado{lead.arquivado_em ? ` em ${format(new Date(lead.arquivado_em), 'd MMM yy', { locale: ptBR })}` : ''}
+                {arqMotivoAtual ? `: ${arqMotivoAtual}` : ''}. Fora do funil até desarquivar ou o contato mandar mensagem.
+              </p>
             )}
             <p style={{ fontSize: 12, fontWeight: 600, color: '#9AA79C', margin: '6px 0 0' }}>
               {lead.created_at ? `Chegou ${format(new Date(lead.created_at), "d MMM", { locale: ptBR })}` : ''}
               {form.origem ? ` pelo ${form.origem}` : ''}
               {contacts.length === 0 ? ' · ainda sem paciente vinculado' : ` · ${contacts.length} paciente${contacts.length > 1 ? 's' : ''}`}
             </p>
+            <TagsBar
+              alvo={{ tipo: 'lead', id: lead.id }}
+              tags={leadTags}
+              unitTags={tagsDeCliente}
+              onTagAdded={tag => setLeadTags(prev => [...prev, tag])}
+              onTagRemoved={tagId => setLeadTags(prev => prev.filter(t => t.id !== tagId))}
+              style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+            />
           </div>
 
           {/* Actions row */}
@@ -932,7 +1168,7 @@ function LeadDrawer({
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                   Editar dados
                 </button>
-                {!isArchived && (
+                {!isPerdido && (
                   <button
                       onClick={openTransferModal}
                       title="Transferir para outra unidade"
@@ -943,22 +1179,39 @@ function LeadDrawer({
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                   </button>
                 )}
-                {!isArchived && !isAtendente && (
+                {statusAtual === 'aberto' && podeMarcarPerdido && (
                     <button
-                      onClick={() => setArchiveModal(true)}
-                      title="Arquivar contato"
+                      onClick={openPerdaModal}
+                      title="Marcar negócio como perdido"
                       style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#C4534A'; e.currentTarget.style.borderColor = '#E8B4B0'; e.currentTarget.style.background = '#FDF1F2' }}
                       onMouseLeave={e => { e.currentTarget.style.color = '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = 'transparent' }}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" d="M9 9l6 6m0-6l-6 6"/></svg>
+                    </button>
+                )}
+                {podeArquivar && (
+                    <button
+                      onClick={arquivado ? () => void handleDesarquivar() : openArqModal}
+                      disabled={statusSaving}
+                      title={arquivado ? 'Desarquivar: volta para o funil' : 'Arquivar: tira do funil (spam, engano, fornecedor...)'}
+                      aria-label={arquivado ? 'Desarquivar' : 'Arquivar'}
+                      style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid #E9E5D8', background: arquivado ? '#EEF0F2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: arquivado ? '#5B6470' : '#9AA79C', transition: 'all 0.15s', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#5B6470'; e.currentTarget.style.borderColor = '#C9CED4'; e.currentTarget.style.background = '#EEF0F2' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = arquivado ? '#5B6470' : '#9AA79C'; e.currentTarget.style.borderColor = '#E9E5D8'; e.currentTarget.style.background = arquivado ? '#EEF0F2' : 'transparent' }}
+                    >
+                      {arquivado ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-7 9v-5m0 0l-2 2m2-2l2 2" /></svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                      )}
                     </button>
                 )}
               </>
             ) : (
               <>
                 <button
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving || !form.nome.trim()}
                   style={{ flex: 1, padding: 10, fontSize: 13, fontWeight: 800, color: '#fff', background: '#3E9849', border: 'none', borderRadius: 11, cursor: saving ? 'wait' : 'pointer', opacity: saving || !form.nome.trim() ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)' }}
                 >
@@ -1104,6 +1357,12 @@ function LeadDrawer({
                     )}
                   </InfoRow>
                 </WarmCard>
+
+                {temCampos && (
+                  <WarmCard title="Informações">
+                    <CamposLead funnelId={lead.funnel_id} estado={camposLead} />
+                  </WarmCard>
+                )}
               </>
             )}
 
@@ -1214,42 +1473,43 @@ function LeadDrawer({
             </div>
           </div>
 
-          {/* ── Pinned footer: Converter ── */}
-          <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {isArchived ? (
+          <div style={{ marginTop: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {statusAtual === 'aberto' ? (
               <button
-                onClick={handleRestore}
-                style={{ width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#3E9849', border: '1px solid #C8D9C4', borderRadius: 12, background: 'transparent', cursor: 'pointer', transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                onClick={handleGanho}
+                disabled={statusSaving}
+                style={{
+                  width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#fff',
+                  background: '#3E9849', border: 'none', borderRadius: 12, cursor: statusSaving ? 'not-allowed' : 'pointer',
+                  opacity: statusSaving ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
               >
-                Restaurar contato
+                {statusSaving ? 'Salvando...' : 'Marcar como ganho'}
               </button>
-            ) : isConverted ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', fontSize: 12, color: '#35853F', fontWeight: 700 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Convertido em cliente
-              </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <>
+                {statusAtual === 'ganho' && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 0', fontSize: 12, color: '#35853F', fontWeight: 700 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Negócio ganho
+                  </div>
+                )}
                 <button
-                  onClick={handleConvert}
-                  disabled={converting}
-                  style={{
-                    width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#fff',
-                    background: '#3E9849', border: 'none', borderRadius: 12, cursor: converting ? 'not-allowed' : 'pointer',
-                    opacity: converting ? 0.5 : 1, boxShadow: '0 5px 14px -6px rgba(62,152,73,0.55)', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#35853F')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#3E9849')}
+                  onClick={handleReabrir}
+                  disabled={statusSaving}
+                  style={{ width: '100%', padding: 11, fontSize: 13, fontWeight: 800, color: '#3E9849', border: '1px solid #C8D9C4', borderRadius: 12, background: 'transparent', cursor: statusSaving ? 'not-allowed' : 'pointer', opacity: statusSaving ? 0.5 : 1, transition: 'background 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#E8F4E6')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  {converting ? 'Convertendo...' : 'Converter em cliente'}
+                  {statusSaving ? 'Salvando...' : 'Reabrir negócio'}
                 </button>
-                {convertError && <p style={{ fontSize: 11, color: '#C4534A', textAlign: 'center', margin: 0 }}>{convertError}</p>}
-              </div>
+              </>
             )}
+            {statusError && <p style={{ fontSize: 11, color: '#C4534A', textAlign: 'center', margin: 0 }}>{statusError}</p>}
           </div>
         </div>
 
@@ -1261,22 +1521,32 @@ function LeadDrawer({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ minWidth: 0 }}>
                 <h2 style={{ fontSize: 17, fontWeight: 900, margin: 0, color: '#25402C', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  Conversa com {lead.nome}
+                  Conversa com {pessoa.nome}
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3E9849', flexShrink: 0 }} />
                 </h2>
                 <p style={{ fontSize: '11.5px', fontWeight: 700, color: '#9AA79C', margin: '2px 0 0' }}>online agora</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                {/* Mobile-only archive/restore */}
+                {/* Status no celular (o painel esquerdo fica oculto) */}
                 <div className="sm:hidden" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {!isArchived && (
-                    <button onClick={() => setArchiveModal(true)} style={{ fontSize: 12, color: '#C4534A', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
-                      Arquivar
+                  {statusAtual === 'aberto' && (
+                    <button onClick={handleGanho} disabled={statusSaving} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Ganho
                     </button>
                   )}
-                  {isArchived && (
-                    <button onClick={handleRestore} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
-                      Restaurar
+                  {statusAtual === 'aberto' && podeMarcarPerdido && (
+                    <button onClick={openPerdaModal} style={{ fontSize: 12, color: '#C4534A', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Perdido
+                    </button>
+                  )}
+                  {statusAtual !== 'aberto' && (
+                    <button onClick={handleReabrir} disabled={statusSaving} style={{ fontSize: 12, fontWeight: 600, color: '#35853F', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      Reabrir
+                    </button>
+                  )}
+                  {podeArquivar && (
+                    <button onClick={arquivado ? () => void handleDesarquivar() : openArqModal} disabled={statusSaving} style={{ fontSize: 12, color: '#5B6470', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>
+                      {arquivado ? 'Desarquivar' : 'Arquivar'}
                     </button>
                   )}
                 </div>
@@ -1305,6 +1575,7 @@ function LeadDrawer({
                 return (
                   <button
                     key={t}
+                    className={t === 'Informações' ? 'sm:hidden!' : undefined}
                     onClick={handleTabClick}
                     disabled={disabled}
                     title={disabled ? 'Em breve' : undefined}
@@ -1324,6 +1595,9 @@ function LeadDrawer({
                     )}
                     {t === 'Anotações' && notes.length > 0 && (
                       <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{notes.length}</span>
+                    )}
+                    {t === 'Anexos' && anexos.anexos.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999, background: '#F0EDE4', color: '#9AA79C' }}>{anexos.anexos.length}</span>
                     )}
                   </button>
                 )
@@ -1773,10 +2047,25 @@ function LeadDrawer({
               )
             })()}
 
+            {tab === 'Informações' && (
+              <div style={{ background: '#fff', border: '1px solid #EBE7DA', borderRadius: 16, padding: 14 }}>
+                <CamposLead funnelId={lead.funnel_id} estado={camposLead} />
+              </div>
+            )}
+
+            {tab === 'Anexos' && (
+              <LeadAnexos
+                leadId={lead.id}
+                estado={anexos}
+                currentUserId={currentUser.id}
+                isGestor={isPerfilGestor(currentUser.perfil)}
+              />
+            )}
+
             {/* ═══ ATENDIMENTO ═══ */}
             {tab === 'Atendimento' && (() => {
               // Sem telefone cadastrado
-              if (!lead.telefone) return (
+              if (!pessoa.telefone) return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' }}>
                   <div style={{ width: '58px', height: '58px', borderRadius: '16px', background: '#E8F4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3E9849' }}>
                     <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>
@@ -1905,10 +2194,10 @@ function LeadDrawer({
                   )}
                   {/* Tags */}
                   {waConversation && (
-                    <ConvTagsBar
-                      convId={waConversation.id}
-                      convTags={waConvTags}
-                      unitTags={waUnitTags}
+                    <TagsBar
+                      alvo={{ tipo: 'conversa', id: waConversation.id }}
+                      tags={waConvTags}
+                      unitTags={tagsDeConversa}
                       onTagAdded={tag => setWaConvTags(prev => [...prev, tag])}
                       onTagRemoved={tagId => setWaConvTags(prev => prev.filter(t => t.id !== tagId))}
                     />
@@ -1995,7 +2284,7 @@ function LeadDrawer({
                                     borderRadius: 6, padding: '5px 10px', marginBottom: 6,
                                   }}>
                                     <span style={{ fontSize: 11, fontWeight: 600, color: '#3E9849' }}>
-                                      {quotedMsg.direction === 'outbound' ? 'Você' : (lead.nome || 'Contato')}
+                                      {quotedMsg.direction === 'outbound' ? 'Você' : (pessoa.nome || 'Contato')}
                                     </span>
                                     <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#5A6E5A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
                                       {quotedMsg.content || (quotedMsg.type === 'image' ? '📷 Imagem' : quotedMsg.type === 'audio' ? '🎤 Áudio' : quotedMsg.type === 'document' ? '📎 Documento' : quotedMsg.type === 'video' ? '🎥 Vídeo' : '💬 Mensagem')}
@@ -2060,7 +2349,7 @@ function LeadDrawer({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#F7F5EE', borderTop: '1px solid #E9E5D8' }}>
                       <div style={{ flex: 1, borderLeft: '3px solid #3E9849', paddingLeft: 10, overflow: 'hidden' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#3E9849' }}>
-                          {waReplyTo.direction === 'outbound' ? 'Você' : (lead.nome || 'Contato')}
+                          {waReplyTo.direction === 'outbound' ? 'Você' : (pessoa.nome || 'Contato')}
                         </span>
                         <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7F6B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {waReplyTo.content || '💬 Mensagem'}
@@ -2089,13 +2378,13 @@ function LeadDrawer({
                     onModeChange={setWaInputMode}
                     unitId={currentUser.unit_id ?? ''}
                     onTemplatesReload={reloadWaTemplates}
-                    onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
+                    onQuickRepliesReload={() => void supabase.from('wa_quick_replies').select('id,shortcut,content').eq('unit_id', currentUser.unit_id).eq('ativo', true).order('shortcut').then(({ data }) => setWaQuickReplies((data ?? []) as WaQuickReply[]))}
                     isOutside24hWindow={waIsOutside24h}
                     signatureEnabled={waSignature}
                     signatureLocked={isAtendente}
                     onToggleSignature={() => { if (isAtendente) return; setWaSignature(p => { const v = !p; localStorage.setItem('wa_signature', v ? '1' : '0'); return v }); }}
                     signerName={displayName(currentUser)}
-                    contactName={[lead.nome, lead.sobrenome].filter(Boolean).join(' ')}
+                    contactName={[pessoa.nome, pessoa.sobrenome].filter(Boolean).join(' ')}
                     mentionProfiles={profiles}
                     currentUserId={currentUser.id}
                     autoFocus
@@ -2107,37 +2396,49 @@ function LeadDrawer({
         </div>
       </div>
 
-      {/* ── Archive modal ── */}
-      {archiveModal && (
+      {perdaModal && (
+        <MotivoPerdaModal funnelId={lead.funnel_id} onCancelar={() => setPerdaModal(false)} onConfirmar={handlePerdido} />
+      )}
+      {arqModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(37,64,44,0.35)' }}>
-          <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
-            <h3 style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Arquivar contato</h3>
-            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>O contato será removido do funil e preservado no banco.</p>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo da perda *</p>
+          <div role="dialog" aria-labelledby="arquivar-titulo" style={{ background: '#fff', borderRadius: 18, boxShadow: '0 20px 60px -15px rgba(37,64,44,0.35)', width: '100%', maxWidth: 380, padding: 20 }}>
+            <h3 id="arquivar-titulo" style={{ fontWeight: 800, color: '#25402C', fontSize: 16, margin: '0 0 2px' }}>Arquivar contato</h3>
+            <p style={{ fontSize: 12, color: '#71856F', marginBottom: 16 }}>Sai do funil e fica no painel Arquivados. O negócio não muda. Se mandar mensagem, volta para o funil.</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#35543B', marginBottom: 8 }}>Motivo *</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              {ARCHIVE_REASONS.map(reason => (
-                <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${archiveReason === reason ? '#C05B3A' : '#C9C3B2'}`, background: archiveReason === reason ? '#C05B3A' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                    {archiveReason === reason && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+              {MOTIVOS_ARQUIVAMENTO.map(m => (
+                <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${arqMotivo === m ? '#5B6470' : '#C9C3B2'}`, background: arqMotivo === m ? '#5B6470' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                    {arqMotivo === m && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
                   </div>
-                  <input type="radio" name="archive-reason" value={reason} checked={archiveReason === reason} onChange={() => setArchiveReason(reason)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
-                  <span style={{ fontSize: 13, color: '#35543B' }}>{reason}</span>
+                  <input type="radio" name="motivo-arquivamento" value={m} checked={arqMotivo === m} onChange={() => setArqMotivo(m)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
+                  <span style={{ fontSize: 13, color: '#35543B' }}>{m}</span>
                 </label>
               ))}
             </div>
-            {archiveReason === 'Outro' && (
-              <textarea autoFocus value={archiveCustom} onChange={e => setArchiveCustom(e.target.value)} placeholder="Descreva o motivo..." rows={2} style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }} />
+            {arqMotivo && (
+              <textarea
+                autoFocus={arqMotivo === 'Outro'}
+                value={arqDetalhe}
+                onChange={e => setArqDetalhe(e.target.value)}
+                placeholder={arqMotivo === 'Outro' ? 'Descreva o motivo *' : 'Detalhe (opcional)'}
+                rows={2}
+                maxLength={300}
+                style={{ width: '100%', borderRadius: 14, border: '1px solid #EBE7DA', padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box', color: '#25402C' }}
+              />
             )}
+            {arqErro && <p style={{ fontSize: 12, color: '#C4534A', margin: '0 0 8px' }}>{arqErro}</p>}
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button onClick={() => { setArchiveModal(false); setArchiveReason(''); setArchiveCustom('') }} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
+              <button onClick={() => setArqModal(false)} style={{ flex: 1, padding: '8px', fontSize: 13, border: '1px solid #EBE7DA', borderRadius: 12, background: 'transparent', cursor: 'pointer', color: '#71856F', transition: 'background 0.15s' }}>
                 Cancelar
               </button>
               <button
-                onClick={handleArchive}
-                disabled={!archiveReason || (archiveReason === 'Outro' && !archiveCustom.trim()) || archiveSaving}
-                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#C05B3A', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!archiveReason || (archiveReason === 'Outro' && !archiveCustom.trim()) || archiveSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
+                onClick={() => void handleArquivar()}
+                disabled={!arqValidado.ok || arqSaving}
+                title={arqValidado.ok ? undefined : arqValidado.erro}
+                style={{ flex: 1, padding: '8px', fontSize: 13, background: '#5B6470', color: '#fff', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, opacity: (!arqValidado.ok || arqSaving) ? 0.5 : 1, transition: 'background 0.15s' }}
               >
-                {archiveSaving ? 'Arquivando...' : 'Arquivar'}
+                {arqSaving ? 'Salvando...' : 'Arquivar'}
               </button>
             </div>
           </div>
@@ -2205,6 +2506,19 @@ function LeadDrawer({
       {/* Click-away handler for mention picker */}
       {showMentionPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMentionPicker(false)} />
+      )}
+
+      {obrigatorios && (
+        <PreencherObrigatorios
+          leadId={lead.id}
+          unitId={lead.unit_id}
+          funnelId={obrigatorios.funnelId}
+          etapaNome={allFunnels.flatMap(f => f.stages).find(s => s.id === obrigatorios.etapaId)?.nome ?? 'a etapa'}
+          faltando={obrigatorios.faltando}
+          profiles={profiles}
+          onCancelar={() => setObrigatorios(null)}
+          onPreenchido={obrigatorios.tentarDeNovo}
+        />
       )}
     </>
   )

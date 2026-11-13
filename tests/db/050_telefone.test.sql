@@ -36,12 +36,17 @@ BEGIN
      OR has_function_privilege('anon', 'public.mesclar_leads(uuid,uuid,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'mesclar_leads executável por authenticated/anon';
   END IF;
-  IF to_regclass('public.uq_leads_unit_telefone_norm') IS NULL THEN
-    RAISE EXCEPTION 'índice único da 122 não existe';
+  -- A 150 tirou o índice único de leads (o telefone é único no contato, 148)
+  IF to_regclass('public.uq_leads_unit_telefone_norm') IS NOT NULL THEN
+    RAISE EXCEPTION 'o índice único da 122 deveria ter saído na 150';
   END IF;
 END $$;
 
-DROP INDEX public.uq_leads_unit_telefone_norm;
+-- Estado de antes da 122: telefone repetido nos leads (e nos contatos que a 148 espelha).
+-- Reaplica as funções da 148, que criam um contato por lead como antes da 150.
+\i /migracoes/148_contatos.sql
+DROP INDEX IF EXISTS public.uq_leads_unit_telefone_norm;
+DROP INDEX IF EXISTS public.uq_contatos_unit_telefone;
 
 INSERT INTO public.tenants (id, nome) VALUES ('00000000-0000-4000-8050-0000000000f0', 'Rede Telefone');
 INSERT INTO public.units (id, tenant_id, nome, tipo) VALUES
@@ -65,8 +70,11 @@ INSERT INTO public.funnel_stages (id, funnel_id, nome, unit_id) VALUES
 
 CREATE FUNCTION pg_temp.lead(id uuid, unidade char, nome text, telefone text, criado timestamptz DEFAULT now(),
                              arquivado boolean DEFAULT false) RETURNS void LANGUAGE sql AS $$
-  INSERT INTO public.leads (id, nome, telefone, created_at, arquivado, motivo_perda, funnel_id, stage_id, unit_id)
-  SELECT id, nome, telefone, criado, arquivado, CASE WHEN arquivado THEN 'teste' END,
+  -- Arquivado (132): arquivado_em + motivo; o lead arquivado também está perdido
+  INSERT INTO public.leads (id, nome, telefone, created_at, status, motivo_perda, arquivado_em, arquivado_motivo,
+                            funnel_id, stage_id, unit_id)
+  SELECT id, nome, telefone, criado, CASE WHEN arquivado THEN 'perdido' ELSE 'aberto' END, CASE WHEN arquivado THEN 'teste' END,
+         CASE WHEN arquivado THEN now() END, CASE WHEN arquivado THEN 'Spam' END,
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000d0'::uuid ELSE '00000000-0000-4000-8050-0000000000e0'::uuid END,
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000d1'::uuid ELSE '00000000-0000-4000-8050-0000000000e1'::uuid END,
          CASE unidade WHEN 'A' THEN '00000000-0000-4000-8050-0000000000a0'::uuid ELSE '00000000-0000-4000-8050-0000000000b0'::uuid END
@@ -279,6 +287,8 @@ SELECT pg_temp.esperar('vínculo manual da conversa segue o lead mesclado',
   '00000000-0000-4000-8050-000000000112');
 
 \i /migracoes/122_telefone_unico.sql
+-- Depois de mesclar os duplicados, os contatos também ficam únicos de novo (148 é idempotente)
+\i /migracoes/148_contatos.sql
 
 DO $$
 BEGIN

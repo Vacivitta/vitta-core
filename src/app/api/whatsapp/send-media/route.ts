@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
-import { getWaCredentials } from '@/lib/whatsapp/credentials'
+import { dadosDaConexao, getCredenciaisDaConexao } from '@/lib/whatsapp/credentials'
+import { destinoQr, enviarPorQrCode } from '@/lib/whatsapp/envio-qrcode'
 import { runWaAutomation } from '@/lib/whatsapp/automation'
 import { getAccessibleConversation } from '@/lib/auth/access'
 import { resumoErro } from '@/lib/log-seguro'
+import { MIDIA_ERRO_CORPO, corpoGrandeDemais, erroTamanhoMidia, tipoMidia } from '@/lib/whatsapp/midia'
 
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
@@ -27,7 +29,18 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const form = await req.formData()
+    // Antes de ler o corpo: acima de 21 MB o proxy do Next entrega o corpo cortado,
+    // sem erro (proxyClientMaxBodySize, next.config.ts)
+    if (corpoGrandeDemais(req.headers.get('content-length'))) {
+      return NextResponse.json({ error: MIDIA_ERRO_CORPO }, { status: 413 })
+    }
+
+    let form: FormData
+    try {
+      form = await req.formData()
+    } catch {
+      return NextResponse.json({ error: 'Não foi possível ler o arquivo enviado' }, { status: 400 })
+    }
     const file            = form.get('file') as File | null
     const conversation_id = form.get('conversation_id') as string | null
     const caption         = (form.get('caption') as string | null)?.trim() || null
@@ -36,19 +49,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'file e conversation_id obrigatórios' }, { status: 400 })
     }
 
+    const erroTamanho = erroTamanhoMidia(file.type, file.size)
+    if (erroTamanho) return NextResponse.json({ error: erroTamanho }, { status: 413 })
+
     // Autorização: a conversa precisa ser de uma unidade do usuário (RLS)
     if (!await getAccessibleConversation(supabase, conversation_id)) {
       return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
     }
 
     const admin = adminClient()
-    const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id').eq('id', conversation_id).single()
+    const { data: conv } = await admin.from('wa_conversations').select('id, wa_phone, unit_id, conexao_id, tipo').eq('id', conversation_id).single()
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
-    const creds = await getWaCredentials(conv.unit_id)
+    // Conversa de QR Code sai pela Evolution; as outras, pela API da Meta
+    const conexao = await dadosDaConexao(conv.conexao_id)
+    const porQrCode = conexao?.tipo === 'qrcode'
+    const creds = await getCredenciaisDaConexao(conv.conexao_id)
     const phoneNumberId = creds.phoneNumberId
     const accessToken   = creds.accessToken
-    if (!phoneNumberId || !accessToken)
+    if (!porQrCode && (!phoneNumberId || !accessToken))
       return NextResponse.json({ error: 'WhatsApp não configurado para esta unidade' }, { status: 503 })
 
     let mime = normalizeMime(file.type)
@@ -94,89 +113,103 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Upload do arquivo para a API de mídia do Meta
-    const uploadForm = new FormData()
-    uploadForm.append('file', uploadFile, uploadFile.name)
-    uploadForm.append('messaging_product', 'whatsapp')
-    uploadForm.append('type', mime)
-
-    const uploadRes  = await fetch(`${META_API_URL}/${phoneNumberId}/media`, {
-      method:  'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      body:    uploadForm,
-    })
-    const uploadText = await uploadRes.text()
-    let uploadData: { id?: string; error?: unknown }
-    try { uploadData = JSON.parse(uploadText) } catch { uploadData = {} }
-
-    console.log(`[send-media] upload status=${uploadRes.status} mime=${mime}`)
-
-    if (!uploadRes.ok || !uploadData.id) {
-      return NextResponse.json({ error: 'Falha no upload da mídia', details: uploadData }, { status: 502 })
-    }
-
-    const mediaId = uploadData.id
-
-    // 2. Determina o tipo da mensagem
-    let msgType = 'document'
-    if (mime.startsWith('image/')) msgType = 'image'
-    else if (mime.startsWith('video/')) msgType = 'video'
-    else if (mime.startsWith('audio/')) msgType = 'audio'
-
-    // 3. Envia a mensagem via API do Meta (com retry para erros transientes)
-    const metaPayload: Record<string, unknown> = {
-      messaging_product: 'whatsapp',
-      to:   conv.wa_phone,
-      type: msgType,
-      [msgType]: msgType === 'audio'
-          ? { id: mediaId, voice: true }
-          : {
-              id: mediaId,
-              ...(caption ? { caption } : {}),
-              // Sem filename o WhatsApp mostra o documento sem nome
-              ...(msgType === 'document' ? { filename: uploadFile.name } : {}),
-            },
-    }
-
-    let sendData: { messages?: { id: string }[]; error?: { is_transient?: boolean; message?: string } } = {}
-    let sendOk = false
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
-
-      const sendRes = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify(metaPayload),
+    const msgType = tipoMidia(mime)
+    let waMessageId: string | null
+    let mediaRef: string | null = null
+    if (porQrCode && conexao) {
+      const envio = await enviarPorQrCode(admin, conexao, destinoQr(conv), {
+        tipo: 'midia',
+        midia: {
+          tipo:        msgType === 'image' || msgType === 'video' || msgType === 'audio' ? msgType : 'document',
+          base64:      Buffer.from(await uploadFile.arrayBuffer()).toString('base64'),
+          mimetype:    mime,
+          nomeArquivo: uploadFile.name,
+          legenda:     caption ?? undefined,
+        },
       })
-      sendData = await sendRes.json() as typeof sendData
+      if (!envio.ok) return NextResponse.json({ error: envio.erro }, { status: envio.status })
+      waMessageId = envio.waMessageId
+    } else {
+      // 1. Upload do arquivo para a API de mídia do Meta
+      const uploadForm = new FormData()
+      uploadForm.append('file', uploadFile, uploadFile.name)
+      uploadForm.append('messaging_product', 'whatsapp')
+      uploadForm.append('type', mime)
 
-      console.log(`[send-media] send attempt=${attempt + 1} status=${sendRes.status} type=${msgType}`)
+      const uploadRes  = await fetch(`${META_API_URL}/${phoneNumberId}/media`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body:    uploadForm,
+      })
+      const uploadText = await uploadRes.text()
+      let uploadData: { id?: string; error?: unknown }
+      try { uploadData = JSON.parse(uploadText) } catch { uploadData = {} }
 
-      if (sendRes.ok) { sendOk = true; break }
-      if (!sendData.error?.is_transient) break
-      console.warn(`[send-media] transient error, retrying (${attempt + 1}/3)`)
+      console.log(`[send-media] upload status=${uploadRes.status} mime=${mime}`)
+
+      if (!uploadRes.ok || !uploadData.id) {
+        return NextResponse.json({ error: 'Falha no upload da mídia', details: uploadData }, { status: 502 })
+      }
+
+      const mediaId = uploadData.id
+
+        // 3. Envia a mensagem via API do Meta (com retry para erros transientes)
+      const metaPayload: Record<string, unknown> = {
+        messaging_product: 'whatsapp',
+        to:   conv.wa_phone,
+        type: msgType,
+        [msgType]: msgType === 'audio'
+            ? { id: mediaId, voice: true }
+            : {
+                id: mediaId,
+                ...(caption ? { caption } : {}),
+                // Sem filename o WhatsApp mostra o documento sem nome
+                ...(msgType === 'document' ? { filename: uploadFile.name } : {}),
+              },
+      }
+
+      let sendData: { messages?: { id: string }[]; error?: { is_transient?: boolean; message?: string } } = {}
+      let sendOk = false
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
+
+        const sendRes = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+          method:  'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body:    JSON.stringify(metaPayload),
+        })
+        sendData = await sendRes.json() as typeof sendData
+
+        console.log(`[send-media] send attempt=${attempt + 1} status=${sendRes.status} type=${msgType}`)
+
+        if (sendRes.ok) { sendOk = true; break }
+        if (!sendData.error?.is_transient) break
+        console.warn(`[send-media] transient error, retrying (${attempt + 1}/3)`)
+      }
+
+      if (!sendOk) {
+        console.error(`[send-media] Meta send error conversa=${conversation_id}:`, resumoErro(sendData))
+        return NextResponse.json({ error: 'Falha ao enviar mídia', details: sendData }, { status: 502 })
+      }
+
+      waMessageId = sendData.messages?.[0]?.id ?? null
+      mediaRef = mediaId
     }
-
-    if (!sendOk) {
-      console.error(`[send-media] Meta send error conversa=${conversation_id}:`, resumoErro(sendData))
-      return NextResponse.json({ error: 'Falha ao enviar mídia', details: sendData }, { status: 502 })
-    }
-
-    const waMessageId = sendData.messages?.[0]?.id ?? null
 
     // 4. Salva no banco (URL permanente do Supabase quando disponível)
-    await admin.from('wa_messages').insert({
+    // upsert: no QR Code, a Evolution pode devolver a própria mensagem pelo webhook antes daqui
+    await admin.from('wa_messages').upsert({
       conversation_id,
       unit_id:         conv.unit_id,
       wa_message_id:   waMessageId,
       direction:       'outbound',
       type:            msgType,
       content:         caption || file.name,
-      media_url:       permanentUrl || mediaId,
+      media_url:       permanentUrl || mediaRef,
       media_mime_type: mime,
       status:          'sent',
       sent_by:         user.id,
-    })
+    }, { onConflict: 'wa_message_id' })
 
     await admin.from('wa_conversations').update({
       last_message_at:        new Date().toISOString(),

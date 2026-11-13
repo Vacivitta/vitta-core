@@ -2,14 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ClientesClient, { type LeadDuplicado } from './ClientesClient'
 import type { Profile } from '@/types/database'
+import { buscarPerfil } from '@/lib/supabase/perfil'
 
 export default async function ClientesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+  const { data: profileData } = await buscarPerfil(supabase, user.id, '*')
 
   const unitId = (profileData as Profile)?.unit_id
 
@@ -24,6 +24,7 @@ export default async function ClientesPage() {
       .from('leads')
       .select('*')
       .eq('is_converted', true)
+      .neq('status', 'perdido')
       .eq('arquivado', false)
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false }),
@@ -32,6 +33,7 @@ export default async function ClientesPage() {
     supabase
       .from('funnels')
       .select('id, stages:funnel_stages(id)')
+      .eq('objeto', 'negocio')
       .eq('ativo', true)
       .eq('unit_id', unitId)
       .order('ordem')
@@ -57,7 +59,7 @@ export default async function ClientesPage() {
 
   return (
     <ClientesClient
-      initialClients={leads ?? []}
+      initialClients={umPorContato(leads ?? [])}
       initialError={leadsError?.message ?? null}
       profiles={allProfiles}
       units={units ?? []}
@@ -68,29 +70,39 @@ export default async function ClientesPage() {
   )
 }
 
+/**
+ * Um contato pode ter vários negócios ganhos (150): a lista mostra o cliente uma vez,
+ * pelo negócio mais recente (a consulta já vem do mais novo para o mais antigo).
+ */
+function umPorContato<L extends { contato_id: string }>(leads: L[]): L[] {
+  const vistos = new Set<string>()
+  return leads.filter(l => !vistos.has(l.contato_id) && vistos.add(l.contato_id))
+}
+
 async function buscarTelefonesDuplicados(
   supabase: Awaited<ReturnType<typeof createClient>>,
   unitId: string,
 ): Promise<LeadDuplicado[][]> {
   const pagina = 1000
-  const contagem = new Map<string, number>()
+  // Negócios do mesmo contato não são duplicados (150): conta contatos por telefone
+  const contagem = new Map<string, Set<string>>()
   for (let inicio = 0; ; inicio += pagina) {
     const { data } = await supabase
       .from('leads')
-      .select('id, telefone_norm')
+      .select('id, telefone_norm, contato_id')
       .eq('unit_id', unitId)
       .not('telefone_norm', 'is', null)
       .order('id')
       .range(inicio, inicio + pagina - 1)
-    for (const l of data ?? []) contagem.set(l.telefone_norm, (contagem.get(l.telefone_norm) ?? 0) + 1)
+    for (const l of data ?? []) contagem.set(l.telefone_norm, (contagem.get(l.telefone_norm) ?? new Set<string>()).add(l.contato_id))
     if (!data || data.length < pagina) break
   }
-  const repetidos = [...contagem].filter(([, n]) => n > 1).map(([norm]) => norm)
+  const repetidos = [...contagem].filter(([, contatos]) => contatos.size > 1).map(([norm]) => norm)
   if (repetidos.length === 0) return []
 
   const { data: leads } = await supabase
     .from('leads')
-    .select('id, nome, sobrenome, telefone, telefone_norm, unit_id, created_at, arquivado, is_converted')
+    .select('id, nome, sobrenome, telefone, telefone_norm, unit_id, created_at, status, is_converted')
     .eq('unit_id', unitId)
     .in('telefone_norm', repetidos)
     .order('created_at')

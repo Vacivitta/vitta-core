@@ -1,3 +1,5 @@
+import type { TipoTag } from '@/types/database'
+
 export interface WaMessage {
   id: string
   wa_message_id?: string | null
@@ -47,4 +49,9 @@ export interface ConvTag {
   id: string
   name: string
   color: string
+}
+
+/** Tag do catálogo da unidade com o tipo (migração 133): de cliente ou de conversa. */
+export interface TagCatalogo extends ConvTag {
+  tipo: TipoTag
 }
