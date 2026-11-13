@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { isPerfilGestor } from '@/lib/auth/access'
 import { urlExportacao } from '@/lib/exportacao'
 import { agruparPorTipo } from '@/lib/tags'
+import { ganhoForaDoQuadro } from '@/lib/negocios'
 
 interface Props {
   initialLeads: LeadKanban[]
@@ -346,6 +347,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
       if (l.funnel_id !== selectedFunnelId) return false
+      if (ganhoForaDoQuadro(l, agoraServidor)) return false
       if (filters.search) {
         const q = filters.search.toLowerCase()
         const fullName = `${l.nome} ${l.sobrenome ?? ''}`.toLowerCase()
@@ -367,7 +369,7 @@ export default function FunilClient({ initialLeads, funnels, profiles, currentUs
       if (!passaFiltroCampos(l.campos, filters.campos, camposDoFiltro)) return false
       return true
     })
-  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds, camposDoFiltro])
+  }, [leads, selectedFunnelId, filters, contactNamesByLead, tagsByLead, msgMatchLeadIds, camposDoFiltro, agoraServidor])
 
   const activeFiltersCount = (filters.search ? 1 : 0) + (filters.cidade ? 1 : 0) + filters.responsavel_ids.length + filters.stage_ids.length + filters.tag_ids.length
     + totalFiltrosCampos(filters.campos, camposDoFiltro)

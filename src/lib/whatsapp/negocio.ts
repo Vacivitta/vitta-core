@@ -48,7 +48,7 @@ export async function negocioDaMensagem(
   origem: string,
 ): Promise<string | null> {
   const { data } = await supabase
-    .from('leads').select('id, status, arquivado, stage_id, created_at')
+    .from('leads').select('id, status, arquivado, stage_id, created_at, ganho_em')
     .eq('contato_id', contato.id)
   const acao = acaoDaMensagem((data ?? []) as NegocioResumo[])
 

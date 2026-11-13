@@ -15,7 +15,7 @@ import { moverLeadDeEtapa } from '@/lib/automacoes/mover-etapa'
 const META_API_URL = 'https://graph.facebook.com/v20.0'
 
 const PULOS_DE_ROTINA_POR_MENSAGEM: ReadonlySet<MotivoPulo> = new Set<MotivoPulo>([
-  'sem_lead', 'ja_na_etapa', 'etapa_nao_movivel',
+  'sem_lead', 'ja_na_etapa', 'etapa_nao_movivel', 'negocio_ganho',
 ])
 
 interface ConversaAlvo { lead_id: string | null; wa_phone: string | null; conexao_id: string | null }
@@ -209,13 +209,17 @@ async function handleMoveStage(
 
   const { data: lead, error } = await supabase
     .from('leads')
-    .select('id, stage_id')
+    .select('id, stage_id, status')
     .eq('id', leadId)
-    .maybeSingle<{ id: string; stage_id: string | null }>()
+    .maybeSingle<{ id: string; stage_id: string | null; status: string }>()
 
   if (error) return falha('banco', error)
   if (!lead) return { kind: 'pulado', motivo: 'sem_lead' }
   if (lead.stage_id === stageId) return { kind: 'pulado', motivo: 'ja_na_etapa' }
+  // Negócio ganho recebe as mensagens de atendimento (agendar as doses, ver
+  // acaoDaMensagem): nem elas nem resolver a conversa o
+  // devolvem às etapas de venda (sair de uma etapa de ganho o reabriria)
+  if (lead.status === 'ganho') return { kind: 'pulado', motivo: 'negocio_ganho' }
 
   // Resolver a conversa é uma ação explícita do atendente: move de qualquer etapa.
   // Já as mensagens só movem a partir das etapas de atendimento.
