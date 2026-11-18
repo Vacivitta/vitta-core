@@ -1,7 +1,7 @@
 'use client'
 
 import { useDroppable } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from '@dnd-kit/sortable'
 import type { LeadKanban, FunnelStage } from '@/types/database'
 import LeadCard from './LeadCard'
 
@@ -19,12 +19,19 @@ interface Props {
   onMarkUnread?: (leadId: string) => void
   /** Relógio compartilhado do quadro (ver useNow) */
   now: number
+  /** Card arrastado de outra coluna está sobre esta */
+  destacada?: boolean
+  /** Ordem manual: os cards abrem espaço durante o arraste */
+  reordenavel?: boolean
 }
+
+/** Nas ordenações automáticas a posição vem do critério: os cards não se mexem durante o arraste. */
+const semReordenar: SortingStrategy = () => null
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 })
 
-export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, alertaPorResposta = false, tagsByLead = {}, onMarkUnread, now }: Props) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id })
+export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unreadByLead = {}, lastMsgByLead = {}, lastDirByLead = {}, alertaPorResposta = false, tagsByLead = {}, onMarkUnread, now, destacada = false, reordenavel = false }: Props) {
+  const { setNodeRef } = useDroppable({ id: stage.id })
 
   const totalValue  = leads.reduce((sum, l) => sum + (l.valor_negociado ?? l.valor_proposta ?? (Number(l.valor_orcamentos) || 0)), 0)
   const stageUnread = leads.reduce((sum, l) => sum + (unreadByLead[l.id] ?? 0), 0)
@@ -92,11 +99,13 @@ export default function KanbanColumn({ stage, leads, onLeadClick, onAddLead, unr
         style={{
           padding: 2,
           transition: 'background 0.15s',
-          borderRadius: isOver ? 10 : 0,
-          background: isOver ? 'rgba(62,152,73,0.06)' : 'transparent',
+          borderRadius: destacada ? 10 : 0,
+          background: destacada ? 'rgba(62,152,73,0.10)' : 'transparent',
+          outline: destacada ? '2px dashed rgba(62,152,73,0.45)' : 'none',
+          outlineOffset: -2,
         }}
       >
-        <SortableContext items={sortedLeads.map(l => l.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={sortedLeads.map(l => l.id)} strategy={reordenavel ? verticalListSortingStrategy : semReordenar}>
           {sortedLeads.map(lead => (
             <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} unread={unreadByLead[lead.id] ?? 0} tags={tagsByLead[lead.id]} onMarkUnread={onMarkUnread} lastMsgAt={lastMsgByLead[lead.id]} lastDir={lastDirByLead[lead.id]} alertaPorResposta={alertaPorResposta} now={now} />
           ))}

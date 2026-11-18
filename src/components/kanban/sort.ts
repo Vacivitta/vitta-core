@@ -81,7 +81,8 @@ export function sortKanbanLeads(leads: LeadKanban[], mode: KanbanSortMode, ctx: 
       case 'atividade': {
         const ua = (unreadByLead[a.id] ?? 0) > 0, ub = (unreadByLead[b.id] ?? 0) > 0
         if (ua !== ub) return ua ? -1 : 1
-        return byNumber(ts(lastMsgByLead[a.id]), ts(lastMsgByLead[b.id]), 'desc')
+        // Sem conversa (ex.: recém-transferido de unidade): vale a entrada na etapa
+        return byNumber(ts(lastMsgByLead[a.id] ?? a.stage_changed_at), ts(lastMsgByLead[b.id] ?? b.stage_changed_at), 'desc')
       }
       case 'mais_tempo_etapa':  return byNumber(ts(a.stage_changed_at), ts(b.stage_changed_at), 'asc')
       case 'menos_tempo_etapa': return byNumber(ts(a.stage_changed_at), ts(b.stage_changed_at), 'desc')

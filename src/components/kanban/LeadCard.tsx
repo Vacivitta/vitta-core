@@ -114,7 +114,8 @@ export default function LeadCard({ lead, onClick, unread = 0, tags, onMarkUnread
     cursor: 'pointer',
     userSelect: 'none',
     opacity: isDragging ? 0.5 : 1,
-    transition: 'box-shadow 0.15s, border-color 0.15s, background 0.15s',
+    // Mantém a transição do dnd-kit (transform); sem ela os cards pulavam no arraste
+    transition: [transition, 'box-shadow 0.15s, border-color 0.15s, background 0.15s'].filter(Boolean).join(', '),
   }
 
   return (

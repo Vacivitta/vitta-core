@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 import { useProfile } from '@/context/ProfileContext'
-import { enviarOrcamentoWhatsapp } from '@/lib/orcamento/enviar-whatsapp'
+import EnviarOrcamentoDialog from './EnviarOrcamentoDialog'
 import QuoteModal, { type PatientOption, type QuoteRow } from './QuoteModal'
 import type { Product, QuoteTemplate, UnitPaymentFees } from '@/types/database'
 
@@ -34,9 +34,8 @@ export default function NovoOrcamentoRapido({ leadId, onClose, onSaved }: Props)
   const [dados,     setDados]     = useState<Dados | null>(null)
   const [erro,      setErro]      = useState('')
   const [salvo,     setSalvo]     = useState<QuoteRow | null>(null)
-  const [enviando,  setEnviando]  = useState(false)
-  const [enviado,   setEnviado]   = useState(false)
-  const [erroEnvio, setErroEnvio] = useState('')
+  const [envioAberto, setEnvioAberto] = useState(false)
+  const [enviado,     setEnviado]     = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -61,21 +60,18 @@ export default function NovoOrcamentoRapido({ leadId, onClose, onSaved }: Props)
     return () => { cancelado = true }
   }, [leadId])
 
-  async function enviar() {
-    if (!salvo) return
-    setEnviando(true); setErroEnvio('')
-    try {
-      await enviarOrcamentoWhatsapp(salvo.id)
-      setEnviado(true)
-    } catch (e) {
-      setErroEnvio(e instanceof Error ? e.message : 'Erro ao enviar o orçamento.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
   if (erro) {
     return emCamada(<Aviso onClose={onClose}><p className="text-sm text-red-600">{erro}</p></Aviso>)
+  }
+
+  if (salvo && envioAberto && dados) {
+    return (
+      <EnviarOrcamentoDialog
+        quote={{ id: salvo.id, numero: salvo.numero, token_publico: salvo.token_publico, nome: salvo.paciente_nome || dados.lead.nome }}
+        onClose={() => setEnvioAberto(false)}
+        onEnviado={() => { setEnvioAberto(false); setEnviado(true) }}
+      />
+    )
   }
 
   if (salvo) {
@@ -92,15 +88,13 @@ export default function NovoOrcamentoRapido({ leadId, onClose, onSaved }: Props)
           <p className="text-sm text-gray-600">PDF enviado no WhatsApp do cliente.</p>
         ) : (
           <button
-            onClick={enviar}
-            disabled={enviando}
-            className="w-full py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-60 transition-colors"
+            onClick={() => setEnvioAberto(true)}
+            className="w-full py-2.5 text-sm font-semibold text-white rounded-xl transition-colors"
             style={{ background: '#25D366' }}
           >
-            {enviando ? 'Gerando e enviando o PDF...' : 'Enviar PDF no WhatsApp'}
+            Enviar PDF no WhatsApp
           </button>
         )}
-        {erroEnvio && <p className="text-xs text-red-600">{erroEnvio}</p>}
         <button onClick={onClose} className="w-full py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
           {enviado ? 'Concluir' : 'Fechar sem enviar'}
         </button>

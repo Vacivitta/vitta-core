@@ -6,7 +6,7 @@ const JANELA_MS = 24 * 60 * 60 * 1000
 
 /**
  * Envia o PDF do orçamento como arquivo na conversa de WhatsApp do cliente,
- * com uma mensagem e o link de aprovação. Roda no navegador (o PDF é gerado
+ * com o texto escolhido pelo usuário (ou sem texto). Roda no navegador (o PDF é gerado
  * pelo @react-pdf no cliente) e usa a rota /api/whatsapp/send-media, a mesma do
  * Atendimento — a mensagem aparece na conversa e as automações rodam.
  *
@@ -17,10 +17,11 @@ const JANELA_MS = 24 * 60 * 60 * 1000
  * - rascunho passa a "enviado" (mesmo efeito do botão de copiar link).
  *
  * @param quoteId - ID do orçamento
+ * @param legenda - Texto que acompanha o PDF; vazio envia só o arquivo
  * @returns Novo status do orçamento
  * @throws Error com mensagem pronta para exibir ao usuário
  */
-export async function enviarOrcamentoWhatsapp(quoteId: string): Promise<QuoteStatus> {
+export async function enviarOrcamentoWhatsapp(quoteId: string, legenda: string): Promise<QuoteStatus> {
   const supabase = createClient()
 
   const { data, error } = await supabase
@@ -65,8 +66,6 @@ export async function enviarOrcamentoWhatsapp(quoteId: string): Promise<QuoteSta
   const { gerarPdfBlob } = await import('@/components/orcamento/PdfButton')
   const blob   = await gerarPdfBlob(quote)
   const numero = String(quote.numero ?? 0).padStart(4, '0')
-  const nome   = quote.paciente_nome || quote.lead?.nome || ''
-  const link   = `${window.location.origin}/orcamento/ver/${quote.token_publico}`
 
   const form = new FormData()
   // Nome exibido no WhatsApp (ex.: "Orçamento 0123 - Maria Silva.pdf")
@@ -74,9 +73,7 @@ export async function enviarOrcamentoWhatsapp(quoteId: string): Promise<QuoteSta
   const nomeArquivo  = `Orçamento ${numero}${nomeCompleto ? ` - ${nomeCompleto}` : ''}`.replace(/[\\/:*?"<>|]/g, '').trim()
   form.append('file', new File([blob], `${nomeArquivo}.pdf`, { type: 'application/pdf' }))
   form.append('conversation_id', conv.id)
-  form.append('caption',
-    `Olá${nome ? `, ${nome}` : ''}! Segue o seu orçamento nº ${numero}.\n` +
-    `Para aprovar ou tirar dúvidas, é só responder aqui ou acessar: ${link}`)
+  if (legenda.trim()) form.append('caption', legenda.trim())
 
   const res = await fetch('/api/whatsapp/send-media', { method: 'POST', body: form })
   if (!res.ok) {
@@ -93,4 +90,17 @@ export async function enviarOrcamentoWhatsapp(quoteId: string): Promise<QuoteSta
     if (r.ok) return 'enviado'
   }
   return quote.status
+}
+
+/**
+ * Texto sugerido para acompanhar o PDF do orçamento (o usuário pode editar ou apagar).
+ *
+ * @param numero - Número do orçamento
+ * @param nome - Nome do paciente ou cliente (vazio omite o nome na saudação)
+ * @param linkAprovacao - Link público do orçamento
+ */
+export function legendaPadraoOrcamento(numero: number | null, nome: string, linkAprovacao: string): string {
+  const n = String(numero ?? 0).padStart(4, '0')
+  return `Olá${nome ? `, ${nome}` : ''}! Segue o seu orçamento nº ${n}.\n` +
+    `Para aprovar ou tirar dúvidas, é só responder aqui ou acessar: ${linkAprovacao}`
 }
