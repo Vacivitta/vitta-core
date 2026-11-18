@@ -49,7 +49,7 @@ export async function buscarLeadPorTelefone(
 ): Promise<{ id: string; status: StatusLead; stage_id: string | null; arquivado: boolean } | null> {
   const { data } = await supabase
     .from('leads')
-    .select('id, status, stage_id, arquivado, created_at')
+    .select('id, status, stage_id, arquivado, created_at, ganho_em')
     .eq('unit_id', unitId)
     .eq('telefone_norm', norm)
   const escolhido = escolherNegocio((data ?? []) as NegocioResumo[])
