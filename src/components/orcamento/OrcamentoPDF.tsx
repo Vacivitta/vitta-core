@@ -296,6 +296,9 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
               <View style={{ width: 50, alignItems: 'center' }}>
                 <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Qnt.</Text>
               </View>
+              <View style={{ width: 72, marginRight: 8, alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Valor Unit.</Text>
+              </View>
               {showDiscount && (
                 <View style={{ width: 50, alignItems: 'center' }}>
                   <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' }}>Desc.</Text>
@@ -328,6 +331,9 @@ export default function OrcamentoPDF({ quote }: { quote: QuoteWithItems }) {
                     <Text style={{ fontSize: 11, color: txtColor }}>
                       {String(item.quantidade).padStart(2, '0')}
                     </Text>
+                  </View>
+                  <View style={{ width: 72, marginRight: 8, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 11, color: txtColor }}>{fmtBRL(item.valor_snapshot)}</Text>
                   </View>
                   {showDiscount && (
                     <View style={{ width: 50, alignItems: 'center' }}>
